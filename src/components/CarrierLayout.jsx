@@ -1330,15 +1330,50 @@ const STATUS_COLORS = {
 
 // ── Rate Con parser — calls Claude API via backend ────────────────────────────
 async function parseRateConWithAI(file) {
-  const formData = new FormData()
-  formData.append('file', file)
-  const res = await fetch('/api/parse-ratecon', { method: 'POST', body: formData })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Server error')
+  // Compress image before sending
+  const { b64, mt } = await new Promise((resolve) => {
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: 'application/pdf' })
+      reader.readAsDataURL(file)
+      return
+    }
+    const img = new Image()
+    img.onload = () => {
+      const maxW = 1200; let w = img.width, h = img.height
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      c.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mt: 'image/jpeg' })
+    }
+    img.onerror = () => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: file.type || 'image/jpeg' })
+      reader.readAsDataURL(file)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+
+  const res = await fetch('/api/parse-ratecon', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file: b64, mediaType: mt })
+  })
+  const text = await res.text()
+  let data; try { data = JSON.parse(text) } catch { throw new Error('Invalid response from server') }
+  if (data.error) throw new Error(data.error)
+  return {
+    loadId: '', broker: '', driver: '', refNum: '',
+    origin: data.origin || '',
+    dest: data.destination || '',
+    rate: data.rate ? String(data.rate) : '',
+    miles: '',
+    weight: data.weight ? String(data.weight) : '',
+    commodity: data.commodity || '',
+    pickup: data.pickup_date || '',
+    delivery: data.delivery_date || '',
+    gross: data.rate ? parseFloat(data.rate) : 0,
   }
-  const { data } = await res.json()
-  return { ...data, gross: data.gross ? parseFloat(data.gross) : 0 }
 }
 
 const DOC_TYPES = ['Rate Con', 'BOL', 'POD', 'Lumper Receipt', 'Scale Ticket', 'Other']

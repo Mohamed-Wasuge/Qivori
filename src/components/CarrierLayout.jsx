@@ -1486,9 +1486,10 @@ function BookedLoads() {
   }
 
   const addLoad = () => {
-    if (!form.loadId || !form.broker || !form.origin || !form.dest) { showToast('', 'Missing Fields', 'Load ID, broker, origin and destination required'); return }
+    if (!form.origin || !form.dest) { showToast('', 'Missing Fields', 'Origin and destination required'); return }
     const gross = parseFloat(form.rate) * parseFloat(form.miles) || form.gross || 0
-    ctxAddLoad({ ...form, gross, miles: parseFloat(form.miles) || 0, rate: parseFloat(form.rate) || 0, rateCon: true })
+    const autoId = form.loadId || ('RC-' + Date.now().toString(36).toUpperCase())
+    ctxAddLoad({ ...form, loadId: autoId, broker: form.broker || 'Direct', gross, miles: parseFloat(form.miles) || 0, rate: parseFloat(form.rate) || 0, rateCon: true })
     setForm({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
     setShowForm(false)
     showToast('', 'Load Added', form.loadId + ' · ' + form.origin + ' → ' + form.dest)

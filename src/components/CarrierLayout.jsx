@@ -2345,7 +2345,7 @@ function CarrierLayoutInner() {
         </div>
 
         {/* Controls */}
-        <button onClick={logout} style={{ ...inp, cursor:'pointer', padding:'5px 12px' }}>← Exit</button>
+        <button onClick={logout} style={{ ...inp, cursor:'pointer', padding:'5px 12px', color:'var(--danger)' }}>Log Out</button>
         <div style={{ fontSize:11, fontWeight:700, color:'var(--accent2)', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'5px 12px' }}>Carrier ▾</div>
         <button className="btn btn-primary" style={{ fontSize:12, fontWeight:700, padding:'5px 14px' }}
           onClick={() => showToast('','Post Truck','Opening truck availability posting...')}>
@@ -2462,9 +2462,9 @@ function CarrierLayoutInner() {
             })}
           </div>
 
-          {/* Bottom: AI insight strip */}
+          {/* Bottom: AI insight + Log Out */}
           <div style={{ padding:'12px 14px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-            <div style={{ background:'rgba(240,165,0,0.06)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'9px 12px', cursor:'pointer' }}
+            <div style={{ background:'rgba(240,165,0,0.06)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'9px 12px', cursor:'pointer', marginBottom:8 }}
               onClick={() => navTo('load-board')}>
               <div style={{ fontSize:9, fontWeight:800, color:'var(--accent)', letterSpacing:1.5, marginBottom:4, display:'flex', alignItems:'center', gap:4 }}><Ic icon={Zap} size={10} color="var(--accent)" /> AI INSIGHT</div>
               <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.4 }}>
@@ -2472,6 +2472,11 @@ function CarrierLayoutInner() {
               </div>
               <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>Tap to open Load Board →</div>
             </div>
+            <button onClick={logout} style={{ width:'100%', padding:'8px', background:'transparent', border:'1px solid var(--border)', borderRadius:8, color:'var(--muted)', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor='var(--danger)'; e.currentTarget.style.color='var(--danger)' }}
+              onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--muted)' }}>
+              Log Out
+            </button>
           </div>
         </div>
 

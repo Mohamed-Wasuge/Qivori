@@ -1382,15 +1382,33 @@ async function parseRateConWithAI(file) {
   let data; try { data = JSON.parse(text) } catch { throw new Error('Invalid response: ' + text.slice(0, 100)) }
   if (data.error) throw new Error(data.error)
   return {
-    loadId: '', broker: '', driver: '', refNum: '',
+    loadId: data.load_number || '',
+    broker: data.broker || '',
+    brokerPhone: data.broker_phone || '',
+    brokerEmail: data.broker_email || '',
+    driver: '',
+    refNum: data.reference_number || data.po_number || '',
     origin: data.origin || '',
+    originAddress: data.origin_address || '',
+    originZip: data.origin_zip || '',
+    shipperName: data.shipper_name || '',
+    shipperPhone: data.shipper_phone || '',
     dest: data.destination || '',
+    destAddress: data.destination_address || '',
+    destZip: data.destination_zip || '',
+    consigneeName: data.consignee_name || '',
+    consigneePhone: data.consignee_phone || '',
     rate: data.rate ? String(data.rate) : '',
-    miles: '',
+    miles: data.miles ? String(data.miles) : '',
     weight: data.weight ? String(data.weight) : '',
     commodity: data.commodity || '',
     pickup: data.pickup_date || '',
+    pickupTime: data.pickup_time || '',
     delivery: data.delivery_date || '',
+    deliveryTime: data.delivery_time || '',
+    equipment: data.equipment || '',
+    notes: data.notes || '',
+    specialInstructions: data.special_instructions || '',
     gross: data.rate ? parseFloat(data.rate) : 0,
   }
 }
@@ -1487,9 +1505,11 @@ function BookedLoads() {
 
   const addLoad = () => {
     if (!form.origin || !form.dest) { showToast('', 'Missing Fields', 'Origin and destination required'); return }
-    const gross = parseFloat(form.rate) * parseFloat(form.miles) || form.gross || 0
+    const gross = parseFloat(form.rate) || form.gross || 0
+    const miles = parseFloat(form.miles) || 0
+    const rpm = miles > 0 ? (gross / miles).toFixed(2) : 0
     const autoId = form.loadId || ('RC-' + Date.now().toString(36).toUpperCase())
-    ctxAddLoad({ ...form, loadId: autoId, broker: form.broker || 'Direct', gross, miles: parseFloat(form.miles) || 0, rate: parseFloat(form.rate) || 0, rateCon: true })
+    ctxAddLoad({ ...form, loadId: autoId, broker: form.broker || 'Direct', gross, miles, rate: parseFloat(rpm), rateCon: true })
     setForm({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
     setShowForm(false)
     showToast('', 'Load Added', form.loadId + ' · ' + form.origin + ' → ' + form.dest)
@@ -1548,43 +1568,118 @@ function BookedLoads() {
               </button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 12 }}>
+          {/* Broker / Load Info */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 8 }}>LOAD INFO</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
             {[
-              { key: 'loadId',    label: 'Load / Order ID',     ph: 'FM-4440' },
-              { key: 'refNum',    label: 'Rate Con Ref #',       ph: 'Broker ref' },
-              { key: 'broker',    label: 'Broker / Shipper',     ph: 'Echo Global' },
-              { key: 'origin',    label: 'Origin',               ph: 'City, ST' },
-              { key: 'dest',      label: 'Destination',          ph: 'City, ST' },
-              { key: 'commodity', label: 'Commodity',            ph: 'Auto Parts' },
-              { key: 'miles',     label: 'Miles',                ph: '674' },
-              { key: 'rate',      label: 'Rate ($/mile)',         ph: '2.94' },
-              { key: 'weight',    label: 'Weight (lbs)',          ph: '42000' },
-              { key: 'pickup',    label: 'Pickup Date & Time',   ph: 'Mar 10 · 8:00 AM' },
-              { key: 'delivery',  label: 'Delivery Date & Time', ph: 'Mar 12 · 6:00 PM' },
+              { key: 'loadId',    label: 'Load / Order #',  ph: 'Auto-generated if empty' },
+              { key: 'refNum',    label: 'Reference / PO #', ph: 'Broker ref' },
+              { key: 'broker',    label: 'Broker',           ph: 'TQL, Echo, CH Robinson...' },
+              { key: 'brokerPhone', label: 'Broker Phone',   ph: '(555) 123-4567' },
+              { key: 'brokerEmail', label: 'Broker Email',   ph: 'dispatch@broker.com' },
+              { key: 'equipment', label: 'Equipment',        ph: 'Dry Van' },
             ].map(f => (
               <div key={f.key}>
-                <label style={{ fontSize: 11, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                  {form[f.key] ? '✓ ' : ''}{f.label}
+                <label style={{ fontSize: 10, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                  {form[f.key] ? '+ ' : ''}{f.label}
                 </label>
-                <input value={form[f.key]} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
+                <input value={form[f.key] || ''} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
                   placeholder={f.ph}
-                  style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+                  style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
               </div>
             ))}
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Assign Driver</label>
-              <select value={form.driver} onChange={e => setForm(fm => ({ ...fm, driver: e.target.value }))}
-                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: form.driver ? 'var(--text)' : 'var(--muted)', fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
-                <option value="">— Assign later —</option>
-                {DRIVERS.map(d => <option key={d}>{d}</option>)}
-              </select>
+          </div>
+
+          {/* Shipper / Origin */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--success)', letterSpacing: 1.5, marginBottom: 8 }}>PICKUP / SHIPPER</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
+            {[
+              { key: 'shipperName',   label: 'Shipper Name',    ph: 'Company name' },
+              { key: 'shipperPhone',  label: 'Shipper Phone',   ph: '(555) 123-4567' },
+              { key: 'origin',        label: 'Origin City, ST', ph: 'Atlanta, GA' },
+              { key: 'originAddress', label: 'Street Address',  ph: '123 Warehouse Dr' },
+              { key: 'originZip',     label: 'ZIP',             ph: '30301' },
+              { key: 'pickup',        label: 'Pickup Date',     ph: '2024-03-10' },
+              { key: 'pickupTime',    label: 'Pickup Time',     ph: '08:00 AM' },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={{ fontSize: 10, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                  {form[f.key] ? '+ ' : ''}{f.label}
+                </label>
+                <input value={form[f.key] || ''} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
+                  placeholder={f.ph}
+                  style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Consignee / Destination */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--danger)', letterSpacing: 1.5, marginBottom: 8 }}>DELIVERY / CONSIGNEE</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
+            {[
+              { key: 'consigneeName',  label: 'Consignee Name',    ph: 'Company name' },
+              { key: 'consigneePhone', label: 'Consignee Phone',   ph: '(555) 123-4567' },
+              { key: 'dest',           label: 'Dest City, ST',     ph: 'Dallas, TX' },
+              { key: 'destAddress',    label: 'Street Address',    ph: '456 Distribution Blvd' },
+              { key: 'destZip',        label: 'ZIP',               ph: '75201' },
+              { key: 'delivery',       label: 'Delivery Date',     ph: '2024-03-12' },
+              { key: 'deliveryTime',   label: 'Delivery Time',     ph: '06:00 PM' },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={{ fontSize: 10, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                  {form[f.key] ? '+ ' : ''}{f.label}
+                </label>
+                <input value={form[f.key] || ''} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
+                  placeholder={f.ph}
+                  style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Rate / Weight / Commodity */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 8 }}>RATE & CARGO</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 12 }}>
+            {[
+              { key: 'rate',      label: 'Total Rate ($)', ph: '3500' },
+              { key: 'miles',     label: 'Miles',          ph: '674' },
+              { key: 'weight',    label: 'Weight (lbs)',   ph: '42000' },
+              { key: 'commodity', label: 'Commodity',      ph: 'Auto Parts' },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={{ fontSize: 10, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                  {form[f.key] ? '+ ' : ''}{f.label}
+                </label>
+                <input value={form[f.key] || ''} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
+                  placeholder={f.ph}
+                  style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            {/* Notes */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={{ fontSize: 10, color: form.notes || form.specialInstructions ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                {form.notes || form.specialInstructions ? '+ ' : ''}Notes / Special Instructions
+              </label>
+              <input value={form.notes || form.specialInstructions || ''} onChange={e => setForm(fm => ({ ...fm, notes: e.target.value }))}
+                placeholder="Temperature requirements, appointment notes, etc."
+                style={{ width: '100%', background: (form.notes || form.specialInstructions) ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${(form.notes || form.specialInstructions) ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
             </div>
           </div>
-          {(form.rate && form.miles) && (
-            <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, fontSize: 12, display: 'flex', gap: 24 }}>
-              <span>Gross: <b style={{ color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>${(parseFloat(form.rate||0) * parseFloat(form.miles||0)).toLocaleString(undefined,{maximumFractionDigits:0})}</b></span>
-              <span>Est. Fuel: <b style={{ color: 'var(--danger)' }}>${Math.round(parseFloat(form.miles||0)/6.8*3.89).toLocaleString()}</b></span>
-              <span>Est. Net: <b style={{ color: 'var(--success)' }}>${Math.round(parseFloat(form.rate||0)*parseFloat(form.miles||0) - parseFloat(form.miles||0)/6.8*3.89 - parseFloat(form.rate||0)*parseFloat(form.miles||0)*0.28).toLocaleString()}</b></span>
+
+          {/* Driver */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>Assign Driver</label>
+            <select value={form.driver} onChange={e => setForm(fm => ({ ...fm, driver: e.target.value }))}
+              style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: form.driver ? 'var(--text)' : 'var(--muted)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
+              <option value="">— Assign later —</option>
+              {DRIVERS.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+          {form.rate && (
+            <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, fontSize: 12, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              <span>Gross: <b style={{ color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>${parseFloat(form.rate||0).toLocaleString(undefined,{maximumFractionDigits:0})}</b></span>
+              {form.miles && <span>RPM: <b style={{ color: 'var(--accent2)' }}>${(parseFloat(form.rate||0) / parseFloat(form.miles||1)).toFixed(2)}</b>/mi</span>}
+              {form.miles && <span>Est. Fuel: <b style={{ color: 'var(--danger)' }}>${Math.round(parseFloat(form.miles||0)/6.8*3.89).toLocaleString()}</b></span>}
+              {form.miles && <span>Est. Net: <b style={{ color: 'var(--success)' }}>${Math.round(parseFloat(form.rate||0) - parseFloat(form.miles||0)/6.8*3.89 - parseFloat(form.rate||0)*0.28).toLocaleString()}</b></span>}
             </div>
           )}
           <button className="btn btn-primary" style={{ width: '100%', padding: '12px 0', fontSize: 14 }} onClick={addLoad}>

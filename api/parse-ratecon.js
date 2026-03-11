@@ -25,26 +25,46 @@ export default async function handler(req) {
 
     const isPdf = (mediaType || '').includes('pdf')
 
-    const promptText = `You are a freight logistics document parser. Extract load details from this rate confirmation / load document.
+    const promptText = `You are a freight logistics document parser. Extract ALL load details from this rate confirmation / load document.
 
 Return ONLY a valid JSON object with these fields. Use null for any field you cannot find:
 {
+  "load_number": "",
+  "broker": "",
+  "broker_phone": "",
+  "broker_email": "",
   "origin": "City, ST",
+  "origin_address": "Full street address",
+  "origin_zip": "",
+  "shipper_name": "",
+  "shipper_phone": "",
   "destination": "City, ST",
+  "destination_address": "Full street address",
+  "destination_zip": "",
+  "consignee_name": "",
+  "consignee_phone": "",
   "rate": 0,
   "weight": 0,
+  "miles": 0,
   "equipment": "Dry Van",
   "pickup_date": "YYYY-MM-DD",
+  "pickup_time": "",
   "delivery_date": "YYYY-MM-DD",
+  "delivery_time": "",
   "commodity": "",
+  "reference_number": "",
+  "po_number": "",
   "notes": "",
-  "load_type": "FTL"
+  "load_type": "FTL",
+  "special_instructions": ""
 }
 
 Rules:
+- Read EVERY detail on the document — names, addresses, phones, reference numbers, PO numbers
 - For origin/destination use "City, ST" format (e.g. "Atlanta, GA")
 - Rate should be a number (no $ sign)
 - Weight should be a number in lbs
+- Miles should be a number
 - Equipment: one of Dry Van, Reefer, Flatbed, Step Deck, Power Only, Conestoga, Hotshot
 - load_type: one of FTL, LTL, Partial
 - Return ONLY the JSON, no explanation, no markdown`

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import {
   Package, TrendingUp, Truck, DollarSign, Clock, CheckCircle, MapPin,
@@ -90,16 +91,28 @@ const payColor = (s) => ({ Paid: 'var(--success)', Pending: 'var(--warning)', Ov
 // ════════════════════════════════════════════════════════════════════════════
 export function BrokerDashboard() {
   const { navigatePage } = useApp()
-  const activity = [
-    { icon: Package, text: 'Load BL-1008 posted — Seattle to Portland, Reefer', time: '2 min ago', color: 'var(--accent)' },
-    { icon: Truck, text: 'R&J Transport booked load BL-1003 — Memphis to NYC', time: '18 min ago', color: 'var(--success)' },
-    { icon: CheckCircle, text: 'Load BL-1005 delivered — Nashville to Charlotte', time: '1 hr ago', color: 'var(--accent2)' },
-    { icon: DollarSign, text: 'Payment received from Blue Line Freight — $1,650', time: '2 hrs ago', color: 'var(--success)' },
-    { icon: Truck, text: 'Western Haul picked up load BL-1004 — Phoenix to LA', time: '3 hrs ago', color: 'var(--accent)' },
-    { icon: CheckCircle, text: 'Load BL-1006 delivered — Denver to Houston', time: '5 hrs ago', color: 'var(--accent2)' },
-  ]
+  const [loads, setLoads] = useState([])
+  const [loadingData, setLoadingData] = useState(true)
 
-  const inTransit = DEMO_LOADS.filter(l => l.status === 'In Transit')
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false })
+      setLoads(data || [])
+      setLoadingData(false)
+    }
+    fetch()
+  }, [])
+
+  const activeLoads = loads.filter(l => ['open', 'in_transit', 'booked'].includes(l.status))
+  const deliveredLoads = loads.filter(l => l.status === 'delivered')
+  const totalRevenue = loads.reduce((sum, l) => sum + (l.rate || 0), 0)
+  const recentLoads = loads.slice(0, 6)
+
+  const getState = (loc) => {
+    if (!loc) return ''
+    const parts = loc.split(',')
+    return parts.length > 1 ? parts[parts.length - 1].trim() : loc
+  }
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
@@ -108,10 +121,10 @@ export function BrokerDashboard() {
       {/* ── Top Stats ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {[
-          { label: 'Active Loads', value: '8', color: 'var(--accent)', icon: Package },
-          { label: 'Booked Today', value: '3', color: 'var(--success)', icon: CheckCircle },
-          { label: 'Carriers Matched', value: '12', color: 'var(--accent2)', icon: Truck },
-          { label: 'Revenue MTD', value: '$21.2K', color: 'var(--accent3)', icon: DollarSign },
+          { label: 'Active Loads', value: activeLoads.length, color: 'var(--accent)', icon: Package },
+          { label: 'Total Loads', value: loads.length, color: 'var(--success)', icon: CheckCircle },
+          { label: 'Delivered', value: deliveredLoads.length, color: 'var(--accent2)', icon: Truck },
+          { label: 'Total Revenue', value: '$' + (totalRevenue / 1000).toFixed(1) + 'K', color: 'var(--accent3)', icon: DollarSign },
         ].map(s => (
           <div key={s.label} style={statCard(s.color)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -126,10 +139,10 @@ export function BrokerDashboard() {
       {/* ── Performance Row ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {[
-          { label: 'Avg Time to Book', value: '8 min', icon: Timer, color: 'var(--accent)' },
-          { label: 'Carrier Repeat Rate', value: '72%', icon: Repeat, color: 'var(--success)' },
-          { label: 'Top Lane', value: 'ATL→CHI', icon: Route, color: 'var(--accent2)' },
-          { label: 'On-Time Delivery', value: '96%', icon: CheckCircle, color: 'var(--accent3)' },
+          { label: 'Avg Rate', value: loads.length ? '$' + Math.round(totalRevenue / loads.length).toLocaleString() : '—', icon: Timer, color: 'var(--accent)' },
+          { label: 'Open Loads', value: loads.filter(l => l.status === 'open').length, icon: Package, color: 'var(--warning)' },
+          { label: 'In Transit', value: loads.filter(l => l.status === 'in_transit').length, icon: Route, color: 'var(--success)' },
+          { label: 'Booked', value: loads.filter(l => l.status === 'booked').length, icon: CheckCircle, color: 'var(--accent3)' },
         ].map(s => (
           <div key={s.label} style={{ ...panel, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: s.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -143,48 +156,26 @@ export function BrokerDashboard() {
         ))}
       </div>
 
-      {/* ── Live Tracking Banner ── */}
-      {inTransit.length > 0 && (
-        <div style={panel}>
-          <div style={panelHead}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Navigation} size={14} style={{ color: 'var(--success)' }} /> Live Tracking</span>
-            <span style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 2s infinite' }} /> {inTransit.length} IN TRANSIT</span>
-          </div>
-          {inTransit.map(l => l.tracking && (
-            <div key={l.id} onClick={() => navigatePage('broker-loads')}
-              style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent3)' }}>{l.id}</span>
-                  <span style={{ fontSize: 11 }}>{l.origin.split(',')[0]} <Ic icon={ArrowRight} size={10} style={{ margin: '0 2px', color: 'var(--muted)' }} /> {l.dest.split(',')[0]}</span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>· {l.carrier.driver}</span>
-                </div>
-                {/* Progress bar */}
-                <div style={{ height: 4, borderRadius: 2, background: 'var(--surface2)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: l.tracking.pctComplete + '%', background: 'var(--success)', borderRadius: 2, transition: 'width 0.5s' }} />
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>{l.tracking.location}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>ETA {l.tracking.eta} · {l.tracking.milesLeft} mi left</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        {/* ── Activity Feed ── */}
+        {/* ── Recent Loads ── */}
         <div style={panel}>
           <div style={panelHead}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Clock} size={14} /> Recent Activity</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Clock} size={14} /> Recent Loads</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {activity.map((a, i) => (
-              <div key={i} style={{ padding: '10px 16px', borderBottom: i < activity.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Ic icon={a.icon} size={14} style={{ color: a.color, flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 12, lineHeight: 1.4 }}>{a.text}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{a.time}</div>
+            {loadingData ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Loading...</div>
+            ) : recentLoads.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No loads yet</div>
+            ) : recentLoads.map((l, i) => (
+              <div key={l.id} onClick={() => navigatePage('broker-loads')}
+                style={{ padding: '10px 16px', borderBottom: i < recentLoads.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <Ic icon={Package} size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{l.load_id} — {getState(l.origin)} → {getState(l.destination)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{l.equipment || '—'}{l.weight ? ' · ' + Number(l.weight).toLocaleString() + ' lbs' : ''} · ${Number(l.rate || 0).toLocaleString()}</div>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: l.status === 'open' ? 'rgba(240,165,0,0.12)' : l.status === 'delivered' ? 'rgba(34,197,94,0.12)' : 'var(--surface2)', color: l.status === 'open' ? 'var(--warning)' : l.status === 'delivered' ? 'var(--success)' : 'var(--muted)' }}>{l.status}</span>
               </div>
             ))}
           </div>
@@ -219,19 +210,76 @@ export function BrokerDashboard() {
 // BROKER POST LOAD
 // ════════════════════════════════════════════════════════════════════════════
 export function BrokerPostLoad() {
-  const { showToast, navigatePage } = useApp()
+  const { showToast, navigatePage, user } = useApp()
   const [loadType, setLoadType] = useState('FTL')
   const [stops, setStops] = useState([])
+  const [posting, setPosting] = useState(false)
+  const [rateCon, setRateCon] = useState(null)
+  const fileRef = useRef(null)
+
+  // Form fields
+  const [origin, setOrigin] = useState('')
+  const [destination, setDestination] = useState('')
+  const [pickupDate, setPickupDate] = useState('')
+  const [deliveryDate, setDeliveryDate] = useState('')
+  const [equipment, setEquipment] = useState('Dry Van')
+  const [weight, setWeight] = useState('')
+  const [rate, setRate] = useState('')
+  const [notes, setNotes] = useState('')
 
   const addStop = () => setStops(s => [...s, { city: '', date: '', type: 'Pickup', notes: '' }])
   const removeStop = (i) => setStops(s => s.filter((_, idx) => idx !== i))
   const updateStop = (i, field, val) => setStops(s => s.map((st, idx) => idx === i ? { ...st, [field]: val } : st))
 
-  const submit = () => {
-    const label = loadType === 'FTL' ? 'Full Truckload' : loadType === 'LTL' ? 'LTL Shipment' : 'Partial Load'
-    const stopLabel = stops.length > 0 ? ` · ${stops.length} stop${stops.length > 1 ? 's' : ''}` : ''
-    showToast('', 'Load Posted', `${label}${stopLabel} is live — carriers can now book it`)
-    setTimeout(() => navigatePage('broker-loads'), 1200)
+  const submit = async () => {
+    if (!origin || !destination || !rate) {
+      showToast('', 'Missing Fields', 'Origin, destination, and rate are required')
+      return
+    }
+    setPosting(true)
+
+    const loadId = 'QV-' + Math.floor(1000 + Math.random() * 9000)
+    let rateConUrl = null
+
+    // Upload rate confirmation if provided
+    if (rateCon) {
+      const ext = rateCon.name.split('.').pop()
+      const path = `ratecons/${loadId}-${Date.now()}.${ext}`
+      const { data: upData, error: upErr } = await supabase.storage.from('documents').upload(path, rateCon)
+      if (upErr) {
+        showToast('', 'Upload Error', 'Rate con upload failed — posting without it')
+      } else {
+        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(path)
+        rateConUrl = urlData?.publicUrl || null
+      }
+    }
+
+    const { error } = await supabase.from('loads').insert({
+      load_id: loadId,
+      origin,
+      destination,
+      rate: parseFloat(rate.replace(/[^0-9.]/g, '')),
+      load_type: loadType,
+      equipment,
+      weight: weight || null,
+      status: 'open',
+      posted_at: new Date().toISOString(),
+      pickup_date: pickupDate || null,
+      delivery_date: deliveryDate || null,
+      broker_id: user?.id || null,
+      broker_name: user?.email?.split('@')[0] || 'Broker',
+      notes: notes || null,
+      rate_con_url: rateConUrl,
+    })
+
+    setPosting(false)
+    if (error) {
+      showToast('', 'Error', 'Failed to post load: ' + error.message)
+      return
+    }
+
+    showToast('', 'Load Posted', `${loadId} — ${origin} to ${destination} is live`)
+    setTimeout(() => navigatePage('broker-loads'), 1000)
   }
 
   const LOAD_TYPES = [
@@ -279,38 +327,52 @@ export function BrokerPostLoad() {
           </div>
           <div style={{ padding: 20 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div className="form-group"><label className="form-label">Origin City</label><input className="form-input" placeholder="e.g. Atlanta, GA" /></div>
-              <div className="form-group"><label className="form-label">Final Destination</label><input className="form-input" placeholder="e.g. Chicago, IL" /></div>
-              <div className="form-group"><label className="form-label">Pickup Date</label><input className="form-input" type="date" /></div>
-              <div className="form-group"><label className="form-label">Delivery Date</label><input className="form-input" type="date" /></div>
+              <div className="form-group"><label className="form-label">Origin City *</label><input className="form-input" placeholder="e.g. Atlanta, GA" value={origin} onChange={e => setOrigin(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Final Destination *</label><input className="form-input" placeholder="e.g. Chicago, IL" value={destination} onChange={e => setDestination(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Pickup Date</label><input className="form-input" type="date" value={pickupDate} onChange={e => setPickupDate(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Delivery Date</label><input className="form-input" type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Equipment Type</label>
-                <select className="form-input"><option>Dry Van</option><option>Reefer</option><option>Flatbed</option><option>Step Deck</option><option>Power Only</option><option>Conestoga</option><option>Hotshot</option></select>
+                <select className="form-input" value={equipment} onChange={e => setEquipment(e.target.value)}><option>Dry Van</option><option>Reefer</option><option>Flatbed</option><option>Step Deck</option><option>Power Only</option><option>Conestoga</option><option>Hotshot</option></select>
               </div>
-              <div className="form-group"><label className="form-label">Weight (lbs)</label><input className="form-input" placeholder={loadType === 'LTL' ? 'e.g. 8,500' : loadType === 'Partial' ? 'e.g. 22,000' : 'e.g. 42,000'} /></div>
-              <div className="form-group"><label className="form-label">Rate ($)</label><input className="form-input" placeholder="e.g. 3,200" /></div>
+              <div className="form-group"><label className="form-label">Weight (lbs)</label><input className="form-input" placeholder={loadType === 'LTL' ? 'e.g. 8,500' : 'e.g. 42,000'} value={weight} onChange={e => setWeight(e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Rate ($) *</label><input className="form-input" placeholder="e.g. 3,200" value={rate} onChange={e => setRate(e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Commodity</label><input className="form-input" placeholder="e.g. General Freight" /></div>
-              {loadType === 'LTL' && (
-                <>
-                  <div className="form-group"><label className="form-label">Pieces / Pallets</label><input className="form-input" placeholder="e.g. 6 pallets" /></div>
-                  <div className="form-group"><label className="form-label">Dimensions (L×W×H)</label><input className="form-input" placeholder='e.g. 48×40×48"' /></div>
-                  <div className="form-group"><label className="form-label">Freight Class</label>
-                    <select className="form-input"><option>Class 50</option><option>Class 55</option><option>Class 60</option><option>Class 65</option><option>Class 70</option><option>Class 77.5</option><option>Class 85</option><option>Class 92.5</option><option>Class 100</option><option>Class 110</option><option>Class 125</option><option>Class 150</option><option>Class 175</option><option>Class 200</option><option>Class 250</option><option>Class 300</option><option>Class 400</option><option>Class 500</option></select>
-                  </div>
-                  <div className="form-group"><label className="form-label">Stackable?</label>
-                    <select className="form-input"><option>Yes</option><option>No</option></select>
-                  </div>
-                </>
-              )}
-              {loadType === 'Partial' && (
-                <>
-                  <div className="form-group"><label className="form-label">Linear Feet Needed</label><input className="form-input" placeholder="e.g. 24 ft" /></div>
-                  <div className="form-group"><label className="form-label">Pieces / Pallets</label><input className="form-input" placeholder="e.g. 12 pallets" /></div>
-                </>
-              )}
             </div>
             <div className="form-group"><label className="form-label">Special Instructions</label>
-              <textarea className="form-input" rows={3} placeholder="e.g. No touch freight, appointment required, driver assist, liftgate needed, hazmat" style={{ resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }} />
+              <textarea className="form-input" rows={3} placeholder="e.g. No touch freight, appointment required, driver assist" style={{ resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }} value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
+          </div>
+        </div>
+
+        {/* ── Rate Confirmation Upload ── */}
+        <div style={{ ...panel, marginBottom: 14 }}>
+          <div style={panelHead}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={FileText} size={14} /> Rate Confirmation</span>
+          </div>
+          <div style={{ padding: 20 }}>
+            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }}
+              onChange={e => { if (e.target.files[0]) setRateCon(e.target.files[0]) }} />
+            {rateCon ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10 }}>
+                <Ic icon={CheckCircle} size={18} color="var(--success)" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{rateCon.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{(rateCon.size / 1024).toFixed(0)} KB</div>
+                </div>
+                <button className="btn btn-ghost" style={{ fontSize: 11, color: 'var(--danger)' }} onClick={() => { setRateCon(null); fileRef.current.value = '' }}>
+                  <Ic icon={Trash2} size={12} /> Remove
+                </button>
+              </div>
+            ) : (
+              <div onClick={() => fileRef.current.click()}
+                style={{ padding: 30, border: '2px dashed var(--border)', borderRadius: 10, textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                <Ic icon={FileText} size={28} color="var(--muted)" />
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>Drop rate confirmation here</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>PDF, PNG, or JPG · Max 10MB</div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -334,29 +396,14 @@ export function BrokerPostLoad() {
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{i + 1}</span>
                   </div>
                   <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div className="form-group">
-                      <label className="form-label">City</label>
-                      <input className="form-input" value={stop.city} onChange={e => updateStop(i, 'city', e.target.value)} placeholder="e.g. Nashville, TN" />
+                    <div className="form-group"><label className="form-label">City</label><input className="form-input" value={stop.city} onChange={e => updateStop(i, 'city', e.target.value)} placeholder="e.g. Nashville, TN" /></div>
+                    <div className="form-group"><label className="form-label">Date</label><input className="form-input" type="date" value={stop.date} onChange={e => updateStop(i, 'date', e.target.value)} /></div>
+                    <div className="form-group"><label className="form-label">Stop Type</label>
+                      <select className="form-input" value={stop.type} onChange={e => updateStop(i, 'type', e.target.value)}><option>Pickup</option><option>Delivery</option><option>Pickup & Delivery</option></select>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Date</label>
-                      <input className="form-input" type="date" value={stop.date} onChange={e => updateStop(i, 'date', e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Stop Type</label>
-                      <select className="form-input" value={stop.type} onChange={e => updateStop(i, 'type', e.target.value)}>
-                        <option>Pickup</option><option>Delivery</option><option>Pickup & Delivery</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Notes</label>
-                      <input className="form-input" value={stop.notes} onChange={e => updateStop(i, 'notes', e.target.value)} placeholder="e.g. Dock hours 7AM–3PM" />
-                    </div>
+                    <div className="form-group"><label className="form-label">Notes</label><input className="form-input" value={stop.notes} onChange={e => updateStop(i, 'notes', e.target.value)} placeholder="e.g. Dock hours 7AM–3PM" /></div>
                   </div>
-                  <button onClick={() => removeStop(i)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, marginTop: 20, flexShrink: 0 }}>
-                    <Ic icon={Trash2} size={14} />
-                  </button>
+                  <button onClick={() => removeStop(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 4, marginTop: 20, flexShrink: 0 }}><Ic icon={Trash2} size={14} /></button>
                 </div>
               ))}
             </div>
@@ -372,12 +419,13 @@ export function BrokerPostLoad() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Competitive for this lane</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>Market avg $3,140 · 12 carriers available · Avg booking time: 8 min{stops.length > 0 && ` · ${stops.length} extra stop${stops.length > 1 ? 's' : ''} (+$${stops.length * 150}/stop)`}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>Market avg $3,140 · 12 carriers available · Avg booking time: 8 min</div>
           </div>
         </div>
 
-        <button className="btn btn-primary" style={{ width: '100%', padding: 14, fontSize: 15, justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 }} onClick={submit}>
-          <Ic icon={Zap} size={16} /> Post {loadType} Load{stops.length > 0 ? ` · ${stops.length + 2} Stops` : ''}
+        <button className="btn btn-primary" onClick={submit} disabled={posting}
+          style={{ width: '100%', padding: 14, fontSize: 15, justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8, opacity: posting ? 0.7 : 1 }}>
+          <Ic icon={Zap} size={16} /> {posting ? 'Posting...' : `Post ${loadType} Load${stops.length > 0 ? ` · ${stops.length + 2} Stops` : ''}`}
         </button>
       </div>
     </div>
@@ -387,35 +435,49 @@ export function BrokerPostLoad() {
 // ════════════════════════════════════════════════════════════════════════════
 // BROKER LOADS
 // ════════════════════════════════════════════════════════════════════════════
+const STATUS_DISPLAY = { open: 'Posted', booked: 'Booked', in_transit: 'In Transit', delivered: 'Delivered', cancelled: 'Cancelled' }
+
 export function BrokerLoads() {
-  const { showToast, navigatePage } = useApp()
+  const { showToast, navigatePage, user } = useApp()
   const [filter, setFilter] = useState('All')
-  const [expanded, setExpanded] = useState(null)
-  const [noteTab, setNoteTab] = useState('info') // 'info' | 'tracking' | 'notes'
-  const [newNote, setNewNote] = useState('')
-  const [localNotes, setLocalNotes] = useState({})
-  const noteInputRef = useRef(null)
+  const [loads, setLoads] = useState([])
+  const [loading, setLoading] = useState(true)
   const filters = ['All', 'Active', 'Booked', 'Delivered']
 
-  const filtered = DEMO_LOADS.filter(l => {
+  const fetchLoads = async () => {
+    const { data } = await supabase
+      .from('loads')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setLoads(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchLoads() }, [])
+
+  const getState = (loc) => {
+    if (!loc) return ''
+    const parts = loc.split(',')
+    return parts.length > 1 ? parts[parts.length - 1].trim() : loc
+  }
+
+  const filtered = loads.filter(l => {
+    const display = STATUS_DISPLAY[l.status] || l.status
     if (filter === 'All') return true
-    if (filter === 'Active') return ['Posted', 'Matched', 'In Transit'].includes(l.status)
-    if (filter === 'Booked') return l.status === 'Booked'
-    if (filter === 'Delivered') return l.status === 'Delivered'
+    if (filter === 'Active') return ['Posted', 'In Transit'].includes(display)
+    if (filter === 'Booked') return display === 'Booked'
+    if (filter === 'Delivered') return display === 'Delivered'
     return true
   })
 
-  const sendNote = (loadId) => {
-    if (!newNote.trim()) return
-    setLocalNotes(prev => ({
-      ...prev,
-      [loadId]: [...(prev[loadId] || []), { from: 'broker', name: 'You', text: newNote.trim(), time: 'Just now' }]
-    }))
-    setNewNote('')
-    showToast('', 'Note Sent', 'Carrier will see this on their load')
+  const stats = {
+    total: loads.length,
+    active: loads.filter(l => ['open', 'in_transit'].includes(l.status)).length,
+    booked: loads.filter(l => l.status === 'booked').length,
+    delivered: loads.filter(l => l.status === 'delivered').length,
   }
 
-  const getNotesForLoad = (load) => [...(load.notes || []), ...(localNotes[load.id] || [])]
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading loads...</div>
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
@@ -424,6 +486,21 @@ export function BrokerLoads() {
         <button className="btn btn-primary" onClick={() => navigatePage('broker-post')} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Ic icon={Package} size={14} /> Post a Load
         </button>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[
+          { label: 'Total Loads', value: stats.total, color: 'var(--accent)' },
+          { label: 'Active', value: stats.active, color: 'var(--warning)' },
+          { label: 'Booked', value: stats.booked, color: 'var(--success)' },
+          { label: 'Delivered', value: stats.delivered, color: 'var(--accent2)' },
+        ].map(s => (
+          <div key={s.label} style={statCard(s.color)}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>{s.label}</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: s.color, lineHeight: 1 }}>{s.value}</div>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: 'flex', gap: 6 }}>
@@ -441,195 +518,40 @@ export function BrokerLoads() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Load ID', 'Route', 'Rate', 'Equipment', 'Status', 'Carrier', ''].map(h => (
+              {['Load ID', 'Route', 'Rate', 'Weight', 'Equipment', 'Status', 'Posted'].map(h => (
                 <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map(load => {
-              const isExpanded = expanded === load.id
-              const sc = statusColor(load.status)
-              const noteCount = getNotesForLoad(load).length
+            {filtered.length === 0 ? (
+              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                {loads.length === 0 ? 'No loads yet — post your first load!' : 'No loads match this filter.'}
+              </td></tr>
+            ) : filtered.map(load => {
+              const display = STATUS_DISPLAY[load.status] || load.status
+              const sc = statusColor(display)
+              const originState = getState(load.origin)
+              const destState = getState(load.destination)
               return (
-                <tr key={load.id} style={{ cursor: load.carrier ? 'pointer' : 'default', background: isExpanded ? 'rgba(240,165,0,0.03)' : 'transparent' }}
-                  onClick={() => { if (load.carrier) { setExpanded(isExpanded ? null : load.id); setNoteTab('info'); setNewNote('') } }}>
-                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent3)' }}>{load.id}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600 }}>{load.origin.split(',')[0]} <Ic icon={ArrowRight} size={10} style={{ margin: '0 4px', color: 'var(--muted)' }} /> {load.dest.split(',')[0]}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>${load.rate.toLocaleString()}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12 }}>{load.equipment}</td>
-                  <td style={{ padding: '10px 14px' }}><span style={badge(sc + '18', sc)}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sc }} /> {load.status}</span></td>
-                  <td style={{ padding: '10px 14px', fontSize: 12 }}>
-                    {load.carrier ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {load.carrier.name}
-                        {noteCount > 0 && <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--accent)', color: '#000', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{noteCount}</span>}
-                      </div>
-                    ) : <span style={{ color: 'var(--muted)' }}>--</span>}
-                  </td>
+                <tr key={load.id}>
+                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent3)' }}>{load.load_id}</td>
                   <td style={{ padding: '10px 14px' }}>
-                    {load.carrier && <Ic icon={isExpanded ? ChevronUp : ChevronDown} size={14} style={{ color: 'var(--muted)' }} />}
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>
+                      {originState} <Ic icon={ArrowRight} size={10} style={{ margin: '0 4px', color: 'var(--muted)' }} /> {destState}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{load.origin} → {load.destination}</div>
                   </td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>${Number(load.rate || 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>{load.weight ? load.weight.toLocaleString() + ' lbs' : '—'}</td>
+                  <td style={{ padding: '10px 14px', fontSize: 12 }}>{load.equipment || '—'}</td>
+                  <td style={{ padding: '10px 14px' }}><span style={badge(sc + '18', sc)}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sc }} /> {display}</span></td>
+                  <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--muted)' }}>{load.posted_at ? new Date(load.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
-
-        {/* Expanded detail panel */}
-        {expanded && (() => {
-          const load = DEMO_LOADS.find(l => l.id === expanded)
-          if (!load || !load.carrier) return null
-          const c = load.carrier
-          const t = load.tracking
-          const notes = getNotesForLoad(load)
-
-          return (
-            <div style={{ background: 'var(--surface2)', borderTop: '2px solid var(--accent)' }}>
-              {/* Tab bar */}
-              <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-                {[
-                  { id: 'info', label: 'Carrier Info', icon: Truck },
-                  { id: 'tracking', label: 'Live Tracking', icon: Navigation, disabled: !t },
-                  { id: 'notes', label: `Notes (${notes.length})`, icon: MessageSquare },
-                ].map(tab => (
-                  <button key={tab.id}
-                    onClick={e => { e.stopPropagation(); if (!tab.disabled) setNoteTab(tab.id) }}
-                    style={{
-                      padding: '10px 18px', fontSize: 11, fontWeight: 700, cursor: tab.disabled ? 'default' : 'pointer',
-                      background: 'none', border: 'none', borderBottom: `2px solid ${noteTab === tab.id ? 'var(--accent)' : 'transparent'}`,
-                      color: tab.disabled ? 'var(--border)' : noteTab === tab.id ? 'var(--accent)' : 'var(--muted)',
-                      display: 'flex', alignItems: 'center', gap: 5, fontFamily: "'DM Sans',sans-serif",
-                      opacity: tab.disabled ? 0.4 : 1
-                    }}>
-                    <Ic icon={tab.icon} size={12} /> {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* ── Carrier Info Tab ── */}
-              {noteTab === 'info' && (
-                <div style={{ padding: '16px 20px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Ic icon={Truck} size={13} /> Carrier Details — One Click Info Exchange
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Carrier</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{c.mc} · {c.dot}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Safety Score</div>
-                      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: safetyColor(c.safety), lineHeight: 1 }}>{c.safety}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{c.onTime}% on-time</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Truck & Driver</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{c.driver}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{c.truck}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Contact & Status</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Ic icon={Phone} size={12} /> {c.phone}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                        <span style={badge('rgba(34,197,94,0.12)', 'var(--success)')}><Ic icon={Shield} size={10} /> Insured</span>
-                        {c.eld && <span style={badge('rgba(77,142,240,0.12)', 'var(--accent2)')}><Ic icon={Radio} size={10} /> ELD</span>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Live Tracking Tab ── */}
-              {noteTab === 'tracking' && t && (
-                <div style={{ padding: '16px 20px' }}>
-                  {t.pctComplete < 100 ? (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 2s infinite' }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>{t.status}</span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>· Updated {t.updated}</span>
-                      </div>
-
-                      {/* Progress visualization */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '14px 16px', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', whiteSpace: 'nowrap' }}>{load.origin.split(',')[0]}</div>
-                        <div style={{ flex: 1, position: 'relative', height: 6 }}>
-                          <div style={{ height: '100%', borderRadius: 3, background: 'var(--surface2)' }} />
-                          <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: t.pctComplete + '%', borderRadius: 3, background: 'linear-gradient(90deg, var(--accent), var(--success))' }} />
-                          <div style={{ position: 'absolute', top: -6, left: `calc(${t.pctComplete}% - 9px)`, width: 18, height: 18, borderRadius: '50%', background: 'var(--success)', border: '2px solid var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Ic icon={Truck} size={10} style={{ color: '#fff' }} />
-                          </div>
-                        </div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{load.dest.split(',')[0]}</div>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                        {[
-                          { label: 'Current Location', value: t.location, color: 'var(--success)' },
-                          { label: 'ETA', value: t.eta, color: 'var(--accent)' },
-                          { label: 'Miles Remaining', value: t.milesLeft + ' mi', color: 'var(--accent2)' },
-                          { label: 'Speed', value: t.speed, color: 'var(--accent3)' },
-                        ].map(s => (
-                          <div key={s.label} style={{ background: 'var(--surface)', borderRadius: 8, padding: '10px 12px', border: '1px solid var(--border)' }}>
-                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>{s.label}</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.value}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ padding: 16, textAlign: 'center' }}>
-                      <Ic icon={CheckCircle} size={28} style={{ color: 'var(--success)', marginBottom: 8 }} />
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>Delivered</div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.location} · {t.updated}</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* ── Notes Tab ── */}
-              {noteTab === 'notes' && (
-                <div style={{ display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-                  {/* Messages */}
-                  <div style={{ maxHeight: 220, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {notes.length === 0 && (
-                      <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No notes yet. Send a message to the carrier below.</div>
-                    )}
-                    {notes.map((n, i) => {
-                      const isBroker = n.from === 'broker'
-                      return (
-                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: isBroker ? 'flex-end' : 'flex-start' }}>
-                          <div style={{
-                            maxWidth: '75%', padding: '8px 12px', borderRadius: 10,
-                            background: isBroker ? 'rgba(240,165,0,0.12)' : 'var(--surface)',
-                            border: `1px solid ${isBroker ? 'rgba(240,165,0,0.25)' : 'var(--border)'}`,
-                          }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: isBroker ? 'var(--accent)' : 'var(--accent2)', marginBottom: 3 }}>{n.name}</div>
-                            <div style={{ fontSize: 12, lineHeight: 1.5 }}>{n.text}</div>
-                          </div>
-                          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2, padding: '0 4px' }}>{n.time}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {/* Input */}
-                  <div style={{ padding: '10px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input ref={noteInputRef} value={newNote} onChange={e => setNewNote(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') sendNote(load.id) }}
-                      placeholder="Type a note to the carrier..."
-                      style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none' }} />
-                    <button onClick={() => sendNote(load.id)}
-                      style={{ width: 34, height: 34, borderRadius: 8, background: newNote.trim() ? 'var(--accent)' : 'var(--surface2)', border: 'none', cursor: newNote.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ic icon={Send} size={14} style={{ color: newNote.trim() ? '#000' : 'var(--muted)' }} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })()}
       </div>
     </div>
   )

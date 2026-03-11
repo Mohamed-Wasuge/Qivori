@@ -171,22 +171,26 @@ export default function LoadBoard() {
           </div>
         ) : (
           <table>
-            <thead><tr><th>Load</th><th>Route</th><th>Broker</th><th>Carrier</th><th>Rate</th><th>Type</th><th>Status</th><th>Posted</th></tr></thead>
+            <thead><tr><th>Load</th><th>Route</th><th>Weight</th><th>Rate</th><th>Equipment</th><th>Status</th><th>Posted</th></tr></thead>
             <tbody>
               {filtered.map(l => {
                 const displayStatus = STATUS_MAP[l.status] || l.status
+                const getState = (loc) => { if (!loc) return ''; const p = loc.split(','); return p.length > 1 ? p[p.length-1].trim() : loc }
+                const oState = getState(l.origin)
+                const dState = getState(l.destination)
                 return (
-                  <tr key={l.id} onClick={() => showToast('', l.load_id, l.origin + ' -> ' + l.destination + ' · ' + formatRate(l.rate) + ' · ' + (l.broker_name || '—'))}>
+                  <tr key={l.id} onClick={() => showToast('', l.load_id, l.origin + ' → ' + l.destination + ' · ' + formatRate(l.rate))}>
                     <td className="mono" style={{ fontSize: 11, color: 'var(--accent3)' }}>{l.load_id}</td>
                     <td>
-                      <span style={{ fontWeight: 700 }}>{l.origin} -> {l.destination}</span><br />
-                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>{l.equipment || '—'}{l.weight ? ' · ' + l.weight + ' lbs' : ''}</span>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>
+                        {oState} <span style={{ color: 'var(--muted)', margin: '0 2px' }}>→</span> {dState}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{l.origin} → {l.destination}</div>
                     </td>
-                    <td style={{ fontSize: 12 }}>{l.broker_name || '—'}</td>
-                    <td style={{ fontSize: 12, color: l.carrier_name ? 'var(--text)' : 'var(--muted)' }}>{l.carrier_name || '—'}</td>
+                    <td style={{ fontSize: 12, color: l.weight ? 'var(--text)' : 'var(--muted)' }}>{l.weight ? Number(l.weight).toLocaleString() + ' lbs' : '—'}</td>
                     <td className="mono" style={{ fontWeight: 700, color: 'var(--accent)' }}>{formatRate(l.rate)}</td>
                     <td>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--muted)' }}>{l.load_type || '—'}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--muted)' }}>{l.equipment || '—'}</span>
                     </td>
                     <td><span className={'pill ' + statusPill(displayStatus)}><span className="pill-dot" />{displayStatus}</span></td>
                     <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(l.posted_at || l.created_at)}</td>

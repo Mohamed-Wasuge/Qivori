@@ -148,7 +148,7 @@ export function AppProvider({ children }) {
   const showToast = useCallback((icon, title, sub) => {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     setToast({ show: true, icon, title, sub })
-    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3000)
+    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 6000)
   }, [])
 
   // Determine role from profile or email fallback

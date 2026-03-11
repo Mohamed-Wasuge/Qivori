@@ -1,46 +1,60 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
 /* ─── Brokers Management ─────────────────────────────────────────────────── */
-const BROKERS = [
-  { name: 'Elite Logistics', contact: 'Sarah Chen', email: 'sarah@elitelogistics.com', city: 'Chicago, IL', plan: 'Standard', mrr: '$75', status: 'Active', joined: 'Jan 10', loads: 84, rating: 4.8 },
-  { name: 'Apex Logistics', contact: 'David Park', email: 'david@apexlogistics.com', city: 'Atlanta, GA', plan: 'Standard', mrr: '$75', status: 'Trial', joined: 'Mar 9', loads: 6, rating: 0 },
-  { name: 'Midwest Freight Co', contact: 'Lisa Wang', email: 'lisa@midwestfreight.com', city: 'Dallas, TX', plan: 'Standard', mrr: '$75', status: 'Active', joined: 'Feb 1', loads: 42, rating: 4.6 },
-  { name: 'Coastal Brokerage', contact: 'Tom Rivera', email: 'tom@coastalbrokerage.com', city: 'Miami, FL', plan: 'Standard', mrr: '$75', status: 'Active', joined: 'Feb 15', loads: 38, rating: 4.7 },
-  { name: 'NorthStar Freight', contact: 'Amy Torres', email: 'amy@northstarfreight.com', city: 'Denver, CO', plan: 'Standard', mrr: '$0', status: 'Pending', joined: 'Mar 10', loads: 0, rating: 0 },
-]
-
-const BROKER_FILTERS = ['All', 'Active', 'Trial', 'Pending']
+const BROKER_FILTERS = ['All', 'active', 'trial', 'pending', 'suspended']
 
 export function Shippers() {
   const { showToast } = useApp()
   const [filter, setFilter] = useState('All')
   const [search, setSearch] = useState('')
+  const [brokers, setBrokers] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const filtered = BROKERS.filter(b => {
+  const fetchBrokers = async () => {
+    const { data } = await supabase.from('profiles').select('*').eq('role', 'broker').order('created_at', { ascending: false })
+    setBrokers(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchBrokers() }, [])
+
+  const updateStatus = async (id, status, name) => {
+    await supabase.from('profiles').update({ status }).eq('id', id)
+    showToast('', status === 'active' ? 'Approved' : 'Updated', name + ' — ' + status)
+    fetchBrokers()
+  }
+
+  const filtered = brokers.filter(b => {
     if (filter !== 'All' && b.status !== filter) return false
-    if (search && !b.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (b.full_name || '').toLowerCase().includes(q) || (b.company_name || '').toLowerCase().includes(q) || (b.email || '').toLowerCase().includes(q)
+    }
     return true
   })
 
-  const statusPill = (s) => ({ Active: 'pill-green', Trial: 'pill-blue', Pending: 'pill-yellow' }[s] || 'pill-muted')
+  const statusPill = (s) => ({ active: 'pill-green', trial: 'pill-blue', pending: 'pill-yellow', suspended: 'pill-red' }[s] || 'pill-muted')
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading brokers...</div>
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="stats-grid cols4 fade-in">
         {[
-          { label: 'Total Brokers', value: '14', change: '+3 this month', color: 'var(--accent3)' },
-          { label: 'Active', value: '11', change: 'Paying customers', color: 'var(--success)' },
-          { label: 'Loads Posted', value: '247', change: 'This month', color: 'var(--accent2)' },
-          { label: 'Broker MRR', value: '$1,050', change: '+28% vs last mo', color: 'var(--accent)' },
+          { label: 'Total Brokers', value: brokers.length, color: 'var(--accent3)' },
+          { label: 'Active', value: brokers.filter(b => b.status === 'active').length, color: 'var(--success)' },
+          { label: 'On Trial', value: brokers.filter(b => b.status === 'trial').length, color: 'var(--accent2)' },
+          { label: 'Pending', value: brokers.filter(b => b.status === 'pending').length, color: 'var(--warning)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className="stat-change up">{s.change}</div>
           </div>
         ))}
       </div>
@@ -54,54 +68,61 @@ export function Shippers() {
               <input className="form-input" placeholder="Search brokers..." value={search} onChange={e => setSearch(e.target.value)}
                 style={{ paddingLeft: 30, width: 200, height: 34, fontSize: 12 }} />
             </div>
-            <button className="btn btn-primary" onClick={() => showToast('', 'Invite Sent', 'Broker invitation email sent')}>+ Invite Broker</button>
           </div>
         </div>
 
         <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
           {BROKER_FILTERS.map(f => (
-            <button key={f} className={'filter-chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>{f}</button>
+            <button key={f} className={'filter-chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>
+              {f === 'All' ? f : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
           ))}
         </div>
 
-        <table>
-          <thead><tr><th>Company</th><th>Contact</th><th>Plan</th><th>MRR</th><th>Loads</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
-          <tbody>
-            {filtered.map(b => (
-              <tr key={b.email}>
-                <td>
-                  <strong>{b.name}</strong><br />
-                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{b.city}</span>
-                </td>
-                <td>
-                  <span style={{ fontSize: 12 }}>{b.contact}</span><br />
-                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{b.email}</span>
-                </td>
-                <td style={{ fontSize: 11, fontWeight: 600 }}>{b.plan}</td>
-                <td className="mono" style={{ fontWeight: 700, color: b.mrr === '$0' ? 'var(--muted)' : 'var(--accent)' }}>{b.mrr}</td>
-                <td>{b.loads}</td>
-                <td><span className={'pill ' + statusPill(b.status)}><span className="pill-dot" />{b.status}</span></td>
-                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{b.joined}</td>
-                <td>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {b.status === 'Pending' && (
-                      <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: 10 }}
-                        onClick={e => { e.stopPropagation(); showToast('', 'Broker Approved', b.name + ' is now active') }}>
-                        <Ic icon={CheckCircle} size={12} /> Approve
-                      </button>
-                    )}
-                    {b.status !== 'Pending' && (
-                      <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
-                        onClick={e => { e.stopPropagation(); showToast('', 'Viewing', b.name + ' · ' + b.email) }}>
-                        <Ic icon={Eye} size={12} /> View
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {filtered.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+            {brokers.length === 0 ? 'No brokers have signed up yet.' : 'No brokers match your filter.'}
+          </div>
+        ) : (
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Location</th><th>Plan</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+            <tbody>
+              {filtered.map(b => (
+                <tr key={b.id}>
+                  <td><strong>{b.full_name || 'No name'}</strong></td>
+                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{b.email}</td>
+                  <td style={{ fontSize: 12 }}>{b.company_name || '—'}</td>
+                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{[b.city, b.state].filter(Boolean).join(', ') || '—'}</td>
+                  <td style={{ fontSize: 11, fontWeight: 600 }}>{b.plan || 'trial'}</td>
+                  <td><span className={'pill ' + statusPill(b.status)}><span className="pill-dot" />{b.status}</span></td>
+                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(b.created_at)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {b.status === 'pending' && (
+                        <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: 10 }}
+                          onClick={() => updateStatus(b.id, 'active', b.full_name || b.email)}>
+                          <Ic icon={CheckCircle} size={12} /> Approve
+                        </button>
+                      )}
+                      {b.status === 'suspended' && (
+                        <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
+                          onClick={() => updateStatus(b.id, 'active', b.full_name || b.email)}>
+                          <Ic icon={CheckCircle} size={12} /> Reactivate
+                        </button>
+                      )}
+                      {b.status !== 'suspended' && b.status !== 'pending' && (
+                        <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10, color: 'var(--danger)' }}
+                          onClick={() => updateStatus(b.id, 'suspended', b.full_name || b.email)}>
+                          <Ic icon={Ban} size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )

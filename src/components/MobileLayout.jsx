@@ -57,9 +57,12 @@ function MobileAI() {
   const [showQuickActions, setShowQuickActions] = useState(true)
   const [pendingUpload, setPendingUpload] = useState(null) // { doc_type, load_id, prompt }
   const [gpsLocation, setGpsLocation] = useState(null)
+  const [listening, setListening] = useState(false)
+  const [voiceText, setVoiceText] = useState('')
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const recognitionRef = useRef(null)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -209,6 +212,64 @@ function MobileAI() {
         setGpsLocation(loc)
       }
     }, () => { showToast('error', 'Error', 'Location permission denied') })
+  }
+
+  // ── VOICE RECOGNITION ──────────────────────────
+  const startListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      showToast('error', 'Not Supported', 'Voice input not available on this browser')
+      return
+    }
+
+    if (listening) {
+      // Stop listening
+      recognitionRef.current?.stop()
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'
+    recognition.interimResults = true
+    recognition.continuous = false
+    recognition.maxAlternatives = 1
+    recognitionRef.current = recognition
+
+    recognition.onstart = () => {
+      setListening(true)
+      setVoiceText('')
+    }
+
+    recognition.onresult = (event) => {
+      let transcript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      setVoiceText(transcript)
+      setInput(transcript)
+
+      // If final result, auto-send
+      if (event.results[event.results.length - 1].isFinal) {
+        setTimeout(() => {
+          sendMessage(transcript)
+          setVoiceText('')
+        }, 300)
+      }
+    }
+
+    recognition.onerror = (event) => {
+      console.error('Speech error:', event.error)
+      setListening(false)
+      if (event.error === 'not-allowed') {
+        showToast('error', 'Mic Blocked', 'Allow microphone access in browser settings')
+      }
+    }
+
+    recognition.onend = () => {
+      setListening(false)
+    }
+
+    recognition.start()
   }
 
   // Handle document photo upload
@@ -515,18 +576,46 @@ function MobileAI() {
           />
         </div>
 
-        {/* Send button */}
-        <button onClick={() => sendMessage()} disabled={loading || !input.trim()}
-          style={{ width: 40, height: 40, borderRadius: 12, background: input.trim() ? 'var(--accent)' : 'var(--surface2)', border: 'none', cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-          <Ic icon={Send} size={16} color={input.trim() ? '#000' : 'var(--muted)'} />
-        </button>
+        {/* Mic / Send button — mic when empty, send when has text */}
+        {input.trim() ? (
+          <button onClick={() => sendMessage()} disabled={loading}
+            style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+            <Ic icon={Send} size={16} color="#000" />
+          </button>
+        ) : (
+          <button onClick={startListening}
+            style={{ width: 40, height: 40, borderRadius: 12, background: listening ? 'var(--danger)' : 'var(--surface2)', border: '1px solid ' + (listening ? 'var(--danger)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none' }}>
+            <Ic icon={Mic} size={16} color={listening ? '#fff' : 'var(--muted)'} />
+          </button>
+        )}
       </div>
+
+      {/* Listening overlay */}
+      {listening && (
+        <div style={{ position: 'fixed', bottom: 80, left: 16, right: 16, padding: '16px 20px', background: 'var(--surface)', border: '2px solid var(--danger)', borderRadius: 16, boxShadow: '0 8px 32px rgba(239,68,68,0.3)', zIndex: 200, textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--danger)', animation: 'micPulse 1s ease-in-out infinite' }} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)' }}>Listening...</span>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', minHeight: 24 }}>
+            {voiceText || 'Speak now — "Find me a load from Dallas"'}
+          </div>
+          <button onClick={() => recognitionRef.current?.stop()}
+            style={{ marginTop: 10, background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 16px', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* Animations */}
       <style>{`
         @keyframes aipulse {
           0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
           40% { opacity: 1; transform: scale(1.1); }
+        }
+        @keyframes micPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.15); }
         }
       `}</style>
     </div>

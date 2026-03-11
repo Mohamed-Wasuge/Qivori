@@ -23,6 +23,45 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
+// Push notification received
+self.addEventListener('push', (event) => {
+  let data = { title: 'Qivori AI', body: 'You have a new notification', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png' }
+  try {
+    if (event.data) data = { ...data, ...event.data.json() }
+  } catch {}
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: data.icon || '/icons/icon-192.png',
+      badge: data.badge || '/icons/icon-192.png',
+      tag: data.tag || 'qivori-notification',
+      data: data.url || '/',
+      actions: data.actions || [],
+      vibrate: [200, 100, 200],
+    })
+  )
+})
+
+// Notification click — open app or focus existing tab
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data || '/'
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Focus existing tab if found
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      // Open new tab
+      return self.clients.openWindow(url)
+    })
+  )
+})
+
 // Fetch — network first, fallback to cache
 self.addEventListener('fetch', (event) => {
   // Skip non-GET and API requests

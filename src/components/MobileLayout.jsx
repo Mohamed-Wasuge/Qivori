@@ -4,7 +4,7 @@ import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import {
   Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone,
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
-  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail
+  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell
 } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -77,6 +77,7 @@ function MobileAI() {
   const recognitionRef = useRef(null)
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+  const [showNotifBanner, setShowNotifBanner] = useState(false)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -95,6 +96,43 @@ function MobileAI() {
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
+
+  // Check notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      // Show banner after 3 seconds so it doesn't overwhelm on first load
+      const timer = setTimeout(() => setShowNotifBanner(true), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [])
+
+  const handleEnableNotifications = async () => {
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission === 'granted') {
+        showToast('success', 'Notifications Enabled', 'You\'ll get load alerts and updates')
+        // Register push subscription
+        const reg = await navigator.serviceWorker?.ready
+        if (reg) {
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY || undefined,
+          }).catch(() => null)
+
+          if (sub) {
+            const { user } = await import('../lib/supabase').then(m => ({ user: null })).catch(() => ({ user: null }))
+            // Save subscription — will work once VAPID keys are configured
+            fetch('/api/push-subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: 'anonymous', subscription: sub.toJSON() }),
+            }).catch(() => {})
+          }
+        }
+      }
+    } catch {}
+    setShowNotifBanner(false)
+  }
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return
@@ -675,6 +713,23 @@ function MobileAI() {
           </div>
           <button onClick={handleInstallClick} style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Install</button>
           <button onClick={() => setShowInstallBanner(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
+            <Ic icon={X} size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* ── NOTIFICATION PERMISSION BANNER ──────────── */}
+      {showNotifBanner && !showInstallBanner && (
+        <div style={{ flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', background: 'linear-gradient(135deg, rgba(0,212,170,0.08), rgba(240,165,0,0.06))', border: '1px solid rgba(0,212,170,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(0,212,170,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Ic icon={Bell} size={16} color="var(--success)" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>Enable Notifications</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Get alerts for loads, payments & updates</div>
+          </div>
+          <button onClick={handleEnableNotifications} style={{ padding: '6px 14px', background: 'var(--success)', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Enable</button>
+          <button onClick={() => setShowNotifBanner(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
             <Ic icon={X} size={14} />
           </button>
         </div>

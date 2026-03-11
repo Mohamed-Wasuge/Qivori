@@ -1330,37 +1330,56 @@ const STATUS_COLORS = {
 
 // ── Rate Con parser — calls Claude API via backend ────────────────────────────
 async function parseRateConWithAI(file) {
+  console.log('[RC] Starting parse:', file.name, file.type, file.size, 'bytes')
   // Compress image before sending
-  const { b64, mt } = await new Promise((resolve) => {
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      const reader = new FileReader()
-      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: 'application/pdf' })
-      reader.readAsDataURL(file)
-      return
-    }
-    const img = new Image()
-    img.onload = () => {
-      const maxW = 1200; let w = img.width, h = img.height
-      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
-      const c = document.createElement('canvas'); c.width = w; c.height = h
-      c.getContext('2d').drawImage(img, 0, 0, w, h)
-      resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mt: 'image/jpeg' })
-    }
-    img.onerror = () => {
-      const reader = new FileReader()
-      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: file.type || 'image/jpeg' })
-      reader.readAsDataURL(file)
-    }
-    img.src = URL.createObjectURL(file)
-  })
+  let b64, mt
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Compression timed out')), 15000)
+      if ((file.type || '').includes('pdf') || file.name.endsWith('.pdf')) {
+        const reader = new FileReader()
+        reader.onload = () => { clearTimeout(timeout); resolve({ b64: reader.result.split(',')[1], mt: 'application/pdf' }) }
+        reader.onerror = () => { clearTimeout(timeout); reject(new Error('Could not read PDF')) }
+        reader.readAsDataURL(file)
+        return
+      }
+      const img = new Image()
+      img.onload = () => {
+        clearTimeout(timeout)
+        const maxW = 1200; let w = img.width, h = img.height
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+        const c = document.createElement('canvas'); c.width = w; c.height = h
+        c.getContext('2d').drawImage(img, 0, 0, w, h)
+        resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mt: 'image/jpeg' })
+      }
+      img.onerror = () => {
+        clearTimeout(timeout)
+        console.log('[RC] Image load failed, using raw FileReader')
+        const reader = new FileReader()
+        reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: file.type || 'image/jpeg' })
+        reader.onerror = () => reject(new Error('Could not read file'))
+        reader.readAsDataURL(file)
+      }
+      img.src = URL.createObjectURL(file)
+    })
+    b64 = result.b64
+    mt = result.mt
+  } catch (compErr) {
+    console.error('[RC] Compression error:', compErr)
+    throw compErr
+  }
+
+  console.log('[RC] Compressed:', (b64.length / 1024).toFixed(0), 'KB, type:', mt)
 
   const res = await fetch('/api/parse-ratecon', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file: b64, mediaType: mt })
   })
+  console.log('[RC] API response status:', res.status)
   const text = await res.text()
-  let data; try { data = JSON.parse(text) } catch { throw new Error('Invalid response from server') }
+  console.log('[RC] API response:', text.slice(0, 200))
+  let data; try { data = JSON.parse(text) } catch { throw new Error('Invalid response: ' + text.slice(0, 100)) }
   if (data.error) throw new Error(data.error)
   return {
     loadId: '', broker: '', driver: '', refNum: '',

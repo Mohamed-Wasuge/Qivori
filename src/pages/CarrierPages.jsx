@@ -5658,55 +5658,57 @@ export function AILoadBoard() {
   const [parsingRC, setParsingRC] = useState(false)
   const rcFileRef = useRef(null)
 
-  const parseCarrierRC = (f) => {
-    if (!f) return
-    // Accept common image types and PDFs
-    const validTypes = ['image/jpeg','image/png','image/jpg','application/pdf']
-    const validExt = /\.(pdf|png|jpg|jpeg)$/i
-    if (!validTypes.includes(f.type) && !validExt.test(f.name)) {
-      showToast('','Invalid File',`Got "${f.type || f.name}" — need PDF, PNG, or JPG`)
+  const compressImage = (file) => new Promise((resolve) => {
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ base64: reader.result.split(',')[1], mediaType: 'application/pdf' })
+      reader.readAsDataURL(file)
       return
     }
-    if (f.size > 10 * 1024 * 1024) {
-      showToast('','File Too Large','Max 10MB')
+    const img = new Image()
+    img.onload = () => {
+      const maxW = 1200
+      let w = img.width, h = img.height
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' })
+    }
+    img.onerror = () => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ base64: reader.result.split(',')[1], mediaType: file.type || 'image/jpeg' })
+      reader.readAsDataURL(file)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+
+  const parseCarrierRC = async (f) => {
+    if (!f) return
+    const validExt = /\.(pdf|png|jpg|jpeg|heic)$/i
+    if (!validExt.test(f.name) && !f.type?.match(/image|pdf/)) {
+      showToast('','Invalid File',`"${f.name}" — need PDF, PNG, or JPG`)
       return
     }
     setRateConFile(f)
     setParsingRC(true)
-    showToast('','Reading Rate Con',`Uploading ${f.name} (${(f.size/1024).toFixed(0)} KB)...`)
-    const reader = new FileReader()
-    reader.onerror = () => { showToast('','Error','Could not read file'); setParsingRC(false) }
-    reader.onload = async () => {
-      try {
-        const result = reader.result
-        if (!result || !result.includes(',')) {
-          showToast('','Error','File read failed — empty result')
-          setParsingRC(false)
-          return
-        }
-        const base64 = result.split(',')[1]
-        if (!base64 || base64.length < 100) {
-          showToast('','Error',`File too small or empty (${base64?.length || 0} bytes)`)
-          setParsingRC(false)
-          return
-        }
-        const mediaType = f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
-        showToast('','AI Processing',`Sending to AI (${(base64.length/1024).toFixed(0)} KB)...`)
-        const res = await fetch('/api/parse-ratecon', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ file: base64, mediaType })
-        })
-        const text = await res.text()
-        let data; try { data = JSON.parse(text) } catch { data = null }
-        if (data && !data.error) {
-          showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
-        } else {
-          showToast('','Parse Error', data?.error || data?.raw || text.slice(0, 100) || 'Could not read rate con')
-        }
-      } catch(err) { showToast('','Error', err?.message || 'Failed to parse rate con') }
-      setParsingRC(false)
-    }
-    reader.readAsDataURL(f)
+    showToast('','Reading Rate Con','Compressing and sending to AI...')
+    try {
+      const { base64, mediaType } = await compressImage(f)
+      const res = await fetch('/api/parse-ratecon', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ file: base64, mediaType })
+      })
+      const text = await res.text()
+      let data; try { data = JSON.parse(text) } catch { data = null }
+      if (data && !data.error) {
+        showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
+      } else {
+        showToast('','Parse Error', data?.error || text.slice(0, 100) || 'Could not read')
+      }
+    } catch(err) { showToast('','Error', err?.message || 'Failed to parse rate con') }
+    setParsingRC(false)
   }
 
   const sf = (k, v) => setFilters(p => ({ ...p, [k]: v }))

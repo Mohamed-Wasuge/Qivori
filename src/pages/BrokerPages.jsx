@@ -229,17 +229,36 @@ export function BrokerPostLoad() {
   const [rate, setRate] = useState('')
   const [notes, setNotes] = useState('')
 
+  const compressImg = (file) => new Promise((resolve) => {
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: 'application/pdf' })
+      reader.readAsDataURL(file)
+      return
+    }
+    const img = new Image()
+    img.onload = () => {
+      const maxW = 1200
+      let w = img.width, h = img.height
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+      const c = document.createElement('canvas')
+      c.width = w; c.height = h
+      c.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mt: 'image/jpeg' })
+    }
+    img.onerror = () => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: file.type || 'image/jpeg' })
+      reader.readAsDataURL(file)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+
   const parseRateCon = async (file) => {
     setParsing(true)
-    showToast('', 'Reading Rate Con', 'AI is extracting load details...')
+    showToast('', 'Reading Rate Con', 'Compressing and sending to AI...')
     try {
-      const base64 = await new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result.split(',')[1])
-        reader.readAsDataURL(file)
-      })
-
-      const mediaType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+      const { b64: base64, mt: mediaType } = await compressImg(file)
 
       const res = await fetch('/api/parse-ratecon', {
         method: 'POST',

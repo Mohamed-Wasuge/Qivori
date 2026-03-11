@@ -85,16 +85,20 @@ export function AppProvider({ children }) {
     localStorage.setItem('fm_theme', theme)
   }, [theme])
 
-  // Fetch user profile from Supabase
+  // Fetch user profile from Supabase (graceful — returns null on error)
   const fetchProfile = useCallback(async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (data) {
-      setProfile(data)
-      return data
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      if (data && !error) {
+        setProfile(data)
+        return data
+      }
+    } catch (e) {
+      console.warn('Profile fetch failed:', e)
     }
     return null
   }, [])
@@ -106,13 +110,11 @@ export function AppProvider({ children }) {
       if (session?.user) {
         setUser(session.user)
         const prof = await fetchProfile(session.user.id)
-        if (prof) {
-          const role = prof.role || 'carrier'
-          setCurrentRole(role)
-          const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
-          setCurrentPage(landingPage)
-          setView('app')
-        }
+        const role = resolveRole(prof, session.user.email)
+        setCurrentRole(role)
+        const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+        setCurrentPage(landingPage)
+        setView('app')
       }
       setAuthLoading(false)
     })
@@ -122,13 +124,11 @@ export function AppProvider({ children }) {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
         const prof = await fetchProfile(session.user.id)
-        if (prof) {
-          const role = prof.role || 'carrier'
-          setCurrentRole(role)
-          const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
-          setCurrentPage(landingPage)
-          setView('app')
-        }
+        const role = resolveRole(prof, session.user.email)
+        setCurrentRole(role)
+        const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+        setCurrentPage(landingPage)
+        setView('app')
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
@@ -147,23 +147,28 @@ export function AppProvider({ children }) {
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3000)
   }, [])
 
+  // Determine role from profile or email fallback
+  const resolveRole = (prof, email) => {
+    if (prof?.role) return prof.role
+    if (email.endsWith('@qivori.com')) return 'admin'
+    return 'carrier'
+  }
+
   // Sign in with Supabase
   const loginWithCredentials = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error: error.message }
 
+    setUser(data.user)
     const prof = await fetchProfile(data.user.id)
-    if (!prof) return { error: 'Account found but no profile. Contact support.' }
 
-    const role = prof.role || 'carrier'
+    const role = resolveRole(prof, email)
     setCurrentRole(role)
     const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
     setCurrentPage(landingPage)
     setView('app')
-    setUser(data.user)
 
-    // Build display name from profile
-    const displayName = prof.full_name || prof.company_name || email.split('@')[0]
+    const displayName = prof?.full_name || prof?.company_name || email.split('@')[0]
     const roleConfig = ROLES[role]
     showToast('', 'Welcome, ' + displayName, 'Signed in as ' + roleConfig.badgeText)
     return { ok: true }

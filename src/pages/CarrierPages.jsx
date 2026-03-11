@@ -5654,6 +5654,9 @@ export function AILoadBoard() {
   const [selected, setSelected] = useState(BOARD_LOADS[0].id)
   const [booked, setBooked]     = useState({})
   const [assignDriver, setAssignDriver] = useState('')
+  const [rateConFile, setRateConFile] = useState(null)
+  const [parsingRC, setParsingRC] = useState(false)
+  const rcFileRef = useRef(null)
 
   const sf = (k, v) => setFilters(p => ({ ...p, [k]: v }))
 
@@ -5923,10 +5926,69 @@ export function AILoadBoard() {
                   </div>
                 </div>
               ) : (
-                <div style={{ background:'rgba(34,197,94,0.07)', border:'1px solid rgba(34,197,94,0.25)', borderRadius:12, padding:20, textAlign:'center' }}>
-                  <div style={{ marginBottom:6 }}><Check size={28} /></div>
-                  <div style={{ fontSize:15, fontWeight:700, color:'var(--success)', marginBottom:4 }}>Load Booked</div>
-                  <div style={{ fontSize:12, color:'var(--muted)' }}>Added to your dispatch queue · Upload rate con to complete</div>
+                <div style={{ background:'rgba(34,197,94,0.07)', border:'1px solid rgba(34,197,94,0.25)', borderRadius:12, padding:20 }}>
+                  <div style={{ textAlign:'center', marginBottom:16 }}>
+                    <div style={{ marginBottom:6 }}><Check size={28} /></div>
+                    <div style={{ fontSize:15, fontWeight:700, color:'var(--success)', marginBottom:4 }}>Load Booked</div>
+                    <div style={{ fontSize:12, color:'var(--muted)' }}>Added to your dispatch queue</div>
+                  </div>
+                  {/* Rate Con Upload */}
+                  <input ref={rcFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display:'none' }}
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f && /\.(pdf|png|jpg|jpeg)$/i.test(f.name)) {
+                        setRateConFile(f)
+                        setParsingRC(true)
+                        showToast('','Reading Rate Con','AI is extracting load details...')
+                        const reader = new FileReader()
+                        reader.onload = async () => {
+                          try {
+                            const base64 = reader.result.split(',')[1]
+                            const mediaType = f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+                            const res = await fetch('/api/parse-ratecon', {
+                              method:'POST', headers:{'Content-Type':'application/json'},
+                              body: JSON.stringify({ file: base64, mediaType })
+                            })
+                            const text = await res.text()
+                            let data; try { data = JSON.parse(text) } catch { data = null }
+                            if (data && !data.error) {
+                              showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
+                            } else {
+                              showToast('','Parse Error', data?.error || 'Could not read rate con')
+                            }
+                          } catch { showToast('','Error','Failed to parse rate con') }
+                          setParsingRC(false)
+                        }
+                        reader.readAsDataURL(f)
+                      }
+                    }} />
+                  {rateConFile ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10 }}>
+                      {parsingRC ? (
+                        <span style={{ fontSize:12, color:'var(--accent)', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ width:12, height:12, border:'2px solid var(--accent)', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
+                          Reading {rateConFile.name}...
+                        </span>
+                      ) : (
+                        <>
+                          <CheckCircle size={14} style={{ color:'var(--success)' }} />
+                          <span style={{ fontSize:12, fontWeight:600 }}>{rateConFile.name}</span>
+                          <span style={{ fontSize:10, color:'var(--muted)' }}>({(rateConFile.size/1024).toFixed(0)} KB)</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div onClick={() => rcFileRef.current?.click()}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { rcFileRef.current.files = e.dataTransfer.files; rcFileRef.current.dispatchEvent(new Event('change', { bubbles:true })) } }}
+                      style={{ padding:'12px 16px', border:'1px dashed var(--border)', borderRadius:10, textAlign:'center', cursor:'pointer', transition:'border-color 0.2s' }}
+                      onMouseOver={e => e.currentTarget.style.borderColor='var(--accent)'}
+                      onMouseOut={e => e.currentTarget.style.borderColor='var(--border)'}>
+                      <FileText size={18} style={{ color:'var(--muted)', marginBottom:4 }} />
+                      <div style={{ fontSize:12, fontWeight:600 }}>Drop rate con here or click to upload</div>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>PDF, PNG, or JPG</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

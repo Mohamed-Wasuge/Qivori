@@ -411,6 +411,14 @@ function MobileAI() {
           <MiniStat label="Loads" value={activeLoads.length} color="var(--accent2)" />
         </div>
 
+        {/* New Chat / Home button — only show when in conversation */}
+        {messages.length > 0 && (
+          <button onClick={() => { setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true) }}
+            style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+            <Ic icon={Plus} size={16} color="var(--text)" />
+          </button>
+        )}
+
         <button onClick={logout} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', color: 'var(--danger)', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
           Log Out
         </button>

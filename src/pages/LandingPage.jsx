@@ -39,6 +39,7 @@ const PLANS = [
     features: ['AI Load Board + DAT', 'Fleet Map', 'P&L Dashboard', 'IFTA Filing', 'Invoicing & Factoring', 'Carrier Package', 'Fuel Optimizer'],
     cta: 'Start Free Trial',
     highlight: false,
+    stripeId: 'solo',
   },
   {
     name: 'Small Fleet',
@@ -48,6 +49,7 @@ const PLANS = [
     features: ['Everything in Solo', 'Multi-driver dispatch', 'Pre-Employment Screening', 'Driver Scorecards', 'Broker Risk Intel', 'Check Call Center', 'Equipment Manager'],
     cta: 'Start Free Trial',
     highlight: true,
+    stripeId: 'fleet',
   },
   {
     name: 'Growing Fleet',
@@ -55,8 +57,9 @@ const PLANS = [
     price: '$199',
     color: 'var(--accent3)',
     features: ['Everything in Small Fleet', 'Unlimited drivers', 'QuickBooks integration', 'DAT API live feed', 'Cash Flow Forecasting', 'Priority support', 'Custom reporting'],
-    cta: 'Talk to Us',
+    cta: 'Start Free Trial',
     highlight: false,
+    stripeId: 'growing',
   },
 ]
 
@@ -76,11 +79,38 @@ const DAT_ITEMS = [
 ]
 
 export default function LandingPage({ onGetStarted }) {
-  const { goToLogin } = useApp()
+  const { goToLogin, user } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(null)
 
   const handleTry = () => {
     goToLogin()
+  }
+
+  const handleCheckout = async (planId) => {
+    setCheckoutLoading(planId)
+    try {
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId,
+          email: user?.email || undefined,
+          userId: user?.id || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        // No Stripe key yet — fall back to signup
+        goToLogin()
+      }
+    } catch {
+      goToLogin()
+    } finally {
+      setCheckoutLoading(null)
+    }
   }
 
   return (
@@ -460,11 +490,11 @@ export default function LandingPage({ onGetStarted }) {
                     </div>
                   ))}
                 </div>
-                <button onClick={handleTry}
+                <button onClick={() => handleCheckout(plan.stripeId)} disabled={checkoutLoading === plan.stripeId}
                   style={{ width: '100%', padding: '12px 0', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
                     background: plan.highlight ? 'var(--accent)' : 'var(--surface)', color: plan.highlight ? '#000' : 'var(--text)',
-                    border: plan.highlight ? 'none' : '1px solid var(--border)' }}>
-                  {plan.cta} →
+                    border: plan.highlight ? 'none' : '1px solid var(--border)', opacity: checkoutLoading === plan.stripeId ? 0.6 : 1 }}>
+                  {checkoutLoading === plan.stripeId ? 'Loading...' : `${plan.cta} →`}
                 </button>
               </div>
             ))}

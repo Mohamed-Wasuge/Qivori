@@ -256,11 +256,38 @@ export function AppProvider({ children }) {
     }
   }
 
+  // Subscription helpers
+  const subscription = {
+    plan: profile?.subscription_plan || null,
+    status: profile?.subscription_status || null,
+    isActive: ['active', 'trialing'].includes(profile?.subscription_status),
+    isTrial: profile?.subscription_status === 'trialing',
+    trialEndsAt: profile?.trial_ends_at || null,
+    customerId: profile?.stripe_customer_id || null,
+  }
+
+  // Open Stripe billing portal
+  const openBillingPortal = async () => {
+    if (!subscription.customerId) return
+    try {
+      const res = await fetch('/api/create-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: subscription.customerId }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch (e) {
+      showToast('error', 'Error', 'Could not open billing portal')
+    }
+  }
+
   return (
     <AppContext.Provider value={{
       view, currentRole, currentPage,
       sidebarOpen, toast,
       user, profile, authLoading,
+      subscription, openBillingPortal,
       loginWithCredentials, signUp, resetPassword, logout, goToLogin, navigatePage,
       toggleSidebar, closeSidebar, showToast,
       theme, setTheme,

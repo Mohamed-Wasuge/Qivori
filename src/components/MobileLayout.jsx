@@ -4,7 +4,7 @@ import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import {
   Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone,
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
-  CheckCircle, Mic, FileText, Clock
+  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX
 } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -68,6 +68,8 @@ function MobileAI() {
   const [gpsLocation, setGpsLocation] = useState(null)
   const [listening, setListening] = useState(false)
   const [voiceText, setVoiceText] = useState('')
+  const [speakerOn, setSpeakerOn] = useState(true)
+  const [speaking, setSpeaking] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -252,6 +254,37 @@ function MobileAI() {
     }, () => { showToast('error', 'Error', 'Location permission denied') })
   }
 
+  // ── TEXT-TO-SPEECH ──────────────────────────────
+  const speak = useCallback((text) => {
+    if (!speakerOn || !text) return
+    // Cancel any current speech
+    window.speechSynthesis?.cancel()
+    // Clean text — remove markdown bold/links, keep it natural
+    const clean = text
+      .replace(/\*\*/g, '')
+      .replace(/\[.*?\]\(.*?\)/g, '')
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/[#*_~`]/g, '')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, '. ')
+      .trim()
+    if (!clean) return
+    const utterance = new SpeechSynthesisUtterance(clean)
+    utterance.rate = 1.05
+    utterance.pitch = 1.0
+    utterance.volume = 1.0
+    utterance.lang = 'en-US'
+    utterance.onstart = () => setSpeaking(true)
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    window.speechSynthesis?.speak(utterance)
+  }, [speakerOn])
+
+  // Stop speaking when speaker is toggled off
+  useEffect(() => {
+    if (!speakerOn) window.speechSynthesis?.cancel()
+  }, [speakerOn])
+
   // ── GPS COORDS (returns promise with lat/lng) ──
   const getGPSCoords = () => new Promise((resolve) => {
     if (!navigator.geolocation) { resolve(null); return }
@@ -399,11 +432,14 @@ function MobileAI() {
         await executeAction(action)
       }
 
+      const replyText = displayText || rawReply
       setMessages(m => [...m, {
         role: 'assistant',
-        content: displayText || rawReply,
+        content: replyText,
         actions,
       }])
+      // AI speaks the response
+      speak(replyText)
     } catch (err) {
       console.error('Chat error:', err)
       setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'check your internet.') }])
@@ -459,9 +495,15 @@ function MobileAI() {
           <MiniStat label="Loads" value={activeLoads.length} color="var(--accent2)" />
         </div>
 
+        {/* Speaker toggle */}
+        <button onClick={() => setSpeakerOn(s => !s)}
+          style={{ width: 32, height: 32, borderRadius: 8, background: speakerOn ? 'rgba(0,212,170,0.1)' : 'var(--surface2)', border: '1px solid ' + (speakerOn ? 'rgba(0,212,170,0.2)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+          <Ic icon={speakerOn ? Volume2 : VolumeX} size={14} color={speakerOn ? 'var(--success)' : 'var(--muted)'} />
+        </button>
+
         {/* New Chat / Home button — only show when in conversation */}
         {messages.length > 0 && (
-          <button onClick={() => { setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true) }}
+          <button onClick={() => { setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true); window.speechSynthesis?.cancel() }}
             style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
             <Ic icon={Plus} size={16} color="var(--text)" />
           </button>

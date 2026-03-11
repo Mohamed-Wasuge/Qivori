@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
@@ -7,14 +8,6 @@ import {
 } from 'lucide-react'
 
 const AppContext = createContext(null)
-
-// ── Demo accounts (email → password + role) ───────────────────────────────
-const ACCOUNTS = {
-  'admin@qivori.com':  { password: 'admin123',    role: 'admin' },
-  'sarah@elitelogistics.com':  { password: 'broker2024',  role: 'broker' },
-  'james@rjtransport.com':    { password: 'freight2024', role: 'carrier' },
-  'marcus@rjtransport.com':   { password: 'freight2024', role: 'carrier' },
-}
 
 export const ROLES = {
   admin: {
@@ -32,7 +25,7 @@ export const ROLES = {
     primaryBtn: '+ Invite User', topTitle: 'PLATFORM ADMIN'
   },
   broker: {
-    name: 'Sarah Chen', role: 'Broker · Elite Logistics', initials: 'SC',
+    name: 'Broker', role: 'Broker', initials: 'BR',
     badge: 'role-broker', badgeText: 'BROKER',
     nav: [
       { id: 'broker-dashboard', icon: BarChart2, label: 'Dashboard' },
@@ -45,7 +38,7 @@ export const ROLES = {
     primaryBtn: '+ Post Load', topTitle: 'BROKER PORTAL'
   },
   carrier: {
-    name: 'James Tucker', role: 'Owner-Op · MC-338821', initials: 'JT',
+    name: 'Carrier', role: 'Owner-Operator', initials: 'CR',
     badge: 'role-carrier', badgeText: 'CARRIER',
     nav: [
       { section: 'COMMAND CENTER' },
@@ -77,17 +70,74 @@ export function AppProvider({ children }) {
   const [currentRole, setCurrentRole] = useState('admin')
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [toast, setToast]   = useState({ show: false, icon: '', title: '', sub: '' })
+  const [toast, setToast] = useState({ show: false, icon: '', title: '', sub: '' })
   const [theme, setThemeState] = useState(() => localStorage.getItem('fm_theme') || 'default')
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const toastTimer = useRef(null)
 
-  // Apply theme class to <html> element whenever theme changes
+  // Apply theme class
   useEffect(() => {
     const root = document.documentElement
     if (theme === 'default') root.removeAttribute('data-theme')
     else root.setAttribute('data-theme', theme)
     localStorage.setItem('fm_theme', theme)
   }, [theme])
+
+  // Fetch user profile from Supabase
+  const fetchProfile = useCallback(async (userId) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
+    if (data) {
+      setProfile(data)
+      return data
+    }
+    return null
+  }, [])
+
+  // Listen for auth state changes
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user)
+        const prof = await fetchProfile(session.user.id)
+        if (prof) {
+          const role = prof.role || 'carrier'
+          setCurrentRole(role)
+          const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+          setCurrentPage(landingPage)
+          setView('app')
+        }
+      }
+      setAuthLoading(false)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUser(session.user)
+        const prof = await fetchProfile(session.user.id)
+        if (prof) {
+          const role = prof.role || 'carrier'
+          setCurrentRole(role)
+          const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+          setCurrentPage(landingPage)
+          setView('app')
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setProfile(null)
+        setView('landing')
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [fetchProfile])
 
   const setTheme = useCallback((t) => setThemeState(t), [])
 
@@ -97,29 +147,68 @@ export function AppProvider({ children }) {
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3000)
   }, [])
 
-  const login = useCallback((role) => {
+  // Sign in with Supabase
+  const loginWithCredentials = useCallback(async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return { error: error.message }
+
+    const prof = await fetchProfile(data.user.id)
+    if (!prof) return { error: 'Account found but no profile. Contact support.' }
+
+    const role = prof.role || 'carrier'
     setCurrentRole(role)
     const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
     setCurrentPage(landingPage)
     setView('app')
-    const r = ROLES[role]
-    showToast('', 'Welcome, ' + r.name, 'Signed in as ' + r.badgeText)
-  }, [showToast])
+    setUser(data.user)
 
-  const loginWithCredentials = useCallback((email, password) => {
-    const account = ACCOUNTS[email.toLowerCase().trim()]
-    if (!account) return { error: 'No account found for that email.' }
-    if (account.password !== password) return { error: 'Incorrect password.' }
-    login(account.role)
+    // Build display name from profile
+    const displayName = prof.full_name || prof.company_name || email.split('@')[0]
+    const roleConfig = ROLES[role]
+    showToast('', 'Welcome, ' + displayName, 'Signed in as ' + roleConfig.badgeText)
     return { ok: true }
-  }, [login])
+  }, [fetchProfile, showToast])
 
-  const goToLogin = useCallback(() => setView('login'), [])
+  // Sign up with Supabase
+  const signUp = useCallback(async (email, password, role, fullName, companyName) => {
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) return { error: error.message }
 
-  const logout = useCallback(() => {
+    // Create profile row
+    if (data.user) {
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: data.user.id,
+        email,
+        role,
+        full_name: fullName,
+        company_name: companyName,
+        status: 'pending',
+      })
+      if (profileError) console.error('Profile creation error:', profileError)
+    }
+
+    return { ok: true, needsConfirmation: !data.session }
+  }, [])
+
+  // Password reset
+  const resetPassword = useCallback(async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/?reset=true',
+    })
+    if (error) return { error: error.message }
+    return { ok: true }
+  }, [])
+
+  // Logout with Supabase
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
     setView('landing')
     showToast('', 'Signed Out', 'See you next time!')
   }, [showToast])
+
+  const goToLogin = useCallback(() => setView('login'), [])
 
   const navigatePage = useCallback((pageId) => {
     setCurrentPage(pageId)
@@ -129,14 +218,30 @@ export function AppProvider({ children }) {
   const toggleSidebar = useCallback(() => setSidebarOpen(o => !o), [])
   const closeSidebar = useCallback(() => setSidebarOpen(false), [])
 
+  // Build dynamic roleConfig with profile data
+  const roleConfig = { ...ROLES[currentRole] }
+  if (profile) {
+    if (profile.full_name) {
+      const parts = profile.full_name.split(' ')
+      roleConfig.name = profile.full_name
+      roleConfig.initials = parts.map(p => p[0]).join('').toUpperCase().slice(0, 2)
+    }
+    if (profile.company_name) {
+      roleConfig.role = currentRole === 'admin' ? 'Platform Owner'
+        : currentRole === 'broker' ? `Broker · ${profile.company_name}`
+        : `Owner-Op · ${profile.company_name}`
+    }
+  }
+
   return (
     <AppContext.Provider value={{
       view, currentRole, currentPage,
       sidebarOpen, toast,
-      login, loginWithCredentials, logout, goToLogin, navigatePage,
+      user, profile, authLoading,
+      loginWithCredentials, signUp, resetPassword, logout, goToLogin, navigatePage,
       toggleSidebar, closeSidebar, showToast,
       theme, setTheme,
-      roleConfig: ROLES[currentRole]
+      roleConfig
     }}>
       {children}
     </AppContext.Provider>

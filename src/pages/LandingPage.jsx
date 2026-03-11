@@ -76,11 +76,11 @@ const DAT_ITEMS = [
 ]
 
 export default function LandingPage({ onGetStarted }) {
-  const { login } = useApp()
+  const { goToLogin } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const handleTry = () => {
-    login('carrier')
+    goToLogin()
   }
 
   return (

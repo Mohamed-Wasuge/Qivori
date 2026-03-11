@@ -41,6 +41,7 @@ Available actions:
 - {"type":"upload_doc","doc_type":"bol|signed_bol|rate_con|pod|lumper_receipt|scale_ticket|other","load_id":"...","prompt":"..."} — ask the driver to take a photo/upload a document
 - {"type":"update_load_status","load_id":"...","status":"Booked|Dispatched|At Pickup|Loaded|In Transit|At Delivery|Delivered|Invoiced"}
 - {"type":"book_load","load_id":"...","origin":"...","destination":"...","miles":0,"rate":0,"gross":0,"broker":"...","equipment":"...","pickup":"...","delivery":"...","weight":"...","commodity":"...","refNum":"..."} — book a load from the load board to the driver's dispatch
+- {"type":"snap_ratecon"} — triggers the camera so the driver can snap a photo of a rate confirmation, which auto-extracts load details and books the load
 - {"type":"search_nearby","query":"truck stop|rest area|gas station|weigh station|repair shop|walmart|restaurant","radius":25} — search for places near the driver's GPS. Always get_gps first if no location is known.
 - {"type":"open_maps","query":"...","lat":0,"lng":0} — open Apple/Google Maps with directions to a place
 

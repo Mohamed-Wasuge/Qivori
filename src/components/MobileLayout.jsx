@@ -4,7 +4,7 @@ import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import {
   Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone,
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
-  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX
+  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download
 } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -73,7 +73,10 @@ function MobileAI() {
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const rateConInputRef = useRef(null)
   const recognitionRef = useRef(null)
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -81,6 +84,28 @@ function MobileAI() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, loading])
+
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setShowInstallBanner(true)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      showToast('success', 'Installed!', 'Qivori AI added to your home screen')
+    }
+    setDeferredPrompt(null)
+    setShowInstallBanner(false)
+  }
 
   // Build context for AI
   const buildContext = useCallback(() => {
@@ -185,6 +210,11 @@ function MobileAI() {
           } catch (err) {
             showToast('error', 'Booking Failed', err.message)
           }
+          return true
+        }
+        case 'snap_ratecon': {
+          // Trigger the rate con camera input
+          if (rateConInputRef.current) rateConInputRef.current.click()
           return true
         }
         case 'upload_doc': {
@@ -400,6 +430,97 @@ function MobileAI() {
     }
   }
 
+  // Handle rate con photo — parse and auto-book
+  const handleRateConPhoto = async (file) => {
+    if (!file) return
+    setShowQuickActions(false)
+    setMessages(m => [...m, { role: 'user', content: `[Snapped rate confirmation: ${file.name}]`, isDoc: true }])
+    setLoading(true)
+
+    try {
+      // Convert file to base64
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const mediaType = file.type || 'image/jpeg'
+
+      // Send to parse-ratecon API
+      const res = await fetch('/api/parse-ratecon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: base64, mediaType }),
+      })
+      const parsed = await res.json()
+
+      if (parsed.error) {
+        setMessages(m => [...m, { role: 'assistant', content: `Could not read that rate con: ${parsed.error}. Try a clearer photo.` }])
+        setLoading(false)
+        return
+      }
+
+      // Show extracted details in chat
+      const details = [
+        `**Rate Con Parsed!**`,
+        ``,
+        parsed.origin && parsed.destination ? `${parsed.origin} \u2192 ${parsed.destination}` : '',
+        parsed.rate ? `Rate: $${Number(parsed.rate).toLocaleString()}` : '',
+        parsed.broker ? `Broker: ${parsed.broker}` : '',
+        parsed.miles ? `Miles: ${parsed.miles}` : '',
+        parsed.equipment ? `Equipment: ${parsed.equipment}` : '',
+        parsed.weight ? `Weight: ${parsed.weight} lbs` : '',
+        parsed.commodity ? `Commodity: ${parsed.commodity}` : '',
+        parsed.pickup_date ? `Pickup: ${parsed.pickup_date}${parsed.pickup_time ? ' ' + parsed.pickup_time : ''}` : '',
+        parsed.delivery_date ? `Delivery: ${parsed.delivery_date}${parsed.delivery_time ? ' ' + parsed.delivery_time : ''}` : '',
+        parsed.load_number ? `Load #: ${parsed.load_number}` : '',
+        parsed.reference_number ? `Ref #: ${parsed.reference_number}` : '',
+        ``,
+        `Booking this load now...`,
+      ].filter(Boolean).join('\n')
+
+      setMessages(m => [...m, { role: 'assistant', content: details }])
+
+      // Auto-book the load
+      try {
+        await addLoad({
+          origin: parsed.origin || '',
+          destination: parsed.destination || '',
+          miles: parsed.miles || 0,
+          rate: parsed.rate || 0,
+          rate_per_mile: parsed.miles && parsed.rate ? (parsed.rate / parsed.miles).toFixed(2) : 0,
+          equipment: parsed.equipment || 'Dry Van',
+          broker_name: parsed.broker || '',
+          weight: parsed.weight || '',
+          commodity: parsed.commodity || '',
+          pickup_date: parsed.pickup_date || '',
+          delivery_date: parsed.delivery_date || '',
+          reference_number: parsed.reference_number || parsed.load_number || '',
+          status: 'Booked',
+          load_type: parsed.load_type || 'FTL',
+          shipper_name: parsed.shipper_name || '',
+          consignee_name: parsed.consignee_name || '',
+          notes: parsed.special_instructions || parsed.notes || '',
+        })
+
+        const confirmMsg = `Booked! ${parsed.origin || 'Origin'} \u2192 ${parsed.destination || 'Destination'}, $${Number(parsed.rate || 0).toLocaleString()}, ${parsed.broker || 'Unknown Broker'}`
+        setMessages(m => [...m, { role: 'assistant', content: confirmMsg }])
+        speak(confirmMsg)
+        showToast('success', 'Load Booked!', `${parsed.origin} \u2192 ${parsed.destination} \u2014 $${Number(parsed.rate || 0).toLocaleString()}`)
+      } catch (err) {
+        setMessages(m => [...m, { role: 'assistant', content: `Parsed the rate con but couldn't book: ${err.message}. You can book it manually.` }])
+        showToast('error', 'Booking Failed', err.message)
+      }
+    } catch (err) {
+      console.error('Rate con parse error:', err)
+      setMessages(m => [...m, { role: 'assistant', content: `Error processing the rate con: ${err.message || 'Try again.'}` }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Send message
   const sendMessage = async (text) => {
     const userText = text || input.trim()
@@ -450,6 +571,7 @@ function MobileAI() {
 
   // Quick action chips
   const quickActions = [
+    { icon: ScanLine, label: 'Snap Rate Con', msg: '__snap_ratecon__' },
     { icon: Truck, label: 'Find Loads', msg: 'Find me the best available loads right now' },
     { icon: Navigation, label: 'Check In', msg: 'Submit a check call with my GPS location' },
     { icon: MapPin, label: 'At Pickup', msg: "I'm at the pickup location" },
@@ -513,6 +635,23 @@ function MobileAI() {
           Log Out
         </button>
       </div>
+
+      {/* ── PWA INSTALL BANNER ──────────────────────── */}
+      {showInstallBanner && (
+        <div style={{ flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(0,212,170,0.06))', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Ic icon={Download} size={16} color="var(--accent)" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>Install Qivori AI</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Add to home screen for quick access</div>
+          </div>
+          <button onClick={handleInstallClick} style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Install</button>
+          <button onClick={() => setShowInstallBanner(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
+            <Ic icon={X} size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── ACTIVE LOAD BANNER ──────────────────────── */}
       {activeLoads.length > 0 && showQuickActions && (
@@ -670,7 +809,7 @@ function MobileAI() {
       {/* ── QUICK ACTION CHIPS ──────────────────────── */}
       <div style={{ flexShrink: 0, padding: '6px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {quickActions.map(a => (
-          <button key={a.label} onClick={() => sendMessage(a.msg)}
+          <button key={a.label} onClick={() => { if (a.msg === '__snap_ratecon__') { if (rateConInputRef.current) rateConInputRef.current.click() } else { sendMessage(a.msg) } }}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif", flexShrink: 0 }}>
             <Ic icon={a.icon} size={13} color={a.label === 'Check In' ? 'var(--success)' : 'var(--accent)'} />
             {a.label}
@@ -747,6 +886,14 @@ function MobileAI() {
         </div>
       )}
 
+      {/* Hidden rate con file input */}
+      <input ref={rateConInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleRateConPhoto(file)
+          e.target.value = ''
+        }} />
+
       {/* Animations */}
       <style>{`
         @keyframes aipulse {
@@ -781,6 +928,7 @@ function ActionBadge({ action }) {
     get_gps: Navigation,
     call_broker: Phone,
     navigate: ArrowLeft,
+    snap_ratecon: ScanLine,
     upload_doc: Camera,
     update_load_status: Truck,
     book_load: Package,
@@ -791,6 +939,7 @@ function ActionBadge({ action }) {
     get_gps: 'Getting location...',
     call_broker: 'Calling broker',
     navigate: `Opening ${action.to}`,
+    snap_ratecon: 'Snap Rate Con',
     upload_doc: `Upload ${docLabels[action.doc_type] || 'Document'}`,
     update_load_status: `Load → ${action.status}`,
     book_load: `Booked: ${action.origin} → ${action.destination || action.dest}`,

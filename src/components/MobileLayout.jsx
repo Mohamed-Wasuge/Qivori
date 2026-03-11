@@ -21,7 +21,7 @@ export default function MobileLayout() {
 function MobileAI() {
   const { logout, showToast } = useApp()
   const ctx = useCarrier()
-  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, createCheckCall, updateLoadStatus } = ctx
+  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, logCheckCall, updateLoadStatus } = ctx
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -85,9 +85,11 @@ function MobileAI() {
           return true
         }
         case 'check_call': {
-          const loadId = action.load_id || activeLoads[0]?.id
-          if (!loadId) { showToast('error', 'Error', 'No active load found'); return false }
-          await createCheckCall(loadId, {
+          // logCheckCall expects loadNumber (e.g. "QV-4026"), not a UUID
+          const load = loads.find(l => l.id === action.load_id || l.load_id === action.load_id) || activeLoads[0]
+          if (!load) { showToast('error', 'Error', 'No active load found'); return false }
+          const loadNumber = load.loadId || load.load_id || load.load_number || load.id
+          await logCheckCall(loadNumber, {
             location: action.location || gpsLocation || 'Unknown',
             status: action.status || 'On Time',
             notes: action.notes || '',

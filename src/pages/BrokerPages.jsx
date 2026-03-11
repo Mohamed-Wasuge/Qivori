@@ -520,6 +520,7 @@ export function BrokerLoads() {
   const [filter, setFilter] = useState('All')
   const [loads, setLoads] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(null)
   const filters = ['All', 'Active', 'Booked', 'Delivered']
 
   const fetchLoads = async () => {
@@ -611,8 +612,10 @@ export function BrokerLoads() {
               const sc = statusColor(display)
               const originState = getState(load.origin)
               const destState = getState(load.destination)
-              return (
-                <tr key={load.id}>
+              const isExp = expanded === load.id
+              return [
+                <tr key={load.id} onClick={() => setExpanded(isExp ? null : load.id)}
+                  style={{ cursor: 'pointer', background: isExp ? 'rgba(240,165,0,0.03)' : 'transparent' }}>
                   <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent3)' }}>{load.load_id}</td>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ fontSize: 12, fontWeight: 700 }}>
@@ -621,12 +624,94 @@ export function BrokerLoads() {
                     <div style={{ fontSize: 10, color: 'var(--muted)' }}>{load.origin} → {load.destination}</div>
                   </td>
                   <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>${Number(load.rate || 0).toLocaleString()}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>{load.weight ? load.weight.toLocaleString() + ' lbs' : '—'}</td>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>{load.weight ? Number(load.weight).toLocaleString() + ' lbs' : '—'}</td>
                   <td style={{ padding: '10px 14px', fontSize: 12 }}>{load.equipment || '—'}</td>
                   <td style={{ padding: '10px 14px' }}><span style={badge(sc + '18', sc)}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sc }} /> {display}</span></td>
-                  <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--muted)' }}>{load.posted_at ? new Date(load.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
-                </tr>
-              )
+                  <td style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{load.posted_at ? new Date(load.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
+                    <Ic icon={isExp ? ChevronUp : ChevronDown} size={14} style={{ color: 'var(--muted)' }} />
+                  </td>
+                </tr>,
+                isExp && (
+                  <tr key={load.id + '-detail'}>
+                    <td colSpan={7} style={{ padding: 0, background: 'var(--surface2)', borderTop: '2px solid var(--accent)' }}>
+                      <div style={{ padding: '20px 24px' }}>
+                        {/* Route Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                          <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Ic icon={Package} size={20} style={{ color: 'var(--accent)' }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 16, fontWeight: 700 }}>{load.load_id}</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{load.origin} → {load.destination}</div>
+                          </div>
+                          <div style={{ marginLeft: 'auto' }}>
+                            <span style={{ ...badge(sc + '18', sc), fontSize: 12, padding: '5px 14px' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: sc }} /> {display}</span>
+                          </div>
+                        </div>
+
+                        {/* Detail Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 18 }}>
+                          {[
+                            { label: 'Origin', value: load.origin || '—', icon: MapPin, color: 'var(--success)' },
+                            { label: 'Destination', value: load.destination || '—', icon: MapPin, color: 'var(--danger)' },
+                            { label: 'Rate', value: '$' + Number(load.rate || 0).toLocaleString(), icon: DollarSign, color: 'var(--accent)' },
+                            { label: 'Weight', value: load.weight ? Number(load.weight).toLocaleString() + ' lbs' : '—', icon: Package, color: 'var(--accent2)' },
+                          ].map(d => (
+                            <div key={d.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                <Ic icon={d.icon} size={11} style={{ color: d.color }} /> {d.label}
+                              </div>
+                              <div style={{ fontSize: 14, fontWeight: 700, color: d.color }}>{d.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 18 }}>
+                          {[
+                            { label: 'Equipment', value: load.equipment || '—' },
+                            { label: 'Load Type', value: load.load_type || '—' },
+                            { label: 'Pickup Date', value: load.pickup_date ? new Date(load.pickup_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+                            { label: 'Delivery Date', value: load.delivery_date ? new Date(load.delivery_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+                          ].map(d => (
+                            <div key={d.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{d.label}</div>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>{d.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Notes */}
+                        {load.notes && (
+                          <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)', marginBottom: 18 }}>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Special Instructions</div>
+                            <div style={{ fontSize: 12, lineHeight: 1.6 }}>{load.notes}</div>
+                          </div>
+                        )}
+
+                        {/* Rate Con + Carrier */}
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          {load.rate_con_url && (
+                            <a href={load.rate_con_url} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}>
+                              <Ic icon={FileText} size={14} /> View Rate Confirmation
+                            </a>
+                          )}
+                          {load.carrier_name ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--success)' }}>
+                              <Ic icon={Truck} size={14} /> {load.carrier_name}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, color: 'var(--muted)' }}>
+                              <Ic icon={Clock} size={14} /> Waiting for carrier match
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              ]
             })}
           </tbody>
         </table>

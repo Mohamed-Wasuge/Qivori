@@ -246,7 +246,14 @@ export function BrokerPostLoad() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: base64, mediaType })
       })
-      const data = await res.json()
+
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch {
+        showToast('', 'Parse Error', 'Server returned invalid response')
+        setParsing(false)
+        return
+      }
 
       if (data.error) {
         showToast('', 'Parse Error', data.error)

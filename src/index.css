@@ -432,6 +432,18 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   /* AI banner */
   .ai-banner { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
 
+  /* Command Center — stack panels vertically */
+  .cc-panels { flex-direction: column !important; overflow-y: auto !important; }
+  .cc-left {
+    width: 100% !important;
+    max-height: 300px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    overflow-y: auto !important;
+  }
+  /* Bottom gantt section */
+  .cc-root > div:last-child { max-height: 200px !important; }
+
   /* Hide less important things */
   .hide-mobile { display: none !important; }
 }

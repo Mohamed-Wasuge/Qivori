@@ -5372,13 +5372,13 @@ export function CommandCenter() {
   const queueLoad = filterStatus === 'All' ? activeLoads : activeLoads.filter(l => l.status === filterStatus)
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'var(--bg)' }}>
+    <div className="cc-root" style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'var(--bg)' }}>
 
       {/* ── TOP 3-PANEL ROW ─────────────────────────────────────────── */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
+      <div className="cc-panels" style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
 
         {/* LEFT: Dispatch Queue */}
-        <div style={{ width:260, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', background:'var(--surface)' }}>
+        <div className="cc-left" style={{ width:260, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', background:'var(--surface)' }}>
           <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
             <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:8 }}>DISPATCH QUEUE</div>
             <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>

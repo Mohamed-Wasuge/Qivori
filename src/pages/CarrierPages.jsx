@@ -5659,18 +5659,39 @@ export function AILoadBoard() {
   const rcFileRef = useRef(null)
 
   const parseCarrierRC = (f) => {
-    if (!f || !/\.(pdf|png|jpg|jpeg)$/i.test(f.name)) {
-      if (f) showToast('','Invalid File','Only PDF, PNG, or JPG accepted')
+    if (!f) return
+    // Accept common image types and PDFs
+    const validTypes = ['image/jpeg','image/png','image/jpg','application/pdf']
+    const validExt = /\.(pdf|png|jpg|jpeg)$/i
+    if (!validTypes.includes(f.type) && !validExt.test(f.name)) {
+      showToast('','Invalid File',`Got "${f.type || f.name}" — need PDF, PNG, or JPG`)
+      return
+    }
+    if (f.size > 10 * 1024 * 1024) {
+      showToast('','File Too Large','Max 10MB')
       return
     }
     setRateConFile(f)
     setParsingRC(true)
-    showToast('','Reading Rate Con','AI is extracting load details...')
+    showToast('','Reading Rate Con',`Uploading ${f.name} (${(f.size/1024).toFixed(0)} KB)...`)
     const reader = new FileReader()
+    reader.onerror = () => { showToast('','Error','Could not read file'); setParsingRC(false) }
     reader.onload = async () => {
       try {
-        const base64 = reader.result.split(',')[1]
+        const result = reader.result
+        if (!result || !result.includes(',')) {
+          showToast('','Error','File read failed — empty result')
+          setParsingRC(false)
+          return
+        }
+        const base64 = result.split(',')[1]
+        if (!base64 || base64.length < 100) {
+          showToast('','Error',`File too small or empty (${base64?.length || 0} bytes)`)
+          setParsingRC(false)
+          return
+        }
         const mediaType = f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+        showToast('','AI Processing',`Sending to AI (${(base64.length/1024).toFixed(0)} KB)...`)
         const res = await fetch('/api/parse-ratecon', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ file: base64, mediaType })

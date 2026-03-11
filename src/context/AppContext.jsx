@@ -87,7 +87,6 @@ export function AppProvider({ children }) {
 
   // Fetch user profile from Supabase
   const fetchProfile = useCallback(async (userId) => {
-    if (!supabase) return null
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -102,7 +101,6 @@ export function AppProvider({ children }) {
 
   // Listen for auth state changes
   useEffect(() => {
-    if (!supabase) { setAuthLoading(false); return }
     // Check current session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
@@ -151,7 +149,6 @@ export function AppProvider({ children }) {
 
   // Sign in with Supabase
   const loginWithCredentials = useCallback(async (email, password) => {
-    if (!supabase) return { error: 'Service unavailable. Please try again later.' }
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error: error.message }
 
@@ -174,7 +171,6 @@ export function AppProvider({ children }) {
 
   // Sign up with Supabase
   const signUp = useCallback(async (email, password, role, fullName, companyName) => {
-    if (!supabase) return { error: 'Service unavailable. Please try again later.' }
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) return { error: error.message }
 
@@ -196,7 +192,6 @@ export function AppProvider({ children }) {
 
   // Password reset
   const resetPassword = useCallback(async (email) => {
-    if (!supabase) return { error: 'Service unavailable. Please try again later.' }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + '/?reset=true',
     })
@@ -206,7 +201,7 @@ export function AppProvider({ children }) {
 
   // Logout with Supabase
   const logout = useCallback(async () => {
-    if (supabase) await supabase.auth.signOut()
+    await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
     setView('landing')

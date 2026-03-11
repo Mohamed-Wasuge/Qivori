@@ -131,17 +131,9 @@ export function AppProvider({ children }) {
       setAuthLoading(false)
     })
 
-    // Listen for auth changes
+    // Listen for auth changes (only handle sign-out here; sign-in handled by loginWithCredentials)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        setUser(session.user)
-        const prof = await fetchProfile(session.user.id)
-        const role = resolveRole(prof, session.user.email)
-        setCurrentRole(role)
-        const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
-        setCurrentPage(landingPage)
-        setView('app')
-      } else if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
         setView('landing')
@@ -173,15 +165,27 @@ export function AppProvider({ children }) {
       if (error) return { error: error.message }
 
       setUser(data.user)
-      const prof = await fetchProfile(data.user.id)
-      const role = resolveRole(prof, email)
-      setCurrentRole(role)
-      const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+
+      // Resolve role from email first (instant), then update with profile
+      const quickRole = resolveRole(null, email)
+      setCurrentRole(quickRole)
+      const landingPage = quickRole === 'carrier' ? 'carrier-dashboard' : quickRole === 'broker' ? 'broker-dashboard' : 'dashboard'
       setCurrentPage(landingPage)
       setView('app')
 
       const displayName = email.split('@')[0]
-      showToast('', 'Welcome, ' + displayName, 'Signed in as ' + ROLES[role].badgeText)
+      showToast('', 'Welcome, ' + displayName, 'Signing in...')
+
+      // Fetch profile in background and update role if different
+      fetchProfile(data.user.id).then(prof => {
+        if (prof?.role && prof.role !== quickRole) {
+          setCurrentRole(prof.role)
+          const correctPage = prof.role === 'carrier' ? 'carrier-dashboard' : prof.role === 'broker' ? 'broker-dashboard' : 'dashboard'
+          setCurrentPage(correctPage)
+        }
+        showToast('', 'Welcome, ' + displayName, 'Signed in as ' + ROLES[prof?.role || quickRole].badgeText)
+      })
+
       return { ok: true }
     } catch (e) {
       return { error: 'Login failed. Please try again.' }

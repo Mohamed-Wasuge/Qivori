@@ -36,8 +36,20 @@ export default function MobileLayout() {
 // ── MAIN AI-DRIVEN MOBILE APP ─────────────────────────────
 function MobileAI() {
   const { logout, showToast } = useApp()
-  const ctx = useCarrier()
-  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, logCheckCall, updateLoadStatus, addLoad } = ctx
+  const ctx = useCarrier() || {}
+  const loads = ctx.loads || []
+  const activeLoads = ctx.activeLoads || []
+  const invoices = ctx.invoices || []
+  const expenses = ctx.expenses || []
+  const company = ctx.company || {}
+  const totalRevenue = ctx.totalRevenue || 0
+  const totalExpenses = ctx.totalExpenses || 0
+  const addExpense = ctx.addExpense || (() => {})
+  const logCheckCall = ctx.logCheckCall || (() => {})
+  const updateLoadStatus = ctx.updateLoadStatus || (() => {})
+  const addLoad = ctx.addLoad || (() => {})
+
+  const dataReady = ctx.dataReady !== false // default true if not set
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -283,8 +295,9 @@ function MobileAI() {
         content: displayText || rawReply,
         actions,
       }])
-    } catch {
-      setMessages(m => [...m, { role: 'assistant', content: 'Connection error — check your internet.' }])
+    } catch (err) {
+      console.error('Chat error:', err)
+      setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'check your internet.') }])
     } finally {
       setLoading(false)
     }

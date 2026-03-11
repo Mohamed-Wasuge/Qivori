@@ -1507,12 +1507,27 @@ function BookedLoads() {
     if (!form.origin || !form.dest) { showToast('', 'Missing Fields', 'Origin and destination required'); return }
     const gross = parseFloat(form.rate) || form.gross || 0
     const miles = parseFloat(form.miles) || 0
-    const rpm = miles > 0 ? (gross / miles).toFixed(2) : 0
     const autoId = form.loadId || ('RC-' + Date.now().toString(36).toUpperCase())
-    ctxAddLoad({ ...form, loadId: autoId, broker: form.broker || 'Direct', gross, miles, rate: parseFloat(rpm), rateCon: true })
+    // Map form fields to DB schema
+    ctxAddLoad({
+      load_id: autoId,
+      origin: form.origin,
+      destination: form.dest,
+      rate: gross,
+      broker_name: form.broker || 'Direct',
+      carrier_name: form.driver || null,
+      equipment: form.equipment || 'Dry Van',
+      weight: form.weight || null,
+      notes: form.commodity || null,
+      pickup_date: form.pickup || null,
+      delivery_date: form.delivery || null,
+      status: 'Rate Con Received',
+      // Keep extra fields for local display
+      miles, refNum: form.refNum, rateCon: true,
+    })
     setForm({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
     setShowForm(false)
-    showToast('', 'Load Added', form.loadId + ' · ' + form.origin + ' → ' + form.dest)
+    showToast('', 'Load Added', autoId + ' · ' + form.origin + ' → ' + form.dest)
   }
 
   return (

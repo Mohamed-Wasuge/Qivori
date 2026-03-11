@@ -4,14 +4,13 @@ import * as db from '../lib/database'
 const CarrierContext = createContext(null)
 
 // ─── Compatibility layer ─────────────────────────────────────
-// The DB uses snake_case (load_number, gross_pay, etc.)
-// The frontend uses camelCase / short names (loadId, gross, dest, etc.)
-// These helpers add alias fields so both work.
+// Actual DB loads table: id, load_id, origin, destination, rate, broker_id,
+//   broker_name, carrier_id, carrier_name, load_type, equipment, weight,
+//   status, posted_at, pickup_date, delivery_date, created_at, rate_con_url, notes
+// Frontend expects: loadId, dest, gross, rate, driver, refNum, pickup, delivery, miles, weight
 
 function normalizeLoad(l) {
   if (!l) return l
-  const pickup = l.pickup_date || ''
-  const delivery = l.delivery_date || ''
   const fmtDate = (d, t) => {
     if (!d) return ''
     try {
@@ -20,27 +19,34 @@ function normalizeLoad(l) {
       return t ? `${mon} · ${t}` : mon
     } catch { return d }
   }
+  const grossVal = Number(l.rate) || Number(l.gross_pay) || Number(l.gross) || 0
+  const milesVal = Number(l.miles) || 0
+  const rpm = milesVal > 0 ? +(grossVal / milesVal).toFixed(2) : 0
   return {
     ...l,
-    // Aliases for frontend compatibility
-    loadId: l.load_number || l.loadId,
-    dest: l.destination || l.dest,
-    gross: Number(l.gross_pay) || l.gross || 0,
-    rate: Number(l.rate_per_mile) || l.rate || 0,
-    driver: l.driver_name || l.driver || '',
+    // Frontend aliases
+    loadId: l.load_id || l.load_number || l.loadId || '',
+    dest: l.destination || l.dest || '',
+    gross: grossVal,
+    rate: rpm || Number(l.rate_per_mile) || Number(l.rate) || 0,
+    driver: l.carrier_name || l.driver_name || l.driver || '',
+    broker: l.broker_name || l.broker || '',
     refNum: l.reference_number || l.refNum || '',
-    pickup: fmtDate(pickup, l.pickup_time),
-    delivery: fmtDate(delivery, l.delivery_time),
-    // Keep DB names too
-    load_number: l.load_number || l.loadId,
-    destination: l.destination || l.dest,
-    gross_pay: Number(l.gross_pay) || l.gross || 0,
-    rate_per_mile: Number(l.rate_per_mile) || l.rate || 0,
-    driver_name: l.driver_name || l.driver || '',
-    reference_number: l.reference_number || l.refNum || '',
-    miles: Number(l.miles) || 0,
+    pickup: fmtDate(l.pickup_date, l.pickup_time),
+    delivery: fmtDate(l.delivery_date, l.delivery_time),
+    commodity: l.notes || l.commodity || '',
+    miles: milesVal,
     weight: l.weight || '',
-    // Normalize stops
+    // DB aliases (so both old and new code works)
+    load_id: l.load_id || l.load_number || l.loadId || '',
+    load_number: l.load_id || l.load_number || l.loadId || '',
+    destination: l.destination || l.dest || '',
+    gross_pay: grossVal,
+    rate_per_mile: rpm,
+    driver_name: l.carrier_name || l.driver_name || l.driver || '',
+    carrier_name: l.carrier_name || l.driver_name || l.driver || '',
+    reference_number: l.reference_number || l.refNum || '',
+    // Stops
     stops: l.load_stops || l.stops || undefined,
     currentStop: l.load_stops
       ? (l.load_stops.findIndex(s => s.status === 'current') ?? 0)
@@ -207,19 +213,19 @@ export function CarrierProvider({ children }) {
   }, [useDb])
 
   const updateLoadStatus = useCallback(async (loadId, newStatus) => {
-    const load = loads.find(l => l.loadId === loadId || l.load_number === loadId || l.id === loadId)
+    const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
 
-    if (useDb && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
+    if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
       try {
-        await db.updateLoad(load._dbId || load.id, { status: newStatus })
+        await db.updateLoad(load.id, { status: newStatus })
       } catch (e) {
         console.error('Failed to update load:', e)
       }
     }
 
     setLoads(ls => ls.map(l => {
-      const match = l.loadId === loadId || l.load_number === loadId || l.id === loadId
+      const match = l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId
       if (!match) return l
       const updated = normalizeLoad({ ...l, status: newStatus })
 

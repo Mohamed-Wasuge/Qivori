@@ -1435,15 +1435,19 @@ function BookedLoads() {
     if (!file) return
     const isImage = file.type.startsWith('image/')
     const isPDF   = file.type === 'application/pdf'
-    if (!isPDF && !isImage) { showToast('', 'Unsupported File', 'Drop a PDF or image (photo, scan) of the rate confirmation'); return }
+    const validExt = /\.(pdf|png|jpg|jpeg)$/i
+    if (!isPDF && !isImage && !validExt.test(file.name)) { showToast('', 'Unsupported File', 'Drop a PDF or image (photo, scan) of the rate confirmation'); return }
     setParsing(true)
     setShowForm(true)
+    showToast('', 'Reading Rate Con', `Compressing ${file.name} (${(file.size/1024).toFixed(0)} KB)...`)
     try {
       const parsed = await parseRateConWithAI(file)
+      console.log('Rate con parsed:', parsed)
       setForm(parsed)
       const filled = Object.values(parsed).filter(v => v && v !== 0 && v !== '').length
-      showToast('', 'Claude Parsed Rate Con', `${filled} fields auto-filled — review and confirm`)
+      showToast('', 'Rate Con Parsed', `${filled} fields auto-filled — review and confirm`)
     } catch (e) {
+      console.error('Rate con error:', e)
       showToast('', 'Parse Failed', e.message || 'Check your API key and try again')
       setShowForm(false)
     } finally {

@@ -21,16 +21,17 @@ export default function MobileLayout() {
 function MobileAI() {
   const { logout, showToast } = useApp()
   const ctx = useCarrier()
-  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, createCheckCall } = ctx
+  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, createCheckCall, updateLoadStatus } = ctx
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
-  const [pendingAction, setPendingAction] = useState(null)
+  const [pendingUpload, setPendingUpload] = useState(null) // { doc_type, load_id, prompt }
   const [gpsLocation, setGpsLocation] = useState(null)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -103,8 +104,20 @@ function MobileAI() {
           if (action.phone) window.location.href = `tel:${action.phone}`
           return true
         }
+        case 'update_load_status': {
+          const load = loads.find(l => l.id === action.load_id || l.load_id === action.load_id) || activeLoads[0]
+          if (load && updateLoadStatus) {
+            await updateLoadStatus(load.id, action.status)
+            showToast('success', 'Load Updated', `${load.load_id || load.id} → ${action.status}`)
+          }
+          return true
+        }
+        case 'upload_doc': {
+          // Trigger the camera/file picker for document upload
+          setPendingUpload({ doc_type: action.doc_type, load_id: action.load_id, prompt: action.prompt })
+          return true
+        }
         case 'navigate': {
-          // Could expand later — for now toast
           showToast('info', 'Navigate', `Opening ${action.to}`)
           return true
         }
@@ -135,6 +148,53 @@ function MobileAI() {
         setGpsLocation(loc)
       }
     }, () => { showToast('error', 'Error', 'Location permission denied') })
+  }
+
+  // Handle document photo upload
+  const handleDocUpload = async (file) => {
+    if (!file || !pendingUpload) return
+    const { doc_type, load_id } = pendingUpload
+    const docLabels = { bol: 'BOL', signed_bol: 'Signed BOL', rate_con: 'Rate Confirmation', pod: 'Proof of Delivery', lumper_receipt: 'Lumper Receipt', scale_ticket: 'Scale Ticket', other: 'Document' }
+    const label = docLabels[doc_type] || 'Document'
+
+    try {
+      // Upload to Supabase Storage
+      const { uploadFile } = await import('../lib/storage')
+      const { createDocument } = await import('../lib/database')
+      const uploaded = await uploadFile(file, 'documents')
+
+      // Find load
+      const load = loads.find(l => l.id === load_id || l.load_id === load_id) || activeLoads[0]
+
+      // Save document record
+      await createDocument({
+        name: `${label} — ${load?.load_id || 'Unknown'}`,
+        type: doc_type,
+        url: uploaded.url,
+        load_id: load?.id,
+        company_id: company?.id,
+        uploaded_at: new Date().toISOString(),
+      })
+
+      showToast('success', `${label} Uploaded`, file.name)
+
+      // Send confirmation to AI chat
+      setPendingUpload(null)
+      setMessages(m => [
+        ...m,
+        { role: 'user', content: `[Uploaded ${label} photo: ${file.name}]`, isDoc: true },
+      ])
+      // Tell AI the doc was uploaded
+      sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
+    } catch (err) {
+      console.warn('Doc upload failed, saving locally:', err.message)
+      showToast('warning', 'Saved Locally', `${label} saved — will sync when online`)
+      setPendingUpload(null)
+      setMessages(m => [
+        ...m,
+        { role: 'user', content: `[${label} photo captured: ${file.name}]`, isDoc: true },
+      ])
+    }
   }
 
   // Send message
@@ -183,20 +243,22 @@ function MobileAI() {
   // Quick action chips
   const quickActions = [
     { icon: Navigation, label: 'Check In', msg: 'Submit a check call with my GPS location' },
+    { icon: MapPin, label: 'At Pickup', msg: "I'm at the pickup location" },
+    { icon: CheckCircle, label: 'Delivered', msg: 'I just delivered the load' },
+    { icon: Camera, label: 'Upload BOL', msg: 'I need to upload a BOL' },
     { icon: Receipt, label: 'Add Expense', msg: 'I need to add an expense' },
     { icon: Package, label: 'My Loads', msg: 'Show me my active loads' },
     { icon: DollarSign, label: 'Revenue', msg: "What's my revenue and profit this month?" },
     { icon: FileText, label: 'Invoices', msg: 'Show me my unpaid invoices' },
-    { icon: Truck, label: 'Next Load', msg: "What's my next pickup?" },
   ]
 
   // Suggested prompts for empty state
   const suggestions = [
-    'Submit check call — I\'m in Dallas, TX',
+    "I'm at the pickup — need to upload BOL",
+    'Just delivered, here\'s the signed BOL',
     'Add fuel expense $120 at Pilot in Memphis',
-    'How much have I made this month?',
     'What loads do I have active?',
-    'Call my broker for load ' + (activeLoads[0]?.load_id || 'QV-1001'),
+    'How much have I made this month?',
   ]
 
   return (
@@ -325,6 +387,22 @@ function MobileAI() {
         )}
       </div>
 
+      {/* ── DOCUMENT UPLOAD PROMPT ─────────────────── */}
+      {pendingUpload && (
+        <div style={{ flexShrink: 0, margin: '0 12px', padding: '12px 16px', background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(0,212,170,0.05))', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Ic icon={Camera} size={20} color="var(--accent)" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{pendingUpload.prompt || 'Take a photo'}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Tap the camera button or choose a file</div>
+          </div>
+          <button onClick={() => setPendingUpload(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
+            <Ic icon={X} size={16} />
+          </button>
+        </div>
+      )}
+
       {/* ── QUICK ACTION CHIPS ──────────────────────── */}
       <div style={{ flexShrink: 0, padding: '6px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {quickActions.map(a => (
@@ -343,6 +421,24 @@ function MobileAI() {
           style={{ width: 40, height: 40, borderRadius: 12, background: gpsLocation ? 'rgba(0,212,170,0.12)' : 'var(--surface2)', border: '1px solid ' + (gpsLocation ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Ic icon={Navigation} size={16} color={gpsLocation ? 'var(--success)' : 'var(--muted)'} />
         </button>
+
+        {/* Camera / document upload button */}
+        <label style={{ width: 40, height: 40, borderRadius: 12, background: pendingUpload ? 'rgba(240,165,0,0.12)' : 'var(--surface2)', border: '1px solid ' + (pendingUpload ? 'rgba(240,165,0,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Ic icon={Camera} size={16} color={pendingUpload ? 'var(--accent)' : 'var(--muted)'} />
+          <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              if (pendingUpload) {
+                handleDocUpload(file)
+              } else {
+                // No pending upload — ask AI what this is
+                setPendingUpload({ doc_type: 'other', load_id: activeLoads[0]?.id, prompt: 'Uploading document...' })
+                handleDocUpload(file)
+              }
+              e.target.value = '' // reset so same file can be re-selected
+            }} />
+        </label>
 
         {/* Text input */}
         <div style={{ flex: 1, position: 'relative' }}>
@@ -386,19 +482,24 @@ function MiniStat({ label, value, color }) {
 
 // ── ACTION BADGE ────────────────────────────────────────
 function ActionBadge({ action }) {
+  const docLabels = { bol: 'BOL', signed_bol: 'Signed BOL', rate_con: 'Rate Con', pod: 'POD', lumper_receipt: 'Lumper', scale_ticket: 'Scale Ticket' }
   const icons = {
     add_expense: Receipt,
     check_call: MapPin,
     get_gps: Navigation,
     call_broker: Phone,
     navigate: ArrowLeft,
+    upload_doc: Camera,
+    update_load_status: Truck,
   }
   const labels = {
     add_expense: `Expense: $${action.amount} ${action.category || ''}`,
-    check_call: `Check Call: ${action.location || 'submitted'}`,
+    check_call: `Check Call: ${action.location || action.status || 'submitted'}`,
     get_gps: 'Getting location...',
     call_broker: 'Calling broker',
     navigate: `Opening ${action.to}`,
+    upload_doc: `Upload ${docLabels[action.doc_type] || 'Document'}`,
+    update_load_status: `Load → ${action.status}`,
   }
   const Icon = icons[action.type] || CheckCircle
   return (

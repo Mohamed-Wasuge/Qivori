@@ -5693,9 +5693,15 @@ export function AILoadBoard() {
     }
     setRateConFile(f)
     setParsingRC(true)
-    showToast('','Reading Rate Con','Compressing and sending to AI...')
+    showToast('','Reading Rate Con',`Compressing ${f.name} (${(f.size/1024).toFixed(0)} KB)...`)
     try {
       const { base64, mediaType } = await compressImage(f)
+      if (!base64 || base64.length < 50) {
+        showToast('','Compression Failed','File could not be read — try a different format')
+        setParsingRC(false)
+        return
+      }
+      showToast('','Sending to AI',`${(base64.length/1024).toFixed(0)} KB compressed — analyzing...`)
       const res = await fetch('/api/parse-ratecon', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ file: base64, mediaType })
@@ -5705,9 +5711,14 @@ export function AILoadBoard() {
       if (data && !data.error) {
         showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
       } else {
-        showToast('','Parse Error', data?.error || text.slice(0, 100) || 'Could not read')
+        const errMsg = data?.error || 'Could not parse'
+        showToast('','Parse Error', errMsg)
+        console.error('Rate con parse error:', errMsg, text?.slice(0, 300))
       }
-    } catch(err) { showToast('','Error', err?.message || 'Failed to parse rate con') }
+    } catch(err) {
+      showToast('','Error', err?.message || 'Failed to parse rate con')
+      console.error('Rate con fetch error:', err)
+    }
     setParsingRC(false)
   }
 

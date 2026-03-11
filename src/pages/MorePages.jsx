@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
-import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail } from 'lucide-react'
+import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail, Plus, X } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -234,48 +234,169 @@ export function Payments() {
   )
 }
 
-/* ─── Support Tickets ────────────────────────────────────────────────────── */
-const TICKETS = [
-  { id: 'TK-101', from: 'R&J Transport', type: 'Carrier', subject: 'IFTA report not generating', priority: 'High', status: 'Open', created: '2hrs ago' },
-  { id: 'TK-100', from: 'Elite Logistics', type: 'Broker', subject: 'Can\'t post LTL loads', priority: 'Medium', status: 'Open', created: '5hrs ago' },
-  { id: 'TK-099', from: 'Southern Freight', type: 'Carrier', subject: 'Fleet map not showing truck #3', priority: 'Medium', status: 'In Progress', created: 'Yesterday' },
-  { id: 'TK-098', from: 'Blue Line Freight', type: 'Carrier', subject: 'Subscription payment failed', priority: 'High', status: 'Open', created: 'Yesterday' },
-  { id: 'TK-097', from: 'Coastal Brokerage', type: 'Broker', subject: 'How to export carrier packet?', priority: 'Low', status: 'Resolved', created: 'Mar 7' },
-  { id: 'TK-096', from: 'Express Carriers', type: 'Carrier', subject: 'Driver settlement calculation off', priority: 'High', status: 'Resolved', created: 'Mar 5' },
-]
+/* ─── Support Tickets (Supabase) ─────────────────────────────────────────── */
 
 export function Documents() {
   const { showToast } = useApp()
+  const [tickets, setTickets] = useState([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newTicket, setNewTicket] = useState({ subject: '', message: '', priority: 'medium' })
 
-  const filtered = TICKETS.filter(t => {
+  const fetchTickets = async () => {
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error fetching tickets:', error)
+      showToast('', 'Error', 'Failed to load tickets')
+    }
+    setTickets(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchTickets() }, [])
+
+  const updateTicketStatus = async (e, id, newStatus) => {
+    e.stopPropagation()
+    const { error } = await supabase
+      .from('tickets')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) {
+      showToast('', 'Error', 'Failed to update ticket')
+      return
+    }
+    const label = newStatus === 'in_progress' ? 'In Progress' : newStatus.charAt(0).toUpperCase() + newStatus.slice(1)
+    showToast('', 'Status Updated', 'Ticket moved to ' + label)
+    fetchTickets()
+  }
+
+  const createTicket = async () => {
+    if (!newTicket.subject.trim() || !newTicket.message.trim()) {
+      showToast('', 'Missing Fields', 'Subject and message are required')
+      return
+    }
+    setCreating(true)
+    const { error } = await supabase.from('tickets').insert({
+      subject: newTicket.subject.trim(),
+      message: newTicket.message.trim(),
+      priority: newTicket.priority,
+      status: 'open',
+      user_name: 'Admin',
+      user_email: 'admin@qivori.com',
+    })
+    setCreating(false)
+    if (error) {
+      showToast('', 'Error', 'Failed to create ticket')
+      return
+    }
+    showToast('', 'Ticket Created', newTicket.subject)
+    setNewTicket({ subject: '', message: '', priority: 'medium' })
+    setShowCreate(false)
+    fetchTickets()
+  }
+
+  const formatDate = (d) => {
+    if (!d) return '—'
+    const date = new Date(d)
+    const now = new Date()
+    const diffMs = now - date
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHrs = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return diffMins + 'min ago'
+    if (diffHrs < 24) return diffHrs + 'hr' + (diffHrs > 1 ? 's' : '') + ' ago'
+    if (diffDays < 7) return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago'
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined })
+  }
+
+  const statusMap = { open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed' }
+  const filterMap = { 'All': null, 'Open': 'open', 'In Progress': 'in_progress', 'Resolved': 'resolved' }
+
+  const filtered = tickets.filter(t => {
     if (filter === 'All') return true
-    return t.status === filter
+    return t.status === filterMap[filter]
   })
 
-  const priorityColor = (p) => ({ High: 'var(--danger)', Medium: 'var(--warning)', Low: 'var(--muted)' }[p])
-  const statusPill = (s) => ({ Open: 'pill-yellow', 'In Progress': 'pill-blue', Resolved: 'pill-green' }[s] || 'pill-muted')
+  const priorityColor = (p) => ({ high: 'var(--danger)', medium: 'var(--warning)', low: 'var(--muted)' }[p] || 'var(--muted)')
+  const statusPill = (s) => ({ open: 'pill-yellow', in_progress: 'pill-blue', resolved: 'pill-green', closed: 'pill-muted' }[s] || 'pill-muted')
+
+  const openCount = tickets.filter(t => t.status === 'open').length
+  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length
+  const resolvedCount = tickets.filter(t => t.status === 'resolved').length
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading tickets...</div>
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="stats-grid cols4 fade-in">
         {[
-          { label: 'Open Tickets', value: '3', change: '2 high priority', color: 'var(--danger)' },
-          { label: 'In Progress', value: '1', change: 'Being worked on', color: 'var(--accent3)' },
-          { label: 'Resolved This Week', value: '8', change: 'Avg 4hr response', color: 'var(--success)' },
-          { label: 'Avg Response Time', value: '2.4h', change: 'Below 4hr target', color: 'var(--accent2)' },
+          { label: 'Total Tickets', value: tickets.length, color: 'var(--accent3)' },
+          { label: 'Open', value: openCount, change: openCount > 0 ? openCount + ' need attention' : 'All clear', color: 'var(--danger)' },
+          { label: 'In Progress', value: inProgressCount, change: 'Being worked on', color: 'var(--accent3)' },
+          { label: 'Resolved', value: resolvedCount, change: resolvedCount > 0 ? 'Great work' : '—', color: 'var(--success)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className="stat-change up">{s.change}</div>
+            {s.change && <div className="stat-change up">{s.change}</div>}
           </div>
         ))}
       </div>
 
+      {/* Create Ticket Modal */}
+      {showCreate && (
+        <div className="panel fade-in" style={{ border: '1px solid var(--accent)', position: 'relative' }}>
+          <div className="panel-header">
+            <div className="panel-title"><Ic icon={Plus} size={14} /> Create Test Ticket</div>
+            <button className="btn btn-ghost" onClick={() => setShowCreate(false)} style={{ padding: 4 }}>
+              <Ic icon={X} size={16} />
+            </button>
+          </div>
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>Subject</label>
+              <input className="form-input" placeholder="Ticket subject..." value={newTicket.subject}
+                onChange={e => setNewTicket({ ...newTicket, subject: e.target.value })}
+                style={{ width: '100%', height: 36, fontSize: 13 }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>Message</label>
+              <textarea className="form-input" placeholder="Describe the issue..." value={newTicket.message}
+                onChange={e => setNewTicket({ ...newTicket, message: e.target.value })}
+                style={{ width: '100%', height: 80, fontSize: 13, resize: 'vertical', fontFamily: 'inherit' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>Priority</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['low', 'medium', 'high'].map(p => (
+                  <button key={p} className={'filter-chip' + (newTicket.priority === p ? ' active' : '')}
+                    onClick={() => setNewTicket({ ...newTicket, priority: p })}
+                    style={{ textTransform: 'capitalize' }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button className="btn btn-primary" onClick={createTicket} disabled={creating}
+              style={{ alignSelf: 'flex-end', padding: '8px 20px' }}>
+              {creating ? 'Creating...' : 'Create Ticket'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="panel fade-in">
         <div className="panel-header">
           <div className="panel-title"><Ic icon={MessageSquare} size={14} /> Support Tickets</div>
+          <button className="btn btn-ghost" onClick={() => setShowCreate(!showCreate)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Ic icon={Plus} size={14} /> Create Ticket
+          </button>
         </div>
 
         <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
@@ -284,40 +405,50 @@ export function Documents() {
           ))}
         </div>
 
-        <table>
-          <thead><tr><th>Ticket</th><th>From</th><th>Subject</th><th>Priority</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
-          <tbody>
-            {filtered.map(t => (
-              <tr key={t.id} onClick={() => showToast('', t.id + ' — ' + t.from, t.subject)}>
-                <td className="mono" style={{ fontSize: 11, color: 'var(--accent3)' }}>{t.id}</td>
-                <td>
-                  <strong style={{ fontSize: 12 }}>{t.from}</strong><br />
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20,
-                    background: t.type === 'Carrier' ? 'rgba(34,197,94,0.1)' : 'rgba(77,142,240,0.1)',
-                    color: t.type === 'Carrier' ? 'var(--success)' : 'var(--accent3)' }}>
-                    {t.type}
-                  </span>
-                </td>
-                <td style={{ fontSize: 12 }}>{t.subject}</td>
-                <td>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: priorityColor(t.priority) }}>{t.priority}</span>
-                </td>
-                <td><span className={'pill ' + statusPill(t.status)}><span className="pill-dot" />{t.status}</span></td>
-                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{t.created}</td>
-                <td>
-                  {t.status !== 'Resolved' ? (
-                    <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
-                      onClick={e => { e.stopPropagation(); showToast('', 'Responding', 'Opening ticket ' + t.id) }}>
-                      Reply
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 3 }}><Ic icon={CheckCircle} size={11} /> Done</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {filtered.length === 0 ? (
+          <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+            <Ic icon={MessageSquare} size={28} style={{ marginBottom: 10, opacity: 0.3 }} /><br />
+            {tickets.length === 0 ? 'No tickets yet. Create one to get started.' : 'No tickets match this filter.'}
+          </div>
+        ) : (
+          <table>
+            <thead><tr><th>ID</th><th>From</th><th>Subject</th><th>Priority</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
+            <tbody>
+              {filtered.map(t => (
+                <tr key={t.id} onClick={() => showToast('', t.subject, t.message || 'No message')}>
+                  <td className="mono" style={{ fontSize: 11, color: 'var(--accent3)' }}>{'#' + String(t.id).slice(-4)}</td>
+                  <td>
+                    <strong style={{ fontSize: 12 }}>{t.user_name || 'Unknown'}</strong><br />
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{t.user_email || ''}</span>
+                  </td>
+                  <td style={{ fontSize: 12, maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</td>
+                  <td>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: priorityColor(t.priority), textTransform: 'capitalize' }}>{t.priority}</span>
+                  </td>
+                  <td><span className={'pill ' + statusPill(t.status)}><span className="pill-dot" />{statusMap[t.status] || t.status}</span></td>
+                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(t.created_at)}</td>
+                  <td>
+                    {t.status === 'open' && (
+                      <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
+                        onClick={e => updateTicketStatus(e, t.id, 'in_progress')}>
+                        <Ic icon={Clock} size={11} /> Start
+                      </button>
+                    )}
+                    {t.status === 'in_progress' && (
+                      <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10, color: 'var(--success)' }}
+                        onClick={e => updateTicketStatus(e, t.id, 'resolved')}>
+                        <Ic icon={CheckCircle} size={11} /> Resolve
+                      </button>
+                    )}
+                    {(t.status === 'resolved' || t.status === 'closed') && (
+                      <span style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 3 }}><Ic icon={CheckCircle} size={11} /> Done</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
+import { supabase } from '../lib/supabase'
 import { Settings as SettingsIcon, Smartphone, Wrench, Bot, Landmark, Search, Check, Globe, Shield, Bell, Users, CreditCard, Mail, Zap } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -32,10 +33,29 @@ export function Settings() {
     aiMatching: true,
     maintenance: false,
   })
+  const [loading, setLoading] = useState(true)
 
-  const toggle = (key, label) => {
-    setToggles(prev => ({ ...prev, [key]: !prev[key] }))
-    showToast('', label, toggles[key] ? 'Disabled' : 'Enabled')
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.from('platform_settings').select('key, value')
+      if (!error && data) {
+        const obj = {}
+        data.forEach(r => { obj[r.key] = r.value === true || r.value === 'true' })
+        setToggles(prev => ({ ...prev, ...obj }))
+      }
+      setLoading(false)
+    })()
+  }, [])
+
+  const toggle = async (key, label) => {
+    const newVal = !toggles[key]
+    setToggles(prev => ({ ...prev, [key]: newVal }))
+    showToast('', label, newVal ? 'Enabled' : 'Disabled')
+    const { error } = await supabase
+      .from('platform_settings')
+      .update({ value: newVal, updated_at: new Date().toISOString() })
+      .eq('key', key)
+    if (error) showToast('', label, 'Failed to save setting')
   }
 
   return (

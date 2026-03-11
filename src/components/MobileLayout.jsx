@@ -390,9 +390,10 @@ function MobileAI() {
 
       {/* ── HEADER ──────────────────────────────────── */}
       <div style={{ height: 56, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0 }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '1px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Ic icon={Zap} size={18} color="var(--accent)" />
-        </div>
+        <button onClick={startListening}
+          style={{ width: 36, height: 36, borderRadius: '50%', background: listening ? 'var(--danger)' : 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '1px solid ' + (listening ? 'var(--danger)' : 'rgba(240,165,0,0.3)'), display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none', padding: 0 }}>
+          <Ic icon={listening ? Mic : Zap} size={18} color={listening ? '#fff' : 'var(--accent)'} />
+        </button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3 }}>
             QI<span style={{ color: 'var(--accent)' }}>VORI</span>
@@ -435,21 +436,35 @@ function MobileAI() {
       {/* ── CHAT MESSAGES ───────────────────────────── */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-        {/* Empty state — suggestions */}
+        {/* Empty state — tap to talk + suggestions */}
         {messages.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16 }}>
+            {/* Tappable AI logo — starts voice */}
             <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.12), rgba(0,212,170,0.08))', border: '1px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                <Ic icon={Zap} size={26} color="var(--accent)" />
+              <button onClick={startListening}
+                style={{ width: 80, height: 80, borderRadius: '50%', background: listening ? 'var(--danger)' : 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '2px solid ' + (listening ? 'var(--danger)' : 'rgba(240,165,0,0.3)'), display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', cursor: 'pointer', transition: 'all 0.2s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none', boxShadow: listening ? '0 0 30px rgba(239,68,68,0.3)' : '0 0 20px rgba(240,165,0,0.15)' }}>
+                <Ic icon={listening ? Mic : Zap} size={32} color={listening ? '#fff' : 'var(--accent)'} />
+              </button>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+                {listening ? 'Listening...' : 'Hey, Driver'}
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Hey, Driver</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                I'm your AI co-pilot. Tell me what you need —<br />
-                expenses, check calls, load info, anything.
-              </div>
+              {listening ? (
+                <div style={{ fontSize: 14, color: 'var(--text)', minHeight: 20, fontWeight: 600 }}>
+                  {voiceText || 'Speak now...'}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                    Tap the mic and tell me what you need
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontWeight: 600 }}>
+                    <Ic icon={Mic} size={11} /> Tap to talk — or type below
+                  </div>
+                </>
+              )}
             </div>
 
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginTop: 8 }}>TRY SAYING</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginTop: 8 }}>OR TAP A SUGGESTION</div>
             {suggestions.map(s => (
               <button key={s} onClick={() => sendMessage(s)}
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -9,6 +9,22 @@ import {
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
+// ── LOAD BOARD DATA (same as desktop AILoadBoard) ─────────
+const BOARD_LOADS = [
+  { id:'LD-001', broker:'Echo Global',       origin:'Chicago, IL',    dest:'Atlanta, GA',      miles:674,  rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM',  deadhead:0,   refNum:'EC-89100', score:82 },
+  { id:'LD-002', broker:'Coyote Logistics',  origin:'Chicago, IL',    dest:'Miami, FL',         miles:1377, rate:3.15, gross:4338, weight:'38,500', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 7:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:0,   refNum:'CL-23001', score:88 },
+  { id:'LD-004', broker:'XPO',               origin:'Chicago, IL',    dest:'New York, NY',      miles:790,  rate:3.08, gross:2433, weight:'39,000', commodity:'Retail',        equipment:'Dry Van',  pickup:'Mar 10 · 9:00 AM', delivery:'Mar 12 · 8:00 AM',  deadhead:0,   refNum:'XP-44210', score:85 },
+  { id:'LD-005', broker:'Echo Global',       origin:'Atlanta, GA',    dest:'Chicago, IL',       miles:674,  rate:3.12, gross:2103, weight:'40,500', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 11 · 7:00 AM', delivery:'Mar 12 · 5:00 PM',  deadhead:8,   refNum:'EC-89120', score:90 },
+  { id:'LD-006', broker:'CH Robinson',       origin:'Atlanta, GA',    dest:'Miami, FL',         miles:660,  rate:3.22, gross:2125, weight:'37,200', commodity:'Food & Bev',    equipment:'Reefer',   pickup:'Mar 10 · 6:00 AM', delivery:'Mar 11 · 8:00 PM',  deadhead:8,   refNum:'CHR-77301', score:86 },
+  { id:'LD-008', broker:'Echo Global',       origin:'Dallas, TX',     dest:'Miami, FL',         miles:1491, rate:3.22, gross:4801, weight:'38,500', commodity:'Food & Bev',    equipment:'Dry Van',  pickup:'Mar 11 · 7:00 AM', delivery:'Mar 13 · 5:00 PM',  deadhead:42,  refNum:'EC-89130', score:91 },
+  { id:'LD-010', broker:'Coyote Logistics',  origin:'Dallas, TX',     dest:'Los Angeles, CA',   miles:1435, rate:2.92, gross:4190, weight:'40,000', commodity:'Automotive',    equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 14 · 2:00 PM',  deadhead:42,  refNum:'CL-23020', score:79 },
+  { id:'LD-011', broker:'Coyote Logistics',  origin:'Memphis, TN',    dest:'New York, NY',      miles:1100, rate:3.18, gross:3498, weight:'39,800', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 12 · 6:00 PM',  deadhead:25,  refNum:'CL-23010', score:87 },
+  { id:'LD-015', broker:'Transplace',        origin:'Denver, CO',     dest:'Houston, TX',       miles:1020, rate:2.61, gross:2662, weight:'41,200', commodity:'Machinery',     equipment:'Flatbed',  pickup:'Mar 10 · 6:00 AM', delivery:'Mar 12 · 4:00 PM',  deadhead:68,  refNum:'TP-19310', score:72 },
+  { id:'LD-018', broker:'Echo Global',       origin:'Houston, TX',    dest:'New York, NY',      miles:1636, rate:3.28, gross:5366, weight:'38,000', commodity:'Petrochemicals', equipment:'Dry Van', pickup:'Mar 11 · 5:00 AM', delivery:'Mar 15 · 8:00 AM',  deadhead:85,  refNum:'EC-89140', score:93 },
+  { id:'LD-017', broker:'TQL',               origin:'Houston, TX',    dest:'Atlanta, GA',       miles:792,  rate:2.88, gross:2281, weight:'37,500', commodity:'Chemicals',     equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:85,  refNum:'TQ-11010', score:65 },
+  { id:'LD-016', broker:'XPO',               origin:'Denver, CO',     dest:'Chicago, IL',       miles:1003, rate:2.75, gross:2758, weight:'40,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 11 · 8:00 AM', delivery:'Mar 13 · 6:00 PM',  deadhead:68,  refNum:'XP-44220', score:78 },
+]
+
 export default function MobileLayout() {
   return (
     <CarrierProvider>
@@ -21,7 +37,7 @@ export default function MobileLayout() {
 function MobileAI() {
   const { logout, showToast } = useApp()
   const ctx = useCarrier()
-  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, logCheckCall, updateLoadStatus } = ctx
+  const { loads, activeLoads, invoices, expenses, company, totalRevenue, totalExpenses, addExpense, logCheckCall, updateLoadStatus, addLoad } = ctx
 
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -55,6 +71,13 @@ function MobileAI() {
       gpsLocation ? `Driver current location: ${gpsLocation}` : '',
     ].filter(Boolean).join('\n')
   }, [loads, invoices, expenses, totalRevenue, totalExpenses, company, gpsLocation])
+
+  // Build load board context for AI
+  const buildLoadBoard = useCallback(() => {
+    return BOARD_LOADS.map(l =>
+      `${l.id} | ${l.origin} → ${l.dest} | ${l.miles}mi | $${l.gross} ($${l.rate}/mi) | ${l.equipment} | ${l.broker} | Score:${l.score} | Pickup:${l.pickup} | Delivery:${l.delivery} | ${l.commodity} | DH:${l.deadhead}mi | Ref:${l.refNum}`
+    ).join('\n')
+  }, [])
 
   // Parse action blocks from AI response
   const parseActions = (text) => {
@@ -111,6 +134,30 @@ function MobileAI() {
           if (load && updateLoadStatus) {
             await updateLoadStatus(load.id, action.status)
             showToast('success', 'Load Updated', `${load.load_id || load.id} → ${action.status}`)
+          }
+          return true
+        }
+        case 'book_load': {
+          try {
+            const newLoad = await addLoad({
+              origin: action.origin,
+              destination: action.destination || action.dest,
+              miles: action.miles,
+              rate: action.gross || action.rate, // gross pay
+              rate_per_mile: action.rate,
+              equipment: action.equipment || 'Dry Van',
+              broker_name: action.broker,
+              weight: action.weight,
+              commodity: action.commodity,
+              pickup_date: action.pickup,
+              delivery_date: action.delivery,
+              reference_number: action.refNum,
+              status: 'Booked',
+              load_type: 'FTL',
+            })
+            showToast('success', 'Load Booked!', `${action.origin} → ${action.destination || action.dest} — $${Number(action.gross || 0).toLocaleString()}`)
+          } catch (err) {
+            showToast('error', 'Booking Failed', err.message)
           }
           return true
         }
@@ -215,8 +262,9 @@ function MobileAI() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages.slice(-20), // Keep last 20 messages
+          messages: newMessages.slice(-20),
           context: buildContext(),
+          loadBoard: buildLoadBoard(),
         }),
       })
       const data = await res.json()
@@ -244,6 +292,7 @@ function MobileAI() {
 
   // Quick action chips
   const quickActions = [
+    { icon: Truck, label: 'Find Loads', msg: 'Find me the best available loads right now' },
     { icon: Navigation, label: 'Check In', msg: 'Submit a check call with my GPS location' },
     { icon: MapPin, label: 'At Pickup', msg: "I'm at the pickup location" },
     { icon: CheckCircle, label: 'Delivered', msg: 'I just delivered the load' },
@@ -251,16 +300,15 @@ function MobileAI() {
     { icon: Receipt, label: 'Add Expense', msg: 'I need to add an expense' },
     { icon: Package, label: 'My Loads', msg: 'Show me my active loads' },
     { icon: DollarSign, label: 'Revenue', msg: "What's my revenue and profit this month?" },
-    { icon: FileText, label: 'Invoices', msg: 'Show me my unpaid invoices' },
   ]
 
   // Suggested prompts for empty state
   const suggestions = [
+    'Find me loads from Dallas, dry van',
+    'What are the best paying loads right now?',
     "I'm at the pickup — need to upload BOL",
-    'Just delivered, here\'s the signed BOL',
+    'Just delivered, upload signed BOL',
     'Add fuel expense $120 at Pilot in Memphis',
-    'What loads do I have active?',
-    'How much have I made this month?',
   ]
 
   return (
@@ -493,6 +541,7 @@ function ActionBadge({ action }) {
     navigate: ArrowLeft,
     upload_doc: Camera,
     update_load_status: Truck,
+    book_load: Package,
   }
   const labels = {
     add_expense: `Expense: $${action.amount} ${action.category || ''}`,
@@ -502,6 +551,7 @@ function ActionBadge({ action }) {
     navigate: `Opening ${action.to}`,
     upload_doc: `Upload ${docLabels[action.doc_type] || 'Document'}`,
     update_load_status: `Load → ${action.status}`,
+    book_load: `Booked: ${action.origin} → ${action.destination || action.dest}`,
   }
   const Icon = icons[action.type] || CheckCircle
   return (

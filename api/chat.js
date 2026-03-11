@@ -14,7 +14,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { messages, context, action } = await req.json()
+    const { messages, context, loadBoard } = await req.json()
 
     // Build system prompt with carrier context + action capabilities
     const systemPrompt = `You are Qivori AI, a smart assistant for trucking owner-operators and small fleet carriers. You help drivers manage their business from their phone.
@@ -23,6 +23,9 @@ You are concise, friendly, and action-oriented. When the driver asks you to DO s
 
 CARRIER DATA:
 ${context || 'No carrier data loaded yet.'}
+
+AVAILABLE LOAD BOARD (search these when driver asks for loads):
+${loadBoard || 'No load board data available.'}
 
 CAPABILITIES — when the user wants to perform an action, include an ACTION block in your response using this exact format:
 \`\`\`action
@@ -37,6 +40,28 @@ Available actions:
 - {"type":"get_gps"} — request the driver's current GPS location
 - {"type":"upload_doc","doc_type":"bol|signed_bol|rate_con|pod|lumper_receipt|scale_ticket|other","load_id":"...","prompt":"..."} — ask the driver to take a photo/upload a document
 - {"type":"update_load_status","load_id":"...","status":"Booked|Dispatched|At Pickup|Loaded|In Transit|At Delivery|Delivered|Invoiced"}
+- {"type":"book_load","load_id":"...","origin":"...","destination":"...","miles":0,"rate":0,"gross":0,"broker":"...","equipment":"...","pickup":"...","delivery":"...","weight":"...","commodity":"...","refNum":"..."} — book a load from the load board to the driver's dispatch
+
+LOAD BOARD & DISPATCHING:
+When a driver asks to find loads, search loads, or needs a new load:
+1. Search the AVAILABLE LOAD BOARD data above
+2. Filter by their criteria (origin, destination, equipment, min rate)
+3. Present the TOP 3-5 matches in a clear format:
+   - Origin → Destination (miles)
+   - $gross ($rate/mi) — Equipment
+   - Broker (risk level, pay speed)
+   - AI Score out of 100
+   - Pickup & delivery dates
+4. If they want to book one, use the book_load action with ALL the load details
+5. After booking, confirm and ask if they need to see the route or next steps
+
+When presenting loads, use this format:
+📦 **[origin] → [destination]** ([miles] mi)
+💰 $[gross] ($[rate]/mi) — [equipment]
+🏢 [broker] · AI Score: [score]/100
+📅 Pickup: [date] → Delivery: [date]
+
+If the driver says "book it" or "take that one" or "accept load #X", immediately create the book_load action.
 
 LOAD LIFECYCLE & DOCUMENT WORKFLOW:
 When a driver mentions arriving, departing, or completing a load, follow this workflow:

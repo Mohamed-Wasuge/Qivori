@@ -106,11 +106,10 @@ export function AppProvider({ children }) {
   // Listen for auth state changes
   useEffect(() => {
     // Check current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
-        const prof = await fetchProfile(session.user.id)
-        const role = resolveRole(prof, session.user.email)
+        const role = resolveRole(null, session.user.email)
         setCurrentRole(role)
         const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
         setCurrentPage(landingPage)
@@ -120,11 +119,10 @@ export function AppProvider({ children }) {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
-        const prof = await fetchProfile(session.user.id)
-        const role = resolveRole(prof, session.user.email)
+        const role = resolveRole(null, session.user.email)
         setCurrentRole(role)
         const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
         setCurrentPage(landingPage)
@@ -156,22 +154,24 @@ export function AppProvider({ children }) {
 
   // Sign in with Supabase
   const loginWithCredentials = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) return { error: error.message }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) return { error: error.message }
 
-    setUser(data.user)
-    const prof = await fetchProfile(data.user.id)
+      setUser(data.user)
 
-    const role = resolveRole(prof, email)
-    setCurrentRole(role)
-    const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
-    setCurrentPage(landingPage)
-    setView('app')
+      const role = resolveRole(null, email)
+      setCurrentRole(role)
+      const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+      setCurrentPage(landingPage)
+      setView('app')
 
-    const displayName = prof?.full_name || prof?.company_name || email.split('@')[0]
-    const roleConfig = ROLES[role]
-    showToast('', 'Welcome, ' + displayName, 'Signed in as ' + roleConfig.badgeText)
-    return { ok: true }
+      const displayName = email.split('@')[0]
+      showToast('', 'Welcome, ' + displayName, 'Signed in as ' + ROLES[role].badgeText)
+      return { ok: true }
+    } catch (e) {
+      return { error: 'Login failed. Please try again.' }
+    }
   }, [fetchProfile, showToast])
 
   // Sign up with Supabase

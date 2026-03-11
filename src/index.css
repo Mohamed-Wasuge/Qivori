@@ -256,6 +256,7 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   font-size: 22px;
   animation: spin-glow 3s ease-in-out infinite;
 }
+@keyframes spin { to { transform: rotate(360deg) } }
 @keyframes spin-glow {
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(240,165,0,0.4)); }
   50% { transform: scale(1.1); filter: drop-shadow(0 0 12px rgba(240,165,0,0.8)); }

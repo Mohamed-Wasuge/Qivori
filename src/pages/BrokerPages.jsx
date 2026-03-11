@@ -216,18 +216,8 @@ export function BrokerPostLoad() {
   const [posting, setPosting] = useState(false)
   const [rateCon, setRateCon] = useState(null)
   const [dragging, setDragging] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const fileRef = useRef(null)
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file && /\.(pdf|png|jpg|jpeg)$/i.test(file.name)) {
-      setRateCon(file)
-    } else if (file) {
-      showToast('', 'Invalid File', 'Only PDF, PNG, or JPG files are accepted')
-    }
-  }
 
   // Form fields
   const [origin, setOrigin] = useState('')
@@ -238,6 +228,64 @@ export function BrokerPostLoad() {
   const [weight, setWeight] = useState('')
   const [rate, setRate] = useState('')
   const [notes, setNotes] = useState('')
+
+  const parseRateCon = async (file) => {
+    setParsing(true)
+    showToast('', 'Reading Rate Con', 'AI is extracting load details...')
+    try {
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.readAsDataURL(file)
+      })
+
+      const mediaType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+
+      const res = await fetch('/api/parse-ratecon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: base64, mediaType })
+      })
+      const data = await res.json()
+
+      if (data.error) {
+        showToast('', 'Parse Error', data.error)
+        setParsing(false)
+        return
+      }
+
+      // Auto-fill form fields
+      if (data.origin) setOrigin(data.origin)
+      if (data.destination) setDestination(data.destination)
+      if (data.rate) setRate(String(data.rate))
+      if (data.weight) setWeight(String(data.weight))
+      if (data.equipment) setEquipment(data.equipment)
+      if (data.pickup_date) setPickupDate(data.pickup_date)
+      if (data.delivery_date) setDeliveryDate(data.delivery_date)
+      if (data.notes) setNotes(data.notes)
+      if (data.load_type) setLoadType(data.load_type)
+
+      showToast('', 'Rate Con Parsed', 'Form auto-filled — review and post')
+    } catch (e) {
+      showToast('', 'Error', 'Failed to parse rate con')
+    }
+    setParsing(false)
+  }
+
+  const handleFile = (file) => {
+    if (file && /\.(pdf|png|jpg|jpeg)$/i.test(file.name)) {
+      setRateCon(file)
+      parseRateCon(file)
+    } else if (file) {
+      showToast('', 'Invalid File', 'Only PDF, PNG, or JPG files are accepted')
+    }
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragging(false)
+    handleFile(e.dataTransfer.files[0])
+  }
 
   const addStop = () => setStops(s => [...s, { city: '', date: '', type: 'Pickup', notes: '' }])
   const removeStop = (i) => setStops(s => s.filter((_, idx) => idx !== i))
@@ -337,15 +385,24 @@ export function BrokerPostLoad() {
           <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}><Ic icon={FileText} size={14} /> Rate Confirmation</span>
             <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }}
-              onChange={e => { if (e.target.files[0]) setRateCon(e.target.files[0]) }} />
+              onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]) }} />
             {rateCon ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Ic icon={CheckCircle} size={14} color="var(--success)" />
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{rateCon.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>({(rateCon.size / 1024).toFixed(0)} KB)</span>
-                <button className="btn btn-ghost" style={{ fontSize: 10, color: 'var(--danger)', padding: '2px 6px' }} onClick={() => { setRateCon(null); fileRef.current.value = '' }}>
-                  <Ic icon={Trash2} size={11} />
-                </button>
+                {parsing ? (
+                  <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 12, height: 12, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+                    Reading {rateCon.name}...
+                  </span>
+                ) : (
+                  <>
+                    <Ic icon={CheckCircle} size={14} color="var(--success)" />
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{rateCon.name}</span>
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>({(rateCon.size / 1024).toFixed(0)} KB)</span>
+                    <button className="btn btn-ghost" style={{ fontSize: 10, color: 'var(--danger)', padding: '2px 6px' }} onClick={() => { setRateCon(null); fileRef.current.value = '' }}>
+                      <Ic icon={Trash2} size={11} />
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div onClick={() => fileRef.current.click()}

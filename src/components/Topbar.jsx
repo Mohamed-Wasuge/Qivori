@@ -2,7 +2,7 @@ import { useApp } from '../context/AppContext'
 import { Search, Bell } from 'lucide-react'
 
 const PAGE_TITLES = {
-  dashboard: 'OVERVIEW', loadboard: 'ALL LOADS', carriers: 'CARRIERS',
+  dashboard: 'OVERVIEW', loadboard: 'ALL LOADS', carriers: 'USERS',
   brokers: 'BROKERS', support: 'SUPPORT', payments: 'REVENUE',
   settings: 'SETTINGS',
   // Broker pages

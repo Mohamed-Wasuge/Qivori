@@ -4,7 +4,7 @@ import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
   Fuel, Building2, ClipboardCheck, Radio, BarChart2, Star, Search,
-  CreditCard, Plus
+  CreditCard, Plus, Users
 } from 'lucide-react'
 
 const AppContext = createContext(null)
@@ -15,8 +15,8 @@ export const ROLES = {
     badge: 'role-admin', badgeText: 'ADMIN',
     nav: [
       { id: 'dashboard', icon: Home, label: 'Overview' },
-      { id: 'carriers', icon: Truck, label: 'Carriers', badge: '52', badgeClass: 'green' },
-      { id: 'brokers', icon: Building2, label: 'Brokers', badge: '14', badgeClass: 'blue' },
+      { id: 'carriers', icon: Users, label: 'Users' },
+      { id: 'brokers', icon: Building2, label: 'Brokers' },
       { id: 'loadboard', icon: ClipboardList, label: 'All Loads', badge: '247', badgeClass: 'yellow' },
       { id: 'payments', icon: DollarSign, label: 'Revenue' },
       { id: 'support', icon: FileText, label: 'Support', badge: '5', badgeClass: 'yellow' },

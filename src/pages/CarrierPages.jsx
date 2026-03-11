@@ -202,6 +202,11 @@ export function SmartDispatch() {
   const [aiLoading, setAiLoading]       = useState(false)
   // editable calc inputs per load
   const [calcInputs, setCalcInputs]     = useState({})
+  // Add Load modal
+  const [addModal, setAddModal]         = useState(false)
+  const [addForm, setAddForm]           = useState({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'' })
+  const [addParsing, setAddParsing]     = useState(false)
+  const addFileRef = useRef(null)
 
   const sel = selected ? loads.find(l => l.id === selected) : null
 
@@ -274,6 +279,89 @@ export function SmartDispatch() {
     showToast('', 'Load Booked!', `${l.fromFull} → ${l.toFull} · $${l.gross.toLocaleString()} · ${bookDriver}`)
   }
 
+  // ── Add Load: compress + AI parse rate con ──
+  const compressAddImg = (file) => new Promise((resolve) => {
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: 'application/pdf' })
+      reader.readAsDataURL(file)
+      return
+    }
+    const img = new Image()
+    img.onload = () => {
+      const maxW = 1200; let w = img.width, h = img.height
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      c.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mt: 'image/jpeg' })
+    }
+    img.onerror = () => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ b64: reader.result.split(',')[1], mt: file.type || 'image/jpeg' })
+      reader.readAsDataURL(file)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+
+  const parseAddRC = async (file) => {
+    if (!file) return
+    setAddParsing(true)
+    showToast('','Reading Rate Con','Compressing and sending to AI...')
+    try {
+      const { b64, mt } = await compressAddImg(file)
+      if (!b64 || b64.length < 50) { showToast('','Error','Could not read file'); setAddParsing(false); return }
+      const res = await fetch('/api/parse-ratecon', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ file: b64, mediaType: mt })
+      })
+      const text = await res.text()
+      let data; try { data = JSON.parse(text) } catch { data = null }
+      if (data && !data.error) {
+        setAddForm(f => ({
+          ...f,
+          origin: data.origin || f.origin,
+          dest: data.destination || f.dest,
+          gross: data.rate ? String(data.rate) : f.gross,
+          weight: data.weight ? String(data.weight) : f.weight,
+          equipment: data.equipment || f.equipment,
+          pickup: data.pickup_date || f.pickup,
+          delivery: data.delivery_date || f.delivery,
+          commodity: data.commodity || f.commodity,
+          notes: data.notes || f.notes,
+        }))
+        showToast('','Rate Con Parsed',`${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
+      } else {
+        showToast('','Parse Error', data?.error || 'Could not read rate con')
+      }
+    } catch(err) { showToast('','Error', err?.message || 'Failed') }
+    setAddParsing(false)
+  }
+
+  const submitAddLoad = () => {
+    if (!addForm.origin || !addForm.dest || !addForm.gross) {
+      showToast('','Missing Fields','Origin, destination, and rate are required')
+      return
+    }
+    addLoad({
+      broker: addForm.broker || 'Direct',
+      origin: addForm.origin,
+      dest: addForm.dest,
+      miles: parseInt(addForm.miles) || 0,
+      rate: addForm.miles ? (parseFloat(addForm.gross) / parseInt(addForm.miles)).toFixed(2) : 0,
+      gross: parseFloat(addForm.gross) || 0,
+      weight: parseInt(addForm.weight) || 0,
+      commodity: addForm.commodity,
+      pickup: addForm.pickup || new Date().toISOString().split('T')[0],
+      delivery: addForm.delivery,
+      driver: addForm.driver || '',
+      notes: addForm.notes,
+      equipment: addForm.equipment,
+    })
+    showToast('','Load Added',`${addForm.origin} → ${addForm.dest} · $${parseFloat(addForm.gross).toLocaleString()}`)
+    setAddForm({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'' })
+    setAddModal(false)
+  }
+
   // AI Copilot send message for selected load
   const sendCopilot = async (text) => {
     if (!sel) return
@@ -326,7 +414,7 @@ export function SmartDispatch() {
       {/* ── PANEL 1: LOAD LIST ── */}
       <div style={{ width: sel ? 360 : '100%', minWidth: 340, display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', height:'100%', overflow:'hidden', flexShrink:0 }}>
 
-        {/* Search bar */}
+        {/* Search bar + Add Load */}
         <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', display:'flex', gap:6 }}>
           <input value={searchOrigin} onChange={e=>setSearchOrigin(e.target.value)} placeholder="Origin city…"
             style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'6px 10px', color:'var(--text)', fontSize:11, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
@@ -334,6 +422,9 @@ export function SmartDispatch() {
           <input value={searchDest} onChange={e=>setSearchDest(e.target.value)} placeholder="Destination…"
             style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'6px 10px', color:'var(--text)', fontSize:11, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
           <button onClick={() => { setSearchOrigin(''); setSearchDest('') }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:14, padding:'0 4px' }}>✕</button>
+          <button onClick={() => setAddModal(true)} className="btn btn-primary" style={{ padding:'5px 12px', fontSize:11, fontWeight:700, whiteSpace:'nowrap', borderRadius:6 }}>
+            <Plus size={12} /> Add Load
+          </button>
         </div>
 
         {/* Equipment + filter tabs */}
@@ -622,6 +713,95 @@ export function SmartDispatch() {
               style={{ background:'var(--accent)', border:'none', borderRadius:8, padding:'8px 14px', color:'#000', fontWeight:700, cursor:'pointer', fontSize:12, opacity: aiLoading||!aiInput.trim()?0.5:1 }}>
               Send
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD LOAD MODAL ── */}
+      {addModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => e.target===e.currentTarget && setAddModal(false)}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, padding:28, width:520, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.7)' }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>Add Load</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:16 }}>Drop a rate con to auto-fill or enter manually</div>
+
+            {/* Rate Con Upload */}
+            <input ref={addFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display:'none' }}
+              onChange={e => { if (e.target.files?.[0]) parseAddRC(e.target.files[0]) }} />
+            <div onClick={() => addFileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='var(--accent)' }}
+              onDragLeave={e => { e.currentTarget.style.borderColor='var(--border)' }}
+              onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor='var(--border)'; parseAddRC(e.dataTransfer.files[0]) }}
+              style={{ padding:'14px 16px', border:'1px dashed var(--border)', borderRadius:10, textAlign:'center', cursor:'pointer', marginBottom:16, transition:'border-color 0.2s', background: addParsing ? 'rgba(240,165,0,0.04)' : 'transparent' }}
+              onMouseOver={e => e.currentTarget.style.borderColor='var(--accent)'}
+              onMouseOut={e => e.currentTarget.style.borderColor='var(--border)'}>
+              {addParsing ? (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  <span style={{ width:14, height:14, border:'2px solid var(--accent)', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
+                  <span style={{ fontSize:12, fontWeight:600, color:'var(--accent)' }}>AI reading rate con...</span>
+                </div>
+              ) : (
+                <>
+                  <Upload size={20} style={{ color:'var(--accent)', marginBottom:4 }} />
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)' }}>Drop Rate Con Here</div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>PDF, PNG, or JPG — AI will auto-fill all fields</div>
+                </>
+              )}
+            </div>
+
+            {/* Form fields */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+              {[
+                { key:'broker', label:'Broker', ph:'e.g. TQL, CH Robinson' },
+                { key:'equipment', label:'Equipment', ph:'Dry Van' },
+                { key:'origin', label:'Origin *', ph:'City, ST' },
+                { key:'dest', label:'Destination *', ph:'City, ST' },
+                { key:'gross', label:'Rate ($) *', ph:'3500', type:'number' },
+                { key:'miles', label:'Miles', ph:'1200', type:'number' },
+                { key:'weight', label:'Weight (lbs)', ph:'42000', type:'number' },
+                { key:'commodity', label:'Commodity', ph:'Electronics' },
+                { key:'pickup', label:'Pickup Date', ph:'', type:'date' },
+                { key:'delivery', label:'Delivery Date', ph:'', type:'date' },
+              ].map(f => (
+                <div key={f.key}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:4, letterSpacing:0.5 }}>{f.label}</div>
+                  {f.key === 'equipment' ? (
+                    <select value={addForm.equipment} onChange={e => setAddForm(p => ({ ...p, equipment: e.target.value }))}
+                      style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
+                      {['Dry Van','Reefer','Flatbed','Step Deck','Power Only','Conestoga','Hotshot'].map(eq => <option key={eq}>{eq}</option>)}
+                    </select>
+                  ) : (
+                    <input type={f.type||'text'} placeholder={f.ph} value={addForm[f.key]}
+                      onChange={e => setAddForm(p => ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Driver */}
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:4, letterSpacing:0.5 }}>ASSIGN DRIVER</div>
+              <select value={addForm.driver} onChange={e => setAddForm(p => ({ ...p, driver: e.target.value }))}
+                style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
+                <option value="">Unassigned</option>
+                {DISPATCH_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} — {d.status} ({d.hos} HOS)</option>)}
+              </select>
+            </div>
+
+            {/* Notes */}
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:4, letterSpacing:0.5 }}>NOTES</div>
+              <textarea value={addForm.notes} onChange={e => setAddForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Special instructions..."
+                style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none', resize:'vertical', boxSizing:'border-box' }} />
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setAddModal(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex:2, padding:'11px 0', fontSize:13 }} onClick={submitAddLoad}>
+                <Plus size={13} /> Add to Dispatch
+              </button>
+            </div>
           </div>
         </div>
       )}

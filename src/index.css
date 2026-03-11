@@ -383,60 +383,34 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 
 /* Mobile */
 @media (max-width: 640px) {
-  /* Carrier sidebar — collapse to icons only */
+  /* Show hamburger button */
+  .mobile-nav-btn { display: block !important; }
+
+  /* Carrier sidebar — slide-out drawer on mobile */
   .carrier-sidebar {
-    width: 48px !important;
-    min-width: 48px !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 44px !important;
+    bottom: 0 !important;
+    width: 240px !important;
+    z-index: 999 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.2s ease !important;
+    box-shadow: none !important;
   }
-  /* Hide ALL text inside sidebar — labels, titles, badges, company name */
-  .carrier-sidebar span,
-  .carrier-sidebar div > span:not(:first-child),
-  .carrier-sidebar button > span:last-child {
-    font-size: 0 !important;
-    width: 0 !important;
-    overflow: hidden !important;
+  .carrier-sidebar.mobile-open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.5) !important;
   }
-  /* Keep icons visible */
-  .carrier-sidebar svg { flex-shrink: 0; }
-  /* Center sidebar items */
-  .carrier-sidebar button,
-  .carrier-sidebar > div > div {
-    justify-content: center !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
-  /* Hide company badge details */
-  .carrier-sidebar > div:first-child > div:first-child {
-    padding: 8px 4px !important;
-  }
+
+  /* Show overlay when sidebar is open */
+  .mobile-nav-overlay { display: block !important; }
 
   /* Top bar — compact */
   .carrier-topbar { padding: 0 8px !important; gap: 4px !important; height: 44px !important; }
   .carrier-topbar .search-bar { display: none !important; }
   .carrier-topbar .theme-toggle { display: none !important; }
   .carrier-topbar .ai-status { display: none !important; }
-
-  /* All side-by-side flex layouts → stack vertically on mobile */
-  div[style*="display: flex"][style*="height: 100%"][style*="overflow: hidden"],
-  div[style*="display:'flex'"][style*="height:'100%'"][style*="overflow:'hidden'"] {
-    flex-direction: column !important;
-  }
-  /* Inner sidebars in split panels (settings, driver profiles, etc.) */
-  div[style*="width: 240"],
-  div[style*="width:240"],
-  div[style*="width: 220"],
-  div[style*="width:220"],
-  div[style*="width: 200"],
-  div[style*="width:200"] {
-    width: 100% !important;
-    max-height: 140px !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    flex-direction: row !important;
-    border-right: none !important;
-    border-bottom: 1px solid var(--border) !important;
-    flex-shrink: 0 !important;
-  }
 
   /* Stats grid */
   .stats-grid.cols6 { grid-template-columns: repeat(2, 1fr) !important; }
@@ -454,15 +428,6 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 
   /* Forms — prevent iOS zoom */
   .form-input, input, select, textarea { font-size: 16px !important; }
-
-  /* Modals — full width on mobile */
-  div[style*="position: fixed"][style*="inset: 0"] > div,
-  div[style*="position:'fixed'"][style*="inset:0"] > div {
-    width: 95vw !important;
-    max-width: 95vw !important;
-    max-height: 85vh !important;
-    overflow-y: auto !important;
-  }
 
   /* AI banner */
   .ai-banner { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }

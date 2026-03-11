@@ -2546,12 +2546,14 @@ function CarrierLayoutInner() {
   const [activeView,    setActiveView]    = useState('command-center')
   const [searchOpen,    setSearchOpen]    = useState(false)
   const [notifOpen,     setNotifOpen]     = useState(false)
+  const [mobileNav,     setMobileNav]     = useState(false)
   const [dismissedNotifs, setDismissedNotifs] = useState([])
 
   const navTo = (viewId) => {
     const sec = NAV.find(s => !s.direct && s.items?.some(i => i.id === viewId))
     if (sec) setActiveSection(sec.id)
     setActiveView(viewId)
+    setMobileNav(false)
   }
 
   useEffect(() => {
@@ -2585,6 +2587,11 @@ function CarrierLayoutInner() {
 
       {/* ── TOP BAR ───────────────────────────────────────────────── */}
       <div className="carrier-topbar" style={{ height:48, background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', padding:'0 16px', gap:12, flexShrink:0, zIndex:100 }}>
+        {/* Mobile hamburger */}
+        <button className="mobile-nav-btn" onClick={() => setMobileNav(o => !o)}
+          style={{ display:'none', background:'none', border:'none', color:'var(--text)', cursor:'pointer', fontSize:20, padding:'4px 8px', flexShrink:0 }}>
+          {mobileNav ? '✕' : '☰'}
+        </button>
         {/* Logo */}
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:17, letterSpacing:3, marginRight:4, flexShrink:0 }}>
           QI<span style={{ color:'var(--accent)' }}>VORI</span>
@@ -2682,8 +2689,12 @@ function CarrierLayoutInner() {
       {/* ── BODY: SIDEBAR + CONTENT ───────────────────────────────── */}
       <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
 
+        {/* Mobile sidebar overlay */}
+        {mobileNav && <div className="mobile-nav-overlay" onClick={() => setMobileNav(false)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:998, display:'none' }} />}
+
         {/* LEFT SIDEBAR */}
-        <div className="carrier-sidebar" style={{ width:220, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto', overflowX:'hidden' }}>
+        <div className={`carrier-sidebar${mobileNav ? ' mobile-open' : ''}`} style={{ width:220, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto', overflowX:'hidden' }}>
 
           {/* Company badge */}
           <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>

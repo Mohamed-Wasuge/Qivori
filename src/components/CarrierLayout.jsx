@@ -1561,33 +1561,62 @@ function BookedLoads() {
   const [expandedId, setExpandedId] = useState(null)
   const [form, setForm] = useState({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
 
-  const handleDocUpload = useCallback((loadId, file, type) => {
+  const handleDocUpload = useCallback(async (loadId, file, type) => {
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = e => {
-      const doc = {
-        id: Date.now(),
+    const sizeLabel = file.size > 1024 * 1024 ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : Math.round(file.size / 1024) + ' KB'
+
+    // Upload to Supabase Storage + save to documents table
+    try {
+      const { uploadFile } = await import('../lib/storage')
+      const { createDocument } = await import('../lib/database')
+      const uploaded = await uploadFile(file, `loads/${loadId}`)
+      const dbDoc = await createDocument({
+        load_id: loadId,
         name: file.name,
         type,
-        size: file.size > 1024 * 1024 ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : Math.round(file.size / 1024) + ' KB',
+        file_url: uploaded.url,
+        file_size: file.size,
+      })
+      const doc = {
+        id: dbDoc?.id || Date.now(),
+        name: file.name,
+        type,
+        size: sizeLabel,
         uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        dataUrl: e.target.result,
+        fileUrl: uploaded.url,
       }
       setLoadDocs(d => ({ ...d, [loadId]: [...(d[loadId] || []), doc] }))
-      showToast('', type + ' Uploaded', file.name)
-      setUploadingFor(null)
+      showToast('success', type + ' Uploaded', file.name)
+    } catch (err) {
+      console.warn('Storage upload failed, saving locally:', err.message)
+      // Fallback: save locally with dataUrl
+      const reader = new FileReader()
+      reader.onload = e => {
+        const doc = { id: Date.now(), name: file.name, type, size: sizeLabel, uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), dataUrl: e.target.result }
+        setLoadDocs(d => ({ ...d, [loadId]: [...(d[loadId] || []), doc] }))
+        showToast('', type + ' Uploaded (local)', file.name)
+      }
+      reader.readAsDataURL(file)
     }
-    reader.readAsDataURL(file)
+    setUploadingFor(null)
   }, [showToast])
 
-  const removeDoc = (loadId, docId) => {
+  const removeDoc = async (loadId, docId) => {
     setLoadDocs(d => ({ ...d, [loadId]: d[loadId].filter(doc => doc.id !== docId) }))
+    try {
+      const { deleteDocument } = await import('../lib/database')
+      await deleteDocument(docId)
+    } catch (err) { console.warn('DB delete failed:', err.message) }
     showToast('', 'Document Removed', '')
   }
 
   const [invoiceLoad, setInvoiceLoad] = useState(null)
 
   const viewDoc = (doc) => {
+    if (doc.fileUrl) {
+      window.open(doc.fileUrl, '_blank')
+      return
+    }
     if (doc.dataUrl) {
       const w = window.open()
       w.document.write(`<iframe src="${doc.dataUrl}" style="width:100%;height:100vh;border:none"></iframe>`)

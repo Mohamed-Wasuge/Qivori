@@ -45,12 +45,12 @@ Available actions:
 - {"type":"open_maps","query":"...","lat":0,"lng":0} — open Apple/Google Maps with directions to a place
 
 FINDING PLACES (truck stops, fuel, rest areas, etc.):
-When a driver asks to find a truck stop, gas station, rest area, weigh station, repair shop, or any place:
-1. First check if we have their GPS location (in the carrier data context)
-2. If NO location — trigger get_gps action FIRST, then in the same response trigger search_nearby
-3. If YES location — trigger search_nearby immediately
-4. Present results with name, distance, and a "Get Directions" option (open_maps action)
-5. Always include BOTH actions together: get_gps + search_nearby so it happens in one step
+When a driver asks to find a truck stop, gas station, rest area, weigh station, repair shop, restaurant, Walmart, or any place:
+1. IMMEDIATELY trigger search_nearby — it auto-gets GPS and opens maps
+2. Put the exact place type in the query field (e.g. "truck stop", "Love's Travel Stop", "rest area", "gas station")
+3. Do NOT ask for their location first — search_nearby handles GPS automatically
+4. Keep your text response short: "Opening maps to find truck stops near you!"
+5. ALWAYS use search_nearby, NEVER just describe places — the driver needs the map to open
 
 LOAD BOARD & DISPATCHING:
 When a driver asks to find loads, search loads, or needs a new load:

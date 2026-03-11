@@ -191,53 +191,27 @@ function MobileAI() {
           return true
         }
         case 'search_nearby': {
-          // Get GPS first if we don't have it
+          // Get GPS and open maps directly — fastest experience
           const loc = await getGPSCoords()
-          if (!loc) { showToast('error', 'Error', 'Could not get your location'); return false }
-          try {
-            const query = action.query || 'truck stop'
-            // Use Overpass API to find nearby places
-            const radius = (action.radius || 25) * 1609 // miles to meters
-            const overpassQuery = `[out:json][timeout:10];(node["amenity"~"fuel|parking"](around:${radius},${loc.lat},${loc.lng});node["name"~"${query.replace(/[^a-zA-Z0-9 ]/g, '')}"i](around:${radius},${loc.lat},${loc.lng});node["highway"="rest_area"](around:${radius},${loc.lat},${loc.lng}););out body 10;`
-            const res = await fetch('https://overpass-api.de/api/interpreter', {
-              method: 'POST',
-              body: 'data=' + encodeURIComponent(overpassQuery),
-            })
-            const data = await res.json()
-            const places = (data.elements || []).slice(0, 5).map(p => ({
-              name: p.tags?.name || p.tags?.amenity || 'Unknown',
-              lat: p.lat,
-              lng: p.lon,
-              type: p.tags?.amenity || p.tags?.highway || '',
-              brand: p.tags?.brand || '',
-              dist: Math.round(haversine(loc.lat, loc.lng, p.lat, p.lon) * 10) / 10,
-            }))
-            if (places.length > 0) {
-              // Add results as an assistant message
-              const resultText = places.map((p, i) =>
-                `${i + 1}. **${p.brand || p.name}** — ${p.dist} mi away\n   Tap to get directions`
-              ).join('\n\n')
-              setMessages(m => [...m, {
-                role: 'assistant',
-                content: `Found ${places.length} places near you:\n\n${resultText}`,
-                places,
-              }])
-              showToast('success', 'Found Places', `${places.length} results nearby`)
-            } else {
-              setMessages(m => [...m, { role: 'assistant', content: `No "${query}" found within ${action.radius || 25} miles. Try a bigger radius or different search.` }])
-            }
-          } catch (err) {
-            console.error('Search error:', err)
-            // Fallback — open maps search
-            const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(action.query || 'truck stop')}/@${loc.lat},${loc.lng},12z`
-            window.open(mapsUrl, '_blank')
-            showToast('info', 'Opened Maps', 'Searching in Google Maps')
+          const query = action.query || 'truck stop'
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+          if (loc) {
+            const url = isIOS
+              ? `maps://maps.apple.com/?q=${encodeURIComponent(query)}&sll=${loc.lat},${loc.lng}&z=12`
+              : `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${loc.lat},${loc.lng},13z`
+            window.open(url, '_blank')
+          } else {
+            // No GPS — just search without location
+            const url = isIOS
+              ? `maps://maps.apple.com/?q=${encodeURIComponent(query)}`
+              : `https://www.google.com/maps/search/${encodeURIComponent(query)}`
+            window.open(url, '_blank')
           }
+          showToast('success', 'Maps Opened', `Searching: ${query}`)
           return true
         }
         case 'open_maps': {
           const q = encodeURIComponent(action.query || 'truck stop')
-          // Detect iOS vs Android
           const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
           const url = isIOS
             ? `maps://maps.apple.com/?q=${q}&sll=${action.lat || ''},${action.lng || ''}`

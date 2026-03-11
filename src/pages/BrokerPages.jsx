@@ -215,7 +215,19 @@ export function BrokerPostLoad() {
   const [stops, setStops] = useState([])
   const [posting, setPosting] = useState(false)
   const [rateCon, setRateCon] = useState(null)
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef(null)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file && /\.(pdf|png|jpg|jpeg)$/i.test(file.name)) {
+      setRateCon(file)
+    } else if (file) {
+      showToast('', 'Invalid File', 'Only PDF, PNG, or JPG files are accepted')
+    }
+  }
 
   // Form fields
   const [origin, setOrigin] = useState('')
@@ -365,12 +377,21 @@ export function BrokerPostLoad() {
               </div>
             ) : (
               <div onClick={() => fileRef.current.click()}
-                style={{ padding: 30, border: '2px dashed var(--border)', borderRadius: 10, textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.2s' }}
-                onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                <Ic icon={FileText} size={28} color="var(--muted)" />
-                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>Drop rate confirmation here</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>PDF, PNG, or JPG · Max 10MB</div>
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                style={{
+                  padding: 30, border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: 10, textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
+                  background: dragging ? 'rgba(240,165,0,0.06)' : 'transparent'
+                }}
+                onMouseOver={e => { if (!dragging) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                onMouseOut={e => { if (!dragging) e.currentTarget.style.borderColor = 'var(--border)' }}>
+                <Ic icon={FileText} size={28} color={dragging ? 'var(--accent)' : 'var(--muted)'} />
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8, color: dragging ? 'var(--accent)' : 'var(--text)' }}>
+                  {dragging ? 'Drop file here' : 'Drag & drop rate confirmation here'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>PDF, PNG, or JPG · Max 10MB · Or click to browse</div>
               </div>
             )}
           </div>

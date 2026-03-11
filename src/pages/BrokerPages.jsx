@@ -332,6 +332,40 @@ export function BrokerPostLoad() {
           </div>
         </div>
 
+        {/* ── Rate Confirmation Upload (compact, top) ── */}
+        <div style={{ ...panel, marginBottom: 14 }}>
+          <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 }}><Ic icon={FileText} size={14} /> Rate Confirmation</span>
+            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }}
+              onChange={e => { if (e.target.files[0]) setRateCon(e.target.files[0]) }} />
+            {rateCon ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Ic icon={CheckCircle} size={14} color="var(--success)" />
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{rateCon.name}</span>
+                <span style={{ fontSize: 10, color: 'var(--muted)' }}>({(rateCon.size / 1024).toFixed(0)} KB)</span>
+                <button className="btn btn-ghost" style={{ fontSize: 10, color: 'var(--danger)', padding: '2px 6px' }} onClick={() => { setRateCon(null); fileRef.current.value = '' }}>
+                  <Ic icon={Trash2} size={11} />
+                </button>
+              </div>
+            ) : (
+              <div onClick={() => fileRef.current.click()}
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                style={{
+                  padding: '8px 16px', border: `1px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 8,
+                  background: dragging ? 'rgba(240,165,0,0.06)' : 'transparent'
+                }}>
+                <Ic icon={FileText} size={14} color={dragging ? 'var(--accent)' : 'var(--muted)'} />
+                <span style={{ fontSize: 11, color: dragging ? 'var(--accent)' : 'var(--muted)' }}>
+                  {dragging ? 'Drop here' : 'Drag & drop or click to upload'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* ── Load Details ── */}
         <div style={{ ...panel, marginBottom: 14 }}>
           <div style={panelHead}>
@@ -353,47 +387,6 @@ export function BrokerPostLoad() {
             <div className="form-group"><label className="form-label">Special Instructions</label>
               <textarea className="form-input" rows={3} placeholder="e.g. No touch freight, appointment required, driver assist" style={{ resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }} value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
-          </div>
-        </div>
-
-        {/* ── Rate Confirmation Upload ── */}
-        <div style={{ ...panel, marginBottom: 14 }}>
-          <div style={panelHead}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={FileText} size={14} /> Rate Confirmation</span>
-          </div>
-          <div style={{ padding: 20 }}>
-            <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }}
-              onChange={e => { if (e.target.files[0]) setRateCon(e.target.files[0]) }} />
-            {rateCon ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10 }}>
-                <Ic icon={CheckCircle} size={18} color="var(--success)" />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{rateCon.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{(rateCon.size / 1024).toFixed(0)} KB</div>
-                </div>
-                <button className="btn btn-ghost" style={{ fontSize: 11, color: 'var(--danger)' }} onClick={() => { setRateCon(null); fileRef.current.value = '' }}>
-                  <Ic icon={Trash2} size={12} /> Remove
-                </button>
-              </div>
-            ) : (
-              <div onClick={() => fileRef.current.click()}
-                onDragOver={e => { e.preventDefault(); setDragging(true) }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                style={{
-                  padding: 30, border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 10, textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
-                  background: dragging ? 'rgba(240,165,0,0.06)' : 'transparent'
-                }}
-                onMouseOver={e => { if (!dragging) e.currentTarget.style.borderColor = 'var(--accent)' }}
-                onMouseOut={e => { if (!dragging) e.currentTarget.style.borderColor = 'var(--border)' }}>
-                <Ic icon={FileText} size={28} color={dragging ? 'var(--accent)' : 'var(--muted)'} />
-                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8, color: dragging ? 'var(--accent)' : 'var(--text)' }}>
-                  {dragging ? 'Drop file here' : 'Drag & drop rate confirmation here'}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>PDF, PNG, or JPG · Max 10MB · Or click to browse</div>
-              </div>
-            )}
           </div>
         </div>
 

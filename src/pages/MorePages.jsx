@@ -1,47 +1,103 @@
+import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { Factory, AlertTriangle, ClipboardList, Zap, DollarSign, Landmark, Phone, FileText, FolderOpen, CheckCircle, Eye, Check } from 'lucide-react'
+import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
+/* ─── Brokers Management ─────────────────────────────────────────────────── */
+const BROKERS = [
+  { name: 'Elite Logistics', contact: 'Sarah Chen', email: 'sarah@elitelogistics.com', city: 'Chicago, IL', plan: 'Standard', mrr: '$75', status: 'Active', joined: 'Jan 10', loads: 84, rating: 4.8 },
+  { name: 'Apex Logistics', contact: 'David Park', email: 'david@apexlogistics.com', city: 'Atlanta, GA', plan: 'Standard', mrr: '$75', status: 'Trial', joined: 'Mar 9', loads: 6, rating: 0 },
+  { name: 'Midwest Freight Co', contact: 'Lisa Wang', email: 'lisa@midwestfreight.com', city: 'Dallas, TX', plan: 'Standard', mrr: '$75', status: 'Active', joined: 'Feb 1', loads: 42, rating: 4.6 },
+  { name: 'Coastal Brokerage', contact: 'Tom Rivera', email: 'tom@coastalbrokerage.com', city: 'Miami, FL', plan: 'Standard', mrr: '$75', status: 'Active', joined: 'Feb 15', loads: 38, rating: 4.7 },
+  { name: 'NorthStar Freight', contact: 'Amy Torres', email: 'amy@northstarfreight.com', city: 'Denver, CO', plan: 'Standard', mrr: '$0', status: 'Pending', joined: 'Mar 10', loads: 0, rating: 0 },
+]
+
+const BROKER_FILTERS = ['All', 'Active', 'Trial', 'Pending']
+
 export function Shippers() {
   const { showToast } = useApp()
-  const shippers = [
-    { name: 'Acme Distribution Co.', sub: 'Atlanta, GA · General Freight', loads: 24, revenue: '$28,400', avg: '$3,180', ontime: '98%', otColor: 'var(--success)', pill: 'pill-green', status: 'Active', msg: ',Acme Distribution Co.,24 loads · $28,400 · 4.8 stars' },
-    { name: 'FreshCo Foods Inc.', sub: 'Dallas, TX · Refrigerated', loads: 14, revenue: '$19,200', avg: '$4,720', ontime: '100%', otColor: 'var(--success)', pill: 'pill-green', status: 'Active', msg: ',FreshCo Foods Inc.,14 loads · $19,200 · Reefer specialist' },
-    { name: 'SteelWorks Corp.', sub: 'Phoenix, AZ · Flatbed', loads: 8, revenue: '$12,800', avg: '$2,900', ontime: '87%', otColor: 'var(--warning)', pill: 'pill-red', status: 'Overdue', msg: ',SteelWorks Corp.,Invoice overdue $2,200 · 14 days' },
-    { name: 'Rocky Mountain Farms', sub: 'Denver, CO · Reefer', loads: 6, revenue: '$8,900', avg: '$3,400', ontime: '100%', otColor: 'var(--success)', pill: 'pill-green', status: 'Active', msg: ',Rocky Mountain Farms,6 loads · $8,900 · Denver region' },
-  ]
+  const [filter, setFilter] = useState('All')
+  const [search, setSearch] = useState('')
+
+  const filtered = BROKERS.filter(b => {
+    if (filter !== 'All' && b.status !== filter) return false
+    if (search && !b.name.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  const statusPill = (s) => ({ Active: 'pill-green', Trial: 'pill-blue', Pending: 'pill-yellow' }[s] || 'pill-muted')
+
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="stats-grid cols3 fade-in">
+      <div className="stats-grid cols4 fade-in">
         {[
-          { label: 'Total Shippers', value: '38', change: '↑ 3 this month', type: 'up', color: 'var(--accent)' },
-          { label: 'Active Loads Posted', value: '247', change: '↑ 18 today', type: 'up', color: 'var(--accent2)' },
-          { label: 'Total Revenue', value: '$84K', change: '↑ 22% MTD', type: 'up', color: 'var(--accent3)' },
+          { label: 'Total Brokers', value: '14', change: '+3 this month', color: 'var(--accent3)' },
+          { label: 'Active', value: '11', change: 'Paying customers', color: 'var(--success)' },
+          { label: 'Loads Posted', value: '247', change: 'This month', color: 'var(--accent2)' },
+          { label: 'Broker MRR', value: '$1,050', change: '+28% vs last mo', color: 'var(--accent)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className={'stat-change ' + s.type}>{s.change}</div>
+            <div className="stat-change up">{s.change}</div>
           </div>
         ))}
       </div>
+
       <div className="panel fade-in">
         <div className="panel-header">
-          <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Factory} size={14} /> Shipper Accounts</div>
-          <button className="btn btn-primary" onClick={() => showToast('', 'Add Shipper', 'Opening shipper registration...')}>+ Add Shipper</button>
+          <div className="panel-title"><Ic icon={Building2} size={14} /> Broker Accounts</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ position: 'relative' }}>
+              <Ic icon={Search} size={13} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--muted)' }} />
+              <input className="form-input" placeholder="Search brokers..." value={search} onChange={e => setSearch(e.target.value)}
+                style={{ paddingLeft: 30, width: 200, height: 34, fontSize: 12 }} />
+            </div>
+            <button className="btn btn-primary" onClick={() => showToast('', 'Invite Sent', 'Broker invitation email sent')}>+ Invite Broker</button>
+          </div>
         </div>
+
+        <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+          {BROKER_FILTERS.map(f => (
+            <button key={f} className={'filter-chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>{f}</button>
+          ))}
+        </div>
+
         <table>
-          <thead><tr><th>Shipper</th><th>Loads MTD</th><th>Revenue</th><th>Avg Rate</th><th>On-Time</th><th>Status</th></tr></thead>
+          <thead><tr><th>Company</th><th>Contact</th><th>Plan</th><th>MRR</th><th>Loads</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
           <tbody>
-            {shippers.map(s => (
-              <tr key={s.name} onClick={() => { const [i,t,sub] = s.msg.split(','); showToast(i,t,sub) }}>
-                <td><strong>{s.name}</strong><br /><span style={{ fontSize: 11, color: 'var(--muted)' }}>{s.sub}</span></td>
-                <td style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: 'var(--accent)' }}>{s.loads}</td>
-                <td className="mono" style={{ color: 'var(--accent)', fontWeight: 700 }}>{s.revenue}</td>
-                <td className="mono">{s.avg}</td>
-                <td style={{ color: s.otColor, fontWeight: 700 }}>{s.ontime}</td>
-                <td><span className={'pill ' + s.pill}><span className="pill-dot" />{s.status}</span></td>
+            {filtered.map(b => (
+              <tr key={b.email}>
+                <td>
+                  <strong>{b.name}</strong><br />
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{b.city}</span>
+                </td>
+                <td>
+                  <span style={{ fontSize: 12 }}>{b.contact}</span><br />
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{b.email}</span>
+                </td>
+                <td style={{ fontSize: 11, fontWeight: 600 }}>{b.plan}</td>
+                <td className="mono" style={{ fontWeight: 700, color: b.mrr === '$0' ? 'var(--muted)' : 'var(--accent)' }}>{b.mrr}</td>
+                <td>{b.loads}</td>
+                <td><span className={'pill ' + statusPill(b.status)}><span className="pill-dot" />{b.status}</span></td>
+                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{b.joined}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {b.status === 'Pending' && (
+                      <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: 10 }}
+                        onClick={e => { e.stopPropagation(); showToast('', 'Broker Approved', b.name + ' is now active') }}>
+                        <Ic icon={CheckCircle} size={12} /> Approve
+                      </button>
+                    )}
+                    {b.status !== 'Pending' && (
+                      <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
+                        onClick={e => { e.stopPropagation(); showToast('', 'Viewing', b.name + ' · ' + b.email) }}>
+                        <Ic icon={Eye} size={12} /> View
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -51,56 +107,62 @@ export function Shippers() {
   )
 }
 
+/* ─── Revenue & Subscriptions ────────────────────────────────────────────── */
 export function Payments() {
   const { showToast } = useApp()
-  const invoices = [
-    { id: 'FM-4421', shipper: 'Acme Dist.', amount: '$3,200', due: 'Mar 31', pill: 'pill-yellow', status: 'Pending', btn: 'Factor', btnMsg: ',Factored!,$3,120 deposited in 24hrs (2.5% fee)' },
-    { id: 'FM-4398', shipper: 'FreshCo Foods', amount: '$4,800', due: 'Mar 30', pill: 'pill-yellow', status: 'Pending', btn: 'Factor', btnMsg: ',Factored!,$4,680 deposited in 24hrs' },
-    { id: 'FM-4388', shipper: 'Blue Ridge', amount: '$5,100', due: 'Mar 28', pill: 'pill-blue', status: 'Factored', btn: 'View', btnMsg: '' },
-    { id: 'FM-4355', shipper: 'Midwest Goods', amount: '$1,650', due: 'Feb 27', pill: 'pill-green', status: 'Paid', btn: 'Receipt', btnMsg: '' },
-    { id: 'FM-4301', shipper: 'SteelWorks', amount: '$2,200', due: 'Feb 15', pill: 'pill-red', status: 'Overdue', btn: 'Dispute', btnMsg: ',Dispute Opened,Collections process started for FM-4301', danger: true },
+
+  const subscriptions = [
+    { company: 'R&J Transport', type: 'Carrier', plan: 'Small Fleet', amount: '$99', status: 'Paid', next: 'Apr 15', method: 'Visa •••• 4242' },
+    { company: 'Express Carriers', type: 'Carrier', plan: 'Growing Fleet', amount: '$199', status: 'Paid', next: 'Apr 22', method: 'MC •••• 8821' },
+    { company: 'Elite Logistics', type: 'Broker', plan: 'Standard', amount: '$75', status: 'Paid', next: 'Apr 10', method: 'Visa •••• 1234' },
+    { company: 'Southern Freight', type: 'Carrier', plan: 'Small Fleet', amount: '$99', status: 'Paid', next: 'Apr 3', method: 'ACH •••• 6654' },
+    { company: 'FastHaul Express', type: 'Carrier', plan: 'Small Fleet', amount: '$99', status: 'Trial', next: 'Mar 22', method: '—' },
+    { company: 'Blue Line Freight', type: 'Carrier', plan: 'Solo', amount: '$49', status: 'Failed', next: 'Retry Mar 11', method: 'Visa •••• 9091' },
+    { company: 'Apex Logistics', type: 'Broker', plan: 'Standard', amount: '$75', status: 'Trial', next: 'Mar 23', method: '—' },
   ]
+
+  const statusPill = (s) => ({ Paid: 'pill-green', Trial: 'pill-blue', Failed: 'pill-red', Cancelled: 'pill-muted' }[s] || 'pill-yellow')
+
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="stats-grid cols4 fade-in">
         {[
-          { label: 'Available Balance', value: '$24.8K', change: 'Ready to pay out', type: 'neutral', color: 'var(--accent)' },
-          { label: 'Pending Invoices', value: '$9.9K', change: '3 invoices', type: 'neutral', color: 'var(--warning)' },
-          { label: 'Factored MTD', value: '$14.2K', change: '2.5% fee', type: 'neutral', color: 'var(--accent4)' },
-          { label: 'Paid Out MTD', value: '$68K', change: '↑ 22%', type: 'up', color: 'var(--success)' },
+          { label: 'Monthly Revenue (MRR)', value: '$4,830', change: '+22% vs last month', color: 'var(--accent)' },
+          { label: 'Active Subscriptions', value: '58', change: '52 carriers + 6 brokers', color: 'var(--success)' },
+          { label: 'Trial Users', value: '8', change: 'Converting in 14 days', color: 'var(--accent3)' },
+          { label: 'Churn Rate', value: '2.1%', change: 'Below 5% target', color: 'var(--accent2)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className={'stat-change ' + s.type}>{s.change}</div>
+            <div className="stat-change up">{s.change}</div>
           </div>
         ))}
       </div>
+
       <div className="grid2 fade-in">
         <div className="panel">
           <div className="panel-header">
-            <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={ClipboardList} size={14} /> Invoice Ledger</div>
-            <button className="btn btn-primary" onClick={() => showToast('', 'FastPay', 'Factoring all pending invoices at 2.5%')}>Factor All</button>
+            <div className="panel-title"><Ic icon={CreditCard} size={14} /> Subscriptions</div>
+            <button className="btn btn-ghost">Export CSV</button>
           </div>
           <table>
-            <thead><tr><th>Load</th><th>Shipper</th><th>Amount</th><th>Due</th><th>Status</th><th>Action</th></tr></thead>
+            <thead><tr><th>Company</th><th>Type</th><th>Plan</th><th>Amount</th><th>Status</th><th>Next Bill</th></tr></thead>
             <tbody>
-              {invoices.map(inv => (
-                <tr key={inv.id} onClick={() => showToast('', inv.id, inv.amount + ' · Due ' + inv.due)}>
-                  <td className="mono" style={{ color: 'var(--accent3)', fontSize: 11 }}>{inv.id}</td>
-                  <td style={{ fontSize: 12, color: inv.danger ? 'var(--danger)' : undefined }}>{inv.shipper}</td>
-                  <td className="mono" style={{ fontWeight: 700, color: inv.danger ? 'var(--danger)' : undefined }}>{inv.amount}</td>
-                  <td style={{ fontSize: 12, color: inv.danger ? 'var(--danger)' : 'var(--muted)' }}>{inv.due}</td>
-                  <td><span className={'pill ' + inv.pill}><span className="pill-dot" />{inv.status}</span></td>
+              {subscriptions.map(s => (
+                <tr key={s.company} onClick={() => showToast('', s.company, s.plan + ' · ' + s.amount + '/mo · ' + s.method)}>
+                  <td><strong>{s.company}</strong></td>
                   <td>
-                    <button
-                      className={'btn ' + (inv.danger ? 'btn-danger' : 'btn-ghost')}
-                      style={{ padding: '4px 10px', fontSize: 11 }}
-                      onClick={e => { e.stopPropagation(); if (inv.btnMsg) { const [i,t,s] = inv.btnMsg.split(','); showToast(i,t,s) } }}
-                    >
-                      {inv.btn}
-                    </button>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                      background: s.type === 'Carrier' ? 'rgba(34,197,94,0.1)' : 'rgba(77,142,240,0.1)',
+                      color: s.type === 'Carrier' ? 'var(--success)' : 'var(--accent3)' }}>
+                      {s.type}
+                    </span>
                   </td>
+                  <td style={{ fontSize: 12 }}>{s.plan}</td>
+                  <td className="mono" style={{ fontWeight: 700, color: 'var(--accent)' }}>{s.amount}</td>
+                  <td><span className={'pill ' + statusPill(s.status)}><span className="pill-dot" />{s.status}</span></td>
+                  <td style={{ fontSize: 11, color: s.status === 'Failed' ? 'var(--danger)' : 'var(--muted)' }}>{s.next}</td>
                 </tr>
               ))}
             </tbody>
@@ -108,36 +170,41 @@ export function Payments() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Plan breakdown */}
           <div className="panel">
-            <div className="panel-header">
-              <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Zap} size={14} /> FastPay — Built-in Factoring</div>
-              <span style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700 }}>CONNECTED</span>
-            </div>
-            <div style={{ padding: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
-                {[['2.5%', 'Flat Fee', 'var(--success)'], ['24hr', 'Payment', 'var(--accent)'], ['100%', 'Advance', 'var(--accent2)'], ['$0', 'Setup', 'var(--accent3)']].map(([val, lbl, color]) => (
-                  <div key={lbl} style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, fontWeight: 700, color }}>{val}</div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{lbl}</div>
+            <div className="panel-header"><div className="panel-title"><Ic icon={TrendingUp} size={14} /> Plan Breakdown</div></div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { plan: 'Solo ($49)', count: 28, mrr: '$1,372', pct: 28, color: 'var(--accent2)' },
+                { plan: 'Small Fleet ($99)', count: 18, mrr: '$1,782', pct: 37, color: 'var(--accent)' },
+                { plan: 'Growing Fleet ($199)', count: 6, mrr: '$1,194', pct: 25, color: 'var(--accent3)' },
+                { plan: 'Broker Standard ($75)', count: 6, mrr: '$450', pct: 10, color: 'var(--accent4)' },
+              ].map(p => (
+                <div key={p.plan}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{p.plan}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.count} users · <span className="mono" style={{ color: p.color, fontWeight: 700 }}>{p.mrr}</span></span>
                   </div>
-                ))}
-              </div>
-              <button className="btn btn-primary" style={{ width: '100%', padding: 12, justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => showToast('', 'FastPay Request', 'All pending invoices being processed now · Funds in 24hrs')}>
-                <Ic icon={Zap} size={14} /> Request Payout — $9,900
-              </button>
+                  <div style={{ height: 5, background: 'var(--border)', borderRadius: 3 }}>
+                    <div style={{ width: p.pct + '%', height: '100%', background: p.color, borderRadius: 3 }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
+
+          {/* Quick actions */}
           <div className="panel">
-            <div className="panel-header"><div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Landmark} size={14} /> Bank Account</div><button className="btn btn-ghost">+ Add</button></div>
-            <div style={{ padding: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--surface2)', borderRadius: 10, border: '1px solid rgba(240,165,0,0.2)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic icon={Landmark} size={24} /></div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>Chase Business Checking</div>
-                  <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>•••• •••• 4821</div>
-                </div>
-                <div style={{ fontSize: 10, fontWeight: 700, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', padding: '3px 8px', borderRadius: 20 }}>PRIMARY</div>
-              </div>
+            <div className="panel-header"><div className="panel-title"><Ic icon={DollarSign} size={14} /> Revenue Actions</div></div>
+            <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => showToast('', 'Reminder Sent', 'Payment reminder sent to 2 failed accounts')}>
+                <Ic icon={Mail} size={14} /> Send Payment Reminders
+              </button>
+              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => showToast('', 'Exported', 'Revenue report downloaded as CSV')}>
+                <Ic icon={TrendingUp} size={14} /> Export Revenue Report
+              </button>
             </div>
           </div>
         </div>
@@ -146,61 +213,85 @@ export function Payments() {
   )
 }
 
+/* ─── Support Tickets ────────────────────────────────────────────────────── */
+const TICKETS = [
+  { id: 'TK-101', from: 'R&J Transport', type: 'Carrier', subject: 'IFTA report not generating', priority: 'High', status: 'Open', created: '2hrs ago' },
+  { id: 'TK-100', from: 'Elite Logistics', type: 'Broker', subject: 'Can\'t post LTL loads', priority: 'Medium', status: 'Open', created: '5hrs ago' },
+  { id: 'TK-099', from: 'Southern Freight', type: 'Carrier', subject: 'Fleet map not showing truck #3', priority: 'Medium', status: 'In Progress', created: 'Yesterday' },
+  { id: 'TK-098', from: 'Blue Line Freight', type: 'Carrier', subject: 'Subscription payment failed', priority: 'High', status: 'Open', created: 'Yesterday' },
+  { id: 'TK-097', from: 'Coastal Brokerage', type: 'Broker', subject: 'How to export carrier packet?', priority: 'Low', status: 'Resolved', created: 'Mar 7' },
+  { id: 'TK-096', from: 'Express Carriers', type: 'Carrier', subject: 'Driver settlement calculation off', priority: 'High', status: 'Resolved', created: 'Mar 5' },
+]
+
 export function Documents() {
   const { showToast } = useApp()
-  const docs = [
-    { name: 'BOL-2026-4421.pdf', type: 'Bill of Lading', load: 'FM-4421', when: 'Just now', conf: 68, confColor: 'var(--accent3)', pill: 'pill-blue', status: 'Processing', btn: 'View', btnMsg: '' },
-    { name: 'POD-4398-signed.jpg', type: 'Proof of Delivery', load: 'FM-4398', when: '2hrs ago', conf: 97, confColor: 'var(--success)', pill: 'pill-green', status: 'Verified', btn: 'Approve', btnMsg: ',Approved,POD-4398 approved and attached to FM-4398' },
-    { name: 'BOL-4355-unclear.pdf', type: 'Bill of Lading', load: 'FM-4355', when: 'Yesterday', conf: 71, confColor: 'var(--warning)', pill: 'pill-yellow', status: 'Review', btn: 'Review', btnPrimary: true, btnMsg: ',Review,Opening BOL-4355 for manual review...' },
-    { name: 'MC-Auth-RJTransport.pdf', type: 'MC Authority', load: 'Carrier Doc', when: 'Mar 1', conf: 99, confColor: 'var(--success)', pill: 'pill-green', status: 'Verified', btn: 'View', btnMsg: '' },
-  ]
+  const [filter, setFilter] = useState('All')
+
+  const filtered = TICKETS.filter(t => {
+    if (filter === 'All') return true
+    return t.status === filter
+  })
+
+  const priorityColor = (p) => ({ High: 'var(--danger)', Medium: 'var(--warning)', Low: 'var(--muted)' }[p])
+  const statusPill = (s) => ({ Open: 'pill-yellow', 'In Progress': 'pill-blue', Resolved: 'pill-green' }[s] || 'pill-muted')
+
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="stats-grid cols4 fade-in">
         {[
-          { label: 'Docs Processed', value: '142', change: 'Today: 8', type: 'up', color: 'var(--accent)' },
-          { label: 'AI Accuracy', value: '98.2%', change: '↑ 0.3%', type: 'up', color: 'var(--success)' },
-          { label: 'Avg Process Time', value: '8s', change: 'Per document', type: 'neutral', color: 'var(--accent2)' },
-          { label: 'Needs Review', value: '3', change: 'Action needed', type: 'down', color: 'var(--warning)' },
+          { label: 'Open Tickets', value: '3', change: '2 high priority', color: 'var(--danger)' },
+          { label: 'In Progress', value: '1', change: 'Being worked on', color: 'var(--accent3)' },
+          { label: 'Resolved This Week', value: '8', change: 'Avg 4hr response', color: 'var(--success)' },
+          { label: 'Avg Response Time', value: '2.4h', change: 'Below 4hr target', color: 'var(--accent2)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className={'stat-change ' + s.type}>{s.change}</div>
+            <div className="stat-change up">{s.change}</div>
           </div>
         ))}
       </div>
+
       <div className="panel fade-in">
         <div className="panel-header">
-          <div className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={FileText} size={14} /> Document Queue</div>
-          <button className="btn btn-primary" onClick={() => showToast('', 'Upload', 'Drag & drop or click to upload BOL, POD, Rate Con...')}>+ Upload Doc</button>
+          <div className="panel-title"><Ic icon={MessageSquare} size={14} /> Support Tickets</div>
         </div>
+
+        <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+          {['All', 'Open', 'In Progress', 'Resolved'].map(f => (
+            <button key={f} className={'filter-chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>{f}</button>
+          ))}
+        </div>
+
         <table>
-          <thead><tr><th>Document</th><th>Type</th><th>Load</th><th>Uploaded</th><th>AI Confidence</th><th>Status</th><th>Action</th></tr></thead>
+          <thead><tr><th>Ticket</th><th>From</th><th>Subject</th><th>Priority</th><th>Status</th><th>Created</th><th>Action</th></tr></thead>
           <tbody>
-            {docs.map(d => (
-              <tr key={d.name} onClick={() => showToast('', d.name, d.type + ' · ' + d.load)}>
-                <td><strong>{d.name}</strong></td>
-                <td style={{ fontSize: 12 }}>{d.type}</td>
-                <td className="mono" style={{ color: 'var(--accent3)', fontSize: 11 }}>{d.load}</td>
-                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{d.when}</td>
+            {filtered.map(t => (
+              <tr key={t.id} onClick={() => showToast('', t.id + ' — ' + t.from, t.subject)}>
+                <td className="mono" style={{ fontSize: 11, color: 'var(--accent3)' }}>{t.id}</td>
                 <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 60, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ width: d.conf + '%', height: '100%', background: d.confColor, borderRadius: 2 }} />
-                    </div>
-                    <span className="mono" style={{ fontSize: 11, color: d.confColor }}>{d.conf}%</span>
-                  </div>
+                  <strong style={{ fontSize: 12 }}>{t.from}</strong><br />
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 20,
+                    background: t.type === 'Carrier' ? 'rgba(34,197,94,0.1)' : 'rgba(77,142,240,0.1)',
+                    color: t.type === 'Carrier' ? 'var(--success)' : 'var(--accent3)' }}>
+                    {t.type}
+                  </span>
                 </td>
-                <td><span className={'pill ' + d.pill}><span className="pill-dot" />{d.status}</span></td>
+                <td style={{ fontSize: 12 }}>{t.subject}</td>
                 <td>
-                  <button
-                    className={'btn ' + (d.btnPrimary ? 'btn-primary' : 'btn-ghost')}
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                    onClick={e => { e.stopPropagation(); if (d.btnMsg) { const [i,t,s] = d.btnMsg.split(','); showToast(i,t,s) } }}
-                  >
-                    {d.btn}
-                  </button>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: priorityColor(t.priority) }}>{t.priority}</span>
+                </td>
+                <td><span className={'pill ' + statusPill(t.status)}><span className="pill-dot" />{t.status}</span></td>
+                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{t.created}</td>
+                <td>
+                  {t.status !== 'Resolved' ? (
+                    <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
+                      onClick={e => { e.stopPropagation(); showToast('', 'Responding', 'Opening ticket ' + t.id) }}>
+                      Reply
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 3 }}><Ic icon={CheckCircle} size={11} /> Done</span>
+                  )}
                 </td>
               </tr>
             ))}

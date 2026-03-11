@@ -2,10 +2,13 @@ import { useApp } from '../context/AppContext'
 import { Search, Bell } from 'lucide-react'
 
 const PAGE_TITLES = {
-  dashboard: 'DASHBOARD', loadboard: 'LOAD BOARD', carriers: 'CARRIERS',
-  shippers: 'SHIPPERS', ai: 'AI ENGINE', documents: 'DOCUMENTS',
-  payments: 'PAYMENTS', onboarding: 'CARRIER ONBOARDING', settings: 'SETTINGS',
-  postload: 'POST A LOAD', myloads: 'MY SHIPMENTS', tracking: 'LIVE TRACKING'
+  dashboard: 'OVERVIEW', loadboard: 'ALL LOADS', carriers: 'CARRIERS',
+  brokers: 'BROKERS', support: 'SUPPORT', payments: 'REVENUE',
+  settings: 'SETTINGS',
+  // Broker pages
+  'broker-dashboard': 'DASHBOARD', 'broker-post': 'POST LOAD',
+  'broker-loads': 'MY LOADS', 'broker-carriers': 'FIND CARRIERS',
+  'broker-payments': 'PAYMENTS',
 }
 
 export default function Topbar() {
@@ -13,8 +16,8 @@ export default function Topbar() {
 
   const handlePrimary = () => {
     if (currentRole === 'carrier') navigatePage('loadboard')
-    else if (currentRole === 'shipper') navigatePage('postload')
-    else showToast('', 'Post New Load', 'Opening load posting form...')
+    else if (currentRole === 'admin') showToast('', 'Invite Sent', 'User invitation email sent')
+    else showToast('', 'Post Load', 'Opening load posting form...')
   }
 
   return (

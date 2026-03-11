@@ -24,15 +24,13 @@ import Sidebar from './components/Sidebar'
 import Topbar from './components/Topbar'
 
 const PAGES = {
-  // Admin
+  // Admin (Platform Management)
   dashboard: Dashboard,
   loadboard: LoadBoard,
   carriers: Carriers,
-  shippers: Shippers,
-  payments: Payments,
-  documents: Documents,
-  onboarding: Onboarding,
-  ai: AIEngine,
+  brokers: Shippers,       // Shippers component now renders Broker management
+  payments: Payments,      // Payments component now renders Revenue/Subscriptions
+  support: Documents,      // Documents component now renders Support Tickets
   settings: Settings,
   // Broker
   'broker-dashboard': BrokerDashboard,

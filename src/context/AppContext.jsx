@@ -18,20 +18,18 @@ const ACCOUNTS = {
 
 export const ROLES = {
   admin: {
-    name: 'J. Mitchell', role: 'Super Admin', initials: 'JM',
+    name: 'M. Wasuge', role: 'Platform Owner', initials: 'MW',
     badge: 'role-admin', badgeText: 'ADMIN',
     nav: [
-      { id: 'dashboard', icon: Home, label: 'Dashboard' },
-      { id: 'loadboard', icon: ClipboardList, label: 'Load Board', badge: '247', badgeClass: 'blue' },
+      { id: 'dashboard', icon: Home, label: 'Overview' },
       { id: 'carriers', icon: Truck, label: 'Carriers', badge: '52', badgeClass: 'green' },
-      { id: 'shippers', icon: Factory, label: 'Shippers' },
-      { id: 'ai', icon: Bot, label: 'AI Engine' },
-      { id: 'documents', icon: FileText, label: 'Documents', badge: '3', badgeClass: 'yellow' },
-      { id: 'payments', icon: DollarSign, label: 'Payments' },
-      { id: 'onboarding', icon: UserPlus, label: 'Onboard Carrier' },
+      { id: 'brokers', icon: Building2, label: 'Brokers', badge: '14', badgeClass: 'blue' },
+      { id: 'loadboard', icon: ClipboardList, label: 'All Loads', badge: '247', badgeClass: 'yellow' },
+      { id: 'payments', icon: DollarSign, label: 'Revenue' },
+      { id: 'support', icon: FileText, label: 'Support', badge: '5', badgeClass: 'yellow' },
       { id: 'settings', icon: Settings, label: 'Settings' },
     ],
-    primaryBtn: '+ Post Load', topTitle: 'DASHBOARD'
+    primaryBtn: '+ Invite User', topTitle: 'PLATFORM ADMIN'
   },
   broker: {
     name: 'Sarah Chen', role: 'Broker · Elite Logistics', initials: 'SC',

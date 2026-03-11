@@ -1,84 +1,89 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { CheckCircle, Smartphone, Zap, Package } from 'lucide-react'
+import { Package, Search } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
 const LOADS = [
-  { id: 'FM-4421', from: 'ATL', to: 'CHI', miles: '1,088mi', rate: '$3,200', rpm: '$2.94', weight: '42,000 lbs', pill: 'pill-blue', status: 'Matched', ai: true, action: 'Book', actionMsg: ',Booked!,FM-4421 confirmed with R&J Transport' },
-  { id: 'FM-4430', from: 'DAL', to: 'MIA', miles: '1,491mi', rate: '$4,800', rpm: '$3.22', weight: '38,500 lbs', pill: 'pill-yellow', status: 'Open', ai: true, action: 'Book', actionMsg: ',Booked!,FM-4430 confirmed with Southern Freight' },
-  { id: 'FM-4412', from: 'PHX', to: 'LAX', miles: '372mi', rate: '$1,850', rpm: '$2.41', weight: '45,000 lbs', pill: 'pill-red', status: 'Urgent', ai: false, action: 'SMS Match', actionMsg: ',SMS Sent!,AI texting top 10 matched carriers now' },
-  { id: 'FM-4440', from: 'MEM', to: 'NYC', miles: '1,100mi', rate: '$5,100', rpm: '$3.10', weight: '39,800 lbs', pill: 'pill-yellow', status: 'Open', ai: true, action: 'Book', actionMsg: ',Booked!,FM-4440 confirmed' },
-  { id: 'FM-4445', from: 'DEN', to: 'HOU', miles: '1,020mi', rate: '$3,400', rpm: '$2.61', weight: '41,200 lbs', pill: 'pill-yellow', status: 'Open', ai: false, action: 'Book', actionMsg: ',Booked!,FM-4445 confirmed' },
+  { id: 'QV-4421', from: 'ATL', to: 'CHI', miles: '1,088', broker: 'Elite Logistics', carrier: 'R&J Transport', rate: '$3,200', type: 'FTL', equip: 'Dry Van', status: 'Booked', posted: 'Today' },
+  { id: 'QV-4430', from: 'DAL', to: 'MIA', miles: '1,491', broker: 'Elite Logistics', carrier: 'Southern Freight', rate: '$4,800', type: 'FTL', equip: 'Reefer', status: 'In Transit', posted: 'Today' },
+  { id: 'QV-4412', from: 'PHX', to: 'LAX', miles: '372', broker: 'Coastal Brokerage', carrier: '—', rate: '$1,850', type: 'FTL', equip: 'Flatbed', status: 'Open', posted: 'Today' },
+  { id: 'QV-4440', from: 'MEM', to: 'NYC', miles: '1,100', broker: 'Midwest Freight', carrier: 'Express Carriers', rate: '$5,100', type: 'FTL', equip: 'Dry Van', status: 'In Transit', posted: 'Yesterday' },
+  { id: 'QV-4445', from: 'DEN', to: 'HOU', miles: '1,020', broker: 'Coastal Brokerage', carrier: '—', rate: '$3,400', type: 'Partial', equip: 'Dry Van', status: 'Open', posted: 'Yesterday' },
+  { id: 'QV-4450', from: 'CHI', to: 'ATL', miles: '718', broker: 'Elite Logistics', carrier: 'Blue Line Freight', rate: '$2,100', type: 'LTL', equip: 'Dry Van', status: 'Delivered', posted: 'Mar 8' },
+  { id: 'QV-4455', from: 'MIA', to: 'DAL', miles: '1,312', broker: 'Midwest Freight', carrier: 'R&J Transport', rate: '$3,900', type: 'FTL', equip: 'Reefer', status: 'Delivered', posted: 'Mar 7' },
 ]
 
-const FILTERS = ['All Loads', 'AI Match', 'Dry Van', 'Reefer', 'Flatbed', 'Southeast', 'Midwest', 'Northeast']
+const FILTERS = ['All', 'Open', 'Booked', 'In Transit', 'Delivered']
 
 export default function LoadBoard() {
   const { showToast } = useApp()
-  const [activeFilter, setActiveFilter] = useState('All Loads')
+  const [filter, setFilter] = useState('All')
+  const [search, setSearch] = useState('')
+
+  const filtered = LOADS.filter(l => {
+    if (filter !== 'All' && l.status !== filter) return false
+    if (search && !l.id.toLowerCase().includes(search.toLowerCase()) && !l.broker.toLowerCase().includes(search.toLowerCase()) && !l.carrier.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+
+  const statusPill = (s) => ({ Open: 'pill-yellow', Booked: 'pill-blue', 'In Transit': 'pill-green', Delivered: 'pill-muted' }[s] || 'pill-muted')
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="load-board-filters">
-        {FILTERS.map(f => (
-          <button key={f} className={'filter-chip' + (activeFilter === f ? ' active' : '')} onClick={() => setActiveFilter(f)}>{f}</button>
-        ))}
-      </div>
-
       <div className="stats-grid cols4 fade-in">
         {[
-          { label: 'Active Loads', value: '247', change: '↑ 18 today', type: 'up', color: 'var(--accent)' },
-          { label: 'Avg Rate/Mile', value: '$2.84', change: '↓ $0.06', type: 'down' },
-          { label: 'AI Matches', value: '38', change: '94% accepted', type: 'neutral', color: 'var(--accent2)' },
-          { label: 'Carriers Ready', value: '52', change: '↑ 7 online', type: 'up', color: 'var(--accent3)' },
+          { label: 'Total Loads', value: '247', change: '+18 today', color: 'var(--accent)' },
+          { label: 'Open', value: '42', change: 'Waiting for carrier', color: 'var(--warning)' },
+          { label: 'In Transit', value: '89', change: 'On the road', color: 'var(--success)' },
+          { label: 'Delivered MTD', value: '116', change: '+12% vs last mo', color: 'var(--accent2)' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className={'stat-change ' + s.type}>{s.change}</div>
+            <div className="stat-change up">{s.change}</div>
           </div>
         ))}
       </div>
 
       <div className="panel fade-in">
         <div className="panel-header">
-          <div className="panel-title"><span className="live-dot" /> Live Load Board</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost">Sort: Best Rate</button>
-            <button className="btn btn-primary" onClick={() => showToast('', 'Post Load', 'Opening load posting form...')}>+ Post Load</button>
+          <div className="panel-title"><Ic icon={Package} size={14} /> All Platform Loads</div>
+          <div style={{ position: 'relative' }}>
+            <Ic icon={Search} size={13} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--muted)' }} />
+            <input className="form-input" placeholder="Search loads..." value={search} onChange={e => setSearch(e.target.value)}
+              style={{ paddingLeft: 30, width: 200, height: 34, fontSize: 12 }} />
           </div>
         </div>
-        <div className="load-row header">
-          <div>Load ID</div><div>Route</div><div>Rate</div><div>RPM</div><div>Weight</div><div>Status</div><div>Action</div>
+
+        <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+          {FILTERS.map(f => (
+            <button key={f} className={'filter-chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>{f}</button>
+          ))}
         </div>
-        {LOADS.map(load => (
-          <div key={load.id} className="load-row" onClick={() => showToast('', load.id, load.from + '→' + load.to + ' · ' + load.rate)}>
-            <div className="mono" style={{ color: 'var(--accent3)', fontSize: 12 }}>
-              {load.id}
-              {load.ai && <span style={{ fontSize: 9, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', padding: '1px 5px', borderRadius: 3, marginLeft: 4 }}>AI</span>}
-            </div>
-            <div className="route-display">
-              <span className="route-city">{load.from}</span>
-              <span className="route-arrow">→</span>
-              <span className="route-city">{load.to}</span>
-              <span className="route-miles">{load.miles}</span>
-            </div>
-            <div className="mono" style={{ color: 'var(--accent)', fontWeight: 700 }}>{load.rate}</div>
-            <div className="mono" style={{ color: 'var(--accent2)' }}>{load.rpm}</div>
-            <div>{load.weight}</div>
-            <div><span className={'pill ' + load.pill}><span className="pill-dot" />{load.status}</span></div>
-            <div>
-              <button
-                className="btn btn-ghost"
-                style={{ padding: '5px 10px', fontSize: 11 }}
-                onClick={e => { e.stopPropagation(); const [i,t,s] = load.actionMsg.split(','); showToast(i,t,s) }}
-              >
-                {load.action}
-              </button>
-            </div>
-          </div>
-        ))}
+
+        <table>
+          <thead><tr><th>Load</th><th>Route</th><th>Broker</th><th>Carrier</th><th>Rate</th><th>Type</th><th>Status</th><th>Posted</th></tr></thead>
+          <tbody>
+            {filtered.map(l => (
+              <tr key={l.id} onClick={() => showToast('', l.id, l.from + '→' + l.to + ' · ' + l.rate + ' · ' + l.broker)}>
+                <td className="mono" style={{ fontSize: 11, color: 'var(--accent3)' }}>{l.id}</td>
+                <td>
+                  <span style={{ fontWeight: 700 }}>{l.from} → {l.to}</span><br />
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>{l.miles} mi · {l.equip}</span>
+                </td>
+                <td style={{ fontSize: 12 }}>{l.broker}</td>
+                <td style={{ fontSize: 12, color: l.carrier === '—' ? 'var(--muted)' : 'var(--text)' }}>{l.carrier}</td>
+                <td className="mono" style={{ fontWeight: 700, color: 'var(--accent)' }}>{l.rate}</td>
+                <td>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--muted)' }}>{l.type}</span>
+                </td>
+                <td><span className={'pill ' + statusPill(l.status)}><span className="pill-dot" />{l.status}</span></td>
+                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{l.posted}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

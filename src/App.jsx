@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { AppProvider, useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -6,6 +6,7 @@ import Toast from './components/Toast'
 
 // Lazy-load heavy role-specific layouts
 const CarrierLayout = lazy(() => import('./components/CarrierLayout'))
+const MobileLayout = lazy(() => import('./components/MobileLayout'))
 const BrokerApp = lazy(() => import('./pages/BrokerPages').then(m => ({ default: m.BrokerApp || m.BrokerDashboard })))
 
 // Admin pages (lighter)
@@ -68,8 +69,20 @@ const LoadingFallback = () => (
   </div>
 )
 
+// Detect mobile (under 768px width or touch-primary device)
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  return isMobile
+}
+
 function AppContent() {
   const { view, currentPage, currentRole, goToLogin } = useApp()
+  const isMobile = useIsMobile()
   const PageComponent = PAGES[currentPage] || Dashboard
 
   return (
@@ -80,10 +93,10 @@ function AppContent() {
       {/* Login View */}
       {view === 'login' && <LoginPage />}
 
-      {/* Carrier — no sidebar, TMS tab layout */}
+      {/* Carrier — mobile gets AI chat, desktop gets full TMS */}
       {view === 'app' && currentRole === 'carrier' && (
         <Suspense fallback={<LoadingFallback />}>
-          <CarrierLayout />
+          {isMobile ? <MobileLayout /> : <CarrierLayout />}
         </Suspense>
       )}
 

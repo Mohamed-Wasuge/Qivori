@@ -9,7 +9,13 @@ export default async function handler(req) {
   }
 
   try {
-    const body = await req.json()
+    // Read body as text first, then parse — avoids Edge Runtime JSON parsing issues with large payloads
+    const rawText = await req.text()
+    let body
+    try { body = JSON.parse(rawText) } catch (parseErr) {
+      return Response.json({ error: 'JSON parse error: ' + parseErr.message, bodyLen: rawText.length }, { status: 400 })
+    }
+
     const file = body.file
     const mediaType = body.mediaType
 

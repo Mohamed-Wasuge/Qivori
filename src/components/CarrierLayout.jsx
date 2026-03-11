@@ -1346,11 +1346,11 @@ async function parseRateConWithAI(file) {
       const img = new Image()
       img.onload = () => {
         clearTimeout(timeout)
-        const maxW = 1200; let w = img.width, h = img.height
+        const maxW = 800; let w = img.width, h = img.height
         if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
         const c = document.createElement('canvas'); c.width = w; c.height = h
         c.getContext('2d').drawImage(img, 0, 0, w, h)
-        resolve({ b64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mt: 'image/jpeg' })
+        resolve({ b64: c.toDataURL('image/jpeg', 0.6).split(',')[1], mt: 'image/jpeg' })
       }
       img.onerror = () => {
         clearTimeout(timeout)

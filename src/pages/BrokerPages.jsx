@@ -721,85 +721,140 @@ export function BrokerLoads() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// BROKER CARRIERS
+// BROKER CARRIERS — Real data from Supabase profiles
 // ════════════════════════════════════════════════════════════════════════════
 export function BrokerCarriers() {
   const { showToast } = useApp()
   const [search, setSearch] = useState('')
+  const [carriers, setCarriers] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const filtered = DEMO_CARRIERS.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.mc.toLowerCase().includes(search.toLowerCase()) ||
-    c.lanes.some(l => l.toLowerCase().includes(search.toLowerCase()))
-  )
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase.from('profiles').select('*').eq('role', 'carrier').eq('status', 'active').order('created_at', { ascending: false })
+      setCarriers(data || [])
+      setLoading(false)
+    }
+    fetch()
+  }, [])
+
+  const filtered = carriers.filter(c => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (c.full_name || '').toLowerCase().includes(q) ||
+      (c.company_name || '').toLowerCase().includes(q) ||
+      (c.mc_number || '').toLowerCase().includes(q) ||
+      (c.city || '').toLowerCase().includes(q) ||
+      (c.state || '').toLowerCase().includes(q) ||
+      (c.equipment_type || '').toLowerCase().includes(q)
+  })
+
+  const getInitials = (name) => {
+    if (!name) return 'CR'
+    return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading carriers...</div>
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 2 }}>FIND CARRIERS</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 2 }}>FIND CARRIERS</div>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{carriers.length} active carriers</span>
+      </div>
 
       <div style={{ position: 'relative' }}>
         <Ic icon={Search} size={14} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--muted)' }} />
         <input className="form-input" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search by carrier name, MC#, or lane..."
+          placeholder="Search by name, company, MC#, location, or equipment..."
           style={{ paddingLeft: 34, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-        {filtered.map(c => (
-          <div key={c.mc} style={{ ...panel, padding: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
-              <div style={{ width: 52, height: 52, borderRadius: 12, background: safetyColor(c.safety) + '18', border: '1px solid ' + safetyColor(c.safety) + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: safetyColor(c.safety) }}>{c.safety}</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{c.name}</span>
-                  {c.preferred && <span style={badge('rgba(240,165,0,0.12)', 'var(--accent)')}><Ic icon={Star} size={10} /> Preferred</span>}
+      {filtered.length === 0 ? (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+          <Ic icon={Truck} size={32} style={{ opacity: 0.4, marginBottom: 8 }} />
+          <div style={{ fontSize: 14, fontWeight: 600 }}>{carriers.length === 0 ? 'No carriers on the platform yet' : 'No carriers match your search'}</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          {filtered.map(c => (
+            <div key={c.id} style={{ ...panel, padding: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: 'var(--success)' }}>{getInitials(c.full_name)}</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{c.mc} · {c.dot}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{c.full_name || 'Unknown'}</div>
+                  {c.company_name && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{c.company_name}</div>}
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                    {[c.mc_number, c.dot_number].filter(Boolean).join(' · ') || 'No MC/DOT'}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-              <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
-                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>On-Time</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{c.onTime}%</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+                <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Location</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{[c.city, c.state].filter(Boolean).join(', ') || '—'}</div>
+                </div>
+                <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Equipment</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{c.equipment_type || '—'}</div>
+                </div>
               </div>
-              <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
-                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Loads Completed</div>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{c.loads}</div>
-              </div>
-            </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Equipment</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {c.equipment.map(e => <span key={e} style={badge('var(--surface2)', 'var(--text)')}>{e}</span>)}
-              </div>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Lanes</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {c.lanes.map(l => <span key={l} style={badge('rgba(77,142,240,0.1)', 'var(--accent2)')}>{l}</span>)}
-              </div>
-            </div>
+              {c.phone && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, fontSize: 12, color: 'var(--muted)' }}>
+                  <Ic icon={Phone} size={12} /> {c.phone}
+                </div>
+              )}
 
-            <button className="btn btn-primary" style={{ width: '100%', padding: '9px 0', fontSize: 12, justifyContent: 'center' }}
-              onClick={() => showToast('', 'Booking Sent', `Direct booking request sent to ${c.name}`)}>
-              Book Direct
-            </button>
-          </div>
-        ))}
-      </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" style={{ flex: 1, padding: '9px 0', fontSize: 12, justifyContent: 'center' }}
+                  onClick={() => showToast('', 'Request Sent', `Booking request sent to ${c.full_name}`)}>
+                  Book Direct
+                </button>
+                <button className="btn btn-ghost" style={{ padding: '9px 12px', fontSize: 12 }}
+                  onClick={() => showToast('', c.full_name, `${c.email || '—'} · ${c.phone || '—'}`)}>
+                  <Ic icon={Phone} size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// BROKER PAYMENTS
+// BROKER PAYMENTS — Real data from loads table
 // ════════════════════════════════════════════════════════════════════════════
 export function BrokerPayments() {
   const { showToast } = useApp()
+  const [loads, setLoads] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false })
+      setLoads(data || [])
+      setLoading(false)
+    }
+    fetch()
+  }, [])
+
+  const totalRevenue = loads.reduce((s, l) => s + (l.rate || 0), 0)
+  const deliveredRevenue = loads.filter(l => l.status === 'delivered').reduce((s, l) => s + (l.rate || 0), 0)
+  const pendingRevenue = loads.filter(l => l.status !== 'delivered' && l.status !== 'cancelled').reduce((s, l) => s + (l.rate || 0), 0)
+
+  const getState = (loc) => {
+    if (!loc) return ''
+    const parts = loc.split(',')
+    return parts.length > 1 ? parts[parts.length - 1].trim() : loc
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading payments...</div>
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -807,10 +862,10 @@ export function BrokerPayments() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {[
-          { label: 'Outstanding', value: '$8,150', color: 'var(--warning)' },
-          { label: 'Paid MTD', value: '$5,050', color: 'var(--success)' },
-          { label: 'Avg Days to Pay', value: '4.2', color: 'var(--accent2)' },
-          { label: 'Total Carriers Paid', value: '6', color: 'var(--accent)' },
+          { label: 'Total Revenue', value: '$' + totalRevenue.toLocaleString(), color: 'var(--accent)' },
+          { label: 'Completed', value: '$' + deliveredRevenue.toLocaleString(), color: 'var(--success)' },
+          { label: 'Pending', value: '$' + pendingRevenue.toLocaleString(), color: 'var(--warning)' },
+          { label: 'Total Loads', value: loads.length, color: 'var(--accent2)' },
         ].map(s => (
           <div key={s.label} style={statCard(s.color)}>
             <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
@@ -821,57 +876,47 @@ export function BrokerPayments() {
 
       <div style={panel}>
         <div style={panelHead}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={CreditCard} size={14} /> Invoices</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={CreditCard} size={14} /> Load Payments</span>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Invoice', 'Load', 'Carrier', 'Amount', 'Status', 'Date', 'Action'].map(h => (
-                <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DEMO_INVOICES.map(inv => {
-              const pc = payColor(inv.status)
-              return (
-                <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700 }}>{inv.id}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--accent3)' }}>{inv.load}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12 }}>{inv.carrier}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>${inv.amount.toLocaleString()}</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span style={badge(pc + '18', pc)}>
-                      {inv.status === 'Overdue' && <Ic icon={AlertTriangle} size={10} />}
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--muted)' }}>{inv.date}</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    {inv.status === 'Pending' && (
-                      <button className="btn btn-success" style={{ padding: '4px 10px', fontSize: 11 }}
-                        onClick={() => showToast('', 'Payment Sent', `$${inv.amount.toLocaleString()} sent to ${inv.carrier}`)}>
-                        Pay Now
-                      </button>
-                    )}
-                    {inv.status === 'Overdue' && (
-                      <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11, color: 'var(--danger)' }}
-                        onClick={() => showToast('', 'Reminder Sent', `Payment reminder sent for ${inv.id}`)}>
-                        Send Reminder
-                      </button>
-                    )}
-                    {inv.status === 'Paid' && (
-                      <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}
-                        onClick={() => showToast('', 'Receipt', `Downloading receipt for ${inv.id}`)}>
-                        Receipt
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        {loads.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No loads yet</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['Load', 'Route', 'Rate', 'Status', 'Payment', 'Posted'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loads.map(l => {
+                const payStatus = l.status === 'delivered' ? 'Paid' : l.status === 'cancelled' ? 'Cancelled' : 'Pending'
+                const pc = payColor(payStatus)
+                return (
+                  <tr key={l.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent3)' }}>{l.load_id}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 600 }}>{getState(l.origin)} → {getState(l.destination)}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>${Number(l.rate || 0).toLocaleString()}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: l.status === 'delivered' ? 'rgba(34,197,94,0.12)' : l.status === 'open' ? 'rgba(240,165,0,0.12)' : 'var(--surface2)', color: l.status === 'delivered' ? 'var(--success)' : l.status === 'open' ? 'var(--warning)' : 'var(--muted)' }}>
+                        {l.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span style={badge((pc || 'var(--muted)') + '18', pc || 'var(--muted)')}>
+                        {payStatus === 'Pending' && <Ic icon={Clock} size={10} />}
+                        {payStatus === 'Paid' && <Ic icon={CheckCircle} size={10} />}
+                        {payStatus}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--muted)' }}>{l.posted_at ? new Date(l.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )

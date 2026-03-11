@@ -5,7 +5,7 @@ import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDo
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 const FILTERS = ['All', 'active', 'trial', 'pending', 'suspended']
-const ROLE_FILTERS = ['All Roles', 'carrier', 'broker', 'admin']
+const ROLE_FILTERS = ['All Roles', 'carrier', 'broker', 'manager', 'admin']
 
 export default function Carriers() {
   const { showToast } = useApp()
@@ -95,8 +95,8 @@ export default function Carriers() {
   const pending = users.filter(u => u.status === 'pending')
 
   const statusPill = (s) => ({ active: 'pill-green', trial: 'pill-blue', pending: 'pill-yellow', suspended: 'pill-red' }[s] || 'pill-muted')
-  const roleIcon = (r) => ({ admin: Zap, broker: Building2, carrier: Truck }[r] || Truck)
-  const roleColor = (r) => ({ admin: 'var(--accent)', broker: 'var(--accent3)', carrier: 'var(--success)' }[r] || 'var(--muted)')
+  const roleIcon = (r) => ({ admin: Zap, manager: Shield, broker: Building2, carrier: Truck }[r] || Truck)
+  const roleColor = (r) => ({ admin: 'var(--accent)', manager: 'var(--accent2)', broker: 'var(--accent3)', carrier: 'var(--success)' }[r] || 'var(--muted)')
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading users...</div>
@@ -132,7 +132,7 @@ export default function Carriers() {
             <div className="form-group">
               <label className="form-label">Role</label>
               <div style={{ display: 'flex', gap: 6 }}>
-                {['carrier', 'broker', 'admin'].map(r => (
+                {['carrier', 'broker', 'manager', 'admin'].map(r => (
                   <button key={r} onClick={() => setNewUser(p => ({ ...p, role: r }))}
                     style={{
                       flex: 1, padding: '8px 0', border: `1px solid ${newUser.role === r ? roleColor(r) : 'var(--border)'}`,
@@ -218,7 +218,7 @@ export default function Carriers() {
                   <td>
                     {editingRole === u.id ? (
                       <div style={{ display: 'flex', gap: 4 }}>
-                        {['admin', 'broker', 'carrier'].map(r => (
+                        {['admin', 'manager', 'broker', 'carrier'].map(r => (
                           <button key={r} onClick={() => updateRole(u.id, r, u.full_name || u.email)}
                             style={{
                               padding: '3px 8px', fontSize: 10, fontWeight: 700, borderRadius: 6, cursor: 'pointer',

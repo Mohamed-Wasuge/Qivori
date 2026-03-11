@@ -24,6 +24,18 @@ export const ROLES = {
     ],
     primaryBtn: '+ Invite User', topTitle: 'PLATFORM ADMIN'
   },
+  manager: {
+    name: 'Manager', role: 'Team Manager', initials: 'MG',
+    badge: 'role-admin', badgeText: 'MANAGER',
+    nav: [
+      { id: 'dashboard', icon: Home, label: 'Overview' },
+      { id: 'carriers', icon: Users, label: 'Users' },
+      { id: 'brokers', icon: Building2, label: 'Brokers' },
+      { id: 'loadboard', icon: ClipboardList, label: 'All Loads' },
+      { id: 'support', icon: FileText, label: 'Support' },
+    ],
+    primaryBtn: '+ Invite User', topTitle: 'TEAM MANAGER'
+  },
   broker: {
     name: 'Broker', role: 'Broker', initials: 'BR',
     badge: 'role-broker', badgeText: 'BROKER',
@@ -106,12 +118,13 @@ export function AppProvider({ children }) {
   // Listen for auth state changes
   useEffect(() => {
     // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
-        const role = resolveRole(null, session.user.email)
+        const prof = await fetchProfile(session.user.id)
+        const role = resolveRole(prof, session.user.email)
         setCurrentRole(role)
-        const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+        const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
         setCurrentPage(landingPage)
         setView('app')
       }
@@ -119,12 +132,13 @@ export function AppProvider({ children }) {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
-        const role = resolveRole(null, session.user.email)
+        const prof = await fetchProfile(session.user.id)
+        const role = resolveRole(prof, session.user.email)
         setCurrentRole(role)
-        const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+        const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
         setCurrentPage(landingPage)
         setView('app')
       } else if (event === 'SIGNED_OUT') {
@@ -159,8 +173,8 @@ export function AppProvider({ children }) {
       if (error) return { error: error.message }
 
       setUser(data.user)
-
-      const role = resolveRole(null, email)
+      const prof = await fetchProfile(data.user.id)
+      const role = resolveRole(prof, email)
       setCurrentRole(role)
       const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
       setCurrentPage(landingPage)

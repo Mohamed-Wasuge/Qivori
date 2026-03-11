@@ -405,8 +405,18 @@ function OverviewTab({ onTabChange }) {
 // ── Billing tab ────────────────────────────────────────────────────────────────
 function BillingTab() {
   const { showToast } = useApp()
+  const { invoices, vehicles, unpaidInvoices, totalRevenue, totalExpenses } = useCarrier()
+
+  const truckCount = vehicles.length || 3
+  const perTruck = 49
+  const basePlan = 299
+  const totalMonthly = basePlan + (truckCount * perTruck)
+
+  const statusColor = { Unpaid:'var(--warning)', Paid:'var(--success)', Factored:'var(--accent2)', Overdue:'var(--danger)' }
+
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Plan summary */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>Current Plan</div>
@@ -414,9 +424,9 @@ function BillingTab() {
         </div>
         <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
           {[
-            { label: 'Base Platform', price: '$299/mo', note: 'Unlimited users', color: 'var(--accent)' },
-            { label: 'Per Truck', price: '$49/truck', note: '3 trucks active = $147/mo', color: 'var(--accent2)' },
-            { label: 'Total Monthly', price: '$446/mo', note: 'Next billing: Apr 1', color: 'var(--success)', bold: true },
+            { label: 'Base Platform', price: `$${basePlan}/mo`, note: 'Unlimited users', color: 'var(--accent)' },
+            { label: 'Per Truck', price: `$${perTruck}/truck`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''} active = $${truckCount * perTruck}/mo`, color: 'var(--accent2)' },
+            { label: 'Total Monthly', price: `$${totalMonthly}/mo`, note: 'Next billing: Apr 1', color: 'var(--success)', bold: true },
           ].map(item => (
             <div key={item.label} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{item.label}</div>
@@ -426,29 +436,52 @@ function BillingTab() {
           ))}
         </div>
       </div>
+
+      {/* Revenue stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[
+          { label: 'Total Invoices', value: invoices.length, color: 'var(--accent)' },
+          { label: 'Unpaid', value: unpaidInvoices.length, color: 'var(--warning)' },
+          { label: 'Revenue MTD', value: '$' + totalRevenue.toLocaleString(), color: 'var(--success)' },
+          { label: 'Expenses MTD', value: '$' + totalExpenses.toLocaleString(), color: 'var(--danger)' },
+        ].map(s => (
+          <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', textAlign: 'center' }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Invoice list */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Invoice History</div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-            {['Date','Description','Amount','Status'].map(h => (
-              <th key={h} style={{ padding: '10px 16px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {[
-              { date: 'Mar 1, 2026', desc: 'TMS Pro · 3 trucks', amount: '$446', status: 'Paid', color: 'var(--success)' },
-              { date: 'Feb 1, 2026', desc: 'TMS Pro · 3 trucks', amount: '$446', status: 'Paid', color: 'var(--success)' },
-              { date: 'Jan 1, 2026', desc: 'TMS Pro · 2 trucks', amount: '$397', status: 'Paid', color: 'var(--success)' },
-            ].map(row => (
-              <tr key={row.date} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 12 }}>{row.date}</td>
-                <td style={{ padding: '12px 16px', fontSize: 13 }}>{row.desc}</td>
-                <td style={{ padding: '12px 16px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--accent)' }}>{row.amount}</td>
-                <td style={{ padding: '12px 16px' }}><span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: row.color + '15', color: row.color }}>{row.status}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Invoice History ({invoices.length})</div>
+        {invoices.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No invoices yet. Deliver a load to auto-generate one.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
+              {['Invoice','Load','Broker','Date','Amount','Status'].map(h => (
+                <th key={h} style={{ padding: '10px 16px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {invoices.map(inv => {
+                const sc = statusColor[inv.status] || 'var(--muted)'
+                return (
+                  <tr key={inv.id || inv.invoice_number} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                    onClick={() => showToast('', inv.id || inv.invoice_number, `${inv.broker || '—'} · ${inv.route || ''} · $${(inv.amount || 0).toLocaleString()} · ${inv.status}`)}>
+                    <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 700, color: 'var(--accent3)', fontFamily: 'monospace' }}>{inv.id || inv.invoice_number}</td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--muted)' }}>{inv.loadId || inv.load_number || '—'}</td>
+                    <td style={{ padding: '12px 16px', fontSize: 12 }}>{inv.broker || '—'}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 12 }}>{inv.date || '—'}</td>
+                    <td style={{ padding: '12px 16px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--accent)' }}>${(inv.amount || 0).toLocaleString()}</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: sc + '15', color: sc }}>{inv.status}</span></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
@@ -476,9 +509,33 @@ function SettingsTab() {
   const [notifPrefs, setNotifPrefs] = useState({ newMatch:true, loadStatus:true, driverAlert:true, payReady:true, compliance:true, marketRates:false })
   const [settingsSec, setSettingsSec] = useState('company')
 
+  const [providerKeys, setProviderKeys] = useState({
+    resend_api_key:'', checkr_api_key:'', sambasafety_api_key:'', sambasafety_account_id:'',
+    fmcsa_api_key:'', fmcsa_webkey:'', fadv_client_id:'', fadv_client_secret:'',
+  })
+  const [keysLoaded, setKeysLoaded] = useState(false)
+
+  // Load provider keys from company record
+  useEffect(() => {
+    if (ctxCompany?.provider_keys) {
+      setProviderKeys(prev => ({ ...prev, ...ctxCompany.provider_keys }))
+      setKeysLoaded(true)
+    }
+  }, [ctxCompany])
+
+  const saveProviderKeys = async () => {
+    try {
+      await updateCompany({ provider_keys: providerKeys })
+      showToast('success', 'Keys Saved', 'Provider API keys updated securely')
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to save keys')
+    }
+  }
+
   const SECTIONS = [
     { id:'company',        icon: Building2, label:'Company Profile' },
     { id:'billing',        icon: CreditCard, label:'Billing & Pay' },
+    { id:'providers',      icon: Shield, label:'Provider Keys' },
     { id:'integrations',   icon: Plug, label:'Integrations' },
     { id:'team',           icon: Users, label:'Team & Access' },
     { id:'notifications',  icon: Bell, label:'Notifications' },
@@ -636,6 +693,77 @@ function SettingsTab() {
               ))}
             </div>
             <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={() => showToast('','Saved','Billing settings updated')}>Save Changes</button>
+          </>
+        )}
+
+        {/* Provider Keys */}
+        {settingsSec === 'providers' && (
+          <>
+            <div>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>PROVIDER API KEYS</div>
+              <div style={{ fontSize:12, color:'var(--muted)' }}>Connect your screening providers to automate driver onboarding checks</div>
+            </div>
+
+            <div style={{ background:'rgba(77,142,240,0.06)', border:'1px solid rgba(77,142,240,0.15)', borderRadius:10, padding:'14px 18px', fontSize:12, color:'var(--accent3)', lineHeight:1.6 }}>
+              <strong>How it works:</strong> Your API keys are stored securely in your company record (encrypted, RLS-protected). When you add a new driver, Qivori automatically orders checks through your provider accounts. <strong>You only pay the providers directly — Qivori charges nothing extra.</strong>
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:14, width:'100%' }}>
+              {[
+                { section: 'Email (Consent Forms)', keys: [
+                  { key:'resend_api_key', label:'Resend API Key', ph:'re_xxxxxxxx', link:'https://resend.com', note:'Free: 100 emails/day — sends consent forms to new drivers' },
+                ]},
+                { section: 'Background & Employment', keys: [
+                  { key:'checkr_api_key', label:'Checkr API Key', ph:'xxxxxxxxxxxxxxxx', link:'https://checkr.com', note:'Background checks + 3-year employment verification' },
+                ]},
+                { section: 'Motor Vehicle Record (MVR)', keys: [
+                  { key:'sambasafety_api_key', label:'SambaSafety API Key', ph:'xxxxxxxxxxxxxxxx', link:'https://sambasafety.com', note:'Instant MVR pulls from all 50 states' },
+                  { key:'sambasafety_account_id', label:'SambaSafety Account ID', ph:'ACC-xxxxx' },
+                ]},
+                { section: 'FMCSA (Clearinghouse + PSP + CDL)', keys: [
+                  { key:'fmcsa_api_key', label:'FMCSA Clearinghouse API Key', ph:'xxxxxxxxxxxxxxxx', link:'https://clearinghouse.fmcsa.dot.gov', note:'Drug & alcohol violation queries ($1.25/query)' },
+                  { key:'fmcsa_webkey', label:'FMCSA WebKey (PSP)', ph:'xxxxxxxxxxxxxxxx', link:'https://www.psp.fmcsa.dot.gov', note:'Safety reports + CDL verification ($10/report)' },
+                ]},
+                { section: 'Drug & Alcohol Testing', keys: [
+                  { key:'fadv_client_id', label:'First Advantage Client ID', ph:'xxxxxxxxxxxxxxxx', link:'https://fadv.com', note:'DOT 5-panel drug & alcohol screening' },
+                  { key:'fadv_client_secret', label:'First Advantage Client Secret', ph:'xxxxxxxxxxxxxxxx' },
+                ]},
+              ].map(group => (
+                <div key={group.section} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden', width:'100%' }}>
+                  <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ fontWeight:700, fontSize:13 }}>{group.section}</div>
+                    {group.keys.every(k => providerKeys[k.key]) && (
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:'rgba(34,197,94,0.1)', color:'var(--success)' }}>Connected</span>
+                    )}
+                    {group.keys.every(k => !providerKeys[k.key]) && (
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:'rgba(74,85,112,0.15)', color:'var(--muted)' }}>Not set</span>
+                    )}
+                  </div>
+                  <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+                    {group.keys.map(k => (
+                      <div key={k.key}>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                          <label style={{ fontSize:11, color:'var(--muted)' }}>{k.label}</label>
+                          {k.link && <a href={k.link} target="_blank" rel="noopener noreferrer" style={{ fontSize:10, color:'var(--accent3)', textDecoration:'none' }}>Sign up →</a>}
+                        </div>
+                        <input
+                          type="password"
+                          value={providerKeys[k.key]}
+                          onChange={e => setProviderKeys(p => ({ ...p, [k.key]: e.target.value }))}
+                          placeholder={k.ph}
+                          style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }}
+                        />
+                        {k.note && <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{k.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <button className="btn btn-primary" style={{ alignSelf:'flex-start', padding:'12px 32px', fontSize:13, fontWeight:700 }} onClick={saveProviderKeys}>
+                Save Provider Keys
+              </button>
+            </div>
           </>
         )}
 

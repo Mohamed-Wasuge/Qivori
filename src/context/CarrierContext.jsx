@@ -149,11 +149,25 @@ const MOCK_COMPANY = {
   logo: '',
 }
 
+const MOCK_DRIVERS = [
+  { id:'mock-drv-1', full_name:'James Tucker', email:'j.tucker@email.com', phone:'(612) 555-0192', license_number:'MN-223344', license_state:'MN', license_expiry:'2026-08-01', medical_card_expiry:'2025-09-01', status:'Active', hire_date:'2024-01-14', notes:'Hazmat, Doubles/Triples endorsements' },
+  { id:'mock-drv-2', full_name:'Marcus Lee', email:'m.lee@email.com', phone:'(312) 555-0847', license_number:'IL-445566', license_state:'IL', license_expiry:'2027-03-01', medical_card_expiry:'2025-11-01', status:'Active', hire_date:'2024-03-03', notes:'Doubles/Triples endorsement' },
+  { id:'mock-drv-3', full_name:'Priya Patel', email:'p.patel@email.com', phone:'(720) 555-0341', license_number:'CO-667788', license_state:'CO', license_expiry:'2028-10-01', medical_card_expiry:'2026-10-01', status:'Active', hire_date:'2025-10-10', notes:'Reefer endorsement' },
+]
+
+const MOCK_VEHICLES = [
+  { id:'mock-veh-1', unit_number:'Unit 01', type:'Truck', year:2021, make:'Freightliner', model:'Cascadia', vin:'1FUJGLDR5MLKJ2841', license_plate:'MN-94821', license_state:'MN', status:'Active', current_miles:287420, insurance_expiry:'2025-06-01', registration_expiry:'2026-12-01', notes:'White, 80000 lbs GVW, Diesel' },
+  { id:'mock-veh-2', unit_number:'Unit 02', type:'Truck', year:2019, make:'Kenworth', model:'T680', vin:'1XKWDB9X5KJ213892', license_plate:'IL-77103', license_state:'IL', status:'Active', current_miles:412800, insurance_expiry:'2025-12-01', registration_expiry:'2026-03-01', notes:'Black, 80000 lbs GVW, Diesel' },
+  { id:'mock-veh-3', unit_number:'Unit 03', type:'Truck', year:2018, make:'Peterbilt', model:'579', vin:'1XPBD49X9JD432104', license_plate:'CO-55291', license_state:'CO', status:'Active', current_miles:561300, insurance_expiry:'2025-10-01', registration_expiry:'2025-10-01', notes:'Silver, 80000 lbs GVW, Diesel' },
+]
+
 // ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
   const [loads, setLoads] = useState([])
   const [invoices, setInvoices] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [drivers, setDrivers] = useState([])
+  const [vehicles, setVehicles] = useState([])
   const [company, setCompany] = useState(normalizeCompany(MOCK_COMPANY))
   const [checkCalls, setCheckCalls] = useState({})
   const [dataReady, setDataReady] = useState(false)
@@ -167,16 +181,20 @@ export function CarrierProvider({ children }) {
 
     async function init() {
       try {
-        const [dbLoads, dbInvoices, dbExpenses, dbCompany] = await Promise.all([
+        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
           db.fetchExpenses(),
           db.fetchCompany(),
+          db.fetchDrivers(),
+          db.fetchVehicles(),
         ])
 
         setLoads((dbLoads.length ? dbLoads : MOCK_LOADS).map(normalizeLoad))
         setInvoices((dbInvoices.length ? dbInvoices : MOCK_INVOICES).map(normalizeInvoice))
         setExpenses((dbExpenses.length ? dbExpenses : MOCK_EXPENSES).map(normalizeExpense))
+        setDrivers(dbDrivers.length ? dbDrivers : MOCK_DRIVERS)
+        setVehicles(dbVehicles.length ? dbVehicles : MOCK_VEHICLES)
         if (dbCompany) setCompany(normalizeCompany(dbCompany))
         setUseDb(true)
       } catch (e) {
@@ -184,6 +202,8 @@ export function CarrierProvider({ children }) {
         setLoads(MOCK_LOADS.map(normalizeLoad))
         setInvoices(MOCK_INVOICES.map(normalizeInvoice))
         setExpenses(MOCK_EXPENSES.map(normalizeExpense))
+        setDrivers(MOCK_DRIVERS)
+        setVehicles(MOCK_VEHICLES)
         setUseDb(false)
       }
       setDataReady(true)
@@ -359,6 +379,62 @@ export function CarrierProvider({ children }) {
     })
   }, [loads, useDb])
 
+  // ─── Driver operations ──────────────────────────────────────────
+  const addDriver = useCallback(async (driver) => {
+    if (useDb) {
+      try {
+        const newDriver = await db.createDriver(driver)
+        setDrivers(ds => [newDriver, ...ds])
+        return newDriver
+      } catch (e) { console.error('Failed to create driver:', e) }
+    }
+    const fake = { ...driver, id: 'local-drv-' + Date.now() }
+    setDrivers(ds => [fake, ...ds])
+    return fake
+  }, [useDb])
+
+  const editDriver = useCallback(async (id, updates) => {
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.updateDriver(id, updates) } catch (e) { console.error('Failed to update driver:', e) }
+    }
+    setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
+  }, [useDb])
+
+  const removeDriver = useCallback(async (id) => {
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.deleteDriver(id) } catch (e) { console.error('Failed to delete driver:', e) }
+    }
+    setDrivers(ds => ds.filter(d => d.id !== id))
+  }, [useDb])
+
+  // ─── Vehicle operations ─────────────────────────────────────────
+  const addVehicle = useCallback(async (vehicle) => {
+    if (useDb) {
+      try {
+        const newVeh = await db.createVehicle(vehicle)
+        setVehicles(vs => [newVeh, ...vs])
+        return newVeh
+      } catch (e) { console.error('Failed to create vehicle:', e) }
+    }
+    const fake = { ...vehicle, id: 'local-veh-' + Date.now() }
+    setVehicles(vs => [fake, ...vs])
+    return fake
+  }, [useDb])
+
+  const editVehicle = useCallback(async (id, updates) => {
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.updateVehicle(id, updates) } catch (e) { console.error('Failed to update vehicle:', e) }
+    }
+    setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
+  }, [useDb])
+
+  const removeVehicle = useCallback(async (id) => {
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.deleteVehicle(id) } catch (e) { console.error('Failed to delete vehicle:', e) }
+    }
+    setVehicles(vs => vs.filter(v => v.id !== id))
+  }, [useDb])
+
   // ─── Company operations ───────────────────────────────────────
   const updateCompany = useCallback(async (updates) => {
     const merged = { ...company, ...updates }
@@ -377,6 +453,8 @@ export function CarrierProvider({ children }) {
     setLoads(MOCK_LOADS.map(normalizeLoad))
     setInvoices(MOCK_INVOICES.map(normalizeInvoice))
     setExpenses(MOCK_EXPENSES.map(normalizeExpense))
+    setDrivers(MOCK_DRIVERS)
+    setVehicles(MOCK_VEHICLES)
     setCompany(normalizeCompany(MOCK_COMPANY))
     setCheckCalls({})
   }, [])
@@ -390,11 +468,13 @@ export function CarrierProvider({ children }) {
 
   return (
     <CarrierContext.Provider value={{
-      loads, invoices, expenses, company, checkCalls,
+      loads, invoices, expenses, drivers, vehicles, company, checkCalls,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses,
       updateLoadStatus, addLoad, advanceStop,
       updateInvoiceStatus, addExpense,
+      addDriver, editDriver, removeDriver,
+      addVehicle, editVehicle, removeVehicle,
       logCheckCall, updateCompany, resetData,
       dataReady, useDb,
     }}>

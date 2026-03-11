@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
-import { supabase } from '../lib/supabase'
+import { fetchLoads as dbFetchLoads, createLoad } from '../lib/database'
 import { Package, Search, Plus, X } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -45,15 +45,12 @@ export default function LoadBoard() {
 
   const fetchLoads = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('loads')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (error) {
+    try {
+      const data = await dbFetchLoads()
+      setLoads(data || [])
+    } catch (error) {
       console.error('Error fetching loads:', error)
       showToast('error', 'Error', 'Failed to load data')
-    } else {
-      setLoads(data || [])
     }
     setLoading(false)
   }, [showToast])
@@ -105,15 +102,15 @@ export default function LoadBoard() {
       status: 'open',
       posted_at: new Date().toISOString(),
     }
-    const { error } = await supabase.from('loads').insert([newLoad])
-    if (error) {
-      console.error('Error posting load:', error)
-      showToast('error', 'Error', 'Failed to post load')
-    } else {
+    try {
+      await createLoad(newLoad)
       showToast('success', 'Load Posted', `${newLoad.load_id} created successfully`)
       setForm(INITIAL_FORM)
       setShowModal(false)
       fetchLoads()
+    } catch (error) {
+      console.error('Error posting load:', error)
+      showToast('error', 'Error', 'Failed to post load')
     }
     setPosting(false)
   }

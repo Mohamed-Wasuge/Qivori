@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
+import { fetchLoads, createLoad, updateLoad, fetchInvoices, createInvoice, updateInvoice, fetchDrivers, fetchDocuments, createDocument } from '../lib/database'
 import {
   Package, TrendingUp, Truck, DollarSign, Clock, CheckCircle, MapPin,
   Search, Star, Shield, Phone, ChevronDown, ChevronUp, Zap, Bot,
@@ -95,12 +96,12 @@ export function BrokerDashboard() {
   const [loadingData, setLoadingData] = useState(true)
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false })
+    const loadData = async () => {
+      const data = await fetchLoads()
       setLoads(data || [])
       setLoadingData(false)
     }
-    fetch()
+    loadData()
   }, [])
 
   const activeLoads = loads.filter(l => ['open', 'in_transit', 'booked'].includes(l.status))
@@ -340,29 +341,28 @@ export function BrokerPostLoad() {
       }
     }
 
-    const { error } = await supabase.from('loads').insert({
-      load_id: loadId,
-      origin,
-      destination,
-      rate: parseFloat(rate.replace(/[^0-9.]/g, '')),
-      load_type: loadType,
-      equipment,
-      weight: weight || null,
-      status: 'open',
-      posted_at: new Date().toISOString(),
-      pickup_date: pickupDate || null,
-      delivery_date: deliveryDate || null,
-      broker_id: user?.id || null,
-      broker_name: user?.email?.split('@')[0] || 'Broker',
-      notes: notes || null,
-      rate_con_url: rateConUrl,
-    })
-
-    setPosting(false)
-    if (error) {
+    try {
+      await createLoad({
+        load_id: loadId,
+        origin,
+        destination,
+        rate: parseFloat(rate.replace(/[^0-9.]/g, '')),
+        load_type: loadType,
+        equipment,
+        weight: weight || null,
+        status: 'open',
+        pickup_date: pickupDate || null,
+        delivery_date: deliveryDate || null,
+        broker_name: user?.email?.split('@')[0] || 'Broker',
+        notes: notes || null,
+        rate_con_url: rateConUrl,
+      })
+    } catch (error) {
+      setPosting(false)
       showToast('', 'Error', 'Failed to post load: ' + error.message)
       return
     }
+    setPosting(false)
 
     showToast('', 'Load Posted', `${loadId} — ${origin} to ${destination} is live`)
     setTimeout(() => navigatePage('broker-loads'), 1000)
@@ -542,16 +542,13 @@ export function BrokerLoads() {
   const [expanded, setExpanded] = useState(null)
   const filters = ['All', 'Active', 'Booked', 'Delivered']
 
-  const fetchLoads = async () => {
-    const { data } = await supabase
-      .from('loads')
-      .select('*')
-      .order('created_at', { ascending: false })
+  const loadData = async () => {
+    const data = await fetchLoads()
     setLoads(data || [])
     setLoading(false)
   }
 
-  useEffect(() => { fetchLoads() }, [])
+  useEffect(() => { loadData() }, [])
 
   const getState = (loc) => {
     if (!loc) return ''
@@ -855,12 +852,12 @@ export function BrokerPayments() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase.from('loads').select('*').order('created_at', { ascending: false })
+    const loadData = async () => {
+      const data = await fetchLoads()
       setLoads(data || [])
       setLoading(false)
     }
-    fetch()
+    loadData()
   }, [])
 
   const totalRevenue = loads.reduce((s, l) => s + (l.rate || 0), 0)

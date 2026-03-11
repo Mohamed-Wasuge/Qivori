@@ -187,7 +187,11 @@ const COPILOT_SUGGESTIONS = (load) => [
 
 export function SmartDispatch() {
   const { showToast } = useApp()
-  const { loads: ctxLoads, addLoad, totalRevenue, expenses } = useCarrier()
+  const { loads: ctxLoads, addLoad, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
+  const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
+    name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
+    location: '', hos: '—', unit: '',
+  })) : DISPATCH_DRIVERS
 
   const [loads, setLoads] = useState(MARKET_LOADS)
   const [selected, setSelected] = useState(null)
@@ -249,7 +253,7 @@ export function SmartDispatch() {
     { label:'Deadhead Penalty',  score: sel.deadhead < 15 ? 20 : sel.deadhead < 30 ? 15 : sel.deadhead < 50 ? 8 : 3, max:20, color:'var(--warning)' },
     { label:'Lane Familiarity',  score: ctxLoads.some(l => l.origin?.includes(sel.from) || l.dest?.includes(sel.to)) ? 18 : 10, max:18, color:'var(--accent3)' },
     { label:'Equipment Match',   score: sel.equipment === 'Dry Van' ? 12 : sel.equipment === 'Reefer' ? 11 : 10, max:12, color:'var(--success)' },
-    { label:'Fleet Availability',score: DISPATCH_DRIVERS.some(d=>d.status==='Available') ? 5 : 2, max:5, color:'var(--muted)' },
+    { label:'Fleet Availability',score: dispatchDrivers.some(d=>d.status==='Available') ? 5 : 2, max:5, color:'var(--muted)' },
   ] : []
 
   const computedScore = scoreBreakdown.reduce((s,x) => s+x.score, 0)
@@ -388,7 +392,7 @@ export function SmartDispatch() {
       `CARRIER SNAPSHOT:`,
       `Revenue MTD: $${totalRevenue.toLocaleString()} | Completed loads: ${ctxCompleted.length}`,
       `Fleet avg RPM: $${avgRPM} | Same-lane history: ${sameLane.length} loads`,
-      `Available drivers: ${DISPATCH_DRIVERS.filter(d=>d.status==='Available').map(d=>d.name+' ('+d.hos+' HOS, '+d.location+')').join(', ')}`,
+      `Available drivers: ${dispatchDrivers.filter(d=>d.status==='Available').map(d=>d.name+' ('+d.hos+' HOS, '+d.location+')').join(', ')}`,
     ].join('\n')
     try {
       const res = await fetch('/api/chat', {
@@ -785,7 +789,7 @@ export function SmartDispatch() {
               <select value={addForm.driver} onChange={e => setAddForm(p => ({ ...p, driver: e.target.value }))}
                 style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
                 <option value="">Unassigned</option>
-                {DISPATCH_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} — {d.status} ({d.hos} HOS)</option>)}
+                {dispatchDrivers.map(d => <option key={d.name} value={d.name}>{d.name} — {d.status} ({d.hos} HOS)</option>)}
               </select>
             </div>
 
@@ -821,7 +825,7 @@ export function SmartDispatch() {
             {/* Driver selection */}
             <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', letterSpacing:1, marginBottom:10 }}>SELECT DRIVER</div>
             <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
-              {DISPATCH_DRIVERS.map(d => (
+              {dispatchDrivers.map(d => (
                 <label key={d.name} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:10, border:`1px solid ${bookDriver===d.name?'var(--accent)':'var(--border)'}`, background: bookDriver===d.name?'rgba(240,165,0,0.06)':'var(--surface2)', cursor: d.status==='On Load'?'not-allowed':'pointer', opacity: d.status==='On Load'?0.5:1 }}>
                   <input type="radio" name="driver" value={d.name} disabled={d.status==='On Load'}
                     checked={bookDriver===d.name} onChange={() => setBookDriver(d.name)}
@@ -3119,9 +3123,47 @@ const DRIVER_DATA = [
 
 export function DriverProfiles() {
   const { showToast } = useApp()
-  const [selected, setSelected] = useState('james')
+  const { drivers: dbDrivers, addDriver, editDriver, removeDriver } = useCarrier()
+  const driverList = dbDrivers.length ? dbDrivers.map(d => ({
+    id: d.id, name: d.full_name, avatar: (d.full_name || '').split(' ').map(w => w[0]).join('').slice(0,2),
+    phone: d.phone || '', email: d.email || '',
+    hired: d.hire_date ? new Date(d.hire_date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
+    cdl: d.license_number || '', cdlClass: 'Class A', cdlExpiry: d.license_expiry ? new Date(d.license_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+    medCard: d.medical_card_expiry ? new Date(d.medical_card_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+    status: d.status || 'Active', hos: '—', unit: '',
+    stats: { loadsMTD: 0, milesMTD: 0, grossMTD: 0, payMTD: 0, rating: 0 },
+    endorsements: (d.notes || '').split(',').map(s => s.trim()).filter(Boolean),
+    violations: [], payModel: '',
+  })) : DRIVER_DATA
+  const [selected, setSelected] = useState(driverList[0]?.id || 'james')
   const [showAdd, setShowAdd] = useState(false)
-  const d = DRIVER_DATA.find(x => x.id === selected)
+  const [newD, setNewD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
+  const [saving, setSaving] = useState(false)
+  const d = driverList.find(x => x.id === selected) || driverList[0]
+
+  const handleAddDriver = async () => {
+    if (!newD.name) { showToast('error', 'Error', 'Name is required'); return }
+    setSaving(true)
+    try {
+      await addDriver({
+        full_name: newD.name,
+        phone: newD.phone,
+        email: newD.email,
+        license_number: newD.license_number,
+        license_state: newD.license_state,
+        license_expiry: newD.license_expiry || null,
+        medical_card_expiry: newD.medical_card_expiry || null,
+        status: 'Active',
+        hire_date: new Date().toISOString().split('T')[0],
+      })
+      showToast('success', 'Driver Added', newD.name + ' added successfully')
+      setNewD({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
+      setShowAdd(false)
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to add driver')
+    }
+    setSaving(false)
+  }
 
   const expiryColor = (expiry) => {
     const months = (new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24 * 30)
@@ -3129,15 +3171,52 @@ export function DriverProfiles() {
   }
   const statusColor = { Active: 'var(--success)', Available: 'var(--accent2)', 'Off Duty': 'var(--muted)' }
 
+  const addInp = { width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, boxSizing:'border-box', outline:'none' }
+
   return (
+    <>
+      {/* Add Driver Modal — rendered outside the overflow:hidden container */}
+      {showAdd && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if (e.target===e.currentTarget) setShowAdd(false) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:440, padding:24 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Add New Driver</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>Enter driver details below</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {[
+                { key:'name', label:'Full Name *', ph:'John Smith', span:true },
+                { key:'phone', label:'Phone', ph:'(612) 555-0198' },
+                { key:'email', label:'Email', ph:'driver@email.com' },
+                { key:'license_number', label:'CDL Number', ph:'MN-12345678' },
+                { key:'license_state', label:'License State', ph:'MN' },
+                { key:'license_expiry', label:'CDL Expiry', ph:'', type:'date' },
+                { key:'medical_card_expiry', label:'Medical Card Expiry', ph:'', type:'date' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                  <input type={f.type||'text'} value={newD[f.key]} onChange={e => setNewD(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={addInp} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:18 }}>
+              <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} onClick={handleAddDriver} disabled={saving || !newD.name}>
+                {saving ? 'Saving...' : 'Add Driver'}
+              </button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setShowAdd(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       {/* Driver list */}
       <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2 }}>DRIVERS ({DRIVER_DATA.length})</div>
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2 }}>DRIVERS ({driverList.length})</div>
           <button className="btn btn-primary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => setShowAdd(true)}>+ Add</button>
         </div>
-        {DRIVER_DATA.map(dr => {
+        {driverList.map(dr => {
           const isSel = selected === dr.id
           return (
             <div key={dr.id} onClick={() => setSelected(dr.id)}
@@ -3243,6 +3322,7 @@ export function DriverProfiles() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
@@ -3947,8 +4027,22 @@ const BLANK_TRUCK = { vin:'', year:'', make:'', model:'', color:'', plate:'', gv
 
 export function FleetManager() {
   const { showToast } = useApp()
-  const [trucks, setTrucks] = useState(FLEET_TRUCKS)
-  const [selectedTruck, setSelectedTruck] = useState('unit01')
+  const { vehicles: dbVehicles, addVehicle, editVehicle, removeVehicle } = useCarrier()
+  const initialTrucks = dbVehicles.length ? dbVehicles.map((v, i) => ({
+    id: v.id, unit: v.unit_number || `Unit ${String(i+1).padStart(2,'0')}`,
+    status: v.status === 'Active' ? 'Available' : v.status || 'Available',
+    statusColor: v.status === 'Active' ? 'var(--accent2)' : 'var(--muted)',
+    year: v.year || '', make: v.make || '', model: v.model || '',
+    vin: v.vin || '', plate: v.license_plate || '', color: '',
+    gvw: '80,000 lbs', fuel: 'Diesel',
+    regExpiry: v.registration_expiry || '', insExpiry: v.insurance_expiry || '',
+    dotInspection: '', odometer: v.current_miles || 0,
+    driver: '', unit_cost: 0,
+    mpg:[7.0,7.0,7.0,7.0,7.0,7.0], miles:[0,0,0,0,0,0],
+    revenue:[0,0,0,0,0,0], opCost:[0,0,0,0,0,0],
+  })) : FLEET_TRUCKS
+  const [trucks, setTrucks] = useState(initialTrucks)
+  const [selectedTruck, setSelectedTruck] = useState(initialTrucks[0]?.id || 'unit01')
   const [subTab, setSubTab] = useState('profile')
   const [logs, setLogs] = useState(MAINT_LOGS)
   const [showAddService, setShowAddService] = useState(false)
@@ -3989,12 +4083,20 @@ export function FleetManager() {
     }
   }
 
-  const saveTruck = () => {
+  const saveTruck = async () => {
     if (!newTruck.vin || !newTruck.make) return
-    const id = 'unit' + String(trucks.length + 1).padStart(2, '0')
-    const unit = 'Unit ' + String(trucks.length + 1).padStart(2, '0')
+    const unitNum = 'Unit ' + String(trucks.length + 1).padStart(2, '0')
+    const dbPayload = {
+      unit_number: unitNum, vin: newTruck.vin, year: parseInt(newTruck.year) || null,
+      make: newTruck.make, model: newTruck.model, license_plate: newTruck.plate,
+      license_state: '', status: 'Active', current_miles: parseInt(newTruck.odometer) || 0,
+      insurance_expiry: newTruck.insExpiry || null, registration_expiry: newTruck.regExpiry || null,
+      notes: `${newTruck.color || ''}, ${newTruck.gvw || ''}, ${newTruck.fuel || 'Diesel'}`.trim(),
+    }
+    const saved = await addVehicle(dbPayload)
+    const id = saved?.id || ('local-veh-' + Date.now())
     setTrucks(t => [...t, {
-      ...newTruck, id, unit, status: 'Available', statusColor: 'var(--accent2)',
+      ...newTruck, id, unit: unitNum, status: 'Available', statusColor: 'var(--accent2)',
       odometer: parseInt(newTruck.odometer) || 0,
       unit_cost: parseFloat(newTruck.unit_cost) || 0,
       mpg:[7.0,7.0,7.0,7.0,7.0,7.0],
@@ -4004,7 +4106,7 @@ export function FleetManager() {
     setShowAddTruck(false)
     setNewTruck(BLANK_TRUCK)
     setVinResult(null)
-    showToast('', 'Truck Added', `${newTruck.year} ${newTruck.make} ${newTruck.model} — ${unit}`)
+    showToast('', 'Truck Added', `${newTruck.year} ${newTruck.make} ${newTruck.model} — ${unitNum}`)
   }
 
   const truck = trucks.find(t => t.id === selectedTruck)
@@ -4530,6 +4632,7 @@ const SAMPLE_ONBOARDS = [
 
 export function DriverOnboarding() {
   const { showToast } = useApp()
+  const { addDriver: dbAddDriver } = useCarrier()
   const [drivers, setDrivers] = useState(SAMPLE_ONBOARDS)
   const [selected, setSelected] = useState('d2')
   const [showAdd, setShowAdd] = useState(false)
@@ -4551,10 +4654,10 @@ export function DriverOnboarding() {
 
   const getClearedCount = (checks) => PE_CHECKS.filter(c => checks[c.id] === 'cleared' || checks[c.id] === 'waived').length
 
-  const orderAllChecks = () => {
+  const orderAllChecks = async () => {
     if (!driver) return
     setOrdering(true)
-    // Simulate checks firing off — idle ones go to ordered, then after delay to processing
+    // Mark idle checks as ordered
     setDrivers(ds => ds.map(d => {
       if (d.id !== selected) return d
       const next = { ...d.checks }
@@ -4562,6 +4665,19 @@ export function DriverOnboarding() {
       return { ...d, checks: next }
     }))
     showToast('', 'All Checks Ordered', '10 pre-employment checks submitted')
+
+    // Try real API calls via Edge Function
+    try {
+      const { startOnboarding } = await import('../lib/onboarding')
+      const result = await startOnboarding(driver)
+      if (result.started.length > 0) {
+        showToast('success', 'APIs Called', result.started.join(', ') + ' ordered via providers')
+      }
+    } catch (err) {
+      console.warn('Provider API calls pending setup:', err.message)
+    }
+
+    // Update UI to processing after a short delay
     setTimeout(() => {
       setDrivers(ds => ds.map(d => {
         if (d.id !== selected) return d
@@ -4573,7 +4689,7 @@ export function DriverOnboarding() {
     }, 1800)
   }
 
-  const markCheck = (checkId, status, result) => {
+  const markCheck = async (checkId, status, result) => {
     setDrivers(ds => ds.map(d => {
       if (d.id !== selected) return d
       const checks = { ...d.checks, [checkId]: status }
@@ -4582,23 +4698,67 @@ export function DriverOnboarding() {
     }))
     const meta = PE_STATUS_META[status]
     showToast('', PE_CHECKS.find(c=>c.id===checkId)?.label || '', meta?.label || '')
+
+    // Auto-advance: when a check is cleared, try to order the next ones
+    if (status === 'cleared' && driver) {
+      try {
+        const { autoAdvance } = await import('../lib/onboarding')
+        const result = await autoAdvance(driver, checkId, true)
+        if (result.started.length > 0) {
+          // Mark auto-ordered checks in UI
+          setDrivers(ds => ds.map(d => {
+            if (d.id !== selected) return d
+            const next = { ...d.checks }
+            result.started.forEach(id => { if (next[id] === 'idle') next[id] = 'ordered' })
+            return { ...d, checks: next }
+          }))
+          showToast('', 'Auto-Advanced', result.started.join(', ') + ' auto-ordered')
+        }
+      } catch (err) {
+        console.warn('Auto-advance pending setup:', err.message)
+      }
+    }
   }
 
-  const addDriver = () => {
+  const addDriver = async () => {
     if (!newDriver.name) return
     const id = 'd' + Date.now()
     const avatar = newDriver.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
+    // Save to local onboarding list
     setDrivers(ds => [...ds, {
       id, name:newDriver.name, cdl:newDriver.cdl, cdlNum:newDriver.cdlNum,
       phone:newDriver.phone, email:newDriver.email, dob:newDriver.dob, state:newDriver.state,
-      added:'Mar 9', avatar,
+      added: new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' }), avatar,
       checks: Object.fromEntries(PE_CHECKS.map(c => [c.id, 'idle'])),
       results:{}, medExpiry:'', cdlExpiry:'',
     }])
     setSelected(id)
     setShowAdd(false)
+    // Save to Supabase
+    try {
+      await dbAddDriver({
+        full_name: newDriver.name,
+        phone: newDriver.phone,
+        email: newDriver.email,
+        license_number: newDriver.cdlNum,
+        license_state: newDriver.state,
+        status: 'Onboarding',
+        hire_date: new Date().toISOString().split('T')[0],
+      })
+    } catch (err) { console.warn('DB save failed:', err.message) }
+
+    // Auto-send consent email + start phase 1 checks
+    if (newDriver.email) {
+      try {
+        const { startOnboarding } = await import('../lib/onboarding')
+        await startOnboarding(newDriver)
+        showToast('success', 'Consent Email Sent', `Sent to ${newDriver.email}`)
+      } catch (err) { console.warn('Auto-onboard pending setup:', err.message) }
+    }
+
+    const driverName = newDriver.name
     setNewDriver({ name:'', cdl:'CDL-A', cdlNum:'', phone:'', email:'', dob:'', state:'' })
-    showToast('', 'Driver Added', newDriver.name + ' — ready to order pre-employment checks')
+    showToast('', 'Driver Added', driverName + ' — ready to order pre-employment checks')
   }
 
   const inp = { width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', outline:'none' }
@@ -6518,7 +6678,8 @@ function fmtTs(ts) {
 }
 
 function hoursAgo(ts) {
-  const h = (Date.now() - ts) / 3600000
+  const t = typeof ts === 'string' ? new Date(ts).getTime() : (ts || 0)
+  const h = (Date.now() - t) / 3600000
   if (h < 1)  return `${Math.round(h * 60)}m ago`
   if (h < 24) return `${h.toFixed(1).replace('.0','')}h ago`
   return `${Math.floor(h / 24)}d ago`
@@ -6526,7 +6687,9 @@ function hoursAgo(ts) {
 
 function callStatus(calls) {
   if (!calls?.length) return 'none'
-  const h = (Date.now() - calls[0].ts) / 3600000
+  const raw = calls[0].ts || calls[0].called_at
+  const t = typeof raw === 'string' ? new Date(raw).getTime() : (raw || 0)
+  const h = (Date.now() - t) / 3600000
   if (h > 4)  return 'overdue'
   if (h > 2)  return 'due'
   return 'recent'
@@ -6547,10 +6710,15 @@ function generateMsg(load, call) {
   return lines.filter(Boolean).join('\n')
 }
 
-const LOCATION_SUGGESTIONS = {
-  'FM-4460': ['New Orleans, LA', 'Baton Rouge, LA', 'Tallahassee, FL', 'Orlando, FL', 'Miami, FL'],
-  'FM-4388': ['Memphis, TN', 'Nashville, TN', 'Knoxville, TN', 'Bristol, VA', 'New York, NY'],
-  'FM-4445': ['Denver, CO', 'Pueblo, CO', 'Wichita, KS', 'Oklahoma City, OK', 'Houston, TX'],
+function buildRouteSuggestions(load, lastCall) {
+  const pts = []
+  if (load?.origin) pts.push(load.origin.split(',')[0].trim())
+  if (load?.dest || load?.destination) pts.push((load.dest || load.destination).split(',')[0].trim())
+  if (lastCall?.location) pts.push(lastCall.location)
+  // Add origin/dest full
+  if (load?.origin) pts.push(load.origin)
+  if (load?.dest || load?.destination) pts.push(load.dest || load.destination)
+  return [...new Set(pts)].slice(0, 5)
 }
 
 export function CheckCallCenter() {
@@ -6564,11 +6732,68 @@ export function CheckCallCenter() {
   const [showMsg,    setShowMsg]    = useState(false)
   const [copied,     setCopied]     = useState(false)
   const [filterOver, setFilterOver] = useState(false)
+  const [gpsLoading, setGpsLoading] = useState(false)
+  const [brokerPhones, setBrokerPhones] = useState({}) // loadId → phone number
+
+  const getPhoneLocation = () => {
+    if (!navigator.geolocation) { showToast('','GPS Unavailable','Your browser does not support geolocation'); return }
+    setGpsLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`, {
+            headers: { 'Accept-Language': 'en' }
+          })
+          const data = await res.json()
+          const addr = data.address || {}
+          const city = addr.city || addr.town || addr.village || addr.county || ''
+          const state = addr.state || ''
+          const loc = [city, state].filter(Boolean).join(', ')
+          setLocation(loc || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`)
+          showToast('','Location Found', loc || 'GPS coordinates set')
+        } catch {
+          setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`)
+          showToast('','GPS Location Set','Could not get city name, using coordinates')
+        }
+        setGpsLoading(false)
+      },
+      (err) => {
+        setGpsLoading(false)
+        const msgs = { 1:'Location permission denied — enable it in your browser settings', 2:'Could not determine location — try again', 3:'Location request timed out — try again' }
+        showToast('','Location Error', msgs[err.code] || 'Failed to get location')
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    )
+  }
 
   const load       = activeLoads.find(l => l.loadId === selLoad)
   const loadCalls  = load ? (checkCalls[load.loadId] || []) : []
   const generatedMsg = load ? generateMsg(load, { location, status, eta, notes }) : ''
-  const suggestions  = load ? (LOCATION_SUGGESTIONS[load.loadId] || []) : []
+  const lastCall   = loadCalls[0] || null
+  const suggestions = load ? buildRouteSuggestions(load, lastCall) : []
+
+  // Auto-fill location, ETA & broker phone when selecting a load
+  useEffect(() => {
+    if (!load) return
+    const calls = checkCalls[load.loadId] || []
+    if (calls.length > 0) {
+      setLocation(calls[0].location || '')
+    } else {
+      setLocation(load.origin || '')
+    }
+    setEta(load.delivery || '')
+    setStatus('On Time')
+    setNotes('')
+    setShowMsg(false)
+    setCopied(false)
+    // Pre-fill broker phone from rate con data if available
+    if (load.brokerPhone && !brokerPhones[load.loadId]) {
+      setBrokerPhones(p => ({ ...p, [load.loadId]: load.brokerPhone }))
+    }
+  }, [selLoad]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const currentBrokerPhone = brokerPhones[load?.loadId] || load?.brokerPhone || ''
 
   const handleLog = () => {
     if (!load || !location.trim()) { showToast('','Missing Info','Enter a current location before logging'); return }
@@ -6606,7 +6831,7 @@ export function CheckCallCenter() {
               background: filterOver ? 'rgba(239,68,68,0.12)' : 'var(--surface2)',
               color: filterOver ? 'var(--danger)' : 'var(--muted)',
               border: `1px solid ${filterOver ? 'rgba(239,68,68,0.3)' : 'var(--border)'}` }}>
-            {filterOver ? '<AlertTriangle size={13} /> Showing Overdue Only' : 'Show All Active Loads'}
+            {filterOver ? <><AlertTriangle size={13} /> Showing Overdue Only</> : 'Show All Active Loads'}
           </button>
         </div>
 
@@ -6634,7 +6859,7 @@ export function CheckCallCenter() {
                   {l.driver} · {l.broker}
                 </div>
                 {calls.length > 0
-                  ? <div style={{ fontSize:10, color:'var(--muted)' }}>Last call {hoursAgo(calls[0].ts)} · {calls[0].location}</div>
+                  ? <div style={{ fontSize:10, color:'var(--muted)' }}>Last call {hoursAgo(calls[0].ts || calls[0].called_at)} · {calls[0].location}</div>
                   : <div style={{ fontSize:10, color:'var(--muted)', fontStyle:'italic' }}>No check calls logged yet</div>
                 }
               </div>
@@ -6679,7 +6904,7 @@ export function CheckCallCenter() {
             <div style={{ textAlign:'right' }}>
               <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>Last check call</div>
               <div style={{ fontSize:13, fontWeight:700, color: loadCalls.length ? 'var(--text)' : 'var(--muted)' }}>
-                {loadCalls.length ? hoursAgo(loadCalls[0].ts) : 'Never'}
+                {loadCalls.length ? hoursAgo(loadCalls[0].ts || loadCalls[0].called_at) : 'Never'}
               </div>
             </div>
           </div>
@@ -6694,7 +6919,7 @@ export function CheckCallCenter() {
                 {callStatus(loadCalls) === 'overdue' && (
                   <div style={{ padding:'10px 14px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:8, fontSize:12, color:'var(--danger)', display:'flex', gap:8, alignItems:'center' }}>
                     <span style={{ fontSize:18 }}><AlertTriangle size={18} /></span>
-                    <span>Check call overdue — last update {hoursAgo(loadCalls[0]?.ts)}. Broker may be expecting an update.</span>
+                    <span>Check call overdue — last update {hoursAgo(loadCalls[0]?.ts || loadCalls[0]?.called_at)}. Broker may be expecting an update.</span>
                   </div>
                 )}
 
@@ -6703,8 +6928,15 @@ export function CheckCallCenter() {
                 {/* Location */}
                 <div>
                   <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:5 }}>Current Location *</label>
-                  <input value={location} onChange={e => setLocation(e.target.value)}
-                    placeholder="e.g. New Orleans, LA" style={inp}/>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input value={location} onChange={e => setLocation(e.target.value)}
+                      placeholder="e.g. New Orleans, LA" style={{ ...inp, flex:1 }}/>
+                    <button onClick={getPhoneLocation} disabled={gpsLoading}
+                      style={{ flexShrink:0, padding:'8px 12px', background: gpsLoading ? 'rgba(240,165,0,0.15)' : 'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, cursor: gpsLoading ? 'wait' : 'pointer', color: gpsLoading ? 'var(--accent)' : 'var(--accent2)', fontSize:11, fontWeight:700, fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:5 }}>
+                      <Navigation size={13} style={ gpsLoading ? { animation:'spin 1s linear infinite' } : {} } />
+                      {gpsLoading ? 'Finding...' : 'GPS'}
+                    </button>
+                  </div>
                   {suggestions.length > 0 && (
                     <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
                       {suggestions.map(s => (
@@ -6740,6 +6972,17 @@ export function CheckCallCenter() {
                     placeholder={load.delivery || 'e.g. Mar 13 · 6:00 PM'} style={inp}/>
                 </div>
 
+                {/* Broker Phone */}
+                <div>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:5 }}>
+                    Broker Phone {currentBrokerPhone ? <span style={{ color:'var(--success)', fontSize:10 }}> — from rate con</span> : <span style={{ color:'var(--warning)', fontSize:10 }}> — enter to enable text/call</span>}
+                  </label>
+                  <input value={currentBrokerPhone}
+                    onChange={e => setBrokerPhones(p => ({ ...p, [load.loadId]: e.target.value }))}
+                    placeholder="(555) 123-4567"
+                    style={inp}/>
+                </div>
+
                 {/* Notes */}
                 <div>
                   <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:5 }}>Notes</label>
@@ -6761,19 +7004,43 @@ export function CheckCallCenter() {
                     </pre>
                     <button onClick={handleCopy}
                       style={{ marginTop:8, width:'100%', padding:'6px', background: copied ? 'rgba(34,197,94,0.12)' : 'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, fontSize:11, color: copied ? 'var(--success)' : 'var(--muted)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:600 }}>
-                      {copied ? '<Check size={13} /> Copied!' : '<FileText size={13} /> Copy to Clipboard'}
+                      {copied ? <><Check size={13} /> Copied!</> : <><FileText size={13} /> Copy to Clipboard</>}
                     </button>
                   </div>
                 )}
               </div>
 
               {/* Action buttons */}
-              <div style={{ padding:16, borderTop:'1px solid var(--border)', display:'flex', gap:8, flexShrink:0 }}>
-                <button className="btn btn-ghost" style={{ flex:1, fontSize:12 }} onClick={() => setShowMsg(m => !m)}>
-                  <FileText size={13} /> Copy Message
-                </button>
-                <button className="btn btn-primary" style={{ flex:2, fontSize:12, justifyContent:'center' }} onClick={handleLog}>
+              <div style={{ padding:16, borderTop:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
+                <button className="btn btn-primary" style={{ width:'100%', fontSize:12, justifyContent:'center', padding:'11px 0' }} onClick={handleLog}>
                   <Phone size={13} /> Log Check Call
+                </button>
+                <div style={{ display:'flex', gap:6 }}>
+                  {(() => {
+                    const brokerNum = (currentBrokerPhone || '').replace(/[^0-9+]/g, '')
+                    const smsHref = brokerNum
+                      ? `sms:${brokerNum}${/iPhone|iPad|iPod/i.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(generatedMsg)}`
+                      : `sms:${/iPhone|iPad|iPod/i.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(generatedMsg)}`
+                    const telHref = brokerNum ? `tel:${brokerNum}` : '#'
+                    return <>
+                      <a href={smsHref}
+                        style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'9px 0', fontSize:11, fontWeight:700, borderRadius:8, background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.25)', color:'var(--success)', textDecoration:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}
+                        onClick={() => { handleLog(); showToast('','SMS Opened','Check call logged + SMS ready to send') }}>
+                        <MessageCircle size={13} /> Text Broker
+                      </a>
+                      <a href={telHref}
+                        style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'9px 0', fontSize:11, fontWeight:700, borderRadius:8, background:'rgba(77,142,240,0.08)', border:'1px solid rgba(77,142,240,0.25)', color: brokerNum ? 'var(--accent3)' : 'var(--muted)', textDecoration:'none', cursor: brokerNum ? 'pointer' : 'default', fontFamily:"'DM Sans',sans-serif", opacity: brokerNum ? 1 : 0.5 }}
+                        onClick={(e) => {
+                          if (!brokerNum) { e.preventDefault(); showToast('','No Phone Number','Add broker phone to the load to enable calling'); return }
+                          handleLog(); showToast('','Calling Broker','Check call logged + dialing ' + load.broker)
+                        }}>
+                        <Phone size={13} /> Call Broker
+                      </a>
+                    </>
+                  })()}
+                </div>
+                <button className="btn btn-ghost" style={{ width:'100%', fontSize:11, padding:'7px 0' }} onClick={() => setShowMsg(m => !m)}>
+                  <FileText size={13} /> {showMsg ? 'Hide' : 'Preview'} Message
                 </button>
               </div>
             </div>
@@ -6814,7 +7081,7 @@ export function CheckCallCenter() {
                         <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc+'15', color:sc }}>{call.status}</span>
                       </div>
                       <div style={{ fontSize:11, color:'var(--muted)', marginBottom: call.notes ? 6 : 0 }}>
-                        <Clock size={11} /> {fmtTs(call.ts)}
+                        <Clock size={11} /> {fmtTs(call.ts || call.called_at)}
                         {call.eta && <span style={{ marginLeft:12 }}><Ic icon={Calendar} /> ETA: {call.eta}</span>}
                       </div>
                       {call.notes && (

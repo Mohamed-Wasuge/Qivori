@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchLoads as dbFetchLoads } from '../lib/database'
 import { useApp } from '../context/AppContext'
 import { Users, Truck, Building2, Package, TrendingUp, DollarSign, ArrowUpRight, Activity, AlertTriangle, CheckCircle, UserPlus } from 'lucide-react'
 
@@ -14,13 +15,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchData() {
-      const [pRes, lRes, tRes] = await Promise.all([
+      const [pRes, loadsData, tRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabase.from('loads').select('*'),
+        dbFetchLoads(),
         supabase.from('tickets').select('*').eq('status', 'open'),
       ])
       setProfiles(pRes.data || [])
-      setLoads(lRes.data || [])
+      setLoads(loadsData || [])
       setTickets(tRes.data || [])
       setLoading(false)
     }

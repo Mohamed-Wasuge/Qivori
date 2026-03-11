@@ -61,20 +61,11 @@ export default function LoginPage() {
         </div>
         <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginBottom: 28 }}>AI-Powered Freight Brokerage Platform</div>
 
-        {/* Role tabs */}
-        <div style={{ display: 'flex', gap: 6, background: 'var(--surface2)', borderRadius: 10, padding: 4, marginBottom: 24 }}>
-          {['admin', 'broker', 'carrier'].map(role => (
-            <button key={role} onClick={() => fillDemo(role)}
-              style={{ flex: 1, padding: '8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, background: selectedRole === role ? 'var(--surface3)' : 'transparent', border: selectedRole === role ? '1px solid var(--border)' : '1px solid transparent', color: selectedRole === role ? 'var(--text)' : 'var(--muted)', borderRadius: 8, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-              <Ic icon={ROLE_ICONS[role]} size={12} /> {role.charAt(0).toUpperCase() + role.slice(1)}
-            </button>
-          ))}
-        </div>
 
         <div className="form-group">
           <label className="form-label">Email Address</label>
           <input className="form-input" type="email" value={email} onChange={e => setEmail(e.target.value)}
-            placeholder={DEMO[selectedRole].email}
+            placeholder="you@company.com"
             onKeyDown={e => e.key === 'Enter' && handleSignIn()} />
         </div>
 
@@ -96,28 +87,11 @@ export default function LoginPage() {
           {loading ? 'Signing in…' : 'Sign In to Qivori AI →'}
         </button>
 
-        {/* Demo hint */}
-        <div style={{ background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>DEMO ACCOUNTS — click role tab to auto-fill</div>
-          {Object.entries(DEMO).map(([role, creds]) => (
-            <div key={role} style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>
-              <span style={{ color: 'var(--text)', fontWeight: 600 }}>{role}:</span> {creds.email} / {creds.password}
-            </div>
-          ))}
+        <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)' }}>
+          <a href="#" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Forgot password?</a>
         </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['admin', 'broker', 'carrier'].map(role => (
-            <button key={role} onClick={() => handleDemo(role)}
-              style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 4px', fontSize: 11, color: 'var(--muted)', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, transition: 'all 0.15s' }}
-              onMouseOver={e => e.currentTarget.style.color = 'var(--text)'}
-              onMouseOut={e => e.currentTarget.style.color = 'var(--muted)'}>
-              Demo {role.charAt(0).toUpperCase() + role.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ textAlign: 'center', marginTop: 20, fontSize: 11, color: 'var(--muted)' }}>
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'var(--muted)' }}>
           qivori.com · Secure login
         </div>
       </div>

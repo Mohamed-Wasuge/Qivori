@@ -4,7 +4,7 @@ import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import {
   Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone,
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
-  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download
+  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail
 } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -249,6 +249,33 @@ function MobileAI() {
             ? `maps://maps.apple.com/?q=${q}&sll=${action.lat || ''},${action.lng || ''}`
             : `https://www.google.com/maps/search/${q}/@${action.lat || ''},${action.lng || ''},14z`
           window.open(url, '_blank')
+          return true
+        }
+        case 'send_invoice': {
+          try {
+            const res = await fetch('/api/send-invoice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: action.to,
+                carrierName: company?.name || 'Carrier',
+                invoiceNumber: action.invoiceNumber || `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+                loadNumber: action.loadNumber || '',
+                route: action.route || '',
+                amount: action.amount || 0,
+                dueDate: action.dueDate || 'Net 30',
+                brokerName: action.brokerName || '',
+              }),
+            })
+            const data = await res.json()
+            if (data.success) {
+              showToast('success', 'Invoice Sent!', `Emailed to ${action.to}`)
+            } else {
+              showToast('error', 'Invoice Failed', data.error || 'Could not send')
+            }
+          } catch (err) {
+            showToast('error', 'Invoice Error', err.message)
+          }
           return true
         }
         case 'navigate': {
@@ -932,6 +959,7 @@ function ActionBadge({ action }) {
     upload_doc: Camera,
     update_load_status: Truck,
     book_load: Package,
+    send_invoice: Mail,
   }
   const labels = {
     add_expense: `Expense: $${action.amount} ${action.category || ''}`,
@@ -943,6 +971,7 @@ function ActionBadge({ action }) {
     upload_doc: `Upload ${docLabels[action.doc_type] || 'Document'}`,
     update_load_status: `Load → ${action.status}`,
     book_load: `Booked: ${action.origin} → ${action.destination || action.dest}`,
+    send_invoice: `Invoice sent to ${action.to || 'broker'}`,
   }
   const Icon = icons[action.type] || CheckCircle
   return (

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check } from 'lucide-react'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -116,6 +116,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-dat-grid { grid-template-columns: 1fr !important; padding: 28px 20px !important; }
           .lp-dat-heading { font-size: 30px !important; }
           .lp-pricing-grid { grid-template-columns: 1fr !important; }
+          .lp-ai-grid { grid-template-columns: 1fr !important; }
           .lp-section-heading { font-size: 32px !important; }
           .lp-cta-heading { font-size: 36px !important; }
           .lp-footer { flex-direction: column !important; gap: 16px !important; text-align: center !important; padding: 24px 16px !important; }
@@ -265,6 +266,114 @@ export default function LandingPage({ onGetStarted }) {
                 <div style={{ marginBottom: 10 }}><Ic icon={f.icon} size={26} /></div>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{f.label}</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{f.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── AI MOBILE EXPERIENCE ─────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '80px 40px', maxWidth: 900, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>AI-FIRST MOBILE</div>
+          <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 14 }}>
+            YOUR AI COPILOT ON THE ROAD
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>
+            No menus. No forms. Just talk to your AI and it handles everything — hands-free while you drive.
+          </p>
+        </div>
+
+        <div className="lp-ai-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center' }}>
+          {/* Left — Phone mockup */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: 280, background: 'var(--surface)', border: '2px solid var(--border)', borderRadius: 32, padding: '12px 0', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+              {/* Phone header */}
+              <div style={{ padding: '8px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '1px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic icon={Zap} size={12} color="var(--accent)" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2 }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span> <span style={{ fontSize: 9, color: 'var(--accent2)' }}>AI</span></div>
+                  <div style={{ fontSize: 8, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--success)' }} /> 2 active loads
+                  </div>
+                </div>
+                <Ic icon={Volume2} size={12} color="var(--success)" />
+              </div>
+
+              {/* Chat messages */}
+              <div style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 260 }}>
+                <div style={{ alignSelf: 'flex-end', background: 'var(--accent)', color: '#000', padding: '8px 12px', borderRadius: '12px 12px 4px 12px', fontSize: 11, fontWeight: 600, maxWidth: '80%' }}>
+                  Just delivered, send the invoice
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                    <Ic icon={Zap} size={8} color="var(--accent)" />
+                  </div>
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', padding: '8px 12px', borderRadius: '12px 12px 12px 4px', fontSize: 10, lineHeight: 1.5, color: 'var(--text)', maxWidth: '85%' }}>
+                    Load delivered! Invoice INV-4821 emailed to Echo Global at billing@echo.com for $2,056.
+                  </div>
+                </div>
+
+                {/* Action badges */}
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', paddingLeft: 22 }}>
+                  {[
+                    { icon: Truck, text: 'Delivered' },
+                    { icon: Send, text: 'Invoice Sent' },
+                  ].map((b, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '3px 8px', background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.2)', borderRadius: 6, fontSize: 8, fontWeight: 600, color: 'var(--success)' }}>
+                      <Ic icon={b.icon} size={8} /><Ic icon={CheckCircle} size={7} />{b.text}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ alignSelf: 'flex-end', background: 'var(--accent)', color: '#000', padding: '8px 12px', borderRadius: '12px 12px 4px 12px', fontSize: 11, fontWeight: 600 }}>
+                  Find me a load back to Chicago
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                    <Ic icon={Zap} size={8} color="var(--accent)" />
+                  </div>
+                  <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', padding: '8px 12px', borderRadius: '12px 12px 12px 4px', fontSize: 10, lineHeight: 1.5, color: 'var(--text)', maxWidth: '85%' }}>
+                    Found 3 loads back to Chicago. Top pick: ATL→CHI, $3.20/mi, $2,157, Score 96/100. Want me to book it?
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone input bar */}
+              <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic icon={Camera} size={10} color="var(--muted)" />
+                </div>
+                <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 8, padding: '6px 10px', fontSize: 9, color: 'var(--muted)' }}>Tell me what you need...</div>
+                <div style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic icon={Mic} size={10} color="var(--muted)" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right — Feature list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[
+              { icon: Mic, title: 'Voice-First', desc: 'Tap and talk — AI processes your commands hands-free while you drive. No typing required.' },
+              { icon: Volume2, title: 'AI Reads Back', desc: 'Responses are read aloud so you never take your eyes off the road.' },
+              { icon: ScanLine, title: 'Snap Rate Con', desc: 'Take a photo of any rate confirmation — AI reads it and books the load instantly.' },
+              { icon: Send, title: 'Auto-Invoice', desc: 'When you deliver, AI emails a professional invoice to the broker in one tap.' },
+              { icon: Navigation, title: 'Find Truck Stops', desc: '"Find me a truck stop" — maps open automatically with nearest options.' },
+              { icon: Camera, title: 'Smart Documents', desc: 'AI prompts you to upload BOL, signed BOL, and POD at exactly the right time.' },
+            ].map((f, i) => (
+              <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Ic icon={f.icon} size={16} color="var(--accent)" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{f.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{f.desc}</div>
+                </div>
               </div>
             ))}
           </div>

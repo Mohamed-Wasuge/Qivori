@@ -47,28 +47,25 @@ export default function Carriers() {
     }
     setAddingUser(true)
     try {
-      const res = await fetch('https://jrencclzfztrilrldmwf.supabase.co/auth/v1/admin/users', {
+      const res = await fetch('/api/create-user', {
         method: 'POST',
-        headers: {
-          'apikey': 'sb_secret_FqzPMGPOIz-ivGkm2h0aRA_2SgAH26C',
-          'Authorization': 'Bearer sb_secret_FqzPMGPOIz-ivGkm2h0aRA_2SgAH26C',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: newUser.email, password: newUser.password, email_confirm: true })
-      })
-      const authData = await res.json()
-      if (authData.id) {
-        await supabase.from('profiles').insert({
-          id: authData.id, email: newUser.email, role: newUser.role,
-          full_name: newUser.full_name, company_name: newUser.company_name || null,
-          status: 'active'
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newUser.email,
+          password: newUser.password,
+          full_name: newUser.full_name,
+          company_name: newUser.company_name || null,
+          role: newUser.role,
         })
+      })
+      const data = await res.json()
+      if (data.id) {
         showToast('', 'User Created', newUser.full_name + ' added as ' + newUser.role)
         setShowAddUser(false)
         setNewUser({ email: '', password: '', full_name: '', company_name: '', role: 'carrier' })
         fetchUsers()
       } else {
-        showToast('', 'Error', authData.msg || 'Failed to create user')
+        showToast('', 'Error', data.error || 'Failed to create user')
       }
     } catch (e) {
       showToast('', 'Error', 'Failed to create user')

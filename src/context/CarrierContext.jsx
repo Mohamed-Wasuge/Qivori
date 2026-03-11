@@ -1,209 +1,396 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import * as db from '../lib/database'
 
 const CarrierContext = createContext(null)
 
-const INITIAL_LOADS = [
-  { id:1, loadId:'FM-4421', broker:'Echo Global',      origin:'Atlanta, GA',   dest:'Chicago, IL',     miles:674,  rate:2.94, gross:3840, pickup:'Mar 8 · 2:00 PM',  delivery:'Mar 9 · 10:00 AM',  weight:'42,000', commodity:'Auto Parts',   driver:'James Tucker', status:'Delivered',          refNum:'EC-88421' },
-  { id:2, loadId:'FM-4388', broker:'Coyote Logistics', origin:'Memphis, TN',   dest:'New York, NY',    miles:1100, rate:3.10, gross:5100, pickup:'Mar 10 · 8:00 AM', delivery:'Mar 12 · 6:00 PM',  weight:'39,800', commodity:'Electronics',  driver:'Marcus Lee',   status:'Rate Con Received',  refNum:'CL-22910' },
-  { id:3, loadId:'FM-4460', broker:'Echo Global',      origin:'Dallas, TX',    dest:'Miami, FL',       miles:1491, rate:3.22, gross:5600, pickup:'Mar 11 · 7:00 AM', delivery:'Mar 13 · 5:00 PM',  weight:'38,500', commodity:'Food & Bev',   driver:'James Tucker', status:'In Transit',         refNum:'EC-88430',
-    stops:[
-      { seq:1, type:'pickup',  city:'Dallas, TX',      addr:'2400 Commerce St',       time:'Mar 11 · 7:00 AM',  status:'complete' },
-      { seq:2, type:'dropoff', city:'New Orleans, LA', addr:'1100 Port of NO Blvd',   time:'Mar 12 · 9:00 AM',  status:'current'  },
-      { seq:3, type:'dropoff', city:'Miami, FL',       addr:'8800 NW 36th St',         time:'Mar 13 · 5:00 PM',  status:'pending'  },
-    ], currentStop:1 },
-  { id:4, loadId:'FM-4445', broker:'Transplace',       origin:'Denver, CO',    dest:'Houston, TX',     miles:1020, rate:2.61, gross:3400, pickup:'Mar 10 · 6:00 AM', delivery:'Mar 12 · 4:00 PM',  weight:'41,200', commodity:'Machinery',    driver:'Priya Patel',  status:'Assigned to Driver', refNum:'TP-19203',
-    stops:[
-      { seq:1, type:'pickup',  city:'Denver, CO',    addr:'4500 Industrial Blvd',  time:'Mar 10 · 6:00 AM',  status:'pending' },
-      { seq:2, type:'pickup',  city:'Amarillo, TX',  addr:'800 W Industrial Ave',  time:'Mar 11 · 8:00 AM',  status:'pending' },
-      { seq:3, type:'dropoff', city:'Houston, TX',   addr:'5900 Gulf Frwy',        time:'Mar 12 · 4:00 PM',  status:'pending' },
-    ], currentStop:0 },
-  { id:5, loadId:'FM-4412', broker:'W. Express',       origin:'Phoenix, AZ',   dest:'Los Angeles, CA', miles:372,  rate:2.41, gross:1850, pickup:'Mar 7 · 5:00 PM',  delivery:'Mar 8 · 9:00 AM',   weight:'45,000', commodity:'Retail',       driver:'James Tucker', status:'Invoiced',           refNum:'WE-55102' },
-  { id:6, loadId:'FM-4398', broker:'Transplace',       origin:'Chicago, IL',   dest:'Atlanta, GA',     miles:674,  rate:2.72, gross:1833, pickup:'Feb 28 · 9:00 AM', delivery:'Mar 1 · 7:00 PM',   weight:'40,000', commodity:'Auto Parts',   driver:'Marcus Lee',   status:'Invoiced',           refNum:'TP-18899' },
-]
+// ─── Compatibility layer ─────────────────────────────────────
+// The DB uses snake_case (load_number, gross_pay, etc.)
+// The frontend uses camelCase / short names (loadId, gross, dest, etc.)
+// These helpers add alias fields so both work.
 
-const INITIAL_INVOICES = [
-  { id:'INV-043', loadId:'FM-4421', broker:'Echo Global',      route:'ATL → CHI', amount:3840, date:'Mar 9',  dueDate:'Apr 8',  status:'Unpaid',   driver:'James Tucker' },
-  { id:'INV-042', loadId:'FM-4412', broker:'W. Express',       route:'PHX → LAX', amount:1850, date:'Mar 8',  dueDate:'Apr 7',  status:'Unpaid',   driver:'James Tucker' },
-  { id:'INV-041', loadId:'FM-4398', broker:'Transplace',       route:'CHI → ATL', amount:1833, date:'Mar 1',  dueDate:'Mar 31', status:'Factored',  driver:'Marcus Lee'   },
-  { id:'INV-040', loadId:'FM-4380', broker:'Coyote Logistics', route:'MEM → NYC', amount:4200, date:'Feb 22', dueDate:'Mar 24', status:'Paid',      driver:'Marcus Lee'   },
-  { id:'INV-039', loadId:'FM-4371', broker:'Echo Global',      route:'ATL → CHI', amount:3920, date:'Feb 18', dueDate:'Mar 20', status:'Paid',      driver:'James Tucker' },
-]
-
-const INITIAL_EXPENSES = [
-  { id:1, date:'Mar 8',  cat:'Fuel',        amount:284.50, merchant:'Pilot Travel Center',    load:'FM-4421', notes:'Fill-up before pickup',      driver:'James Tucker' },
-  { id:2, date:'Mar 7',  cat:'Fuel',        amount:312.00, merchant:'Love\'s Travel Stops',   load:'FM-4412', notes:'Diesel + DEF',               driver:'James Tucker' },
-  { id:3, date:'Mar 6',  cat:'Maintenance', amount:420.00, merchant:'TA Truck Service',       load:'',        notes:'Oil change + filter',        driver:'' },
-  { id:4, date:'Mar 5',  cat:'Tolls',       amount:38.75,  merchant:'Illinois Tollway',       load:'FM-4398', notes:'I-90 tolls',                 driver:'Marcus Lee' },
-  { id:5, date:'Mar 3',  cat:'Lumper',      amount:200.00, merchant:'Chicago Distribution',  load:'FM-4388', notes:'Unload fee',                 driver:'Marcus Lee' },
-  { id:6, date:'Feb 28', cat:'Fuel',        amount:297.00, merchant:'Pilot Travel Center',   load:'FM-4398', notes:'',                           driver:'Marcus Lee' },
-  { id:7, date:'Feb 26', cat:'Permits',     amount:200.00, merchant:'IFTA/Oversize',         load:'',        notes:'Q1 permits',                 driver:'' },
-]
-
-function loadFromStorage(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : fallback
-  } catch { return fallback }
+function normalizeLoad(l) {
+  if (!l) return l
+  const pickup = l.pickup_date || ''
+  const delivery = l.delivery_date || ''
+  const fmtDate = (d, t) => {
+    if (!d) return ''
+    try {
+      const dt = new Date(d)
+      const mon = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      return t ? `${mon} · ${t}` : mon
+    } catch { return d }
+  }
+  return {
+    ...l,
+    // Aliases for frontend compatibility
+    loadId: l.load_number || l.loadId,
+    dest: l.destination || l.dest,
+    gross: Number(l.gross_pay) || l.gross || 0,
+    rate: Number(l.rate_per_mile) || l.rate || 0,
+    driver: l.driver_name || l.driver || '',
+    refNum: l.reference_number || l.refNum || '',
+    pickup: fmtDate(pickup, l.pickup_time),
+    delivery: fmtDate(delivery, l.delivery_time),
+    // Keep DB names too
+    load_number: l.load_number || l.loadId,
+    destination: l.destination || l.dest,
+    gross_pay: Number(l.gross_pay) || l.gross || 0,
+    rate_per_mile: Number(l.rate_per_mile) || l.rate || 0,
+    driver_name: l.driver_name || l.driver || '',
+    reference_number: l.reference_number || l.refNum || '',
+    miles: Number(l.miles) || 0,
+    weight: l.weight || '',
+    // Normalize stops
+    stops: l.load_stops || l.stops || undefined,
+    currentStop: l.load_stops
+      ? (l.load_stops.findIndex(s => s.status === 'current') ?? 0)
+      : (l.currentStop ?? 0),
+  }
 }
 
-function genInvoiceId(existing) {
-  const nums = existing.map(i => parseInt(i.id.replace('INV-', ''))).filter(Boolean)
-  const next = nums.length ? Math.max(...nums) + 1 : 44
-  return 'INV-' + String(next).padStart(3, '0')
+function normalizeInvoice(inv) {
+  if (!inv) return inv
+  const fmtShort = (d) => {
+    if (!d) return ''
+    try {
+      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    } catch { return d }
+  }
+  return {
+    ...inv,
+    // Aliases
+    id: inv.invoice_number || inv.id,
+    _dbId: inv.id, // preserve real DB id
+    loadId: inv.load_number || inv.loadId,
+    date: fmtShort(inv.invoice_date) || inv.date || '',
+    dueDate: fmtShort(inv.due_date) || inv.dueDate || '',
+    driver: inv.driver_name || inv.driver || '',
+    // Keep DB names
+    invoice_number: inv.invoice_number || inv.id,
+    load_number: inv.load_number || inv.loadId,
+    invoice_date: inv.invoice_date || '',
+    due_date: inv.due_date || '',
+    driver_name: inv.driver_name || inv.driver || '',
+    amount: Number(inv.amount) || 0,
+  }
 }
 
-function addDays(dateStr, days) {
-  // Simple date string offset — returns "Apr 8" style
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const parts = dateStr.split(' ')
-  if (parts.length < 2) return dateStr
-  const mon = months.indexOf(parts[0])
-  const day = parseInt(parts[1])
-  if (mon < 0 || isNaN(day)) return dateStr
-  const d = new Date(2026, mon, day + days)
-  return months[d.getMonth()] + ' ' + d.getDate()
+function normalizeExpense(e) {
+  if (!e) return e
+  const fmtShort = (d) => {
+    if (!d) return ''
+    try {
+      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    } catch { return d }
+  }
+  return {
+    ...e,
+    // Aliases
+    cat: e.category || e.cat,
+    load: e.load_number || e.load || '',
+    driver: e.driver_name || e.driver || '',
+    date: fmtShort(e.date) || '',
+    // Keep DB names
+    category: e.category || e.cat,
+    load_number: e.load_number || e.load || '',
+    driver_name: e.driver_name || e.driver || '',
+    amount: Number(e.amount) || 0,
+  }
 }
 
-const INITIAL_COMPANY = {
-  name: 'Swift Carriers LLC', mc: 'MC-294810', dot: 'DOT-3821049',
+function normalizeCompany(c) {
+  if (!c) return c
+  return {
+    ...c,
+    mc: c.mc_number || c.mc || '',
+    dot: c.dot_number || c.dot || '',
+    mc_number: c.mc_number || c.mc || '',
+    dot_number: c.dot_number || c.dot || '',
+  }
+}
+
+// ─── Fallback mock data ──────────────────────────────────────
+const MOCK_LOADS = [
+  { id:'mock-1', load_number:'QV-5001', broker:'Echo Global',      origin:'Atlanta, GA',   destination:'Chicago, IL',     miles:674,  rate_per_mile:2.94, gross_pay:3840, pickup_date:'2026-03-08', pickup_time:'2:00 PM',  delivery_date:'2026-03-09', delivery_time:'10:00 AM',  weight:'42,000', commodity:'Auto Parts',   driver_name:'James Tucker', status:'Delivered',          reference_number:'EC-88421' },
+  { id:'mock-2', load_number:'QV-5002', broker:'Coyote Logistics', origin:'Memphis, TN',   destination:'New York, NY',    miles:1100, rate_per_mile:3.10, gross_pay:5100, pickup_date:'2026-03-10', pickup_time:'8:00 AM',  delivery_date:'2026-03-12', delivery_time:'6:00 PM',   weight:'39,800', commodity:'Electronics',  driver_name:'Marcus Lee',   status:'Rate Con Received',  reference_number:'CL-22910' },
+  { id:'mock-3', load_number:'QV-5003', broker:'Echo Global',      origin:'Dallas, TX',    destination:'Miami, FL',       miles:1491, rate_per_mile:3.22, gross_pay:5600, pickup_date:'2026-03-11', pickup_time:'7:00 AM',  delivery_date:'2026-03-13', delivery_time:'5:00 PM',   weight:'38,500', commodity:'Food & Bev',   driver_name:'James Tucker', status:'In Transit',         reference_number:'EC-88430' },
+  { id:'mock-4', load_number:'QV-5004', broker:'Transplace',       origin:'Denver, CO',    destination:'Houston, TX',     miles:1020, rate_per_mile:2.61, gross_pay:3400, pickup_date:'2026-03-10', pickup_time:'6:00 AM',  delivery_date:'2026-03-12', delivery_time:'4:00 PM',   weight:'41,200', commodity:'Machinery',    driver_name:'Priya Patel',  status:'Assigned to Driver', reference_number:'TP-19203' },
+  { id:'mock-5', load_number:'QV-5005', broker:'W. Express',       origin:'Phoenix, AZ',   destination:'Los Angeles, CA', miles:372,  rate_per_mile:2.41, gross_pay:1850, pickup_date:'2026-03-07', pickup_time:'5:00 PM',  delivery_date:'2026-03-08', delivery_time:'9:00 AM',   weight:'45,000', commodity:'Retail',       driver_name:'James Tucker', status:'Invoiced',           reference_number:'WE-55102' },
+  { id:'mock-6', load_number:'QV-5006', broker:'Transplace',       origin:'Chicago, IL',   destination:'Atlanta, GA',     miles:674,  rate_per_mile:2.72, gross_pay:1833, pickup_date:'2026-02-28', pickup_time:'9:00 AM',  delivery_date:'2026-03-01', delivery_time:'7:00 PM',   weight:'40,000', commodity:'Auto Parts',   driver_name:'Marcus Lee',   status:'Invoiced',           reference_number:'TP-18899' },
+]
+
+const MOCK_INVOICES = [
+  { id:'mock-inv-1', invoice_number:'INV-0100', load_number:'QV-5001', broker:'Echo Global',      route:'ATL → CHI', amount:3840, invoice_date:'2026-03-09', due_date:'2026-04-08', status:'Unpaid',   driver_name:'James Tucker' },
+  { id:'mock-inv-2', invoice_number:'INV-0101', load_number:'QV-5005', broker:'W. Express',       route:'PHX → LAX', amount:1850, invoice_date:'2026-03-08', due_date:'2026-04-07', status:'Unpaid',   driver_name:'James Tucker' },
+  { id:'mock-inv-3', invoice_number:'INV-0102', load_number:'QV-5006', broker:'Transplace',       route:'CHI → ATL', amount:1833, invoice_date:'2026-03-01', due_date:'2026-03-31', status:'Factored', driver_name:'Marcus Lee'   },
+  { id:'mock-inv-4', invoice_number:'INV-0103', load_number:'QV-4380', broker:'Coyote Logistics', route:'MEM → NYC', amount:4200, invoice_date:'2026-02-22', due_date:'2026-03-24', status:'Paid',     driver_name:'Marcus Lee'   },
+]
+
+const MOCK_EXPENSES = [
+  { id:'mock-exp-1', date:'2026-03-08', category:'Fuel',        amount:284.50, merchant:'Pilot Travel Center',   load_number:'QV-5001', notes:'Fill-up before pickup',  driver_name:'James Tucker' },
+  { id:'mock-exp-2', date:'2026-03-07', category:'Fuel',        amount:312.00, merchant:"Love's Travel Stops",   load_number:'QV-5005', notes:'Diesel + DEF',            driver_name:'James Tucker' },
+  { id:'mock-exp-3', date:'2026-03-06', category:'Maintenance', amount:420.00, merchant:'TA Truck Service',      load_number:'',        notes:'Oil change + filter',     driver_name:'' },
+  { id:'mock-exp-4', date:'2026-03-05', category:'Tolls',       amount:38.75,  merchant:'Illinois Tollway',      load_number:'QV-5006', notes:'I-90 tolls',              driver_name:'Marcus Lee' },
+  { id:'mock-exp-5', date:'2026-03-03', category:'Lumper',      amount:200.00, merchant:'Chicago Distribution',  load_number:'QV-5002', notes:'Unload fee',              driver_name:'Marcus Lee' },
+  { id:'mock-exp-6', date:'2026-02-28', category:'Fuel',        amount:297.00, merchant:'Pilot Travel Center',   load_number:'QV-5006', notes:'',                        driver_name:'Marcus Lee' },
+  { id:'mock-exp-7', date:'2026-02-26', category:'Permits',     amount:200.00, merchant:'IFTA/Oversize',         load_number:'',        notes:'Q1 permits',              driver_name:'' },
+]
+
+const MOCK_COMPANY = {
+  name: 'Swift Carriers LLC', mc_number: 'MC-294810', dot_number: 'DOT-3821049',
   address: '1420 Truckers Blvd, Minneapolis, MN 55401',
   phone: '(612) 555-0182', email: 'ops@swiftcarriers.com', ein: '82-4910283',
   logo: '',
 }
 
-// Seed some realistic check call history for demo loads
-const INITIAL_CHECK_CALLS = {
-  'FM-4460': [
-    { id:1, ts: Date.now() - 5*60*60*1000, location:'New Orleans, LA', status:'On Time',      eta:'Mar 13 · 5:00 PM', notes:'Light traffic, no issues' },
-    { id:2, ts: Date.now() - 9*60*60*1000, location:'Baton Rouge, LA', status:'On Time',      eta:'Mar 13 · 5:00 PM', notes:'' },
-    { id:3, ts: Date.now() - 14*60*60*1000,location:'Houston, TX',     status:'At Stop',      eta:'Mar 13 · 5:00 PM', notes:'Picked up, departed stop 1' },
-  ],
-  'FM-4388': [
-    { id:1, ts: Date.now() - 2*60*60*1000, location:'Nashville, TN',   status:'On Time',      eta:'Mar 12 · 6:00 PM', notes:'Moving good' },
-  ],
-}
-
+// ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
-  const [loads, setLoads]           = useState(() => loadFromStorage('fm_loads',        INITIAL_LOADS))
-  const [invoices, setInvoices]     = useState(() => loadFromStorage('fm_invoices',     INITIAL_INVOICES))
-  const [expenses, setExpenses]     = useState(() => loadFromStorage('fm_expenses',     INITIAL_EXPENSES))
-  const [company, setCompany]       = useState(() => loadFromStorage('fm_company',      INITIAL_COMPANY))
-  const [checkCalls, setCheckCalls] = useState(() => loadFromStorage('fm_checkcalls',   INITIAL_CHECK_CALLS))
+  const [loads, setLoads] = useState([])
+  const [invoices, setInvoices] = useState([])
+  const [expenses, setExpenses] = useState([])
+  const [company, setCompany] = useState(normalizeCompany(MOCK_COMPANY))
+  const [checkCalls, setCheckCalls] = useState({})
+  const [dataReady, setDataReady] = useState(false)
+  const [useDb, setUseDb] = useState(true)
+  const initRef = useRef(false)
 
-  useEffect(() => { localStorage.setItem('fm_company', JSON.stringify(company)) }, [company])
-  const updateCompany = useCallback((updates) => setCompany(c => ({ ...c, ...updates })), [])
+  // ─── Load initial data ──────────────────────────────────────
+  useEffect(() => {
+    if (initRef.current) return
+    initRef.current = true
 
-  // Persist to localStorage
-  useEffect(() => { localStorage.setItem('fm_loads',      JSON.stringify(loads))      }, [loads])
-  useEffect(() => { localStorage.setItem('fm_invoices',   JSON.stringify(invoices))   }, [invoices])
-  useEffect(() => { localStorage.setItem('fm_expenses',   JSON.stringify(expenses))   }, [expenses])
-  useEffect(() => { localStorage.setItem('fm_checkcalls', JSON.stringify(checkCalls)) }, [checkCalls])
+    async function init() {
+      try {
+        const [dbLoads, dbInvoices, dbExpenses, dbCompany] = await Promise.all([
+          db.fetchLoads(),
+          db.fetchInvoices(),
+          db.fetchExpenses(),
+          db.fetchCompany(),
+        ])
 
-  // Update load status — auto-creates invoice when status hits "Delivered"
-  const updateLoadStatus = useCallback((loadId, newStatus) => {
-    setLoads(ls => ls.map(l => {
-      if (l.loadId !== loadId) return l
-      const updated = { ...l, status: newStatus }
-      if (newStatus === 'Delivered' && l.status !== 'Delivered' && l.status !== 'Invoiced') {
-        const delDate = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' })
-        const dueDate = addDays(delDate, 30)
-        const inv = {
-          id:      genInvoiceId([]),  // will be recalculated with setInvoices
-          loadId:  l.loadId,
-          broker:  l.broker,
-          route:   l.origin.split(',')[0].substring(0,3).toUpperCase() + ' → ' + l.dest.split(',')[0].substring(0,3).toUpperCase(),
-          amount:  l.gross,
-          date:    delDate,
-          dueDate,
-          status:  'Unpaid',
-          driver:  l.driver,
-        }
-        setInvoices(invs => {
-          const id = genInvoiceId(invs)
-          return [{ ...inv, id }, ...invs]
-        })
+        setLoads((dbLoads.length ? dbLoads : MOCK_LOADS).map(normalizeLoad))
+        setInvoices((dbInvoices.length ? dbInvoices : MOCK_INVOICES).map(normalizeInvoice))
+        setExpenses((dbExpenses.length ? dbExpenses : MOCK_EXPENSES).map(normalizeExpense))
+        if (dbCompany) setCompany(normalizeCompany(dbCompany))
+        setUseDb(true)
+      } catch (e) {
+        console.warn('Supabase tables not ready, using mock data:', e.message)
+        setLoads(MOCK_LOADS.map(normalizeLoad))
+        setInvoices(MOCK_INVOICES.map(normalizeInvoice))
+        setExpenses(MOCK_EXPENSES.map(normalizeExpense))
+        setUseDb(false)
       }
+      setDataReady(true)
+    }
+
+    init()
+  }, [])
+
+  // ─── Load operations ─────────────────────────────────────────
+  const addLoad = useCallback(async (load) => {
+    if (useDb) {
+      try {
+        const newLoad = await db.createLoad(load)
+        const normalized = normalizeLoad(newLoad)
+        setLoads(ls => [normalized, ...ls])
+        return normalized
+      } catch (e) {
+        console.error('Failed to create load:', e)
+      }
+    }
+    // Fallback: local-only
+    const fakeId = 'local-' + Date.now()
+    const num = 'QV-' + (5000 + Math.floor(Math.random() * 1000))
+    const newLoad = normalizeLoad({ ...load, id: fakeId, load_number: num, status: 'Rate Con Received' })
+    setLoads(ls => [newLoad, ...ls])
+    return newLoad
+  }, [useDb])
+
+  const updateLoadStatus = useCallback(async (loadId, newStatus) => {
+    const load = loads.find(l => l.loadId === loadId || l.load_number === loadId || l.id === loadId)
+    if (!load) return
+
+    if (useDb && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
+      try {
+        await db.updateLoad(load._dbId || load.id, { status: newStatus })
+      } catch (e) {
+        console.error('Failed to update load:', e)
+      }
+    }
+
+    setLoads(ls => ls.map(l => {
+      const match = l.loadId === loadId || l.load_number === loadId || l.id === loadId
+      if (!match) return l
+      const updated = normalizeLoad({ ...l, status: newStatus })
+
+      // Auto-create invoice on delivery
+      if (newStatus === 'Delivered' && l.status !== 'Delivered' && l.status !== 'Invoiced') {
+        const today = new Date()
+        const due = new Date(today)
+        due.setDate(due.getDate() + 30)
+
+        const originShort = (l.origin || '').split(',')[0].substring(0, 3).toUpperCase()
+        const destShort = (l.dest || l.destination || '').split(',')[0].substring(0, 3).toUpperCase()
+
+        const inv = {
+          load_number: l.loadId || l.load_number,
+          broker: l.broker,
+          route: originShort + ' → ' + destShort,
+          amount: l.gross || l.gross_pay || 0,
+          invoice_date: today.toISOString().split('T')[0],
+          due_date: due.toISOString().split('T')[0],
+          status: 'Unpaid',
+          driver_name: l.driver || l.driver_name,
+        }
+
+        if (useDb && !String(l.id).startsWith('mock') && !String(l.id).startsWith('local')) {
+          db.createInvoice({ ...inv, load_id: l._dbId || l.id }).then(dbInv => {
+            setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
+          }).catch(e => console.error('Failed to create invoice:', e))
+        } else {
+          const fakeInv = normalizeInvoice({
+            ...inv, id: 'local-inv-' + Date.now(),
+            invoice_number: 'INV-' + String(Math.floor(Math.random() * 9000) + 1000),
+          })
+          setInvoices(invs => [fakeInv, ...invs])
+        }
+      }
+
       return updated
     }))
-  }, [])
+  }, [loads, useDb])
 
-  const addLoad = useCallback((load) => {
-    setLoads(ls => {
-      const id = ls.length ? Math.max(...ls.map(l => l.id)) + 1 : 1
-      const loadId = 'FM-' + (4500 + id)
-      return [{ ...load, id, loadId, status: 'Rate Con Received' }, ...ls]
-    })
-  }, [])
-
-  const updateInvoiceStatus = useCallback((invoiceId, status) => {
-    setInvoices(invs => invs.map(inv =>
-      inv.id === invoiceId ? { ...inv, status } : inv
-    ))
-    // Mark the linked load as Invoiced when invoice is created/factored
+  const advanceStop = useCallback(async (loadId) => {
     setLoads(ls => ls.map(l => {
-      const inv = invoices.find(i => i.id === invoiceId)
-      if (inv && l.loadId === inv.loadId && status !== 'Unpaid') {
-        return { ...l, status: 'Invoiced' }
-      }
-      return l
-    }))
-  }, [invoices])
+      const match = l.loadId === loadId || l.load_number === loadId
+      if (!match) return l
+      const stops = l.stops || l.load_stops
+      if (!stops?.length) return l
 
-  const logCheckCall = useCallback((loadId, call) => {
-    setCheckCalls(cc => {
-      const existing = cc[loadId] || []
-      const id = existing.length ? Math.max(...existing.map(c => c.id)) + 1 : 1
-      return { ...cc, [loadId]: [{ ...call, id, ts: Date.now() }, ...existing] }
-    })
-  }, [])
+      const currentIdx = stops.findIndex(s => s.status === 'current')
+      const next = currentIdx + 1
+      if (next >= stops.length) return l
 
-  // Advance to next stop on a multi-stop load
-  const advanceStop = useCallback((loadId) => {
-    setLoads(ls => ls.map(l => {
-      if (l.loadId !== loadId || !l.stops) return l
-      const next = l.currentStop + 1
-      if (next >= l.stops.length) return l
-      const updatedStops = l.stops.map((s, i) => ({
+      const updatedStops = stops.map((s, i) => ({
         ...s,
         status: i < next ? 'complete' : i === next ? 'current' : 'pending'
       }))
-      const allDelivered = next === l.stops.length - 1 && l.stops[next].type === 'dropoff'
-      return { ...l, stops: updatedStops, currentStop: next, ...(allDelivered ? { status: 'Delivered' } : {}) }
+
+      if (useDb && updatedStops[next]?.id) {
+        db.updateLoadStop(updatedStops[next].id, { status: 'current' }).catch(() => {})
+        if (currentIdx >= 0 && updatedStops[currentIdx]?.id) {
+          db.updateLoadStop(updatedStops[currentIdx].id, { status: 'complete' }).catch(() => {})
+        }
+      }
+
+      return normalizeLoad({ ...l, stops: updatedStops, load_stops: updatedStops })
     }))
-  }, [])
+  }, [useDb])
 
-  const addExpense = useCallback((exp) => {
-    setExpenses(es => {
-      const id = es.length ? Math.max(...es.map(e => e.id)) + 1 : 1
-      return [{ ...exp, id }, ...es]
+  // ─── Invoice operations ───────────────────────────────────────
+  const updateInvoiceStatus = useCallback(async (invoiceId, status) => {
+    const inv = invoices.find(i => i.id === invoiceId || i.invoice_number === invoiceId || i._dbId === invoiceId)
+
+    if (useDb && inv && inv._dbId && !String(inv._dbId).startsWith('mock') && !String(inv._dbId).startsWith('local')) {
+      try {
+        await db.updateInvoice(inv._dbId, { status })
+      } catch (e) {
+        console.error('Failed to update invoice:', e)
+      }
+    }
+
+    setInvoices(invs => invs.map(i => {
+      const match = i.id === invoiceId || i.invoice_number === invoiceId || i._dbId === invoiceId
+      return match ? normalizeInvoice({ ...i, status }) : i
+    }))
+
+    // Mark linked load as Invoiced
+    if (inv && status !== 'Unpaid') {
+      setLoads(ls => ls.map(l => {
+        const match = l.loadId === inv.loadId || l.load_number === inv.load_number
+        return match ? normalizeLoad({ ...l, status: 'Invoiced' }) : l
+      }))
+    }
+  }, [invoices, useDb])
+
+  // ─── Expense operations ───────────────────────────────────────
+  const addExpense = useCallback(async (exp) => {
+    if (useDb) {
+      try {
+        const newExp = await db.createExpense(exp)
+        setExpenses(es => [normalizeExpense(newExp), ...es])
+        return normalizeExpense(newExp)
+      } catch (e) {
+        console.error('Failed to create expense:', e)
+      }
+    }
+    const fakeExp = normalizeExpense({ ...exp, id: 'local-exp-' + Date.now() })
+    setExpenses(es => [fakeExp, ...es])
+    return fakeExp
+  }, [useDb])
+
+  // ─── Check calls ──────────────────────────────────────────────
+  const logCheckCall = useCallback(async (loadNumber, call) => {
+    const load = loads.find(l => l.loadId === loadNumber || l.load_number === loadNumber)
+
+    if (useDb && load && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
+      try {
+        const dbCall = await db.createCheckCall(load._dbId || load.id, call)
+        setCheckCalls(cc => ({
+          ...cc,
+          [loadNumber]: [dbCall, ...(cc[loadNumber] || [])]
+        }))
+        return
+      } catch (e) {
+        console.error('Failed to log check call:', e)
+      }
+    }
+
+    setCheckCalls(cc => {
+      const existing = cc[loadNumber] || []
+      const id = 'local-cc-' + Date.now()
+      return { ...cc, [loadNumber]: [{ ...call, id, ts: Date.now(), called_at: new Date().toISOString() }, ...existing] }
     })
-  }, [])
+  }, [loads, useDb])
 
+  // ─── Company operations ───────────────────────────────────────
+  const updateCompany = useCallback(async (updates) => {
+    const merged = { ...company, ...updates }
+    setCompany(normalizeCompany(merged))
+    if (useDb) {
+      try {
+        await db.upsertCompany(merged)
+      } catch (e) {
+        console.error('Failed to update company:', e)
+      }
+    }
+  }, [company, useDb])
+
+  // ─── Reset ─────────────────────────────────────────────────────
   const resetData = useCallback(() => {
-    localStorage.removeItem('fm_loads')
-    localStorage.removeItem('fm_invoices')
-    localStorage.removeItem('fm_expenses')
-    setLoads(INITIAL_LOADS)
-    setInvoices(INITIAL_INVOICES)
-    setExpenses(INITIAL_EXPENSES)
+    setLoads(MOCK_LOADS.map(normalizeLoad))
+    setInvoices(MOCK_INVOICES.map(normalizeInvoice))
+    setExpenses(MOCK_EXPENSES.map(normalizeExpense))
+    setCompany(normalizeCompany(MOCK_COMPANY))
+    setCheckCalls({})
   }, [])
 
-  // Computed helpers
-  const deliveredLoads   = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
-  const activeLoads      = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
-  const unpaidInvoices   = invoices.filter(i => i.status === 'Unpaid')
-  const totalRevenue     = deliveredLoads.reduce((s, l) => s + l.gross, 0)
-  const totalExpenses    = expenses.reduce((s, e) => s + e.amount, 0)
+  // ─── Computed values ──────────────────────────────────────────
+  const deliveredLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
+  const activeLoads = loads.filter(l => !['Delivered', 'Invoiced', 'Cancelled'].includes(l.status))
+  const unpaidInvoices = invoices.filter(i => i.status === 'Unpaid')
+  const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0)
+  const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0)
 
   return (
     <CarrierContext.Provider value={{
-      loads, invoices, expenses, company,
+      loads, invoices, expenses, company, checkCalls,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses,
       updateLoadStatus, addLoad, advanceStop,
       updateInvoiceStatus, addExpense,
-      logCheckCall, checkCalls,
-      updateCompany, resetData,
+      logCheckCall, updateCompany, resetData,
+      dataReady, useDb,
     }}>
       {children}
     </CarrierContext.Provider>

@@ -2584,7 +2584,7 @@ function CarrierLayoutInner() {
     <div style={sStyle}>
 
       {/* ── TOP BAR ───────────────────────────────────────────────── */}
-      <div style={{ height:48, background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', padding:'0 16px', gap:12, flexShrink:0, zIndex:100 }}>
+      <div className="carrier-topbar" style={{ height:48, background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', padding:'0 16px', gap:12, flexShrink:0, zIndex:100 }}>
         {/* Logo */}
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:17, letterSpacing:3, marginRight:4, flexShrink:0 }}>
           QI<span style={{ color:'var(--accent)' }}>VORI</span>
@@ -2592,7 +2592,7 @@ function CarrierLayoutInner() {
         </div>
 
         {/* Search */}
-        <div onClick={() => setSearchOpen(true)}
+        <div className="search-bar" onClick={() => setSearchOpen(true)}
           style={{ flex:1, maxWidth:380, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 12px', display:'flex', alignItems:'center', gap:8, cursor:'pointer', transition:'border-color 0.15s' }}
           onMouseOver={e => e.currentTarget.style.borderColor='var(--accent)'}
           onMouseOut={e  => e.currentTarget.style.borderColor='var(--border)'}>
@@ -2611,7 +2611,7 @@ function CarrierLayoutInner() {
             { id:'high-contrast', icon: Zap,   label:'High Contrast',  title:'Maximum contrast for low-light or bright environments' },
           ]
           return (
-            <div style={{ display:'flex', alignItems:'center', gap:2, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:2 }}>
+            <div className="theme-toggle" style={{ display:'flex', alignItems:'center', gap:2, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:2 }}>
               {THEMES.map(t => (
                 <button key={t.id} onClick={() => setTheme(t.id)} title={t.title}
                   style={{ padding:'4px 9px', fontSize:12, borderRadius:6, border:'none', cursor:'pointer',
@@ -2628,7 +2628,7 @@ function CarrierLayoutInner() {
         })()}
 
         {/* AI status pill */}
-        <div style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'5px 12px' }}>
+        <div className="ai-status" style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'5px 12px' }}>
           <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 6px var(--accent)' }}/>
           <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)' }}>AI ACTIVE</span>
         </div>
@@ -2683,7 +2683,7 @@ function CarrierLayoutInner() {
       <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
 
         {/* LEFT SIDEBAR */}
-        <div style={{ width:220, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto', overflowX:'hidden' }}>
+        <div className="carrier-sidebar" style={{ width:220, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto', overflowX:'hidden' }}>
 
           {/* Company badge */}
           <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>

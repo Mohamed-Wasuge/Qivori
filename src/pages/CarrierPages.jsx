@@ -5658,6 +5658,36 @@ export function AILoadBoard() {
   const [parsingRC, setParsingRC] = useState(false)
   const rcFileRef = useRef(null)
 
+  const parseCarrierRC = (f) => {
+    if (!f || !/\.(pdf|png|jpg|jpeg)$/i.test(f.name)) {
+      if (f) showToast('','Invalid File','Only PDF, PNG, or JPG accepted')
+      return
+    }
+    setRateConFile(f)
+    setParsingRC(true)
+    showToast('','Reading Rate Con','AI is extracting load details...')
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result.split(',')[1]
+        const mediaType = f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+        const res = await fetch('/api/parse-ratecon', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ file: base64, mediaType })
+        })
+        const text = await res.text()
+        let data; try { data = JSON.parse(text) } catch { data = null }
+        if (data && !data.error) {
+          showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
+        } else {
+          showToast('','Parse Error', data?.error || 'Could not read rate con')
+        }
+      } catch { showToast('','Error','Failed to parse rate con') }
+      setParsingRC(false)
+    }
+    reader.readAsDataURL(f)
+  }
+
   const sf = (k, v) => setFilters(p => ({ ...p, [k]: v }))
 
   const scored = useMemo(() =>
@@ -5934,34 +5964,7 @@ export function AILoadBoard() {
                   </div>
                   {/* Rate Con Upload */}
                   <input ref={rcFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display:'none' }}
-                    onChange={e => {
-                      const f = e.target.files?.[0]
-                      if (f && /\.(pdf|png|jpg|jpeg)$/i.test(f.name)) {
-                        setRateConFile(f)
-                        setParsingRC(true)
-                        showToast('','Reading Rate Con','AI is extracting load details...')
-                        const reader = new FileReader()
-                        reader.onload = async () => {
-                          try {
-                            const base64 = reader.result.split(',')[1]
-                            const mediaType = f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
-                            const res = await fetch('/api/parse-ratecon', {
-                              method:'POST', headers:{'Content-Type':'application/json'},
-                              body: JSON.stringify({ file: base64, mediaType })
-                            })
-                            const text = await res.text()
-                            let data; try { data = JSON.parse(text) } catch { data = null }
-                            if (data && !data.error) {
-                              showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
-                            } else {
-                              showToast('','Parse Error', data?.error || 'Could not read rate con')
-                            }
-                          } catch { showToast('','Error','Failed to parse rate con') }
-                          setParsingRC(false)
-                        }
-                        reader.readAsDataURL(f)
-                      }
-                    }} />
+                    onChange={e => { if (e.target.files?.[0]) parseCarrierRC(e.target.files[0]) }} />
                   {rateConFile ? (
                     <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10 }}>
                       {parsingRC ? (
@@ -5979,8 +5982,9 @@ export function AILoadBoard() {
                     </div>
                   ) : (
                     <div onClick={() => rcFileRef.current?.click()}
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { rcFileRef.current.files = e.dataTransfer.files; rcFileRef.current.dispatchEvent(new Event('change', { bubbles:true })) } }}
+                      onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='var(--accent)' }}
+                      onDragLeave={e => { e.currentTarget.style.borderColor='var(--border)' }}
+                      onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor='var(--border)'; parseCarrierRC(e.dataTransfer.files[0]) }}
                       style={{ padding:'12px 16px', border:'1px dashed var(--border)', borderRadius:10, textAlign:'center', cursor:'pointer', transition:'border-color 0.2s' }}
                       onMouseOver={e => e.currentTarget.style.borderColor='var(--accent)'}
                       onMouseOut={e => e.currentTarget.style.borderColor='var(--border)'}>

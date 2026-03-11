@@ -9,6 +9,15 @@ import {
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
+// Haversine distance in miles
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3959 // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 // ── LOAD BOARD DATA (same as desktop AILoadBoard) ─────────
 const BOARD_LOADS = [
   { id:'LD-001', broker:'Echo Global',       origin:'Chicago, IL',    dest:'Atlanta, GA',      miles:674,  rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM',  deadhead:0,   refNum:'EC-89100', score:82 },
@@ -181,6 +190,61 @@ function MobileAI() {
           setPendingUpload({ doc_type: action.doc_type, load_id: action.load_id, prompt: action.prompt })
           return true
         }
+        case 'search_nearby': {
+          // Get GPS first if we don't have it
+          const loc = await getGPSCoords()
+          if (!loc) { showToast('error', 'Error', 'Could not get your location'); return false }
+          try {
+            const query = action.query || 'truck stop'
+            // Use Overpass API to find nearby places
+            const radius = (action.radius || 25) * 1609 // miles to meters
+            const overpassQuery = `[out:json][timeout:10];(node["amenity"~"fuel|parking"](around:${radius},${loc.lat},${loc.lng});node["name"~"${query.replace(/[^a-zA-Z0-9 ]/g, '')}"i](around:${radius},${loc.lat},${loc.lng});node["highway"="rest_area"](around:${radius},${loc.lat},${loc.lng}););out body 10;`
+            const res = await fetch('https://overpass-api.de/api/interpreter', {
+              method: 'POST',
+              body: 'data=' + encodeURIComponent(overpassQuery),
+            })
+            const data = await res.json()
+            const places = (data.elements || []).slice(0, 5).map(p => ({
+              name: p.tags?.name || p.tags?.amenity || 'Unknown',
+              lat: p.lat,
+              lng: p.lon,
+              type: p.tags?.amenity || p.tags?.highway || '',
+              brand: p.tags?.brand || '',
+              dist: Math.round(haversine(loc.lat, loc.lng, p.lat, p.lon) * 10) / 10,
+            }))
+            if (places.length > 0) {
+              // Add results as an assistant message
+              const resultText = places.map((p, i) =>
+                `${i + 1}. **${p.brand || p.name}** — ${p.dist} mi away\n   Tap to get directions`
+              ).join('\n\n')
+              setMessages(m => [...m, {
+                role: 'assistant',
+                content: `Found ${places.length} places near you:\n\n${resultText}`,
+                places,
+              }])
+              showToast('success', 'Found Places', `${places.length} results nearby`)
+            } else {
+              setMessages(m => [...m, { role: 'assistant', content: `No "${query}" found within ${action.radius || 25} miles. Try a bigger radius or different search.` }])
+            }
+          } catch (err) {
+            console.error('Search error:', err)
+            // Fallback — open maps search
+            const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(action.query || 'truck stop')}/@${loc.lat},${loc.lng},12z`
+            window.open(mapsUrl, '_blank')
+            showToast('info', 'Opened Maps', 'Searching in Google Maps')
+          }
+          return true
+        }
+        case 'open_maps': {
+          const q = encodeURIComponent(action.query || 'truck stop')
+          // Detect iOS vs Android
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+          const url = isIOS
+            ? `maps://maps.apple.com/?q=${q}&sll=${action.lat || ''},${action.lng || ''}`
+            : `https://www.google.com/maps/search/${q}/@${action.lat || ''},${action.lng || ''},14z`
+          window.open(url, '_blank')
+          return true
+        }
         case 'navigate': {
           showToast('info', 'Navigate', `Opening ${action.to}`)
           return true
@@ -213,6 +277,16 @@ function MobileAI() {
       }
     }, () => { showToast('error', 'Error', 'Location permission denied') })
   }
+
+  // ── GPS COORDS (returns promise with lat/lng) ──
+  const getGPSCoords = () => new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  })
 
   // ── VOICE RECOGNITION ──────────────────────────
   const startListening = () => {
@@ -512,6 +586,33 @@ function MobileAI() {
                 {m.actions.map((a, j) => (
                   <ActionBadge key={j} action={a} />
                 ))}
+              </div>
+            )}
+
+            {/* Place results — tappable cards with directions */}
+            {m.places && m.places.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, maxWidth: '88%' }}>
+                {m.places.map((p, j) => {
+                  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                  const dirUrl = isIOS
+                    ? `maps://maps.apple.com/?daddr=${p.lat},${p.lng}`
+                    : `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`
+                  return (
+                    <a key={j} href={dirUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(0,212,170,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Ic icon={Navigation} size={14} color="var(--success)" />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || p.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.dist} mi away</div>
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', whiteSpace: 'nowrap' }}>Directions</div>
+                        <ChevronRight size={14} color="var(--success)" />
+                      </div>
+                    </a>
+                  )
+                })}
               </div>
             )}
           </div>

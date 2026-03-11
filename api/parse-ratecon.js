@@ -2,6 +2,18 @@ export const config = {
   api: { bodyParser: { sizeLimit: '10mb' } }
 }
 
+// Helper to parse body if Vercel doesn't auto-parse
+async function getBody(req) {
+  if (req.body) return req.body
+  return new Promise((resolve) => {
+    let data = ''
+    req.on('data', chunk => { data += chunk })
+    req.on('end', () => {
+      try { resolve(JSON.parse(data)) } catch { resolve({}) }
+    })
+  })
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -10,10 +22,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
 
   try {
-    const { file, mediaType } = req.body
+    const body = await getBody(req)
+    const file = body.file
+    const mediaType = body.mediaType
+
     if (!file) return res.status(400).json({ error: 'No file provided' })
 
-    const isPdf = mediaType === 'application/pdf' || mediaType?.includes('pdf')
+    const isPdf = mediaType === 'application/pdf' || (mediaType || '').includes('pdf')
 
     const promptText = `You are a freight logistics document parser. Extract load details from this rate confirmation / load document.
 
@@ -39,7 +54,6 @@ Rules:
 - load_type: one of FTL, LTL, Partial
 - Return ONLY the JSON, no explanation, no markdown`
 
-    // For PDFs, convert to image approach if document type fails
     const content = isPdf
       ? [
           { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: file } },
@@ -70,10 +84,8 @@ Rules:
     const data = await response.json()
 
     if (data.error) {
-      console.error('Anthropic API error:', JSON.stringify(data.error))
-      // If document type fails for PDF, retry as generic
       if (isPdf && data.error.message?.includes('document')) {
-        return res.status(500).json({ error: 'PDF parsing not supported yet. Try uploading as image (PNG/JPG screenshot).' })
+        return res.status(500).json({ error: 'PDF not supported. Try uploading as PNG/JPG screenshot.' })
       }
       return res.status(500).json({ error: data.error.message })
     }
@@ -84,14 +96,13 @@ Rules:
       try {
         const parsed = JSON.parse(jsonMatch[0])
         return res.status(200).json(parsed)
-      } catch (parseErr) {
-        return res.status(500).json({ error: 'Invalid JSON in AI response', raw: text.slice(0, 200) })
+      } catch {
+        return res.status(500).json({ error: 'Invalid JSON from AI', raw: text.slice(0, 200) })
       }
     }
 
-    return res.status(500).json({ error: 'Could not extract data from document. Try a clearer image.', raw: text.slice(0, 200) })
+    return res.status(500).json({ error: 'Could not extract data. Try a clearer image.' })
   } catch (e) {
-    console.error('Parse ratecon error:', e)
     return res.status(500).json({ error: e.message || 'Server error' })
   }
 }

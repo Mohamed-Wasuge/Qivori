@@ -5680,9 +5680,9 @@ export function AILoadBoard() {
         if (data && !data.error) {
           showToast('','Rate Con Parsed', `${data.origin || ''} → ${data.destination || ''} · $${data.rate || '—'}`)
         } else {
-          showToast('','Parse Error', data?.error || 'Could not read rate con')
+          showToast('','Parse Error', data?.error || data?.raw || text.slice(0, 100) || 'Could not read rate con')
         }
-      } catch { showToast('','Error','Failed to parse rate con') }
+      } catch(err) { showToast('','Error', err?.message || 'Failed to parse rate con') }
       setParsingRC(false)
     }
     reader.readAsDataURL(f)

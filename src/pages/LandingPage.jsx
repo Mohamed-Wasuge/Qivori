@@ -109,7 +109,7 @@ export default function LandingPage({ onGetStarted }) {
   }
 
   return (
-    <div style={{ background: 'var(--bg)', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", overflowY: 'auto', height: '100vh' }}>
+    <div style={{ background: 'var(--bg)', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", overflowY: 'auto', height: '100dvh', position: 'fixed', inset: 0, zIndex: 10, WebkitOverflowScrolling: 'touch' }}>
 
       {/* ── STYLES ────────────────────────────────────────────────────── */}
       <style>{`
@@ -584,7 +584,7 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: '1px solid var(--border)', padding: '48px 40px 32px', background: 'var(--surface)' }}>
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '48px 40px 60px', background: 'var(--surface)' }}>
         <div className="lp-footer-grid" style={{ maxWidth: 960, margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
           <div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 4, marginBottom: 12 }}>

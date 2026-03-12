@@ -78,6 +78,7 @@ function MobileAI() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [showNotifBanner, setShowNotifBanner] = useState(false)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -96,6 +97,24 @@ function MobileAI() {
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
+
+  // Online/offline detection + sync
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => {
+      setIsOffline(false)
+      showToast('success', 'Back Online', 'Syncing queued actions...')
+      // Tell service worker to replay queued requests
+      navigator.serviceWorker?.ready?.then(reg => {
+        reg.active?.postMessage('replay-queue')
+        // Also try Background Sync API
+        reg.sync?.register('qivori-sync').catch(() => {})
+      })
+    }
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => { window.removeEventListener('offline', goOffline); window.removeEventListener('online', goOnline) }
+  }, [showToast])
 
   // Check notification permission
   useEffect(() => {
@@ -700,6 +719,14 @@ function MobileAI() {
           Log Out
         </button>
       </div>
+
+      {/* ── OFFLINE INDICATOR ────────────────────────── */}
+      {isOffline && (
+        <div style={{ flexShrink: 0, padding: '6px 16px', background: 'rgba(239,68,68,0.12)', borderBottom: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)' }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>Offline — actions will sync when connected</span>
+        </div>
+      )}
 
       {/* ── PWA INSTALL BANNER ──────────────────────── */}
       {showInstallBanner && (

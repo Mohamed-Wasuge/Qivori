@@ -1,9 +1,10 @@
-const CACHE_NAME = 'qivori-v1'
+const CACHE_NAME = 'qivori-v2'
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
 ]
+const OFFLINE_QUEUE_KEY = 'qivori-offline-queue'
 
 // Install — cache app shell
 self.addEventListener('install', (event) => {
@@ -62,23 +63,121 @@ self.addEventListener('notificationclick', (event) => {
   )
 })
 
-// Fetch — network first, fallback to cache
+// Fetch — network first, fallback to cache; queue POST requests when offline
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET and API requests
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+  const { request } = event
+  const isAPI = request.url.includes('/api/')
+
+  // Handle POST API requests — queue when offline
+  if (request.method === 'POST' && isAPI) {
+    event.respondWith(
+      fetch(request.clone()).catch(async () => {
+        // Offline — queue the request for later
+        try {
+          const body = await request.clone().text()
+          const queueItem = {
+            url: request.url,
+            body,
+            headers: { 'Content-Type': 'application/json' },
+            timestamp: Date.now(),
+          }
+
+          // Open IndexedDB to store queued requests
+          const db = await openDB()
+          const tx = db.transaction('queue', 'readwrite')
+          tx.objectStore('queue').add(queueItem)
+        } catch {}
+
+        return new Response(JSON.stringify({
+          success: true,
+          offline: true,
+          message: 'Saved offline — will sync when back online',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      })
+    )
     return
   }
 
+  // Skip non-GET requests
+  if (request.method !== 'GET') return
+
+  // Skip API GET requests (don't cache them)
+  if (isAPI) return
+
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
-        // Cache successful responses
         if (response.status === 200) {
           const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
         }
         return response
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/')))
+      .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
   )
 })
+
+// Sync queued requests when back online
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'qivori-sync') {
+    event.waitUntil(replayQueue())
+  }
+})
+
+// Also replay on activation / when online
+self.addEventListener('message', (event) => {
+  if (event.data === 'replay-queue') {
+    replayQueue()
+  }
+})
+
+async function replayQueue() {
+  try {
+    const db = await openDB()
+    const tx = db.transaction('queue', 'readwrite')
+    const store = tx.objectStore('queue')
+    const all = await storeGetAll(store)
+
+    for (const item of all) {
+      try {
+        await fetch(item.url, {
+          method: 'POST',
+          headers: item.headers,
+          body: item.body,
+        })
+        // Delete from queue on success
+        const delTx = db.transaction('queue', 'readwrite')
+        delTx.objectStore('queue').delete(item.id)
+      } catch {
+        // Still offline — leave in queue
+        break
+      }
+    }
+  } catch {}
+}
+
+// Simple IndexedDB helpers
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('qivori-offline', 1)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains('queue')) {
+        db.createObjectStore('queue', { keyPath: 'id', autoIncrement: true })
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function storeGetAll(store) {
+  return new Promise((resolve) => {
+    const req = store.getAll()
+    req.onsuccess = () => resolve(req.result || [])
+    req.onerror = () => resolve([])
+  })
+}

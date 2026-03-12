@@ -1,0 +1,124 @@
+export const config = { runtime: 'edge' }
+
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
+  }
+  if (req.method !== 'POST') {
+    return Response.json({ error: 'POST only' }, { status: 405 })
+  }
+
+  const resendKey = process.env.RESEND_API_KEY
+  if (!resendKey) {
+    return Response.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 })
+  }
+
+  try {
+    const { email, fullName, role } = await req.json()
+    if (!email) return Response.json({ error: 'Email is required' }, { status: 400 })
+
+    const firstName = (fullName || 'Driver').split(' ')[0]
+    const isCarrier = role === 'carrier'
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0a0a0e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:40px 20px;">
+
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <span style="font-size:32px;letter-spacing:4px;color:#fff;font-weight:800;">QI<span style="color:#f0a500;">VORI</span></span>
+      <span style="font-size:12px;color:#4d8ef0;letter-spacing:2px;font-weight:700;margin-left:6px;">AI</span>
+    </div>
+
+    <!-- Main Card -->
+    <div style="background:#16161e;border:1px solid #2a2a35;border-radius:16px;padding:32px 24px;margin-bottom:24px;">
+      <h1 style="color:#fff;font-size:22px;margin:0 0 8px;font-weight:800;">Welcome aboard, ${firstName}! 🚛</h1>
+      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;margin:0 0 24px;">
+        Your Qivori AI account is ready. ${isCarrier
+          ? "You've got an AI co-pilot that handles dispatch, invoicing, compliance, and more — all from your phone."
+          : "You're set up to manage loads, carriers, and payments with AI-powered tools."}
+      </p>
+
+      <div style="background:#1e1e2a;border:1px solid #2a2a35;border-radius:12px;padding:20px;margin-bottom:24px;">
+        <div style="font-size:12px;color:#f0a500;font-weight:700;letter-spacing:1px;margin-bottom:12px;">HERE'S WHAT YOU CAN DO</div>
+        ${isCarrier ? `
+        <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">📦</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Find & book loads</strong> — search the load board and book with one tap</span>
+        </div>
+        <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">🧾</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Send invoices</strong> — snap your BOL, and we'll email the invoice to your broker</span>
+        </div>
+        <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">⛽</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">IFTA auto-calc</strong> — state mileage is calculated from your delivered loads</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">💬</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">AI chat</strong> — just tell Qivori what you need, like talking to a dispatcher</span>
+        </div>
+        ` : `
+        <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">📋</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Post loads</strong> — list loads for carriers to find and book</span>
+        </div>
+        <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">🚛</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Manage carriers</strong> — track assignments, compliance, and payments</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;">
+          <span style="color:#f0a500;margin-right:8px;">💰</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Payments</strong> — invoice and pay carriers with full audit trail</span>
+        </div>
+        `}
+      </div>
+
+      <div style="text-align:center;">
+        <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Open Qivori AI</a>
+      </div>
+    </div>
+
+    <!-- Trial info -->
+    <div style="background:#16161e;border:1px solid #2a2a35;border-radius:12px;padding:16px 20px;text-align:center;margin-bottom:24px;">
+      <span style="color:#22c55e;font-size:13px;font-weight:700;">✓ 14-day free trial</span>
+      <span style="color:#8a8a9a;font-size:13px;"> — no credit card required to start</span>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;padding-top:16px;">
+      <p style="color:#555;font-size:11px;margin:0;">Qivori AI · AI-Powered TMS for Trucking</p>
+      <p style="color:#555;font-size:11px;margin:4px 0 0;">Questions? Reply to this email or contact hello@qivori.com</p>
+    </div>
+  </div>
+</body>
+</html>`
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Qivori AI <hello@qivori.com>',
+        to: [email],
+        subject: `Welcome to Qivori AI, ${firstName}!`,
+        html,
+      }),
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      console.error('Resend error:', err)
+      return Response.json({ error: 'Failed to send welcome email' }, { status: 502 })
+    }
+
+    return Response.json({ success: true })
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: 500 })
+  }
+}

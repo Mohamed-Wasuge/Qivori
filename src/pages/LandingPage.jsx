@@ -611,9 +611,13 @@ export default function LandingPage({ onGetStarted }) {
           </div>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>LEGAL</div>
-            {['Privacy Policy', 'Terms of Service', 'Cookie Policy'].map(l => (
-              <a key={l} href="#" style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
-                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{l}</a>
+            {[
+              { label: 'Privacy Policy', href: '#/privacy' },
+              { label: 'Terms of Service', href: '#/terms' },
+              { label: 'Cookie Policy', href: '#' },
+            ].map(l => (
+              <a key={l.label} href={l.href} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
+                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{l.label}</a>
             ))}
           </div>
         </div>

@@ -208,6 +208,13 @@ export function AppProvider({ children }) {
         status: 'pending',
       })
       if (profileError) console.error('Profile creation error:', profileError)
+
+      // Send welcome email (fire and forget)
+      fetch('/api/welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, fullName, role }),
+      }).catch(() => {})
     }
 
     return { ok: true, needsConfirmation: !data.session }

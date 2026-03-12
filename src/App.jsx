@@ -2,6 +2,8 @@ import { lazy, Suspense, useState, useEffect } from 'react'
 import { AppProvider, useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import NotFoundPage from './pages/NotFoundPage'
+import { TermsPage, PrivacyPage } from './pages/LegalPages'
 import Toast from './components/Toast'
 
 // Lazy-load heavy role-specific layouts
@@ -83,10 +85,30 @@ function useIsMobile() {
 function AppContent() {
   const { view, currentPage, currentRole, goToLogin } = useApp()
   const isMobile = useIsMobile()
+  const [legalPage, setLegalPage] = useState(null) // 'terms' | 'privacy' | null
   const PageComponent = PAGES[currentPage] || Dashboard
+
+  // Handle hash-based routing for legal pages and 404
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash
+      if (hash === '#/terms') setLegalPage('terms')
+      else if (hash === '#/privacy') setLegalPage('privacy')
+      else setLegalPage(null)
+    }
+    handleHash()
+    window.addEventListener('hashchange', handleHash)
+    return () => window.removeEventListener('hashchange', handleHash)
+  }, [])
+
+  const closeLegal = () => { setLegalPage(null); window.location.hash = '' }
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      {/* Legal Pages overlay */}
+      {legalPage === 'terms' && <TermsPage onBack={closeLegal} />}
+      {legalPage === 'privacy' && <PrivacyPage onBack={closeLegal} />}
+
       {/* Landing Page */}
       {view === 'landing' && <LandingPage onGetStarted={goToLogin} />}
 

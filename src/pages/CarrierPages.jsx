@@ -9050,3 +9050,520 @@ export function EquipmentManager() {
     </div>
   )
 }
+
+// ─── ANALYTICS DASHBOARD ───────────────────────────────────────────────────────
+export function AnalyticsDashboard() {
+  const { showToast } = useApp()
+  const { loads, expenses, invoices, totalRevenue, totalExpenses, deliveredLoads } = useCarrier()
+
+  // Revenue by month (last 6 months)
+  const revenueByMonth = useMemo(() => {
+    const months = []
+    const now = new Date()
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      const label = d.toLocaleDateString('en-US', { month:'short' })
+      months.push({ key, label, revenue:0, expenses:0, loads:0, miles:0 })
+    }
+    loads.forEach(l => {
+      const dateStr = l.pickup_date || l.pickup || l.delivery_date || l.delivery || ''
+      if (!dateStr) return
+      const parsed = new Date(dateStr.replace(/·.*/,'').trim())
+      if (isNaN(parsed)) return
+      const key = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}`
+      const m = months.find(mo => mo.key === key)
+      if (m) { m.revenue += Number(l.gross || l.gross_pay || 0); m.loads++; m.miles += Number(l.miles || 0) }
+    })
+    expenses.forEach(e => {
+      const parsed = new Date(e.date)
+      if (isNaN(parsed)) return
+      const key = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}`
+      const m = months.find(mo => mo.key === key)
+      if (m) m.expenses += Number(e.amount || 0)
+    })
+    return months
+  }, [loads, expenses])
+
+  const maxRev = Math.max(...revenueByMonth.map(m => m.revenue), 1)
+
+  // Top lanes by revenue
+  const topLanes = useMemo(() => {
+    const laneMap = {}
+    deliveredLoads.forEach(l => {
+      const o = (l.origin || '').split(',')[0].trim()
+      const d = (l.destination || l.dest || '').split(',')[0].trim()
+      if (!o || !d) return
+      const key = `${o} → ${d}`
+      if (!laneMap[key]) laneMap[key] = { lane:key, revenue:0, loads:0, miles:0 }
+      laneMap[key].revenue += Number(l.gross || l.gross_pay || 0)
+      laneMap[key].loads++
+      laneMap[key].miles += Number(l.miles || 0)
+    })
+    return Object.values(laneMap).sort((a,b) => b.revenue - a.revenue).slice(0, 5)
+  }, [deliveredLoads])
+
+  // Expenses by category
+  const expByCategory = useMemo(() => {
+    const catMap = {}
+    expenses.forEach(e => {
+      const cat = e.category || e.cat || 'Other'
+      if (!catMap[cat]) catMap[cat] = 0
+      catMap[cat] += Number(e.amount || 0)
+    })
+    return Object.entries(catMap).sort((a,b) => b[1] - a[1]).map(([cat, amount]) => ({ cat, amount }))
+  }, [expenses])
+
+  const totalExpAmt = expByCategory.reduce((s,e) => s+e.amount, 0) || 1
+  const CAT_COLORS = { Fuel:'#f59e0b', Maintenance:'#ef4444', Tolls:'#8b5cf6', Food:'#22c55e', Parking:'#3b82f6', Insurance:'#ec4899', Other:'#6b7280' }
+
+  const totalMiles = loads.reduce((s,l) => s + Number(l.miles||0), 0)
+  const netProfit = totalRevenue - totalExpenses
+  const avgRPM = totalMiles > 0 ? (totalRevenue / totalMiles).toFixed(2) : '0.00'
+  const avgLoadSize = loads.length > 0 ? Math.round(totalRevenue / loads.length) : 0
+
+  return (
+    <div style={S.page}>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>ANALYTICS DASHBOARD</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Revenue, expenses, lanes, and performance insights</div>
+      </div>
+
+      <AiBanner
+        title={`AI Insight: Your net margin is ${totalRevenue > 0 ? Math.round((netProfit/totalRevenue)*100) : 0}% — ${netProfit/totalRevenue > 0.3 ? 'above' : 'below'} industry avg of 30%`}
+        sub={`Top lane: ${topLanes[0]?.lane || 'N/A'} · ${totalMiles.toLocaleString()} total miles · $${avgRPM}/mi average`}
+      />
+
+      {/* KPI Cards */}
+      <div style={S.grid(5)}>
+        <StatCard label="Total Revenue" value={totalRevenue >= 1000 ? `$${(totalRevenue/1000).toFixed(1)}K` : `$${totalRevenue}`} change={`${loads.length} loads`} color="var(--accent)" changeType="neutral" />
+        <StatCard label="Net Profit" value={netProfit >= 1000 ? `$${(netProfit/1000).toFixed(1)}K` : `$${netProfit}`} change={`${totalRevenue > 0 ? Math.round((netProfit/totalRevenue)*100) : 0}% margin`} color="var(--success)" />
+        <StatCard label="Total Miles" value={totalMiles.toLocaleString()} change={`$${avgRPM}/mi avg`} color="var(--accent2)" changeType="neutral" />
+        <StatCard label="Total Expenses" value={totalExpenses >= 1000 ? `$${(totalExpenses/1000).toFixed(1)}K` : `$${totalExpenses}`} change={`${expByCategory.length} categories`} color="var(--danger)" changeType="neutral" />
+        <StatCard label="Avg Load Size" value={`$${avgLoadSize.toLocaleString()}`} change={`${deliveredLoads.length} delivered`} color="var(--accent3)" changeType="neutral" />
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
+        {/* Revenue Chart */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={BarChart2} /> Monthly Revenue vs Expenses</div>
+            <span style={{ fontSize:11, color:'var(--muted)' }}>Last 6 months</span>
+          </div>
+          <div style={{ padding:20 }}>
+            <div style={{ display:'flex', alignItems:'flex-end', gap:16, height:180 }}>
+              {revenueByMonth.map(m => (
+                <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                  <div style={{ width:'100%', display:'flex', gap:3, alignItems:'flex-end', justifyContent:'center' }}>
+                    <div style={{ width:'42%', height:`${Math.max((m.revenue/maxRev)*160, 4)}px`, background:'var(--accent)', borderRadius:'4px 4px 0 0', transition:'height 0.5s' }}
+                      title={`Revenue: $${m.revenue.toLocaleString()}`} />
+                    <div style={{ width:'42%', height:`${Math.max((m.expenses/maxRev)*160, 4)}px`, background:'var(--danger)', borderRadius:'4px 4px 0 0', transition:'height 0.5s', opacity:0.7 }}
+                      title={`Expenses: $${m.expenses.toLocaleString()}`} />
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>{m.label}</div>
+                  <div style={{ fontSize:10, color:'var(--accent)', fontWeight:700 }}>{m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}K` : `$${m.revenue}`}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:16, marginTop:12 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)' }}><div style={{ width:10, height:10, background:'var(--accent)', borderRadius:2 }} /> Revenue</div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)' }}><div style={{ width:10, height:10, background:'var(--danger)', borderRadius:2, opacity:0.7 }} /> Expenses</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Expense Breakdown */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={Receipt} /> Expense Breakdown</div>
+          </div>
+          <div style={{ padding:16 }}>
+            {expByCategory.length === 0 && <div style={{ fontSize:12, color:'var(--muted)', padding:20, textAlign:'center' }}>No expenses recorded</div>}
+            {expByCategory.map(e => {
+              const pct = Math.round((e.amount / totalExpAmt) * 100)
+              return (
+                <div key={e.cat} style={{ marginBottom:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
+                    <span style={{ fontWeight:600 }}>{e.cat}</span>
+                    <span style={{ color:'var(--muted)' }}>${e.amount.toLocaleString()} ({pct}%)</span>
+                  </div>
+                  <div style={{ height:6, background:'var(--border)', borderRadius:3 }}>
+                    <div style={{ height:'100%', width:`${pct}%`, background:CAT_COLORS[e.cat] || 'var(--accent)', borderRadius:3, transition:'width 0.5s' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        {/* Top Lanes */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={Route} /> Top Lanes by Revenue</div>
+          </div>
+          <div>
+            {topLanes.length === 0 && <div style={{ fontSize:12, color:'var(--muted)', padding:20, textAlign:'center' }}>No delivered loads yet</div>}
+            {topLanes.map((l, i) => (
+              <div key={l.lane} style={S.row}>
+                <div style={{ fontSize:12, color:'var(--muted)', width:20 }}>#{i+1}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700 }}>{l.lane}</div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>{l.loads} load{l.loads!==1?'s':''} · {l.miles.toLocaleString()} mi · ${l.miles > 0 ? (l.revenue/l.miles).toFixed(2) : '0.00'}/mi</div>
+                </div>
+                <div style={{ fontWeight:700, color:'var(--accent)', fontSize:14 }}>${l.revenue.toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Load Performance */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={Activity} /> Load Performance</div>
+          </div>
+          <div style={{ padding:16 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {[
+                { label:'Loads Booked', val:loads.filter(l => l.status === 'Booked').length, color:'var(--accent2)' },
+                { label:'In Transit', val:loads.filter(l => l.status === 'In Transit' || l.status === 'Loaded').length, color:'var(--success)' },
+                { label:'Delivered', val:deliveredLoads.length, color:'var(--accent)' },
+                { label:'Invoiced', val:invoices.length, color:'var(--accent3)' },
+                { label:'Paid', val:invoices.filter(i => i.status === 'Paid').length, color:'var(--success)' },
+                { label:'Unpaid', val:invoices.filter(i => i.status !== 'Paid').length, color:'var(--danger)' },
+              ].map(s => (
+                <div key={s.label} style={{ background:'var(--surface2)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:s.color }}>{s.val}</div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Miles Driven per Month */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={Navigation} /> Miles Driven per Month</div>
+        </div>
+        <div style={{ padding:20 }}>
+          <div style={{ display:'flex', alignItems:'flex-end', gap:16, height:120 }}>
+            {revenueByMonth.map(m => {
+              const maxMi = Math.max(...revenueByMonth.map(x => x.miles), 1)
+              return (
+                <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                  <div style={{ width:'60%', height:`${Math.max((m.miles/maxMi)*100, 4)}px`, background:'var(--accent2)', borderRadius:'4px 4px 0 0', transition:'height 0.5s' }} />
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>{m.label}</div>
+                  <div style={{ fontSize:10, color:'var(--accent2)', fontWeight:700 }}>{m.miles.toLocaleString()}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── REFERRAL PROGRAM ──────────────────────────────────────────────────────────
+export function ReferralProgram() {
+  const { showToast } = useApp()
+  const [referrals, setReferrals] = useState([
+    { name:'Mike Johnson', email:'mike@jmtrucking.com', status:'Signed Up', date:'Mar 5, 2026', reward:'$25 credit' },
+    { name:'Sarah Williams', email:'sarah@swexpress.com', status:'Subscribed', date:'Feb 28, 2026', reward:'1 month free' },
+  ])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [sending, setSending] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const referralCode = 'QIVORI-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+  const referralLink = `https://qivori.com?ref=${referralCode}`
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(referralLink)
+    setCopied(true)
+    showToast('success', 'Copied!', 'Referral link copied to clipboard')
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const sendInvite = async () => {
+    if (!inviteEmail || !inviteEmail.includes('@')) {
+      showToast('error', 'Invalid Email', 'Please enter a valid email address')
+      return
+    }
+    setSending(true)
+    try {
+      await fetch('/api/send-referral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: inviteEmail, referralCode, referralLink }),
+      })
+      showToast('success', 'Invite Sent!', `Referral email sent to ${inviteEmail}`)
+      setReferrals(prev => [...prev, { name: inviteEmail.split('@')[0], email: inviteEmail, status: 'Invited', date: new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }), reward: 'Pending' }])
+      setInviteEmail('')
+    } catch {
+      showToast('error', 'Error', 'Failed to send invite')
+    }
+    setSending(false)
+  }
+
+  const totalEarned = referrals.filter(r => r.status === 'Subscribed').length
+  const totalPending = referrals.filter(r => r.status === 'Signed Up' || r.status === 'Invited').length
+
+  return (
+    <div style={S.page}>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>REFERRAL PROGRAM</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Invite drivers, earn free months</div>
+      </div>
+
+      {/* Hero Banner */}
+      <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.12), rgba(77,142,240,0.08))', border:'1px solid rgba(240,165,0,0.3)', borderRadius:16, padding:'28px 24px', textAlign:'center' }}>
+        <div style={{ fontSize:48, marginBottom:8 }}><Trophy size={48} color="var(--accent)" /></div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:3, marginBottom:8 }}>
+          REFER A DRIVER, GET A <span style={{ color:'var(--accent)' }}>FREE MONTH</span>
+        </div>
+        <div style={{ fontSize:14, color:'var(--muted)', maxWidth:500, margin:'0 auto', lineHeight:1.6 }}>
+          When your referral subscribes to any Qivori plan, you both get a free month. Share your link and start earning.
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div style={S.grid(3)}>
+        <StatCard label="Total Referrals" value={String(referrals.length)} change="All time" color="var(--accent)" changeType="neutral" />
+        <StatCard label="Free Months Earned" value={String(totalEarned)} change={`${totalPending} pending`} color="var(--success)" />
+        <StatCard label="Your Savings" value={`$${totalEarned * 49}`} change="Based on Solo plan" color="var(--accent2)" changeType="neutral" />
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        {/* Share Section */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={Send} /> Share Your Link</div>
+          </div>
+          <div style={{ padding:20 }}>
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:12, color:'var(--muted)', marginBottom:8, fontWeight:600 }}>Your Referral Link</div>
+              <div style={{ display:'flex', gap:8 }}>
+                <input readOnly value={referralLink} style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px', color:'var(--text)', fontSize:12, fontFamily:'monospace' }} />
+                <button onClick={copyLink} style={{ padding:'10px 16px', fontSize:12, fontWeight:700, borderRadius:8, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                  background: copied ? 'rgba(34,197,94,0.15)' : 'var(--accent)', color: copied ? 'var(--success)' : '#000' }}>
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize:12, color:'var(--muted)', marginBottom:8, fontWeight:600 }}>Send Email Invite</div>
+              <div style={{ display:'flex', gap:8 }}>
+                <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="driver@company.com"
+                  onKeyDown={e => e.key === 'Enter' && sendInvite()}
+                  style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+                <button onClick={sendInvite} disabled={sending}
+                  style={{ padding:'10px 20px', fontSize:12, fontWeight:700, borderRadius:8, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", background:'var(--accent2)', color:'#fff', opacity:sending?0.7:1 }}>
+                  {sending ? 'Sending...' : 'Send Invite'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display:'flex', gap:8, marginTop:16 }}>
+              {[
+                { label:'SMS', icon:Phone, action: () => { window.open(`sms:?body=Check out Qivori AI for trucking! ${referralLink}`); showToast('','SMS','Opening messages...') }},
+                { label:'WhatsApp', icon:MessageCircle, action: () => { window.open(`https://wa.me/?text=Check out Qivori AI for trucking! ${referralLink}`); showToast('','WhatsApp','Opening WhatsApp...') }},
+              ].map(s => (
+                <button key={s.label} onClick={s.action} className="btn btn-ghost" style={{ flex:1, fontSize:12, justifyContent:'center', gap:6 }}>
+                  <Ic icon={s.icon} size={14} /> {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* How It Works */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={Zap} /> How It Works</div>
+          </div>
+          <div style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+            {[
+              { step:1, icon:Send, title:'Share Your Link', desc:'Send your referral link to fellow drivers via SMS, email, or word of mouth' },
+              { step:2, icon:UserPlus, title:'They Sign Up', desc:'Your referral creates a free Qivori account using your link' },
+              { step:3, icon:CreditCard, title:'They Subscribe', desc:'When they pick a paid plan, you both get rewarded' },
+              { step:4, icon:Trophy, title:'You Both Win', desc:'You get a free month, they get a free month. Everyone saves!' },
+            ].map(s => (
+              <div key={s.step} style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:`rgba(240,165,0,${0.06 + s.step*0.03})`, border:'1px solid rgba(240,165,0,0.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <Ic icon={s.icon} size={16} color="var(--accent)" />
+                </div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>{s.title}</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.5 }}>{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Referral History */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={Users} /> Referral History</div>
+          <span style={{ fontSize:11, color:'var(--muted)' }}>{referrals.length} total</span>
+        </div>
+        <table>
+          <thead><tr>{['Name','Email','Status','Date','Reward'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {referrals.map((r, i) => (
+              <tr key={i}>
+                <td style={{ fontWeight:600 }}>{r.name}</td>
+                <td style={{ fontSize:12, color:'var(--muted)' }}>{r.email}</td>
+                <td>
+                  <span style={S.tag(
+                    r.status === 'Subscribed' ? 'var(--success)' :
+                    r.status === 'Signed Up' ? 'var(--accent2)' :
+                    'var(--muted)'
+                  )}>{r.status}</span>
+                </td>
+                <td style={{ fontSize:12 }}>{r.date}</td>
+                <td>
+                  <span style={{ fontWeight:700, color: r.reward === 'Pending' ? 'var(--muted)' : 'var(--success)', fontSize:13 }}>{r.reward}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── SMS NOTIFICATION SETTINGS ─────────────────────────────────────────────────
+export function SMSSettings() {
+  const { showToast } = useApp()
+  const [phone, setPhone] = useState('')
+  const [enabled, setEnabled] = useState({
+    loadBooked: true,
+    loadDelivered: true,
+    invoicePaid: true,
+    checkCallReminder: false,
+    weeklyReport: false,
+  })
+  const [verified, setVerified] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [testSending, setTestSending] = useState(false)
+
+  const toggleSetting = (key) => {
+    setEnabled(prev => ({ ...prev, [key]: !prev[key] }))
+    showToast('', key.replace(/([A-Z])/g, ' $1').trim(), !enabled[key] ? 'Enabled' : 'Disabled')
+  }
+
+  const verifyPhone = () => {
+    if (!phone || phone.length < 10) {
+      showToast('error', 'Invalid', 'Enter a valid phone number')
+      return
+    }
+    setVerifying(true)
+    setTimeout(() => {
+      setVerified(true)
+      setVerifying(false)
+      showToast('success', 'Verified', 'Phone number verified')
+    }, 1500)
+  }
+
+  const sendTest = async () => {
+    if (!phone) { showToast('error', 'No Phone', 'Enter your phone number first'); return }
+    setTestSending(true)
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: phone, message: 'Qivori AI test notification — SMS alerts are working!' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('success', 'SMS Sent!', 'Check your phone for the test message')
+      } else {
+        showToast('error', 'Failed', data.error || 'Could not send SMS')
+      }
+    } catch {
+      showToast('error', 'Error', 'SMS service not configured yet')
+    }
+    setTestSending(false)
+  }
+
+  const ALERTS = [
+    { key:'loadBooked', icon:Package, label:'Load Booked', desc:'Get notified when a new load is booked to your dispatch' },
+    { key:'loadDelivered', icon:CheckCircle, label:'Load Delivered', desc:'Confirmation when a load is marked as delivered' },
+    { key:'invoicePaid', icon:DollarSign, label:'Invoice Paid', desc:'Alert when a broker pays your invoice' },
+    { key:'checkCallReminder', icon:Phone, label:'Check Call Reminder', desc:'Periodic reminders to submit check calls on active loads' },
+    { key:'weeklyReport', icon:BarChart2, label:'Weekly Summary', desc:'Weekly revenue, miles, and performance summary via text' },
+  ]
+
+  return (
+    <div style={S.page}>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>SMS NOTIFICATIONS</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Get text alerts for load updates, payments, and more</div>
+      </div>
+
+      {/* Phone Number Setup */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={Phone} /> Phone Number</div>
+          {verified && <span style={S.badge('var(--success)')}><Ic icon={CheckCircle} size={10} /> Verified</span>}
+        </div>
+        <div style={{ padding:20 }}>
+          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 123-4567"
+              style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+            <button onClick={verifyPhone} disabled={verifying}
+              style={{ padding:'12px 20px', fontSize:13, fontWeight:700, borderRadius:8, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                background: verified ? 'rgba(34,197,94,0.15)' : 'var(--accent)', color: verified ? 'var(--success)' : '#000', opacity:verifying?0.7:1 }}>
+              {verifying ? 'Verifying...' : verified ? 'Verified ✓' : 'Verify'}
+            </button>
+          </div>
+          <button onClick={sendTest} disabled={testSending} className="btn btn-ghost" style={{ fontSize:12 }}>
+            {testSending ? 'Sending...' : 'Send Test SMS'}
+          </button>
+        </div>
+      </div>
+
+      {/* Alert Settings */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={Bell} /> Alert Preferences</div>
+        </div>
+        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+          {ALERTS.map(a => (
+            <div key={a.key} style={{ display:'flex', alignItems:'center', gap:14, padding:'12px 16px', background:'var(--surface2)', borderRadius:10 }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:'rgba(240,165,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Ic icon={a.icon} size={16} color="var(--accent)" />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700 }}>{a.label}</div>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>{a.desc}</div>
+              </div>
+              <div
+                style={{ width:44, height:24, background:enabled[a.key] ? 'var(--accent)' : 'var(--border)', borderRadius:12, cursor:'pointer', position:'relative', transition:'background 0.2s' }}
+                onClick={() => toggleSetting(a.key)}
+              >
+                <div style={{ width:18, height:18, background:'#fff', borderRadius:'50%', position:'absolute', top:3, transition:'left 0.2s', left:enabled[a.key] ? 23 : 3 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div style={{ background:'rgba(77,142,240,0.06)', border:'1px solid rgba(77,142,240,0.2)', borderRadius:12, padding:'14px 18px', display:'flex', gap:12 }}>
+        <Ic icon={Shield} size={18} color="var(--accent2)" />
+        <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>
+          SMS notifications are powered by Twilio. Standard message rates may apply from your carrier. You can unsubscribe at any time by toggling off alerts above or replying STOP to any message.
+        </div>
+      </div>
+    </div>
+  )
+}

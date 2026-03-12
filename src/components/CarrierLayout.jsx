@@ -16,6 +16,7 @@ import {
   DriverProfiles, BrokerDirectory, ExpenseTracker, FactoringCashflow,
   CommandCenter, AILoadBoard, CashFlowForecaster, CheckCallCenter, DriverScorecard, DATAlertBot,
   PLDashboard, ReceivablesAging, DriverPayReport, CashRunway, QuickBooksExport, CarrierPackage, EquipmentManager,
+  AnalyticsDashboard, ReferralProgram, SMSSettings,
 } from '../pages/CarrierPages'
 
 const Ic = ({ icon: Icon, size = 16, color, style, ...props }) => <Icon size={size} color={color} style={style} {...props} />
@@ -2509,6 +2510,9 @@ const NAV = [
     { id:'onboarding',        label:'Onboarding'           },
     { id:'broker-directory',  label:'Brokers'              },
   ]},
+  { id:'analytics',  icon: BarChart2,     label:'Analytics',       direct: true, view:'analytics' },
+  { id:'referral',   icon: UserPlus,      label:'Referral Program', direct: true, view:'referral' },
+  { id:'sms-settings', icon: Smartphone,  label:'SMS Alerts',      direct: true, view:'sms-settings' },
   { id:'carrier-package', icon: Briefcase,    label:'Carrier Package', direct: true, view:'carrier-package' },
   { id:'settings',   icon: SettingsIcon,  label:'Settings',    direct: true, view:'settings' },
 ]
@@ -2532,6 +2536,9 @@ function resolveView(viewId, navTo) {
     case 'cash-runway':      return <CashRunway />
     case 'quickbooks':       return <QuickBooksExport />
     case 'equipment':        return <EquipmentManager />
+    case 'analytics':        return <AnalyticsDashboard />
+    case 'referral':         return <ReferralProgram />
+    case 'sms-settings':     return <SMSSettings />
     case 'carrier-package':  return <CarrierPackage />
     case 'settings':         return <SettingsTab />
     default:            return <CommandCenter />
@@ -2740,7 +2747,7 @@ function CarrierLayoutInner() {
                 const isActive = activeView === sec.view
                 return (
                   <React.Fragment key={sec.id}>
-                    {sec.id === 'carrier-package' && (
+                    {(sec.id === 'analytics' || sec.id === 'carrier-package') && (
                       <div style={{ margin:'6px 16px', borderTop:'1px solid var(--border)' }} />
                     )}
                     <div

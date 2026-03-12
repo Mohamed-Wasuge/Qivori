@@ -9102,9 +9102,10 @@ export function EquipmentManager() {
 // ─── ANALYTICS DASHBOARD ───────────────────────────────────────────────────────
 export function AnalyticsDashboard() {
   const { showToast } = useApp()
-  const { loads, expenses, invoices, totalRevenue, totalExpenses, deliveredLoads } = useCarrier()
+  const { loads, expenses, invoices, totalRevenue, totalExpenses, deliveredLoads, drivers, vehicles } = useCarrier()
+  const [aiTab, setAiTab] = useState('insights')
 
-  // Revenue by month (last 6 months)
+  // ── Computed data ───────────────────────────────────────────
   const revenueByMonth = useMemo(() => {
     const months = []
     const now = new Date()
@@ -9133,9 +9134,6 @@ export function AnalyticsDashboard() {
     return months
   }, [loads, expenses])
 
-  const maxRev = Math.max(...revenueByMonth.map(m => m.revenue), 1)
-
-  // Top lanes by revenue
   const topLanes = useMemo(() => {
     const laneMap = {}
     deliveredLoads.forEach(l => {
@@ -9143,15 +9141,15 @@ export function AnalyticsDashboard() {
       const d = (l.destination || l.dest || '').split(',')[0].trim()
       if (!o || !d) return
       const key = `${o} → ${d}`
-      if (!laneMap[key]) laneMap[key] = { lane:key, revenue:0, loads:0, miles:0 }
+      if (!laneMap[key]) laneMap[key] = { lane:key, revenue:0, loads:0, miles:0, rates:[] }
       laneMap[key].revenue += Number(l.gross || l.gross_pay || 0)
       laneMap[key].loads++
       laneMap[key].miles += Number(l.miles || 0)
+      if (l.rate) laneMap[key].rates.push(Number(l.rate))
     })
-    return Object.values(laneMap).sort((a,b) => b.revenue - a.revenue).slice(0, 5)
+    return Object.values(laneMap).sort((a,b) => b.revenue - a.revenue).slice(0, 6)
   }, [deliveredLoads])
 
-  // Expenses by category
   const expByCategory = useMemo(() => {
     const catMap = {}
     expenses.forEach(e => {
@@ -9162,155 +9160,389 @@ export function AnalyticsDashboard() {
     return Object.entries(catMap).sort((a,b) => b[1] - a[1]).map(([cat, amount]) => ({ cat, amount }))
   }, [expenses])
 
-  const totalExpAmt = expByCategory.reduce((s,e) => s+e.amount, 0) || 1
-  const CAT_COLORS = { Fuel:'#f59e0b', Maintenance:'#ef4444', Tolls:'#8b5cf6', Food:'#22c55e', Parking:'#3b82f6', Insurance:'#ec4899', Other:'#6b7280' }
-
+  // ── AI-computed metrics ────────────────────────────────────
   const totalMiles = loads.reduce((s,l) => s + Number(l.miles||0), 0)
   const netProfit = totalRevenue - totalExpenses
+  const margin = totalRevenue > 0 ? Math.round((netProfit/totalRevenue)*100) : 0
   const avgRPM = totalMiles > 0 ? (totalRevenue / totalMiles).toFixed(2) : '0.00'
   const avgLoadSize = loads.length > 0 ? Math.round(totalRevenue / loads.length) : 0
+  const totalExpAmt = expByCategory.reduce((s,e) => s+e.amount, 0) || 1
+  const maxRev = Math.max(...revenueByMonth.map(m => m.revenue), 1)
+  const fuelExp = expenses.filter(e => (e.category||e.cat||'').toLowerCase().includes('fuel')).reduce((s,e) => s+Number(e.amount||0), 0)
+  const fuelPctOfRev = totalRevenue > 0 ? Math.round((fuelExp/totalRevenue)*100) : 0
+  const unpaidTotal = invoices.filter(i => i.status !== 'Paid').reduce((s,i) => s+Number(i.amount||0), 0)
+  const paidInvoices = invoices.filter(i => i.status === 'Paid')
+
+  // Revenue trend (is it going up or down?)
+  const recentMonths = revenueByMonth.slice(-3)
+  const revTrend = recentMonths.length >= 2
+    ? recentMonths[recentMonths.length-1].revenue - recentMonths[recentMonths.length-2].revenue
+    : 0
+  const revTrendPct = recentMonths.length >= 2 && recentMonths[recentMonths.length-2].revenue > 0
+    ? Math.round((revTrend / recentMonths[recentMonths.length-2].revenue) * 100)
+    : 0
+
+  // Deadhead ratio
+  const totalDeadhead = loads.reduce((s,l) => s + Number(l.deadhead||0), 0)
+  const deadheadPct = totalMiles > 0 ? Math.round((totalDeadhead / (totalMiles+totalDeadhead)) * 100) : 0
+
+  // Utilization (loads per truck)
+  const truckCount = (vehicles || []).filter(v => v.type === 'truck').length || (drivers || []).length || 3
+  const utilization = Math.min(100, Math.round((loads.filter(l => ['In Transit','Loaded','At Pickup','At Delivery'].includes(l.status)).length / Math.max(truckCount,1)) * 100))
+
+  // Projected monthly revenue (based on current pace)
+  const now = new Date()
+  const dayOfMonth = now.getDate()
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()
+  const currentMonthRev = revenueByMonth[revenueByMonth.length-1]?.revenue || 0
+  const projectedRev = dayOfMonth > 0 ? Math.round((currentMonthRev / dayOfMonth) * daysInMonth) : 0
+
+  // AI Health Score (0–100)
+  const healthScore = useMemo(() => {
+    let score = 50
+    if (margin > 30) score += 15; else if (margin > 20) score += 8; else if (margin < 10) score -= 10
+    if (Number(avgRPM) > 2.8) score += 10; else if (Number(avgRPM) < 2.0) score -= 10
+    if (utilization > 80) score += 10; else if (utilization < 40) score -= 5
+    if (deadheadPct < 10) score += 5; else if (deadheadPct > 20) score -= 5
+    if (fuelPctOfRev < 30) score += 5; else if (fuelPctOfRev > 40) score -= 5
+    if (unpaidTotal === 0) score += 5; else if (unpaidTotal > totalRevenue * 0.5) score -= 10
+    return Math.max(0, Math.min(100, score))
+  }, [margin, avgRPM, utilization, deadheadPct, fuelPctOfRev, unpaidTotal, totalRevenue])
+
+  const scoreColor = healthScore >= 80 ? 'var(--success)' : healthScore >= 60 ? 'var(--accent)' : healthScore >= 40 ? 'var(--warning)' : 'var(--danger)'
+  const scoreLabel = healthScore >= 80 ? 'Excellent' : healthScore >= 60 ? 'Good' : healthScore >= 40 ? 'Needs Work' : 'At Risk'
+
+  // AI Recommendations
+  const aiRecs = useMemo(() => {
+    const recs = []
+    if (fuelPctOfRev > 35) recs.push({ icon:Fuel, color:'#f59e0b', title:'Fuel spend is high', detail:`Fuel is ${fuelPctOfRev}% of revenue (industry avg: 25–30%). Consider fuel card programs or optimizing routes to save $${Math.round(fuelExp * 0.08).toLocaleString()}/mo.`, impact:'High', action:'Optimize' })
+    if (margin < 25) recs.push({ icon:TrendingDown, color:'#ef4444', title:'Margins below target', detail:`Net margin is ${margin}% — below the 30% industry benchmark. Review expense categories or negotiate higher rates on your top lanes.`, impact:'High', action:'Review' })
+    if (deadheadPct > 15) recs.push({ icon:Route, color:'#8b5cf6', title:'Reduce deadhead miles', detail:`${deadheadPct}% of your miles are empty. Look for backhaul loads on your top lanes to fill repositioning gaps.`, impact:'Medium', action:'Find Loads' })
+    if (unpaidTotal > 5000) recs.push({ icon:DollarSign, color:'#ef4444', title:`$${unpaidTotal.toLocaleString()} in unpaid invoices`, detail:`${invoices.filter(i=>i.status!=='Paid').length} invoices are outstanding. Follow up with brokers or consider factoring for immediate cash flow.`, impact:'High', action:'Collect' })
+    if (utilization < 60) recs.push({ icon:Truck, color:'#4d8ef0', title:'Fleet underutilized', detail:`Only ${utilization}% of trucks are running loads. Book more loads or consider reducing fleet size to improve profitability.`, impact:'Medium', action:'Book Loads' })
+    if (Number(avgRPM) < 2.5) recs.push({ icon:TrendingUp, color:'#f0a500', title:'Rate per mile is low', detail:`Avg $${avgRPM}/mi is below the $2.80 national average. Focus on higher-paying lanes and avoid low-RPM loads.`, impact:'Medium', action:'Analyze' })
+    if (topLanes.length > 0 && topLanes[0].loads >= 3) recs.push({ icon:Star, color:'#22c55e', title:`Strong lane: ${topLanes[0].lane}`, detail:`${topLanes[0].loads} loads at $${topLanes[0].miles > 0 ? (topLanes[0].revenue/topLanes[0].miles).toFixed(2) : '0.00'}/mi. Consider negotiating a dedicated lane contract with your top broker for consistent volume.`, impact:'Opportunity', action:'Negotiate' })
+    if (recs.length === 0) recs.push({ icon:CheckCircle, color:'#22c55e', title:'Operations look healthy', detail:'No critical issues detected. Keep monitoring your margins and lane performance.', impact:'Info', action:'Continue' })
+    return recs
+  }, [fuelPctOfRev, fuelExp, margin, deadheadPct, unpaidTotal, utilization, avgRPM, topLanes, invoices])
+
+  const CAT_COLORS = { Fuel:'#f59e0b', Maintenance:'#ef4444', Tolls:'#8b5cf6', Food:'#22c55e', Parking:'#3b82f6', Insurance:'#ec4899', Other:'#6b7280' }
+  const IMPACT_COLORS = { High:'var(--danger)', Medium:'var(--accent)', Opportunity:'var(--success)', Info:'var(--accent2)' }
 
   return (
     <div style={S.page}>
-      <div>
-        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>ANALYTICS DASHBOARD</div>
-        <div style={{ fontSize:12, color:'var(--muted)' }}>Revenue, expenses, lanes, and performance insights</div>
-      </div>
-
-      <AiBanner
-        title={`AI Insight: Your net margin is ${totalRevenue > 0 ? Math.round((netProfit/totalRevenue)*100) : 0}% — ${netProfit/totalRevenue > 0.3 ? 'above' : 'below'} industry avg of 30%`}
-        sub={`Top lane: ${topLanes[0]?.lane || 'N/A'} · ${totalMiles.toLocaleString()} total miles · $${avgRPM}/mi average`}
-      />
-
-      {/* KPI Cards */}
-      <div style={S.grid(5)}>
-        <StatCard label="Total Revenue" value={totalRevenue >= 1000 ? `$${(totalRevenue/1000).toFixed(1)}K` : `$${totalRevenue}`} change={`${loads.length} loads`} color="var(--accent)" changeType="neutral" />
-        <StatCard label="Net Profit" value={netProfit >= 1000 ? `$${(netProfit/1000).toFixed(1)}K` : `$${netProfit}`} change={`${totalRevenue > 0 ? Math.round((netProfit/totalRevenue)*100) : 0}% margin`} color="var(--success)" />
-        <StatCard label="Total Miles" value={totalMiles.toLocaleString()} change={`$${avgRPM}/mi avg`} color="var(--accent2)" changeType="neutral" />
-        <StatCard label="Total Expenses" value={totalExpenses >= 1000 ? `$${(totalExpenses/1000).toFixed(1)}K` : `$${totalExpenses}`} change={`${expByCategory.length} categories`} color="var(--danger)" changeType="neutral" />
-        <StatCard label="Avg Load Size" value={`$${avgLoadSize.toLocaleString()}`} change={`${deliveredLoads.length} delivered`} color="var(--accent3)" changeType="neutral" />
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
-        {/* Revenue Chart */}
-        <div style={S.panel}>
-          <div style={S.panelHead}>
-            <div style={S.panelTitle}><Ic icon={BarChart2} /> Monthly Revenue vs Expenses</div>
-            <span style={{ fontSize:11, color:'var(--muted)' }}>Last 6 months</span>
-          </div>
-          <div style={{ padding:20 }}>
-            <div style={{ display:'flex', alignItems:'flex-end', gap:16, height:180 }}>
-              {revenueByMonth.map(m => (
-                <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                  <div style={{ width:'100%', display:'flex', gap:3, alignItems:'flex-end', justifyContent:'center' }}>
-                    <div style={{ width:'42%', height:`${Math.max((m.revenue/maxRev)*160, 4)}px`, background:'var(--accent)', borderRadius:'4px 4px 0 0', transition:'height 0.5s' }}
-                      title={`Revenue: $${m.revenue.toLocaleString()}`} />
-                    <div style={{ width:'42%', height:`${Math.max((m.expenses/maxRev)*160, 4)}px`, background:'var(--danger)', borderRadius:'4px 4px 0 0', transition:'height 0.5s', opacity:0.7 }}
-                      title={`Expenses: $${m.expenses.toLocaleString()}`} />
-                  </div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}>{m.label}</div>
-                  <div style={{ fontSize:10, color:'var(--accent)', fontWeight:700 }}>{m.revenue >= 1000 ? `$${(m.revenue/1000).toFixed(1)}K` : `$${m.revenue}`}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:16, marginTop:12 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)' }}><div style={{ width:10, height:10, background:'var(--accent)', borderRadius:2 }} /> Revenue</div>
-              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)' }}><div style={{ width:10, height:10, background:'var(--danger)', borderRadius:2, opacity:0.7 }} /> Expenses</div>
-            </div>
-          </div>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>AI ANALYTICS</div>
+          <div style={{ fontSize:12, color:'var(--muted)' }}>Powered by Qivori Intelligence Engine</div>
         </div>
-
-        {/* Expense Breakdown */}
-        <div style={S.panel}>
-          <div style={S.panelHead}>
-            <div style={S.panelTitle}><Ic icon={Receipt} /> Expense Breakdown</div>
-          </div>
-          <div style={{ padding:16 }}>
-            {expByCategory.length === 0 && <div style={{ fontSize:12, color:'var(--muted)', padding:20, textAlign:'center' }}>No expenses recorded</div>}
-            {expByCategory.map(e => {
-              const pct = Math.round((e.amount / totalExpAmt) * 100)
-              return (
-                <div key={e.cat} style={{ marginBottom:12 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
-                    <span style={{ fontWeight:600 }}>{e.cat}</span>
-                    <span style={{ color:'var(--muted)' }}>${e.amount.toLocaleString()} ({pct}%)</span>
-                  </div>
-                  <div style={{ height:6, background:'var(--border)', borderRadius:3 }}>
-                    <div style={{ height:'100%', width:`${pct}%`, background:CAT_COLORS[e.cat] || 'var(--accent)', borderRadius:3, transition:'width 0.5s' }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+        <div style={{ display:'flex', gap:6 }}>
+          {[
+            { id:'insights', label:'AI Insights' },
+            { id:'financial', label:'Financial' },
+            { id:'operations', label:'Operations' },
+          ].map(t => (
+            <button key={t.id} onClick={() => setAiTab(t.id)} className="btn" style={{
+              background: aiTab===t.id ? 'rgba(240,165,0,0.12)' : 'var(--surface2)',
+              color: aiTab===t.id ? 'var(--accent)' : 'var(--muted)',
+              border: `1px solid ${aiTab===t.id ? 'rgba(240,165,0,0.35)' : 'var(--border)'}`,
+              fontSize:12,
+            }}>{t.label}</button>
+          ))}
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-        {/* Top Lanes */}
-        <div style={S.panel}>
-          <div style={S.panelHead}>
-            <div style={S.panelTitle}><Ic icon={Route} /> Top Lanes by Revenue</div>
+      {/* ── AI INSIGHTS TAB ───────────────────────────────────── */}
+      {aiTab === 'insights' && (<>
+
+        {/* AI Health Score + Key Metrics */}
+        <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:16 }}>
+          {/* Health Score Ring */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:24, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ position:'relative', width:140, height:140, marginBottom:16 }}>
+              <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform:'rotate(-90deg)' }}>
+                <circle cx="70" cy="70" r="58" fill="none" stroke="var(--surface2)" strokeWidth="10" />
+                <circle cx="70" cy="70" r="58" fill="none" stroke={scoreColor} strokeWidth="10"
+                  strokeDasharray={`${(healthScore/100)*364} 364`}
+                  strokeLinecap="round" style={{ transition:'stroke-dasharray 1s ease' }} />
+              </svg>
+              <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:42, color:scoreColor, lineHeight:1 }}>{healthScore}</div>
+                <div style={{ fontSize:10, color:'var(--muted)', fontWeight:700 }}>/ 100</div>
+              </div>
+            </div>
+            <div style={{ fontWeight:800, fontSize:14, color:scoreColor, marginBottom:4 }}>{scoreLabel}</div>
+            <div style={{ fontSize:11, color:'var(--muted)' }}>AI Business Health Score</div>
+            <div style={{ fontSize:10, color:'var(--muted)', marginTop:8, lineHeight:1.5 }}>
+              Based on margins, RPM, utilization, deadhead, fuel costs, and receivables
+            </div>
           </div>
-          <div>
-            {topLanes.length === 0 && <div style={{ fontSize:12, color:'var(--muted)', padding:20, textAlign:'center' }}>No delivered loads yet</div>}
-            {topLanes.map((l, i) => (
-              <div key={l.lane} style={S.row}>
-                <div style={{ fontSize:12, color:'var(--muted)', width:20 }}>#{i+1}</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:13, fontWeight:700 }}>{l.lane}</div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}>{l.loads} load{l.loads!==1?'s':''} · {l.miles.toLocaleString()} mi · ${l.miles > 0 ? (l.revenue/l.miles).toFixed(2) : '0.00'}/mi</div>
+
+          {/* Score Breakdown Gauges */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            {[
+              { label:'Net Margin', value:`${margin}%`, target:'30%', pct:Math.min(100,Math.round((margin/40)*100)), color: margin>=30?'var(--success)':margin>=20?'var(--accent)':'var(--danger)', detail: margin>=30?'Above industry avg':'Below 30% target' },
+              { label:'Rate/Mile', value:`$${avgRPM}`, target:'$2.80', pct:Math.min(100,Math.round((Number(avgRPM)/3.5)*100)), color: Number(avgRPM)>=2.8?'var(--success)':Number(avgRPM)>=2.3?'var(--accent)':'var(--danger)', detail: Number(avgRPM)>=2.8?'Strong rate':'Below national avg' },
+              { label:'Fleet Util.', value:`${utilization}%`, target:'85%', pct:utilization, color: utilization>=80?'var(--success)':utilization>=50?'var(--accent)':'var(--danger)', detail:`${loads.filter(l=>['In Transit','Loaded'].includes(l.status)).length} of ${truckCount} trucks active` },
+              { label:'Deadhead', value:`${deadheadPct}%`, target:'<10%', pct:Math.min(100,100-deadheadPct*3), color: deadheadPct<10?'var(--success)':deadheadPct<20?'var(--accent)':'var(--danger)', detail: deadheadPct<10?'Excellent efficiency':'Empty miles too high' },
+              { label:'Fuel % of Rev', value:`${fuelPctOfRev}%`, target:'<30%', pct:Math.min(100,100-fuelPctOfRev*2), color: fuelPctOfRev<30?'var(--success)':fuelPctOfRev<38?'var(--accent)':'var(--danger)', detail:`$${fuelExp.toLocaleString()} spent on fuel` },
+              { label:'Receivables', value:`$${(unpaidTotal/1000).toFixed(1)}K`, target:'$0', pct:Math.min(100,unpaidTotal===0?100:Math.max(10,100-Math.round((unpaidTotal/Math.max(totalRevenue,1))*200))), color: unpaidTotal===0?'var(--success)':unpaidTotal<5000?'var(--accent)':'var(--danger)', detail:`${invoices.filter(i=>i.status!=='Paid').length} invoices outstanding` },
+            ].map(g => (
+              <div key={g.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'14px 16px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'var(--muted)', fontWeight:600 }}>{g.label}</span>
+                  <span style={{ fontSize:10, color:'var(--muted)' }}>Target: {g.target}</span>
                 </div>
-                <div style={{ fontWeight:700, color:'var(--accent)', fontSize:14 }}>${l.revenue.toLocaleString()}</div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:g.color, marginBottom:6 }}>{g.value}</div>
+                <div style={{ height:5, background:'var(--surface2)', borderRadius:3, marginBottom:6 }}>
+                  <div style={{ height:'100%', width:`${g.pct}%`, background:g.color, borderRadius:3, transition:'width 0.8s ease' }} />
+                </div>
+                <div style={{ fontSize:10, color:g.color }}>{g.detail}</div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Load Performance */}
+        {/* AI Recommendations */}
         <div style={S.panel}>
           <div style={S.panelHead}>
-            <div style={S.panelTitle}><Ic icon={Activity} /> Load Performance</div>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Brain size={15} color="var(--accent)" />
+              </div>
+              <div>
+                <div style={S.panelTitle}>AI Recommendations</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>Auto-generated from your operational data</div>
+              </div>
+            </div>
+            <span style={S.badge('var(--accent)')}>{aiRecs.length} insight{aiRecs.length!==1?'s':''}</span>
           </div>
-          <div style={{ padding:16 }}>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {[
-                { label:'Loads Booked', val:loads.filter(l => l.status === 'Booked').length, color:'var(--accent2)' },
-                { label:'In Transit', val:loads.filter(l => l.status === 'In Transit' || l.status === 'Loaded').length, color:'var(--success)' },
-                { label:'Delivered', val:deliveredLoads.length, color:'var(--accent)' },
-                { label:'Invoiced', val:invoices.length, color:'var(--accent3)' },
-                { label:'Paid', val:invoices.filter(i => i.status === 'Paid').length, color:'var(--success)' },
-                { label:'Unpaid', val:invoices.filter(i => i.status !== 'Paid').length, color:'var(--danger)' },
-              ].map(s => (
-                <div key={s.label} style={{ background:'var(--surface2)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
-                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:s.color }}>{s.val}</div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}>{s.label}</div>
+          <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+            {aiRecs.map((r, i) => (
+              <div key={i} style={{ display:'flex', gap:14, padding:'14px 16px', background:'var(--surface2)', borderRadius:10, alignItems:'flex-start', border:'1px solid var(--border)' }}>
+                <div style={{ width:38, height:38, borderRadius:10, background:`${r.color}15`, border:`1px solid ${r.color}30`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <Ic icon={r.icon} size={18} color={r.color} />
                 </div>
-              ))}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <span style={{ fontSize:13, fontWeight:700 }}>{r.title}</span>
+                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4, background:`${IMPACT_COLORS[r.impact]}15`, color:IMPACT_COLORS[r.impact] }}>{r.impact}</span>
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>{r.detail}</div>
+                </div>
+                <button className="btn btn-ghost" style={{ fontSize:11, flexShrink:0 }} onClick={() => showToast('','AI Action',r.title)}>{r.action} →</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Projected Revenue */}
+        <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:12, padding:'18px 22px', display:'flex', alignItems:'center', gap:20 }}>
+          <div style={{ width:44, height:44, borderRadius:12, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Sparkles size={22} color="var(--accent)" />
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:2 }}>AI Revenue Forecast — {now.toLocaleDateString('en-US',{month:'long'})}</div>
+            <div style={{ display:'flex', alignItems:'baseline', gap:12 }}>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:'var(--accent)' }}>${projectedRev.toLocaleString()}</span>
+              <span style={{ fontSize:12, color:'var(--muted)' }}>projected</span>
+              <span style={{ fontSize:12, color: revTrendPct >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight:700 }}>
+                {revTrendPct >= 0 ? '↑' : '↓'} {Math.abs(revTrendPct)}% vs last month
+              </span>
+            </div>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontSize:11, color:'var(--muted)' }}>Day {dayOfMonth} of {daysInMonth}</div>
+            <div style={{ height:4, width:100, background:'var(--surface2)', borderRadius:2, marginTop:4 }}>
+              <div style={{ height:'100%', width:`${Math.round((dayOfMonth/daysInMonth)*100)}%`, background:'var(--accent)', borderRadius:2 }} />
             </div>
           </div>
         </div>
-      </div>
+      </>)}
 
-      {/* Miles Driven per Month */}
-      <div style={S.panel}>
-        <div style={S.panelHead}>
-          <div style={S.panelTitle}><Ic icon={Navigation} /> Miles Driven per Month</div>
+      {/* ── FINANCIAL TAB ─────────────────────────────────────── */}
+      {aiTab === 'financial' && (<>
+        {/* KPI Row */}
+        <div style={S.grid(5)}>
+          <StatCard label="Gross Revenue" value={totalRevenue >= 1000 ? `$${(totalRevenue/1000).toFixed(1)}K` : `$${totalRevenue}`} change={revTrendPct >= 0 ? `↑ ${revTrendPct}%` : `↓ ${Math.abs(revTrendPct)}%`} color="var(--accent)" changeType={revTrendPct>=0?'up':'down'} />
+          <StatCard label="Net Profit" value={netProfit >= 1000 ? `$${(netProfit/1000).toFixed(1)}K` : `$${netProfit}`} change={`${margin}% margin`} color="var(--success)" changeType={margin>=30?'up':'down'} />
+          <StatCard label="Avg Load" value={`$${avgLoadSize.toLocaleString()}`} change={`${loads.length} total`} color="var(--accent2)" changeType="neutral" />
+          <StatCard label="Expenses" value={totalExpenses >= 1000 ? `$${(totalExpenses/1000).toFixed(1)}K` : `$${totalExpenses}`} change={`${margin}% of rev`} color="var(--danger)" changeType="neutral" />
+          <StatCard label="Unpaid" value={`$${(unpaidTotal/1000).toFixed(1)}K`} change={`${invoices.filter(i=>i.status!=='Paid').length} invoices`} color={unpaidTotal>0?'var(--danger)':'var(--success)'} changeType="neutral" />
         </div>
-        <div style={{ padding:20 }}>
-          <div style={{ display:'flex', alignItems:'flex-end', gap:16, height:120 }}>
-            {revenueByMonth.map(m => {
-              const maxMi = Math.max(...revenueByMonth.map(x => x.miles), 1)
-              return (
-                <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                  <div style={{ width:'60%', height:`${Math.max((m.miles/maxMi)*100, 4)}px`, background:'var(--accent2)', borderRadius:'4px 4px 0 0', transition:'height 0.5s' }} />
-                  <div style={{ fontSize:11, color:'var(--muted)' }}>{m.label}</div>
-                  <div style={{ fontSize:10, color:'var(--accent2)', fontWeight:700 }}>{m.miles.toLocaleString()}</div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
+          {/* Revenue vs Expenses Chart */}
+          <div style={S.panel}>
+            <div style={S.panelHead}>
+              <div style={S.panelTitle}><Ic icon={BarChart2} /> Revenue vs Expenses · 6 Months</div>
+            </div>
+            <div style={{ padding:20 }}>
+              {/* Y-axis labels + bars */}
+              <div style={{ display:'flex', gap:8 }}>
+                <div style={{ width:40, display:'flex', flexDirection:'column', justifyContent:'space-between', height:180, paddingBottom:20 }}>
+                  {[maxRev, Math.round(maxRev*0.5), 0].map(v => (
+                    <div key={v} style={{ fontSize:9, color:'var(--muted)', textAlign:'right' }}>{v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`}</div>
+                  ))}
                 </div>
-              )
-            })}
+                <div style={{ flex:1, display:'flex', alignItems:'flex-end', gap:12, height:180, borderLeft:'1px solid var(--border)', borderBottom:'1px solid var(--border)', paddingLeft:8, paddingBottom:4, position:'relative' }}>
+                  {/* Grid lines */}
+                  <div style={{ position:'absolute', inset:'0 0 20px 0', display:'flex', flexDirection:'column', justifyContent:'space-between', pointerEvents:'none' }}>
+                    {[0,1,2].map(i => <div key={i} style={{ borderBottom:'1px dashed var(--border)', opacity:0.3 }} />)}
+                  </div>
+                  {revenueByMonth.map(m => (
+                    <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, position:'relative', zIndex:1 }}>
+                      <div style={{ width:'100%', display:'flex', gap:2, alignItems:'flex-end', justifyContent:'center' }}>
+                        <div style={{ width:'40%', height:`${Math.max((m.revenue/maxRev)*150, 3)}px`, background:'linear-gradient(to top, var(--accent), rgba(240,165,0,0.6))', borderRadius:'4px 4px 0 0', transition:'height 0.6s ease' }} />
+                        <div style={{ width:'40%', height:`${Math.max((m.expenses/maxRev)*150, 3)}px`, background:'linear-gradient(to top, var(--danger), rgba(239,68,68,0.4))', borderRadius:'4px 4px 0 0', transition:'height 0.6s ease' }} />
+                      </div>
+                      <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:16, marginTop:12, paddingLeft:48 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)' }}><div style={{ width:10, height:10, background:'var(--accent)', borderRadius:2 }} /> Revenue</div>
+                <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)' }}><div style={{ width:10, height:10, background:'var(--danger)', borderRadius:2 }} /> Expenses</div>
+                <div style={{ flex:1 }} />
+                <span style={{ fontSize:11, color:'var(--muted)' }}>Net: <strong style={{ color:'var(--success)' }}>${netProfit.toLocaleString()}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Expense Donut (visual) */}
+          <div style={S.panel}>
+            <div style={S.panelHead}>
+              <div style={S.panelTitle}><Ic icon={Receipt} /> Cost Structure</div>
+            </div>
+            <div style={{ padding:16 }}>
+              {/* Visual donut */}
+              <div style={{ position:'relative', width:120, height:120, margin:'0 auto 16px' }}>
+                <svg width="120" height="120" viewBox="0 0 120 120" style={{ transform:'rotate(-90deg)' }}>
+                  {(() => {
+                    let offset = 0
+                    const colors = ['#f59e0b','#ef4444','#8b5cf6','#22c55e','#3b82f6','#ec4899','#6b7280']
+                    return expByCategory.slice(0,6).map((e, i) => {
+                      const pct = e.amount / totalExpAmt
+                      const dash = pct * 314
+                      const el = <circle key={e.cat} cx="60" cy="60" r="50" fill="none" stroke={CAT_COLORS[e.cat]||colors[i%colors.length]} strokeWidth="16"
+                        strokeDasharray={`${dash} ${314-dash}`} strokeDashoffset={-offset} />
+                      offset += dash
+                      return el
+                    })
+                  })()}
+                </svg>
+                <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--text)' }}>${(totalExpAmt/1000).toFixed(1)}K</div>
+                  <div style={{ fontSize:9, color:'var(--muted)' }}>Total</div>
+                </div>
+              </div>
+              {expByCategory.slice(0,5).map(e => {
+                const pct = Math.round((e.amount / totalExpAmt) * 100)
+                return (
+                  <div key={e.cat} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                    <div style={{ width:8, height:8, borderRadius:2, background:CAT_COLORS[e.cat]||'var(--muted)', flexShrink:0 }} />
+                    <span style={{ fontSize:11, flex:1 }}>{e.cat}</span>
+                    <span style={{ fontSize:11, color:'var(--muted)', fontWeight:600 }}>{pct}%</span>
+                    <span style={{ fontSize:11, fontWeight:700, width:60, textAlign:'right' }}>${e.amount.toLocaleString()}</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      </>)}
+
+      {/* ── OPERATIONS TAB ────────────────────────────────────── */}
+      {aiTab === 'operations' && (<>
+        {/* Ops KPIs */}
+        <div style={S.grid(5)}>
+          <StatCard label="Total Loads" value={String(loads.length)} change={`${deliveredLoads.length} delivered`} color="var(--accent)" changeType="neutral" />
+          <StatCard label="Miles Driven" value={totalMiles >= 1000 ? `${(totalMiles/1000).toFixed(1)}K` : String(totalMiles)} change={`$${avgRPM}/mi`} color="var(--accent2)" changeType="neutral" />
+          <StatCard label="Fleet Util." value={`${utilization}%`} change={`${truckCount} trucks`} color={utilization>=80?'var(--success)':'var(--accent)'} changeType={utilization>=80?'up':'down'} />
+          <StatCard label="Deadhead" value={`${deadheadPct}%`} change={`${totalDeadhead.toLocaleString()} mi empty`} color={deadheadPct<10?'var(--success)':'var(--danger)'} changeType={deadheadPct<10?'up':'down'} />
+          <StatCard label="Avg Load/Mo" value={String(Math.round(loads.length/Math.max(revenueByMonth.filter(m=>m.loads>0).length,1)))} change="loads per month" color="var(--accent3)" changeType="neutral" />
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          {/* Top Lanes with AI scoring */}
+          <div style={S.panel}>
+            <div style={S.panelHead}>
+              <div style={S.panelTitle}><Ic icon={Route} /> Lane Intelligence</div>
+              <span style={{ fontSize:10, color:'var(--muted)' }}>AI-ranked by profitability</span>
+            </div>
+            <div>
+              {topLanes.length === 0 && <div style={{ fontSize:12, color:'var(--muted)', padding:20, textAlign:'center' }}>No delivered loads yet</div>}
+              {topLanes.map((l, i) => {
+                const rpm = l.miles > 0 ? (l.revenue/l.miles) : 0
+                const laneScore = Math.min(99, Math.round(40 + rpm*12 + l.loads*3))
+                return (
+                  <div key={l.lane} style={{ ...S.row, gap:10 }}>
+                    <div style={{ width:32, height:32, borderRadius:8, background: i===0?'rgba(240,165,0,0.1)':'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, color: i===0?'var(--accent)':'var(--muted)' }}>#{i+1}</span>
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:700 }}>{l.lane}</div>
+                      <div style={{ fontSize:11, color:'var(--muted)' }}>{l.loads} loads · {l.miles.toLocaleString()} mi · ${rpm.toFixed(2)}/mi</div>
+                    </div>
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontWeight:700, color:'var(--accent)', fontSize:14 }}>${l.revenue.toLocaleString()}</div>
+                      <div style={{ fontSize:10, color: laneScore>=80?'var(--success)':'var(--accent)', fontWeight:700 }}>Score: {laneScore}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Miles per Month + Load Pipeline */}
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            {/* Miles trend */}
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Navigation} /> Miles Trend</div>
+              </div>
+              <div style={{ padding:16 }}>
+                <div style={{ display:'flex', alignItems:'flex-end', gap:10, height:100 }}>
+                  {revenueByMonth.map(m => {
+                    const maxMi = Math.max(...revenueByMonth.map(x => x.miles), 1)
+                    return (
+                      <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                        <div style={{ width:'70%', height:`${Math.max((m.miles/maxMi)*80, 3)}px`, background:'linear-gradient(to top, var(--accent2), rgba(77,142,240,0.4))', borderRadius:'3px 3px 0 0', transition:'height 0.6s ease' }} />
+                        <div style={{ fontSize:10, color:'var(--muted)' }}>{m.label}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Load Pipeline */}
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Activity} /> Load Pipeline</div>
+              </div>
+              <div style={{ padding:14 }}>
+                {[
+                  { label:'Booked', val:loads.filter(l => l.status === 'Booked').length, color:'var(--accent2)' },
+                  { label:'In Transit', val:loads.filter(l => l.status === 'In Transit' || l.status === 'Loaded').length, color:'var(--success)' },
+                  { label:'Delivered', val:deliveredLoads.length, color:'var(--accent)' },
+                  { label:'Invoiced', val:invoices.filter(i=>i.status==='Paid').length + '/' + invoices.length, color:'var(--accent3)' },
+                ].map(s => (
+                  <div key={s.label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:6, height:6, borderRadius:3, background:s.color }} />
+                      <span style={{ fontSize:12 }}>{s.label}</span>
+                    </div>
+                    <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:s.color }}>{s.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </>)}
     </div>
   )
 }

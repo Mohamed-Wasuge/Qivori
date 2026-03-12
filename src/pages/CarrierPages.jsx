@@ -8553,6 +8553,7 @@ export function QuickBooksExport() {
 export function CarrierPackage() {
   const { showToast } = useApp()
   const { company } = useCarrier()
+  const [tab, setTab] = useState('overview')
 
   const [insurance, setInsurance] = useState({
     auto:    { company:'Progressive Commercial', policy:'PCT-8821047', amount:'$1,000,000', expiry:'Nov 15, 2026' },
@@ -8566,7 +8567,6 @@ export function CarrierPackage() {
     drug:      { uploaded:false, filename:'' },
   })
   const [brokerEmail, setBrokerEmail] = useState('')
-  const [brokerMsg, setBrokerMsg] = useState('Hi,\n\nPlease find our carrier package attached for contracting. We are fully compliant, insured, and ready to haul.\n\nLet us know if you need anything else.\n\nThank you')
   const [pkgSent, setPkgSent] = useState({})
   const [linkCopied, setLinkCopied] = useState(false)
 
@@ -8589,181 +8589,229 @@ export function CarrierPackage() {
   const inp = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', width:'100%', boxSizing:'border-box' }
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
-
-      {/* LEFT — profile card + send panel */}
-      <div style={{ width:320, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
-
-        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2 }}>CARRIER PACKAGE</div>
-          <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>Broker contracting packet</div>
-          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10 }}>
-            <div style={{ flex:1, height:5, borderRadius:3, background:'var(--surface3)' }}>
-              <div style={{ height:5, borderRadius:3, width:pct+'%', background:pct===100?'var(--success)':'var(--accent)', transition:'width 0.4s' }} />
-            </div>
-            <span style={{ fontSize:11, fontWeight:700, color:pct===100?'var(--success)':'var(--accent)', flexShrink:0 }}>{pct}% ready</span>
-          </div>
+    <div style={S.page}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>CARRIER PACKAGE</div>
+          <div style={{ fontSize:12, color:'var(--muted)' }}>Your broker contracting packet — {pct}% complete</div>
         </div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ width:120, height:6, borderRadius:3, background:'var(--surface3)' }}>
+            <div style={{ height:6, borderRadius:3, width:pct+'%', background:pct===100?'var(--success)':'var(--accent)', transition:'width 0.4s' }} />
+          </div>
+          <span style={{ fontSize:12, fontWeight:700, color:pct===100?'var(--success)':'var(--accent)' }}>{pct}%</span>
+        </div>
+      </div>
 
-        {/* Company card */}
-        <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Broker Preview</div>
-          <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:12, padding:14 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-              <div style={{ width:44, height:44, borderRadius:8, background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+      {/* Tab bar */}
+      <div style={{ display:'flex', gap:6 }}>
+        {[
+          { id:'overview', label:'Overview' },
+          { id:'insurance', label:'Insurance' },
+          { id:'documents', label:'Documents' },
+          { id:'send', label:'Send to Broker' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} className="btn" style={{
+            background: tab===t.id ? 'rgba(240,165,0,0.12)' : 'var(--surface2)',
+            color: tab===t.id ? 'var(--accent)' : 'var(--muted)',
+            border: `1px solid ${tab===t.id ? 'rgba(240,165,0,0.35)' : 'var(--border)'}`,
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {/* OVERVIEW TAB */}
+      {tab === 'overview' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {/* Company Card */}
+          <div style={S.panel}>
+            <div style={S.panelHead}>
+              <div style={S.panelTitle}><Ic icon={Briefcase} /> Company Profile</div>
+              <span style={S.badge(pct===100?'var(--success)':'var(--accent)')}>{pct===100?'Ready to Send':'In Progress'}</span>
+            </div>
+            <div style={{ padding:20, display:'flex', alignItems:'center', gap:20 }}>
+              <div style={{ width:56, height:56, borderRadius:12, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 {company?.logo
-                  ? <img src={company.logo} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
-                  : <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:'var(--accent)' }}>
+                  ? <img src={company.logo} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain', borderRadius:12 }} />
+                  : <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)' }}>
                       {(company?.name || 'SC').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()}
                     </span>
                 }
               </div>
-              <div>
-                <div style={{ fontWeight:700, fontSize:13 }}>{company?.name || 'Swift Carriers LLC'}</div>
-                <div style={{ fontSize:11, color:'var(--success)', fontWeight:600 }}><Check size={11} /> Authority Active</div>
-              </div>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:8 }}>
-              {[['MC', company?.mc||'MC-294810'], ['DOT', company?.dot||'DOT-3821049'], ['EIN', company?.ein||'82-4910283']].map(([k, v]) => (
-                <div key={k} style={{ background:'var(--surface)', borderRadius:6, padding:'5px 8px' }}>
-                  <div style={{ fontSize:9, color:'var(--muted)', fontWeight:700 }}>{k}</div>
-                  <div style={{ fontSize:10, fontWeight:700, fontFamily:'monospace' }}>{v}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:700, fontSize:16, marginBottom:4 }}>{company?.name || 'Swift Carriers LLC'}</div>
+                <div style={{ display:'flex', gap:16, fontSize:12, color:'var(--muted)' }}>
+                  <span>{company?.mc||'MC-294810'}</span>
+                  <span>{company?.dot||'DOT-3821049'}</span>
+                  <span>{company?.phone || '(612) 555-0182'}</span>
                 </div>
-              ))}
-            </div>
-            <div style={{ fontSize:11, color:'var(--muted)' }}>{company?.phone || '(612) 555-0182'}</div>
-            <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:8 }}>
-              {DOCS.map(d => (
-                <span key={d.key} style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:5,
-                  background: docs[d.key]?.uploaded ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                  color: docs[d.key]?.uploaded ? 'var(--success)' : 'var(--danger)' }}>
-                  {docs[d.key]?.uploaded ? <><Check size={11} /> </> : ''}{d.label}
-                </span>
-              ))}
+              </div>
+              <span style={{ fontSize:12, fontWeight:700, color:'var(--success)' }}><Check size={12} /> Authority Active</span>
             </div>
           </div>
-        </div>
 
-        {/* Send */}
-        <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1 }}>Send to Broker</div>
-          <div>
-            <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Broker Email</label>
-            <input value={brokerEmail} onChange={function(e){setBrokerEmail(e.target.value)}} placeholder="dispatch@broker.com" style={inp} />
-          </div>
-          <div>
-            <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Message</label>
-            <textarea value={brokerMsg} onChange={function(e){setBrokerMsg(e.target.value)}} rows={5}
-              style={{ ...inp, resize:'vertical', lineHeight:1.6 }} />
-          </div>
-          <button onClick={function(){ if(!brokerEmail||pkgSent[brokerEmail]) return; setPkgSent(function(p){ var n={...p}; n[brokerEmail]=true; return n }); showToast('','Package Sent!','Emailed to '+brokerEmail) }}
-            style={{ padding:'11px 0', fontSize:13, fontWeight:700, borderRadius:8, border:'none', fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
-              background:pkgSent[brokerEmail]?'rgba(34,197,94,0.15)':!brokerEmail?'var(--surface3)':'var(--accent3)',
-              color:pkgSent[brokerEmail]?'var(--success)':!brokerEmail?'var(--muted)':'#fff' }}>
-            {pkgSent[brokerEmail] ? <><Check size={11} /> Package Sent</> : <><MailOpen size={13} /> Send Carrier Package</>}
-          </button>
-          <div style={{ display:'flex', alignItems:'center', gap:8, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px' }}>
-            <span style={{ fontSize:11, color:'var(--muted)' }}><Paperclip size={11} /></span>
-            <span style={{ fontSize:11, color:'var(--accent3)', flex:1, fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{linkUrl}</span>
-            <button onClick={function(){ try{navigator.clipboard.writeText(linkUrl)}catch(e){}; setLinkCopied(true); setTimeout(function(){setLinkCopied(false)},2500); showToast('','Link Copied','Share with any broker') }}
-              style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:6, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", flexShrink:0,
-                background:linkCopied?'rgba(34,197,94,0.15)':'var(--surface3)', color:linkCopied?'var(--success)':'var(--text)' }}>
-              {linkCopied?<Check size={11} />:'Copy'}
-            </button>
-          </div>
-          {Object.keys(pkgSent).length > 0 && (
-            <div style={{ background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:8, padding:'10px 14px' }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--success)', marginBottom:5 }}><Ic icon={Inbox} /> Sent to</div>
-              {Object.keys(pkgSent).map(function(email){ return (
-                <div key={email} style={{ fontSize:12, color:'var(--muted)' }}><Check size={11} /> {email}</div>
-              )})}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* RIGHT — edit insurance + docs */}
-      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:24, display:'flex', flexDirection:'column', gap:20 }}>
-
-        <div>
-          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, letterSpacing:1, marginBottom:14 }}>INSURANCE CERTIFICATES</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {INS.map(function(f){
-              var ins = insurance[f.key]
-              return (
-                <div key={f.key} style={{ background:'var(--surface)', border:'1px solid '+(ins&&ins.policy?'rgba(34,197,94,0.2)':'var(--border)'), borderRadius:12, padding:16 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                    <div style={{ fontWeight:700, fontSize:13 }}>
-                      {f.label}
-                      {f.required && <span style={{ fontSize:10, color:'var(--danger)', marginLeft:6 }}>Required</span>}
+          {/* Status Summary */}
+          <div style={S.grid(2)}>
+            {/* Insurance Status */}
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Shield} /> Insurance</div>
+                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setTab('insurance')}>Edit →</button>
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:8 }}>
+                {INS.map(f => (
+                  <div key={f.key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'var(--surface2)', borderRadius:8 }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600 }}>{f.label}</div>
+                      <div style={{ fontSize:11, color:'var(--muted)' }}>{insurance[f.key]?.company || 'Not set'}</div>
                     </div>
-                    <span style={{ fontSize:11, fontWeight:700, padding:'2px 9px', borderRadius:6,
-                      background:ins&&ins.policy?'rgba(34,197,94,0.1)':'rgba(239,68,68,0.1)',
-                      color:ins&&ins.policy?'var(--success)':'var(--danger)' }}>
-                      {ins&&ins.policy ? <><Check size={11} /> On File</> : 'Missing'}
+                    <span style={S.tag(insurance[f.key]?.policy ? 'var(--success)' : 'var(--danger)')}>
+                      {insurance[f.key]?.policy ? 'On File' : 'Missing'}
                     </span>
                   </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                    {[
-                      { key:'company', label:'Insurance Company', ph:'Progressive Commercial' },
-                      { key:'policy',  label:'Policy Number',     ph:'PCT-8821047' },
-                      { key:'amount',  label:'Coverage Amount',   ph:'$1,000,000' },
-                      { key:'expiry',  label:'Expiry Date',       ph:'Nov 15, 2026' },
-                    ].map(function(field){
-                      return (
-                        <div key={field.key}>
-                          <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:4 }}>{field.label}</label>
-                          <input value={(ins&&ins[field.key])||''} placeholder={field.ph}
-                            onChange={function(e){ setInsurance(function(prev){ var next={...prev}; next[f.key]={...prev[f.key]}; next[f.key][field.key]=e.target.value; return next }) }}
-                            style={inp} />
-                        </div>
-                      )
-                    })}
+                ))}
+              </div>
+            </div>
+
+            {/* Documents Status */}
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={FileText} /> Documents</div>
+                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setTab('documents')}>Edit →</button>
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:8 }}>
+                {DOCS.map(f => (
+                  <div key={f.key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'var(--surface2)', borderRadius:8 }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600 }}>{f.label}</div>
+                      <div style={{ fontSize:11, color:'var(--muted)' }}>{docs[f.key]?.uploaded ? docs[f.key].filename : 'Not uploaded'}</div>
+                    </div>
+                    <span style={S.tag(docs[f.key]?.uploaded ? 'var(--success)' : 'var(--danger)')}>
+                      {docs[f.key]?.uploaded ? 'Uploaded' : 'Missing'}
+                    </span>
                   </div>
-                </div>
-              )
-            })}
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        <div>
-          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, letterSpacing:1, marginBottom:14 }}>REQUIRED DOCUMENTS</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {DOCS.map(function(f){
-              return (
-                <div key={f.key} style={{ background:'var(--surface)', border:'1px solid '+(docs[f.key]&&docs[f.key].uploaded?'rgba(34,197,94,0.2)':'var(--border)'), borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:13, fontWeight:600 }}>
-                      {f.label}
-                      {f.required && <span style={{ fontSize:10, color:'var(--danger)', marginLeft:8 }}>Required</span>}
-                    </div>
-                    <div style={{ fontSize:11, color:'var(--muted)', marginTop:3 }}>
-                      {docs[f.key]&&docs[f.key].uploaded ? docs[f.key].filename : 'No file uploaded — PDF, DOC accepted'}
-                    </div>
+      {/* INSURANCE TAB */}
+      {tab === 'insurance' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {INS.map(f => {
+            const ins = insurance[f.key]
+            return (
+              <div key={f.key} style={S.panel}>
+                <div style={S.panelHead}>
+                  <div style={S.panelTitle}>
+                    {f.label}
+                    {f.required && <span style={{ fontSize:10, color:'var(--danger)', marginLeft:6 }}>Required</span>}
                   </div>
-                  {docs[f.key]&&docs[f.key].uploaded ? (
-                    <div style={{ display:'flex', gap:8 }}>
-                      <span style={{ fontSize:11, fontWeight:700, padding:'5px 12px', borderRadius:6, background:'rgba(34,197,94,0.1)', color:'var(--success)' }}><Check size={11} /> On File</span>
-                      <label style={{ padding:'5px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--muted)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                        Replace
-                        <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }}
-                          onChange={function(e){ if(e.target.files&&e.target.files[0]){ var name=e.target.files[0].name; setDocs(function(d){ var n={...d}; n[f.key]={uploaded:true,filename:name}; return n }); showToast('',f.label+' Updated',name) } }} />
-                      </label>
-                    </div>
-                  ) : (
-                    <label style={{ padding:'8px 18px', fontSize:12, fontWeight:700, borderRadius:8, background:'var(--accent)', color:'#000', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                      Upload
-                      <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }}
-                        onChange={function(e){ if(e.target.files&&e.target.files[0]){ var name=e.target.files[0].name; setDocs(function(d){ var n={...d}; n[f.key]={uploaded:true,filename:name}; return n }); showToast('',f.label+' Uploaded',name) } }} />
-                    </label>
-                  )}
+                  <span style={S.tag(ins?.policy ? 'var(--success)' : 'var(--danger)')}>
+                    {ins?.policy ? 'On File' : 'Missing'}
+                  </span>
                 </div>
-              )
-            })}
+                <div style={{ padding:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                  {[
+                    { key:'company', label:'Insurance Company', ph:'Progressive Commercial' },
+                    { key:'policy',  label:'Policy Number',     ph:'PCT-8821047' },
+                    { key:'amount',  label:'Coverage Amount',   ph:'$1,000,000' },
+                    { key:'expiry',  label:'Expiry Date',       ph:'Nov 15, 2026' },
+                  ].map(field => (
+                    <div key={field.key}>
+                      <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:4 }}>{field.label}</label>
+                      <input value={(ins && ins[field.key]) || ''} placeholder={field.ph}
+                        onChange={e => setInsurance(prev => ({ ...prev, [f.key]: { ...prev[f.key], [field.key]: e.target.value } }))}
+                        style={inp} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* DOCUMENTS TAB */}
+      {tab === 'documents' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {DOCS.map(f => (
+            <div key={f.key} style={{ ...S.panel, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:600 }}>
+                  {f.label}
+                  {f.required && <span style={{ fontSize:10, color:'var(--danger)', marginLeft:8 }}>Required</span>}
+                </div>
+                <div style={{ fontSize:11, color:'var(--muted)', marginTop:3 }}>
+                  {docs[f.key]?.uploaded ? docs[f.key].filename : 'No file uploaded — PDF, DOC accepted'}
+                </div>
+              </div>
+              {docs[f.key]?.uploaded ? (
+                <div style={{ display:'flex', gap:8 }}>
+                  <span style={S.tag('var(--success)')}><Check size={11} /> On File</span>
+                  <label style={{ padding:'5px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--muted)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    Replace
+                    <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }}
+                      onChange={e => { if (e.target.files?.[0]) { const name = e.target.files[0].name; setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:name } })); showToast('', f.label+' Updated', name) } }} />
+                  </label>
+                </div>
+              ) : (
+                <label style={{ padding:'8px 18px', fontSize:12, fontWeight:700, borderRadius:8, background:'var(--accent)', color:'#000', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  Upload
+                  <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }}
+                    onChange={e => { if (e.target.files?.[0]) { const name = e.target.files[0].name; setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:name } })); showToast('', f.label+' Uploaded', name) } }} />
+                </label>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* SEND TAB */}
+      {tab === 'send' && (
+        <div style={{ maxWidth:500 }}>
+          <div style={S.panel}>
+            <div style={S.panelHead}>
+              <div style={S.panelTitle}><Ic icon={Send} /> Send to Broker</div>
+            </div>
+            <div style={{ padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Broker Email</label>
+                <input value={brokerEmail} onChange={e => setBrokerEmail(e.target.value)} placeholder="dispatch@broker.com" style={inp} />
+              </div>
+              <button onClick={() => { if(!brokerEmail||pkgSent[brokerEmail]) return; setPkgSent(p => ({...p, [brokerEmail]:true})); showToast('','Package Sent!','Emailed to '+brokerEmail) }}
+                style={{ padding:'12px 0', fontSize:13, fontWeight:700, borderRadius:8, border:'none', fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
+                  background:pkgSent[brokerEmail]?'rgba(34,197,94,0.15)':!brokerEmail?'var(--surface3)':'var(--accent3)',
+                  color:pkgSent[brokerEmail]?'var(--success)':!brokerEmail?'var(--muted)':'#fff' }}>
+                {pkgSent[brokerEmail] ? 'Package Sent ✓' : 'Send Carrier Package'}
+              </button>
+
+              <div style={{ borderTop:'1px solid var(--border)', paddingTop:14 }}>
+                <div style={{ fontSize:11, color:'var(--muted)', marginBottom:8 }}>Or share your package link</div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input readOnly value={linkUrl} style={{ ...inp, flex:1, fontSize:11, fontFamily:'monospace' }} />
+                  <button onClick={() => { try{navigator.clipboard.writeText(linkUrl)}catch{}; setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2500); showToast('','Link Copied','Share with any broker') }}
+                    style={{ fontSize:11, fontWeight:700, padding:'8px 14px', borderRadius:6, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", flexShrink:0,
+                      background:linkCopied?'rgba(34,197,94,0.15)':'var(--accent)', color:linkCopied?'var(--success)':'#000' }}>
+                    {linkCopied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
+              {Object.keys(pkgSent).length > 0 && (
+                <div style={{ background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:8, padding:'10px 14px' }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--success)', marginBottom:5 }}>Sent History</div>
+                  {Object.keys(pkgSent).map(email => (
+                    <div key={email} style={{ fontSize:12, color:'var(--muted)' }}><Check size={11} /> {email}</div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-      </div>
+      )}
     </div>
   )
 }

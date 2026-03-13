@@ -168,7 +168,7 @@ export function CarrierProvider({ children }) {
   const [expenses, setExpenses] = useState([])
   const [drivers, setDrivers] = useState([])
   const [vehicles, setVehicles] = useState([])
-  const [company, setCompany] = useState(normalizeCompany(MOCK_COMPANY))
+  const [company, setCompany] = useState(normalizeCompany({}))
   const [checkCalls, setCheckCalls] = useState({})
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
@@ -190,20 +190,20 @@ export function CarrierProvider({ children }) {
           db.fetchVehicles(),
         ])
 
-        setLoads((dbLoads.length ? dbLoads : MOCK_LOADS).map(normalizeLoad))
-        setInvoices((dbInvoices.length ? dbInvoices : MOCK_INVOICES).map(normalizeInvoice))
-        setExpenses((dbExpenses.length ? dbExpenses : MOCK_EXPENSES).map(normalizeExpense))
-        setDrivers(dbDrivers.length ? dbDrivers : MOCK_DRIVERS)
-        setVehicles(dbVehicles.length ? dbVehicles : MOCK_VEHICLES)
+        setLoads(dbLoads.map(normalizeLoad))
+        setInvoices(dbInvoices.map(normalizeInvoice))
+        setExpenses(dbExpenses.map(normalizeExpense))
+        setDrivers(dbDrivers)
+        setVehicles(dbVehicles)
         if (dbCompany) setCompany(normalizeCompany(dbCompany))
         setUseDb(true)
       } catch (e) {
-        console.warn('Supabase tables not ready, using mock data:', e.message)
-        setLoads(MOCK_LOADS.map(normalizeLoad))
-        setInvoices(MOCK_INVOICES.map(normalizeInvoice))
-        setExpenses(MOCK_EXPENSES.map(normalizeExpense))
-        setDrivers(MOCK_DRIVERS)
-        setVehicles(MOCK_VEHICLES)
+        console.warn('Supabase not ready, starting empty:', e.message)
+        setLoads([])
+        setInvoices([])
+        setExpenses([])
+        setDrivers([])
+        setVehicles([])
         setUseDb(false)
       }
       setDataReady(true)
@@ -448,7 +448,7 @@ export function CarrierProvider({ children }) {
     }
   }, [company, useDb])
 
-  // ─── Reset ─────────────────────────────────────────────────────
+  // ─── Reset (loads demo data for testing) ────────────────────────
   const resetData = useCallback(() => {
     setLoads(MOCK_LOADS.map(normalizeLoad))
     setInvoices(MOCK_INVOICES.map(normalizeInvoice))

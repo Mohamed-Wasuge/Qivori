@@ -11,7 +11,7 @@ const AppContext = createContext(null)
 
 export const ROLES = {
   admin: {
-    name: 'M. Wasuge', role: 'Platform Owner', initials: 'MW',
+    name: 'Admin', role: 'Platform Owner', initials: 'QV',
     badge: 'role-admin', badgeText: 'ADMIN',
     nav: [
       { id: 'dashboard', icon: Home, label: 'Overview' },

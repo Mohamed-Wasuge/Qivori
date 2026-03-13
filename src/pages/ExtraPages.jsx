@@ -51,10 +51,12 @@ export function Settings() {
     const newVal = !toggles[key]
     setToggles(prev => ({ ...prev, [key]: newVal }))
     showToast('', label, newVal ? 'Enabled' : 'Disabled')
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id
+    if (!userId) return
     const { error } = await supabase
       .from('platform_settings')
-      .update({ value: newVal, updated_at: new Date().toISOString() })
-      .eq('key', key)
+      .upsert({ owner_id: userId, key, value: String(newVal), updated_at: new Date().toISOString() }, { onConflict: 'owner_id,key' })
     if (error) showToast('', label, 'Failed to save setting')
   }
 

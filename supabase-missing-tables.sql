@@ -248,6 +248,32 @@ CREATE INDEX IF NOT EXISTS idx_check_calls_load ON check_calls(load_id);
 CREATE INDEX IF NOT EXISTS idx_load_stops_load ON load_stops(load_id);
 
 -- ═══════════════════════════════════════════════════════════════
+-- PLATFORM SETTINGS (key/value config per user)
+-- ═══════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT DEFAULT 'false',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(owner_id, key)
+);
+
+ALTER TABLE platform_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "settings_select" ON platform_settings
+  FOR SELECT USING (auth.uid() = owner_id);
+CREATE POLICY "settings_insert" ON platform_settings
+  FOR INSERT WITH CHECK (auth.uid() = owner_id);
+CREATE POLICY "settings_update" ON platform_settings
+  FOR UPDATE USING (auth.uid() = owner_id);
+CREATE POLICY "settings_delete" ON platform_settings
+  FOR DELETE USING (auth.uid() = owner_id);
+
+CREATE INDEX IF NOT EXISTS idx_platform_settings_owner ON platform_settings(owner_id);
+
+-- ═══════════════════════════════════════════════════════════════
 -- STORAGE BUCKET
 -- ═══════════════════════════════════════════════════════════════
 INSERT INTO storage.buckets (id, name, public) VALUES ('documents', 'documents', true)
@@ -260,6 +286,30 @@ CREATE POLICY "storage_view" ON storage.objects
 CREATE POLICY "storage_delete" ON storage.objects
   FOR DELETE USING (bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]);
 
+-- ─── WEIGH STATION REPORTS (crowdsourced) ─────────────────────
+CREATE TABLE IF NOT EXISTS weigh_station_reports (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  station_key TEXT NOT NULL,           -- e.g. "IL-I-80-Minooka"
+  station_name TEXT NOT NULL,
+  state TEXT NOT NULL,
+  highway TEXT,
+  lat DOUBLE PRECISION,
+  lng DOUBLE PRECISION,
+  status TEXT NOT NULL CHECK (status IN ('open', 'closed')),
+  reported_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE weigh_station_reports ENABLE ROW LEVEL SECURITY;
+-- Everyone can read reports (community data)
+CREATE POLICY "ws_reports_select" ON weigh_station_reports FOR SELECT USING (true);
+-- Authenticated users can submit reports
+CREATE POLICY "ws_reports_insert" ON weigh_station_reports FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_ws_reports_station ON weigh_station_reports(station_key);
+CREATE INDEX IF NOT EXISTS idx_ws_reports_time ON weigh_station_reports(reported_at DESC);
+
 -- ═══════════════════════════════════════════════════════════════
--- DONE! All 8 missing tables created.
+-- DONE! All tables created.
 -- ═══════════════════════════════════════════════════════════════

@@ -280,6 +280,10 @@ function MobileAI() {
           return true
         }
         case 'search_nearby': {
+          // Intercept weigh station queries — redirect to check_weigh_station
+          if ((action.query || '').toLowerCase().match(/weigh|scale|coop/)) {
+            return executeAction({ type: 'check_weigh_station', state: action.state, highway: action.highway, radius: action.radius })
+          }
           // Get GPS and open maps directly — fastest experience
           const loc = await getGPSCoords()
           const query = action.query || 'truck stop'
@@ -299,7 +303,45 @@ function MobileAI() {
           showToast('success', 'Maps Opened', `Searching: ${query}`)
           return true
         }
+        case 'check_weigh_station': {
+          try {
+            const loc = await getGPSCoords()
+            const body = {}
+            if (loc) { body.lat = loc.lat; body.lng = loc.lng }
+            if (action.state) body.state = action.state
+            if (action.highway) body.highway = action.highway
+            if (action.radius) body.radius = action.radius
+            const wsRes = await fetch('/api/weigh-stations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            const wsData = await wsRes.json()
+            if (wsData.stations && wsData.stations.length > 0) {
+              const stations = wsData.stations.slice(0, 5)
+              const openCount = stations.filter(s => s.open === true).length
+              const closedCount = stations.filter(s => s.open === false).length
+              setMessages(m => [...m, {
+                role: 'assistant',
+                content: `__ws_summary__`,
+                weighStations: stations,
+                wsSummary: { total: stations.length, open: openCount, closed: closedCount },
+              }])
+              speak(`Found ${stations.length} weigh station${stations.length > 1 ? 's' : ''}. ${openCount} open, ${closedCount} closed. ${stations[0].name} is ${stations[0].open ? 'open' : 'closed'}. ${stations[0].status}`)
+            } else {
+              setMessages(m => [...m, { role: 'assistant', content: 'No weigh stations found in your area. Try expanding your search radius.' }])
+            }
+          } catch (err) {
+            console.error('Weigh station check error:', err)
+            setMessages(m => [...m, { role: 'assistant', content: 'Couldn\'t check weigh stations right now. Try again in a moment.' }])
+          }
+          return true
+        }
         case 'open_maps': {
+          // Intercept weigh station queries here too
+          if ((action.query || '').toLowerCase().match(/weigh|scale|coop/)) {
+            return executeAction({ type: 'check_weigh_station', state: action.state, highway: action.highway, radius: action.radius })
+          }
           const q = encodeURIComponent(action.query || 'truck stop')
           const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
           const url = isIOS
@@ -369,10 +411,20 @@ function MobileAI() {
   }
 
   // ── TEXT-TO-SPEECH ──────────────────────────────
+  // iOS requires unlocking speechSynthesis with a user gesture first
+  const ttsUnlockedRef = useRef(false)
+  const unlockTTS = useCallback(() => {
+    if (ttsUnlockedRef.current || !window.speechSynthesis) return
+    const u = new SpeechSynthesisUtterance('')
+    u.volume = 0
+    window.speechSynthesis.speak(u)
+    ttsUnlockedRef.current = true
+  }, [])
+
   const speak = useCallback((text) => {
-    if (!speakerOn || !text) return
+    if (!speakerOn || !text || !window.speechSynthesis) return
     // Cancel any current speech
-    window.speechSynthesis?.cancel()
+    window.speechSynthesis.cancel()
     // Clean text — remove markdown bold/links, keep it natural
     const clean = text
       .replace(/\*\*/g, '')
@@ -383,21 +435,86 @@ function MobileAI() {
       .replace(/\n/g, '. ')
       .trim()
     if (!clean) return
-    const utterance = new SpeechSynthesisUtterance(clean)
-    utterance.rate = 1.05
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
-    utterance.lang = 'en-US'
-    utterance.onstart = () => setSpeaking(true)
-    utterance.onend = () => setSpeaking(false)
-    utterance.onerror = () => setSpeaking(false)
-    window.speechSynthesis?.speak(utterance)
+    // iOS workaround: split long text into chunks under 200 chars
+    // (iOS Safari cuts off speech after ~200-300 chars)
+    const chunks = []
+    let remaining = clean
+    while (remaining.length > 0) {
+      if (remaining.length <= 180) {
+        chunks.push(remaining)
+        break
+      }
+      // Find a good split point (sentence end or comma)
+      let splitAt = remaining.lastIndexOf('. ', 180)
+      if (splitAt < 50) splitAt = remaining.lastIndexOf(', ', 180)
+      if (splitAt < 50) splitAt = remaining.lastIndexOf(' ', 180)
+      if (splitAt < 50) splitAt = 180
+      chunks.push(remaining.slice(0, splitAt + 1))
+      remaining = remaining.slice(splitAt + 1).trim()
+    }
+
+    // iOS workaround: resume speechSynthesis every 10s to prevent auto-pause
+    let resumeInterval = null
+    chunks.forEach((chunk, i) => {
+      const utterance = new SpeechSynthesisUtterance(chunk)
+      utterance.rate = 1.05
+      utterance.pitch = 1.0
+      utterance.volume = 1.0
+      utterance.lang = 'en-US'
+      if (i === 0) utterance.onstart = () => {
+        setSpeaking(true)
+        resumeInterval = setInterval(() => {
+          window.speechSynthesis.pause()
+          window.speechSynthesis.resume()
+        }, 10000)
+      }
+      if (i === chunks.length - 1) {
+        utterance.onend = () => { setSpeaking(false); clearInterval(resumeInterval) }
+        utterance.onerror = () => { setSpeaking(false); clearInterval(resumeInterval) }
+      }
+      window.speechSynthesis.speak(utterance)
+    })
   }, [speakerOn])
 
   // Stop speaking when speaker is toggled off
   useEffect(() => {
     if (!speakerOn) window.speechSynthesis?.cancel()
   }, [speakerOn])
+
+  // ── WEIGH STATION REPORT ──────────────────────
+  const reportWeighStation = async (ws, reportStatus) => {
+    try {
+      await fetch('/api/weigh-stations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'report',
+          station_key: ws.key,
+          station_name: ws.name,
+          state: ws.state,
+          highway: ws.highway,
+          lat: ws.lat,
+          lng: ws.lng,
+          status: reportStatus,
+        }),
+      })
+      showToast('success', 'Report Submitted', `${ws.name} marked ${reportStatus}`)
+      // Update the message in place to reflect the new status
+      setMessages(msgs => msgs.map(m => {
+        if (!m.weighStations) return m
+        return {
+          ...m,
+          weighStations: m.weighStations.map(s =>
+            s.key === ws.key
+              ? { ...s, open: reportStatus === 'open', status: reportStatus === 'open' ? 'Open — you reported just now' : 'Closed — you reported just now', reportedBy: 'you' }
+              : s
+          ),
+        }
+      }))
+    } catch (err) {
+      showToast('error', 'Report Failed', 'Could not submit — try again')
+    }
+  }
 
   // ── GPS COORDS (returns promise with lat/lng) ──
   const getGPSCoords = () => new Promise((resolve) => {
@@ -410,10 +527,17 @@ function MobileAI() {
   })
 
   // ── VOICE RECOGNITION ──────────────────────────
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
   const startListening = () => {
+    // Unlock TTS on any user gesture (needed for iOS)
+    unlockTTS()
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
-      showToast('error', 'Not Supported', 'Voice input not available on this browser')
+      if (isIOS) {
+        showToast('info', 'Voice Input', 'Voice input isn\'t supported on iOS Safari. Type your message instead!')
+      } else {
+        showToast('error', 'Not Supported', 'Voice input not available on this browser')
+      }
       return
     }
 
@@ -609,7 +733,8 @@ function MobileAI() {
   const sendMessage = async (text) => {
     const userText = text || input.trim()
     if (!userText || loading) return
-
+    // Unlock TTS on user interaction (iOS requires gesture)
+    unlockTTS()
     setShowQuickActions(false)
     const newMessages = [...messages, { role: 'user', content: userText }]
     setMessages(newMessages)
@@ -626,15 +751,24 @@ function MobileAI() {
           loadBoard: buildLoadBoard(),
         }),
       })
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(`API ${res.status}: ${errText.slice(0, 200)}`)
+      }
       const data = await res.json()
       const rawReply = data.reply || data.error || 'Something went wrong.'
 
       // Parse actions from the response
       const { actions, displayText } = parseActions(rawReply)
 
-      // Execute any actions
+      // Execute any actions — intercept weigh station queries before they open maps
       for (const action of actions) {
-        await executeAction(action)
+        const q = (action.query || '').toLowerCase()
+        if ((action.type === 'search_nearby' || action.type === 'open_maps') && q.match(/weigh|scale|coop/)) {
+          await executeAction({ type: 'check_weigh_station', state: action.state, highway: action.highway, radius: action.radius })
+        } else {
+          await executeAction(action)
+        }
       }
 
       const replyText = displayText || rawReply
@@ -702,7 +836,7 @@ function MobileAI() {
         </div>
 
         {/* Speaker toggle */}
-        <button onClick={() => setSpeakerOn(s => !s)}
+        <button onClick={() => { unlockTTS(); setSpeakerOn(s => !s) }}
           style={{ width: 32, height: 32, borderRadius: 8, background: speakerOn ? 'rgba(0,212,170,0.1)' : 'var(--surface2)', border: '1px solid ' + (speakerOn ? 'rgba(0,212,170,0.2)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
           <Ic icon={speakerOn ? Volume2 : VolumeX} size={14} color={speakerOn ? 'var(--success)' : 'var(--muted)'} />
         </button>
@@ -841,7 +975,26 @@ function MobileAI() {
               border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
               fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap',
             }}>
-              {m.content}
+              {m.wsSummary ? (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚖️</span> Weigh Stations Nearby
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(0,212,170,0.1)', borderRadius: 8, padding: '5px 10px' }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--success)' }} />
+                      <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif" }}>{m.wsSummary.open}</span>
+                      <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>Open</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(239,68,68,0.1)', borderRadius: 8, padding: '5px 10px' }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--danger)' }} />
+                      <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif" }}>{m.wsSummary.closed}</span>
+                      <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>Closed</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Tap a station for directions · Report status to help other drivers</div>
+                </div>
+              ) : m.content}
             </div>
 
             {/* Show action confirmation badges */}
@@ -875,6 +1028,53 @@ function MobileAI() {
                         <ChevronRight size={14} color="var(--success)" />
                       </div>
                     </a>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Weigh station results — status + directions + report */}
+            {m.weighStations && m.weighStations.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, maxWidth: '92%' }}>
+                {m.weighStations.map((ws, j) => {
+                  const wsIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                  const wsDirUrl = wsIsIOS
+                    ? `maps://maps.apple.com/?daddr=${ws.lat},${ws.lng}`
+                    : `https://www.google.com/maps/dir/?api=1&destination=${ws.lat},${ws.lng}`
+                  const statusColor = ws.open === true ? 'var(--success)' : ws.open === false ? 'var(--danger)' : 'var(--muted)'
+                  return (
+                    <div key={j} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                      {/* Station info + directions */}
+                      <a href={wsDirUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: ws.open ? 'rgba(0,212,170,0.1)' : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: statusColor }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</div>
+                          <div style={{ fontSize: 11, color: statusColor, fontWeight: 600 }}>{ws.status}</div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                            {ws.highway} {ws.direction} · {ws.bypass}{ws.distance ? ` · ${ws.distance} mi` : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <Ic icon={Navigation} size={14} color="var(--success)" />
+                          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--success)' }}>GO</span>
+                        </div>
+                      </a>
+                      {/* Report buttons */}
+                      <div style={{ display: 'flex', borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                        <button onClick={() => reportWeighStation(ws, 'open')}
+                          style={{ flex: 1, padding: '8px 0', background: 'none', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: "'DM Sans',sans-serif" }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>Open</span>
+                        </button>
+                        <button onClick={() => reportWeighStation(ws, 'closed')}
+                          style={{ flex: 1, padding: '8px 0', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: "'DM Sans',sans-serif" }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>Closed</span>
+                        </button>
+                      </div>
+                    </div>
                   )
                 })}
               </div>

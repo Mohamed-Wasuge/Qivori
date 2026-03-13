@@ -8,7 +8,7 @@ const Ic = ({ icon: Icon, size = 14, ...p }) => <Icon size={size} {...p} />
 
 // ─── shared helpers ────────────────────────────────────────────────────────────
 const S = {
-  page: { padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 },
+  page: { padding: 20, paddingBottom: 60, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 },
   panel: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' },
   panelHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' },
   panelTitle: { fontSize: 13, fontWeight: 700 },
@@ -452,7 +452,7 @@ export function SmartDispatch() {
         </div>
 
         {/* Stats row */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', borderBottom:'1px solid var(--border)' }}>
           {[
             { label:'Loads', value: filtered.length },
             { label:'Avg Score', value: avgScore },
@@ -955,7 +955,7 @@ function TruckROI() {
                 <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Driver: {sel.driver} · Best lane: {sel.bestLane}</div>
               </div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               {[
                 { label:'Gross Revenue', value:`$${sel.revenue.toLocaleString()}`, color:sel.color },
                 { label:'Total Expenses', value:`$${sel.costs.toLocaleString()}`, color:'var(--danger)' },
@@ -1020,7 +1020,7 @@ function TruckROI() {
             <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={FileText} /> Load History</div></div>
             {sel.recentLoads.length === 0
               ? <div style={{ padding:16, fontSize:12, color:'var(--muted)' }}>No completed loads yet</div>
-              : <table>
+              : <div style={{ overflowX:'auto' }}><table style={{ minWidth:600 }}>
                   <thead><tr>
                     <th>Load</th><th>Route</th><th>Miles</th><th>Rate/Mi</th><th>Gross</th><th>Status</th>
                   </tr></thead>
@@ -1036,7 +1036,7 @@ function TruckROI() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
             }
           </div>
         </div>
@@ -1136,7 +1136,7 @@ export function RevenueIntel() {
               <div style={S.panelTitle}><Ic icon={Target} /> AI Weekly Targets</div>
               <span style={S.badge('var(--accent2)')}>Auto-updated</span>
             </div>
-            <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+            <div style={{ padding: 16, display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
               {[
                 { label:'Loads This Week', target:4, current:2, unit:'loads', color:'var(--accent)' },
                 { label:'Miles Planned',   target:3000, current:1700, unit:'mi', color:'var(--accent2)' },
@@ -1301,7 +1301,7 @@ export function DriverSettlement() {
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>Pay Model: {PAY_MODELS.find(m => m.id === model)?.label} · {model === 'percent' ? modelVal + '%' : model === 'permile' ? '$' + modelVal + '/mi' : '$' + modelVal + '/load'}</div>
             </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
+          <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, minWidth:550 }}>
             <thead><tr style={{ borderBottom: '2px solid var(--border)' }}>
               {['Load ID','Route','Miles','Gross','Pay'].map(h => <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>)}
             </tr></thead>
@@ -1322,7 +1322,7 @@ export function DriverSettlement() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 40, padding: '12px 12px 0', borderTop: '2px solid var(--border)' }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>Gross Pay</div>
@@ -1413,7 +1413,7 @@ export function DriverSettlement() {
           <div style={S.panelTitle}><Ic icon={Package} /> Loads This Period — {driver.name}</div>
           <span style={S.badge('var(--accent2)')}>{PAY_MODELS.find(m => m.id === model)?.label} · {model === 'percent' ? modelVal + '%' : model === 'permile' ? '$' + modelVal + '/mi' : '$' + modelVal + '/load'}</span>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth:600 }}>
           <thead><tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
             {['Load ID', 'Route', 'Date', 'Miles', 'Gross', 'Driver Pay'].map(h => (
               <th key={h} style={{ padding: '10px 16px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
@@ -1431,10 +1431,10 @@ export function DriverSettlement() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
 
         {/* Totals row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '2px solid var(--border)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', borderTop: '2px solid var(--border)' }}>
           {[
             { label: 'Gross Pay',   value: '$' + grossPay.toLocaleString(),         color: 'var(--accent)' },
             { label: 'Deductions',  value: '−$' + Math.abs(totalDeduct).toLocaleString(), color: 'var(--danger)' },
@@ -1466,7 +1466,7 @@ export function DriverSettlement() {
       {/* ── Settlement history ── */}
       <div style={S.panel}>
         <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Settlement History — {driver.name}</div></div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth:550 }}>
           <thead><tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
             {['Period', 'Gross Paid', 'Net Pay', 'Paid On', 'Status'].map(h => (
               <th key={h} style={{ padding: '10px 16px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
@@ -1483,7 +1483,7 @@ export function DriverSettlement() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   )
@@ -1689,13 +1689,36 @@ export function FleetMap() {
         <div style={{ position:'absolute', top:16, left:16, background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:8, padding:'6px 12px' }}>
           <span style={{ fontSize:10, color:'rgba(255,255,255,0.5)', fontFamily:'DM Sans,sans-serif', letterSpacing:2 }}>● LIVE FLEET — {trucksData.filter(t=>t.load!=='—').length} on load</span>
         </div>
+
+        {/* Empty state overlay when no trucks on load */}
+        {trucksData.filter(t=>t.load!=='—').length === 0 && (
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:5, pointerEvents:'none' }}>
+            <div style={{ textAlign:'center', background:'rgba(0,0,0,0.6)', borderRadius:16, padding:'32px 40px', border:'1px solid rgba(255,255,255,0.08)', backdropFilter:'blur(8px)' }}>
+              <div style={{ width:48, height:48, borderRadius:12, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+                <Truck size={22} color="var(--accent)" />
+              </div>
+              <div style={{ fontSize:14, fontWeight:700, color:'#fff', marginBottom:6 }}>All trucks available</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.45)', lineHeight:1.5, maxWidth:240 }}>
+                No active loads dispatched. Book a load from the AI Load Board to see trucks on the map.
+              </div>
+              <div style={{ display:'flex', gap:8, marginTop:16, justifyContent:'center' }}>
+                {trucksData.map(t => (
+                  <div key={t.unit} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 8px', background:'rgba(255,255,255,0.05)', borderRadius:6 }}>
+                    <div style={{ width:6, height:6, borderRadius:'50%', background:t.color }}/>
+                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.5)' }}>{t.unit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Side panel */}
       <div style={{ width:280, flexShrink:0, background:'var(--surface)', borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
         <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)' }}>
           <div style={{ fontSize:11, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:2 }}>FLEET STATUS</div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginTop:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:8, marginTop:10 }}>
             {[
               { v: String(trucksData.filter(t=>t.status==='En Route'||t.status==='Loaded'||t.status==='Assigned').length), l:'On Load',   c:'var(--success)' },
               { v: String(trucksData.filter(t=>t.status==='Available').length), l:'Available', c:'var(--accent2)' },
@@ -1785,7 +1808,7 @@ export function CarrierFleet() {
               </div>
               <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => showToast('', t.unit, 'Live GPS: ' + t.loc)}>Track Live</button>
             </div>
-            <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+            <div style={{ padding: 16, display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
               {[
                 { label:'Location', value: t.loc },
                 { label:'HOS Remaining', value: t.hos, color: t.hosColor },
@@ -1975,52 +1998,8 @@ export function BrokerRiskIntel() {
 }
 
 // ─── ELD / HOS ────────────────────────────────────────────────────────────────
-export function CarrierELD() {
-  const { showToast } = useApp()
-  return (
-    <div style={{ ...S.page, paddingBottom:40 }}>
-      <AiBanner title="HOS AI: James Tucker has 8h 22m remaining — optimal for 1 more load today" sub="AI recommends FM-4460 DAL→MIA pickup tomorrow AM to maximize this week's hours" action="View Load" onAction={() => showToast('','FM-4460','DAL→MIA · $5,600 · $3.22/mi · Pickup tomorrow 7AM')} />
-      <div style={S.grid(4)}>
-        <StatCard label="Units Online"     value="3/3"    change="All synced" color="var(--success)" changeType="neutral" />
-        <StatCard label="HOS Violations"   value="0"      change="Clean record" color="var(--accent)" changeType="neutral" />
-        <StatCard label="Avg HOS Left"     value="9h 47m" change="Across fleet" color="var(--accent2)" changeType="neutral" />
-        <StatCard label="ELD Provider"     value="MacroPoint" change="Connected" color="var(--muted)" changeType="neutral" />
-      </div>
-      {[
-        { unit:'Unit 01', driver:'James Tucker', hos:8.37, hosFmt:'8h 22m', status:'En Route', load:'FM-4421', rec:'1 more short load today', recColor:'var(--success)' },
-        { unit:'Unit 02', driver:'Marcus Lee',   hos:11.0, hosFmt:'11h 00m',status:'Available',load:'—', rec:'Full day available — take 2 loads', recColor:'var(--success)' },
-        { unit:'Unit 03', driver:'Priya Patel',  hos:0,    hosFmt:'Restart', status:'Off Duty', load:'—', rec:'10hr restart in progress — available tomorrow', recColor:'var(--muted)' },
-      ].map(t => (
-        <div key={t.unit} style={S.panel}>
-          <div style={S.panelHead}>
-            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              <span style={{ fontSize:20 }}><Radio size={20} /></span>
-              <div>
-                <div style={{ fontWeight:700 }}>{t.unit} · {t.driver}</div>
-                <div style={{ fontSize:11, color:'var(--muted)' }}>{t.status}{t.load !== '—' ? ' · Load: ' + t.load : ''}</div>
-              </div>
-            </div>
-            <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('',t.unit,'HOS: '+t.hosFmt+' · Status: '+t.status)}>View Log</button>
-          </div>
-          <div style={{ padding:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-              <span style={{ fontSize:12, color:'var(--muted)' }}>HOS Remaining</span>
-              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color: t.hos > 8 ? 'var(--success)' : t.hos > 4 ? 'var(--warning)' : 'var(--danger)' }}>{t.hosFmt}</span>
-            </div>
-            {t.hos > 0 && (
-              <div style={{ height:8, background:'var(--border)', borderRadius:4, marginBottom:10 }}>
-                <div style={{ height:'100%', width:`${(t.hos/11)*100}%`, background: t.hos>8?'var(--success)':t.hos>4?'var(--warning)':'var(--danger)', borderRadius:4, transition:'width 0.5s' }} />
-              </div>
-            )}
-            <div style={{ fontSize:12, color:t.recColor, background:t.recColor+'10', padding:'8px 12px', borderRadius:8 }}>
-              <Bot size={14} style={{display:"inline",verticalAlign:"middle"}} /> {t.rec}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+// CarrierELD now redirects to unified compliance center
+export function CarrierELD() { return <AIComplianceCenter defaultTab="eld" /> }
 
 // ─── IFTA ─────────────────────────────────────────────────────────────────────
 // 2026 IFTA fuel tax rates by state (cents per gallon → dollars)
@@ -2078,17 +2057,27 @@ export function CarrierIFTA() {
   const { showToast } = useApp()
   const ctx = useCarrier ? useCarrier() : {}
   const loads = ctx?.loads || []
+  const company = ctx?.company || {}
   const [iftaTab, setIftaTab] = useState('report')
   const [avgMpg, setAvgMpg] = useState('6.9')
   const [manualOverrides, setManualOverrides] = useState({})
   const [showReturn, setShowReturn] = useState(false)
 
+  // Dynamic quarter calculation
+  const now = new Date()
+  const currentQ = Math.floor(now.getMonth() / 3) + 1
+  const currentYear = now.getFullYear()
+  const quarterLabel = `Q${currentQ} ${currentYear}`
+  const qStart = new Date(currentYear, (currentQ - 1) * 3, 1)
+  const qEnd = new Date(currentYear, currentQ * 3, 0)
+  const dueDate = new Date(currentYear, currentQ * 3, 30)
+  const dueDateStr = dueDate.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+  const companyName = company.name || 'Your Company'
+  const mcNumber = company.mc_number || company.mc || ''
+
   // Auto-calculate state mileage from loads
   const autoMilesByState = useMemo(() => {
     const acc = {}
-    const now = new Date()
-    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-    const qEnd = new Date(qStart.getFullYear(), qStart.getMonth() + 3, 0)
 
     loads.forEach(load => {
       // Only count delivered/invoiced loads in current quarter
@@ -2138,8 +2127,8 @@ export function CarrierIFTA() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       {/* Sub-nav */}
-      <div style={{ flexShrink:0, display:'flex', gap:2, padding:'0 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
-        {[{ id:'report', label:'Q1 Report' }, { id:'entry', label:'<PencilIcon size={13} /> Enter Mileage' }, { id:'history', label:'Filing History' }].map(t => (
+      <div style={{ flexShrink:0, display:'flex', gap:2, padding:'0 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
+        {[{ id:'report', label:`${quarterLabel} Report` }, { id:'entry', label:'Enter Mileage' }, { id:'history', label:'Filing History' }].map(t => (
           <button key={t.id} onClick={() => setIftaTab(t.id)}
             style={{ padding:'10px 16px', border:'none', borderBottom: iftaTab===t.id ? '2px solid var(--accent)' : '2px solid transparent', background:'transparent', color: iftaTab===t.id ? 'var(--accent)' : 'var(--muted)', fontSize:12, fontWeight: iftaTab===t.id ? 700 : 500, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:-1 }}>
             {t.label}
@@ -2147,13 +2136,13 @@ export function CarrierIFTA() {
         ))}
       </div>
 
-      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, paddingBottom:60, display:'flex', flexDirection:'column', gap:16 }}>
         <AiBanner title={`AI Auto-Calculated: ${Object.keys(autoMilesByState).length} states detected from ${loads.filter(l => ['Delivered','Invoiced','In Transit','Loaded'].includes(l.status)).length} loads this quarter`} sub={totalMiles > 0 ? `${totalMiles.toLocaleString()} total miles tracked · Avg ${avgMpg} MPG · Est. tax $${totalTax.toFixed(2)} · You can override any state manually` : 'No delivered loads this quarter yet — enter mileage manually or deliver loads to auto-calculate'} />
 
         {/* Report tab */}
         {iftaTab === 'report' && (
           <>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12 }}>
               {[
                 { label:'Total Miles',     value: totalMiles.toLocaleString(), color:'var(--accent)' },
                 { label:'Total Tax Owed',  value: '$' + owed.toFixed(2),       color:'var(--warning)' },
@@ -2168,27 +2157,31 @@ export function CarrierIFTA() {
             </div>
 
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div style={{ fontWeight:700, fontSize:13 }}><Ic icon={BarChart2} /> IFTA by State · Q1 2026</div>
-                <div style={{ display:'flex', gap:8 }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
+                <div style={{ fontWeight:700, fontSize:13 }}><Ic icon={BarChart2} /> IFTA by State · {quarterLabel}</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                   <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setIftaTab('entry')}><Ic icon={PencilIcon} /> Edit Mileage</button>
                   <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => { setShowReturn(true); showToast('','IFTA Return','Quarterly return generated — ready to file') }}><Ic icon={Upload} /> Generate Return</button>
                 </div>
               </div>
-              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', minWidth:600 }}>
                 <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
                   {['State','Miles','Gallons Used','Tax Rate','Tax / Credit','Status'].map(h => (
-                    <th key={h} style={{ padding:'9px 16px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
+                    <th key={h} style={{ padding:'9px 16px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
+                  {stateData.length === 0 && (
+                    <tr><td colSpan={6} style={{ padding:30, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No state mileage data yet. Deliver loads or enter mileage manually.</td></tr>
+                  )}
                   {stateData.map(r => (
                     <tr key={r.state} style={{ borderBottom:'1px solid var(--border)' }}>
-                      <td style={{ padding:'11px 16px', fontWeight:700 }}>{r.state} {r.isAutoCalc && <span style={{ fontSize:8, color:'var(--success)', fontWeight:700, marginLeft:4, verticalAlign:'super' }}>AUTO</span>}</td>
+                      <td style={{ padding:'11px 16px', fontWeight:700, whiteSpace:'nowrap' }}>{r.state} {r.isAutoCalc && <span style={{ fontSize:8, color:'var(--success)', fontWeight:700, marginLeft:4, verticalAlign:'super' }}>AUTO</span>}</td>
                       <td style={{ padding:'11px 16px', color:'var(--muted)', fontFamily:'monospace' }}>{r.miles.toLocaleString()}</td>
                       <td style={{ padding:'11px 16px', color:'var(--muted)', fontFamily:'monospace' }}>{r.gal.toLocaleString()}</td>
                       <td style={{ padding:'11px 16px', color:'var(--muted)' }}>${r.rate.toFixed(3)}</td>
-                      <td style={{ padding:'11px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: r.tax < 0 ? 'var(--success)' : 'var(--text)' }}>
+                      <td style={{ padding:'11px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: r.tax < 0 ? 'var(--success)' : 'var(--text)', whiteSpace:'nowrap' }}>
                         {r.tax < 0 ? 'Credit $' + Math.abs(r.tax).toFixed(2) : '$' + r.tax.toFixed(2)}
                       </td>
                       <td style={{ padding:'11px 16px' }}>
@@ -2200,26 +2193,26 @@ export function CarrierIFTA() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {showReturn && (
               <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.06),rgba(0,212,170,0.04))', border:'1px solid rgba(34,197,94,0.2)', borderRadius:12, padding:20 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14, flexWrap:'wrap', gap:10 }}>
                   <div>
-                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:1, color:'var(--success)', marginBottom:2 }}><Ic icon={Check} /> Q1 2026 RETURN READY</div>
-                    <div style={{ fontSize:12, color:'var(--muted)' }}>Due date: Apr 30, 2026 · Swift Carriers LLC · MC-294810</div>
+                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:1, color:'var(--success)', marginBottom:2 }}><Ic icon={Check} /> {quarterLabel} RETURN READY</div>
+                    <div style={{ fontSize:12, color:'var(--muted)' }}>Due date: {dueDateStr}{companyName !== 'Your Company' ? ` · ${companyName}` : ''}{mcNumber ? ` · ${mcNumber}` : ''}</div>
                   </div>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => showToast('','Filed','IFTA Q1 return filed electronically!')}><Ic icon={Upload} /> File Electronically</button>
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                     <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => {
-                      const pdfData = stateData.map(r => ({ state: r.state, miles: r.miles, gallons: r.gallons, rate: r.rate, taxDue: r.tax > 0 ? r.tax : 0, net: -r.tax }))
-                      const totalFuel = stateData.reduce((s,r) => s + r.gallons, 0)
-                      generateIFTAPDF('Q1 2026', pdfData, totalMiles, totalFuel, owed - refund)
-                      showToast('','PDF Downloaded','IFTA-Q1-2026-Qivori.pdf')
+                      const pdfData = stateData.map(r => ({ state: r.state, miles: r.miles, gallons: r.gal, rate: r.rate, taxDue: r.tax > 0 ? r.tax : 0, net: -r.tax }))
+                      const totalFuel = stateData.reduce((s,r) => s + r.gal, 0)
+                      generateIFTAPDF(quarterLabel, pdfData, totalMiles, totalFuel, owed - refund)
+                      showToast('','PDF Downloaded',`IFTA-${quarterLabel.replace(' ','-')}-Qivori.pdf`)
                     }}><Ic icon={Download} /> Download PDF</button>
                   </div>
                 </div>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12 }}>
                   {[
                     { label:'Total Miles Reported', value: totalMiles.toLocaleString() },
                     { label:'Net Tax Due',           value: (owed - refund) > 0 ? '$' + (owed - refund).toFixed(2) : 'REFUND' },
@@ -2241,16 +2234,16 @@ export function CarrierIFTA() {
         {iftaTab === 'entry' && (
           <>
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20 }}>
-              <div style={{ fontWeight:700, fontSize:13, marginBottom:6 }}><Ic icon={PencilIcon} /> State Mileage · Q1 2026</div>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:6 }}><Ic icon={PencilIcon} /> State Mileage · {quarterLabel}</div>
               <div style={{ fontSize:11, color:'var(--muted)', marginBottom:14 }}>Auto-calculated from your loads. Override any state manually if needed.</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:10, marginBottom:16 }}>
                 <div>
                   <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Fleet Avg MPG</label>
                   <input type="number" value={avgMpg} onChange={e => setAvgMpg(e.target.value)} min="4" max="12" step="0.1"
                     style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }} />
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:10 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:10 }}>
                 {/* Show states with auto-calculated miles first, then allow adding new states */}
                 {[...new Set([...Object.keys(autoMilesByState), ...Object.keys(manualOverrides)])].sort().map(state => {
                   const autoVal = autoMilesByState[state] || 0
@@ -2283,28 +2276,18 @@ export function CarrierIFTA() {
         {iftaTab === 'history' && (
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
             <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={FileText} /> Filing History</div>
-            <table style={{ width:'100%', borderCollapse:'collapse' }}>
-              <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                {['Quarter','Filed Date','Total Miles','Tax Owed','Status',''].map(h => <th key={h} style={{ padding:'9px 16px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {[
-                  { q:'Q4 2025', filed:'Jan 28, 2026', miles:'44,800', tax:'$2,210', status:'Filed',   color:'var(--success)' },
-                  { q:'Q3 2025', filed:'Oct 25, 2025', miles:'51,200', tax:'$2,640', status:'Filed',   color:'var(--success)' },
-                  { q:'Q2 2025', filed:'Jul 29, 2025', miles:'48,100', tax:'REFUND', status:'Refund',  color:'var(--accent2)' },
-                  { q:'Q1 2025', filed:'Apr 28, 2025', miles:'39,600', tax:'$1,820', status:'Filed',   color:'var(--success)' },
-                ].map(r => (
-                  <tr key={r.q} style={{ borderBottom:'1px solid var(--border)' }}>
-                    <td style={{ padding:'11px 16px', fontWeight:700 }}>{r.q}</td>
-                    <td style={{ padding:'11px 16px', color:'var(--muted)', fontSize:12 }}>{r.filed}</td>
-                    <td style={{ padding:'11px 16px', fontFamily:'monospace', fontSize:12 }}>{r.miles}</td>
-                    <td style={{ padding:'11px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:r.status==='Refund'?'var(--success)':'var(--text)' }}>{r.tax}</td>
-                    <td style={{ padding:'11px 16px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:r.color+'15', color:r.color }}>{r.status}</span></td>
-                    <td style={{ padding:'11px 16px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Download',r.q + ' IFTA return PDF')}>Download</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ padding:40, textAlign:'center' }}>
+              <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+                <Ic icon={FileText} size={26} color="var(--accent)" />
+              </div>
+              <div style={{ fontWeight:700, fontSize:15, marginBottom:6 }}>No filings yet</div>
+              <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6, maxWidth:340, margin:'0 auto' }}>
+                Once you generate and file your {quarterLabel} IFTA return, it will appear here. Past filings will be saved for your records.
+              </div>
+              <button className="btn btn-primary" style={{ marginTop:16, fontSize:12 }} onClick={() => setIftaTab('report')}>
+                <Ic icon={BarChart2} /> Go to {quarterLabel} Report
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -2312,7 +2295,7 @@ export function CarrierIFTA() {
   )
 }
 
-// ─── COMPLIANCE HUB (DVIR + ELD/HOS + CSA) ───────────────────────────────────
+// ─── AI COMPLIANCE CENTER ─────────────────────────────────────────────────────
 const DVIR_ITEMS_DEFAULT = [
   {item:'Brakes',        status:'Pass'}, {item:'Tires',          status:'Pass'},
   {item:'Lights',        status:'Pass'}, {item:'Steering',       status:'Pass'},
@@ -2322,51 +2305,369 @@ const DVIR_ITEMS_DEFAULT = [
   {item:'Fire Ext.',     status:'Pass'}, {item:'Seat Belts',     status:'Pass'},
 ]
 
-export function CarrierDVIR() {
+const COMPLIANCE_DRIVERS = [
+  { name:'James Tucker', cdl:'MN-223344', dob:'1984-06-12', state:'MN', unit:'Unit 01', avatar:'JT' },
+  { name:'Marcus Lee',   cdl:'IL-445566', dob:'1990-03-28', state:'IL', unit:'Unit 02', avatar:'ML' },
+  { name:'Priya Patel',  cdl:'CO-667788', dob:'1995-11-04', state:'CO', unit:'Unit 03', avatar:'PP' },
+]
+
+const BASIC_SCORES = [
+  { basic:'Unsafe Driving',       score:12, threshold:65, icon: Truck,         tip:'Speeding, reckless driving · 4pt improvement this quarter' },
+  { basic:'HOS Compliance',       score:8,  threshold:65, icon: Clock,         tip:'Log falsification, ELD violations · 0 issues this year' },
+  { basic:'Vehicle Maintenance',  score:22, threshold:80, icon: Wrench,        tip:'OOS violations, equipment defects · 1 resolved defect' },
+  { basic:'Driver Fitness',       score:0,  threshold:80, icon: User,          tip:'Unlicensed driver, CDL violations · All CDLs current' },
+  { basic:'Controlled Substances',score:0,  threshold:50, icon: FlaskConical,  tip:'Positive drug/alcohol tests · All clearinghouse checks passed' },
+  { basic:'Crash Indicator',      score:5,  threshold:65, icon: AlertTriangle, tip:'DOT-reportable crashes · Zero crashes all time' },
+  { basic:'Hazmat Compliance',    score:0,  threshold:50, icon: Shield,        tip:'Hazmat violations · N/A — non-hazmat carrier' },
+]
+
+function ComplianceScoreRing({ score, size = 160 }) {
+  const r = (size - 16) / 2, c = 2 * Math.PI * r, offset = c * (1 - score / 100)
+  const color = score >= 90 ? '#22c55e' : score >= 70 ? '#f0a500' : '#ef4444'
+  return (
+    <svg width={size} height={size} style={{ display:'block' }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth={10} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={10}
+        strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`} style={{ transition:'stroke-dashoffset 1s ease' }} />
+      <text x={size/2} y={size/2 - 8} textAnchor="middle" fill={color} fontFamily="'Bebas Neue',sans-serif" fontSize={size*0.3} letterSpacing={2}>{score}</text>
+      <text x={size/2} y={size/2 + 14} textAnchor="middle" fill="var(--muted)" fontSize={10} fontFamily="'DM Sans',sans-serif">AI SCORE</text>
+    </svg>
+  )
+}
+
+function MiniGauge({ label, value, max, color, unit = '' }) {
+  const pct = Math.min((value / max) * 100, 100)
+  return (
+    <div style={{ textAlign:'center' }}>
+      <div style={{ fontSize:10, color:'var(--muted)', marginBottom:6, fontWeight:600, letterSpacing:0.5 }}>{label}</div>
+      <div style={{ width:56, height:56, margin:'0 auto 6px', position:'relative' }}>
+        <svg width={56} height={56}>
+          <circle cx={28} cy={28} r={22} fill="none" stroke="var(--border)" strokeWidth={5} />
+          <circle cx={28} cy={28} r={22} fill="none" stroke={color} strokeWidth={5}
+            strokeDasharray={`${2*Math.PI*22}`} strokeDashoffset={`${2*Math.PI*22*(1-pct/100)}`}
+            strokeLinecap="round" transform="rotate(-90 28 28)" style={{ transition:'stroke-dashoffset 0.8s ease' }} />
+        </svg>
+        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color }}>{value}{unit}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AIComplianceCenter({ defaultTab = 'overview' }) {
   const { showToast } = useApp()
-  const [compTab, setCompTab] = useState('dvir')
+  const [compTab, setCompTab] = useState(defaultTab)
   const [items, setItems] = useState(DVIR_ITEMS_DEFAULT)
   const [selectedUnit, setSelectedUnit] = useState('Unit 01')
   const defects = items.filter(i => i.status === 'Defect').length
 
+  // Clearinghouse state
+  const [chDriver, setChDriver] = useState('')
+  const [chType, setChType] = useState('Pre-Employment')
+  const [chConsent, setChConsent] = useState(false)
+  const [chOrders, setChOrders] = useState([
+    { id:'CH-001', driver:'James Tucker', cdl:'MN-223344', type:'Annual',         date:'Jan 15, 2026', status:'Complete', result:'Clear', cost:1.25 },
+    { id:'CH-002', driver:'Marcus Lee',   cdl:'IL-445566', type:'Pre-Employment', date:'Nov 02, 2025', status:'Complete', result:'Clear', cost:1.25 },
+    { id:'CH-003', driver:'Priya Patel',  cdl:'CO-667788', type:'Pre-Employment', date:'Oct 18, 2025', status:'Complete', result:'Clear', cost:1.25 },
+  ])
+
+  const submitCH = () => {
+    if (!chDriver) { showToast('','Select Driver','Choose a driver to query'); return }
+    if (!chConsent) { showToast('','Consent Required','Driver must provide electronic consent'); return }
+    const d = COMPLIANCE_DRIVERS.find(x => x.name === chDriver)
+    const newOrder = { id:'CH-00'+(chOrders.length+1), driver:chDriver, cdl:d?.cdl||'', type:chType, date:'Mar 11, 2026', status:'Processing', result:'Pending', cost:1.25 }
+    setChOrders(o => [newOrder, ...o])
+    showToast('','Query Submitted',`${chDriver} · ${chType} · Processing`)
+    setChDriver(''); setChConsent(false)
+    setTimeout(() => setChOrders(o => o.map(x => x.id === newOrder.id ? {...x, status:'Complete', result:'Clear'} : x)), 3000)
+  }
+
+  // AI Compliance Score computation
+  const complianceScore = useMemo(() => {
+    const avgBasicPct = BASIC_SCORES.reduce((s, b) => s + (b.score / b.threshold), 0) / BASIC_SCORES.length
+    const hosScore = 25 // 25/25 — no violations
+    const dvirScore = defects === 0 ? 25 : Math.max(0, 25 - defects * 5)
+    const csaScore = Math.round((1 - avgBasicPct) * 25)
+    const clearScore = chOrders.every(o => o.result === 'Clear' || o.result === 'Pending') ? 25 : 15
+    return Math.min(100, hosScore + dvirScore + csaScore + clearScore)
+  }, [defects, chOrders])
+
   const COMP_TABS = [
-    { id:'dvir', label:'<FileText size={13} /> DVIR' },
-    { id:'eld',  label:'<Activity size={13} /> ELD / HOS' },
-    { id:'csa',  label:'CSA Score' },
+    { id:'overview', label:'Overview',       icon: Brain },
+    { id:'eld',      label:'ELD / HOS',      icon: Activity },
+    { id:'dvir',     label:'DVIR',            icon: FileCheck },
+    { id:'csa',      label:'CSA Scores',      icon: Shield },
+    { id:'clearinghouse', label:'Clearinghouse', icon: Search },
   ]
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
-      {/* Sub-nav */}
-      <div style={{ flexShrink:0, display:'flex', gap:2, padding:'0 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
+      {/* Tab bar */}
+      <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 16px', background:'var(--surface)', borderBottom:'1px solid var(--border)', alignItems:'center', overflowX:'auto' }}>
         {COMP_TABS.map(t => (
           <button key={t.id} onClick={() => setCompTab(t.id)}
-            style={{ padding:'10px 16px', border:'none', borderBottom: compTab===t.id ? '2px solid var(--accent)' : '2px solid transparent', background:'transparent', color: compTab===t.id ? 'var(--accent)' : 'var(--muted)', fontSize:12, fontWeight: compTab===t.id ? 700 : 500, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:-1 }}>
-            {t.label}
+            style={{ padding:'12px 14px', border:'none', borderBottom: compTab===t.id ? '2px solid var(--accent)' : '2px solid transparent', background:'transparent', color: compTab===t.id ? 'var(--text)' : 'var(--muted)', fontSize:12, fontWeight: compTab===t.id ? 700 : 500, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:-1, display:'flex', gap:6, alignItems:'center', whiteSpace:'nowrap', transition:'color 0.15s' }}>
+            <t.icon size={13} /> {t.label}
           </button>
         ))}
+        <div style={{ flex:1 }} />
+        <div style={{ fontSize:11, color:'var(--muted)', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap', padding:'0 8px' }}>
+          <CheckCircle size={13} color="var(--success)" /> All compliant
+        </div>
       </div>
 
-      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, paddingBottom:60, display:'flex', flexDirection:'column', gap:16 }}>
+
+        {/* ── OVERVIEW ── */}
+        {compTab === 'overview' && (
+          <>
+            {/* Hero: AI Score + Insights side by side */}
+            <div style={{ display:'grid', gridTemplateColumns:'minmax(180px,220px) 1fr', gap:16 }}>
+              {/* Score ring */}
+              <div style={{ background:'linear-gradient(160deg, var(--surface) 0%, rgba(240,165,0,0.03) 100%)', border:'1px solid var(--border)', borderRadius:16, padding:'28px 20px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+                <ComplianceScoreRing score={complianceScore} size={130} />
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:13, letterSpacing:2, color:'var(--muted)' }}>AI COMPLIANCE</div>
+                <div style={{ fontSize:11, color: complianceScore >= 90 ? 'var(--success)' : 'var(--warning)', fontWeight:700, background: (complianceScore >= 90 ? 'var(--success)' : 'var(--warning)') + '15', padding:'4px 14px', borderRadius:20 }}>
+                  {complianceScore >= 95 ? 'Excellent' : complianceScore >= 85 ? 'Good' : complianceScore >= 70 ? 'Needs Attention' : 'Critical'}
+                </div>
+                {/* Mini gauges row */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, width:'100%', marginTop:4 }}>
+                  <MiniGauge label="HOS" value={0} max={5} color="var(--success)" unit="" />
+                  <MiniGauge label="CSA" value={Math.round(BASIC_SCORES.reduce((s,b) => s + b.score, 0) / BASIC_SCORES.length)} max={65} color="var(--success)" unit="%" />
+                  <MiniGauge label="DVIR" value={defects === 0 ? 100 : Math.max(0, 100 - defects * 10)} max={100} color={defects === 0 ? 'var(--success)' : 'var(--danger)'} unit="%" />
+                  <MiniGauge label="Drug" value={100} max={100} color="var(--success)" unit="%" />
+                </div>
+              </div>
+
+              {/* Right column: status cards + AI insights */}
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {/* Status row */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10 }}>
+                  {[
+                    { label:'ELD Devices',    value:'3/3',   sub:'All synced',      color:'var(--success)' },
+                    { label:'HOS Violations',  value:'0',     sub:'Clean 30 days',   color:'var(--success)' },
+                    { label:'CSA Rating',      value:'Satisfactory', sub:'FMCSA Status', color:'var(--success)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
+                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: s.value.length > 5 ? 15 : 22, color:s.color, letterSpacing:1 }}>{s.value}</div>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* AI Insights */}
+                <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(77,142,240,0.04))', border:'1px solid rgba(240,165,0,0.15)', borderRadius:12, padding:'16px 18px', flex:1, minHeight:0 }}>
+                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:12 }}>
+                    <Bot size={15} color="var(--accent)" />
+                    <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>AI COMPLIANCE INSIGHTS</span>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {[
+                      { text:'All 3 drivers HOS compliant — 0 violations in 30 days', color:'var(--success)', icon: CheckCircle },
+                      { text:'Vehicle Maintenance BASIC at 22% — monitor brake inspections on Unit 03', color:'var(--warning)', icon: AlertTriangle },
+                      { text:'Priya Patel clearinghouse annual query due Apr 2026 — schedule now', color:'var(--accent2)', icon: Calendar },
+                      { text:'CSA trending down 4pts this quarter — on track for premium freight rates', color:'var(--success)', icon: TrendingDown },
+                    ].map((r, i) => (
+                      <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12, color:'var(--muted)' }}>
+                        <r.icon size={14} color={r.color} style={{ marginTop:1, flexShrink:0 }} />
+                        <span>{r.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Driver Compliance Matrix */}
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Users} /> Driver Compliance Matrix</div>
+                <span style={{ fontSize:11, color:'var(--success)', fontWeight:700 }}><Ic icon={CheckCircle} /> All Clear</span>
+              </div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', minWidth:700 }}>
+                  <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
+                    {['Driver','Unit','CDL','ELD','HOS','DVIR','CSA','Clearinghouse','Med Card'].map(h => (
+                      <th key={h} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {[
+                      { name:'James Tucker', unit:'Unit 01', cdl:'MN-223344', eld:'Synced', hos:'8h 22m', dvir:'Clear', csa:'12%', ch:'Clear', med:'Sep 2025', medWarn:true },
+                      { name:'Marcus Lee',   unit:'Unit 02', cdl:'IL-445566', eld:'Synced', hos:'11h 0m', dvir:'Clear', csa:'8%',  ch:'Clear', med:'Nov 2025', medWarn:false },
+                      { name:'Priya Patel',  unit:'Unit 03', cdl:'CO-667788', eld:'Synced', hos:'Restart', dvir:'Clear', csa:'0%',  ch:'Clear', med:'Oct 2026', medWarn:false },
+                    ].map(d => (
+                      <tr key={d.name} style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'11px 12px', fontSize:13, fontWeight:700, whiteSpace:'nowrap' }}>{d.name}</td>
+                        <td style={{ padding:'11px 12px', fontSize:12, color:'var(--muted)' }}>{d.unit}</td>
+                        <td style={{ padding:'11px 12px', fontSize:11, fontFamily:'monospace', color:'var(--muted)' }}>{d.cdl}</td>
+                        <td style={{ padding:'11px 12px' }}><span style={S.tag('var(--success)')}>{d.eld}</span></td>
+                        <td style={{ padding:'11px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color: d.hos === 'Restart' ? 'var(--muted)' : parseFloat(d.hos) > 8 ? 'var(--success)' : 'var(--warning)' }}>{d.hos}</td>
+                        <td style={{ padding:'11px 12px' }}><span style={S.tag('var(--success)')}>{d.dvir}</span></td>
+                        <td style={{ padding:'11px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:'var(--success)' }}>{d.csa}</td>
+                        <td style={{ padding:'11px 12px' }}><span style={S.tag('var(--success)')}>{d.ch}</span></td>
+                        <td style={{ padding:'11px 12px' }}>
+                          <span style={S.tag(d.medWarn ? 'var(--warning)' : 'var(--success)')}>{d.med}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Upcoming Deadlines */}
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Calendar} /> Upcoming Deadlines</div>
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:6 }}>
+                {[
+                  { date:'Mar 15, 2026', item:'Unit 01 DVIR due', type:'DVIR',    color:'var(--accent)',  days:4 },
+                  { date:'Apr 2026',     item:'Priya Patel — clearinghouse annual', type:'Query', color:'var(--accent2)', days:21 },
+                  { date:'Apr 30, 2026', item:'IFTA Q1 2026 filing deadline', type:'IFTA',    color:'var(--warning)', days:50 },
+                  { date:'Aug 2026',     item:'James Tucker CDL renewal',    type:'CDL',     color:'var(--accent)',  days:142 },
+                  { date:'Sep 2025',     item:'James Tucker med card expired', type:'URGENT', color:'var(--danger)',  days:-163 },
+                ].map((d, i) => (
+                  <div key={i} style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 14px', background: d.days < 0 ? 'rgba(239,68,68,0.05)' : 'var(--surface2)', borderRadius:10, border:`1px solid ${d.days < 0 ? 'rgba(239,68,68,0.2)' : 'var(--border)'}` }}>
+                    <span style={S.tag(d.color)}>{d.type}</span>
+                    <span style={{ fontSize:12, fontWeight:600, flex:1, minWidth:0 }}>{d.item}</span>
+                    <span style={{ fontSize:11, color:'var(--muted)', whiteSpace:'nowrap' }}>{d.date}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color: d.days < 0 ? 'var(--danger)' : d.days < 14 ? 'var(--warning)' : 'var(--muted)', whiteSpace:'nowrap', minWidth:50, textAlign:'right' }}>
+                      {d.days < 0 ? 'OVERDUE' : d.days + 'd'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── ELD / HOS ── */}
+        {compTab === 'eld' && (
+          <>
+            <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
+              <Bot size={20} color="var(--success)" />
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>All 3 drivers HOS compliant — 0 violations in 30 days</div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>James Tucker 8h 22m remaining · Marcus Lee resets midnight · Priya 34hr restart</div>
+              </div>
+            </div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
+              {[
+                { label:'Units Online',   value:'3/3',     sub:'All synced',       color:'var(--success)' },
+                { label:'HOS Violations',  value:'0',       sub:'Clean 30 days',    color:'var(--success)' },
+                { label:'Avg HOS Left',    value:'9h 47m',  sub:'Across fleet',     color:'var(--accent2)' },
+                { label:'ELD Provider',    value:'Samsara', sub:'CM32 · Connected', color:'var(--accent)' },
+              ].map(s => (
+                <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:s.color, letterSpacing:1 }}>{s.value}</div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Activity} /> Driver HOS Status — Live</div>
+                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','ELD Sync','All devices synced')}><Ic icon={RefreshCw} /> Sync All</button>
+              </div>
+              {[
+                { driver:'James Tucker', unit:'Unit 01', status:'Driving',  hosLeft:'8h 22m', driveToday:'5h 38m', shiftLeft:'9h 22m', cycleLeft:'52h', statusColor:'var(--success)', load:'FM-4421', rec:'1 more short load today' },
+                { driver:'Marcus Lee',   unit:'Unit 02', status:'On Duty',  hosLeft:'9h 45m', driveToday:'4h 15m', shiftLeft:'10h 45m',cycleLeft:'58h', statusColor:'var(--accent)',  load:'—', rec:'Full day available — 2 loads possible' },
+                { driver:'Priya Patel',  unit:'Unit 03', status:'Off Duty', hosLeft:'11h 0m', driveToday:'0h',     shiftLeft:'14h',    cycleLeft:'70h', statusColor:'var(--muted)',   load:'—', rec:'34hr restart — available tomorrow 6AM', restart:true },
+              ].map(d => (
+                <div key={d.driver} style={{ padding:'16px 18px', borderBottom:'1px solid var(--border)' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10, flexWrap:'wrap' }}>
+                    <div style={{ width:38, height:38, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:12, color:'var(--accent)', flexShrink:0 }}>
+                      {d.driver.split(' ').map(n=>n[0]).join('')}
+                    </div>
+                    <div style={{ flex:1, minWidth:120 }}>
+                      <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:2, flexWrap:'wrap' }}>
+                        <span style={{ fontSize:13, fontWeight:700 }}>{d.driver}</span>
+                        <span style={{ fontSize:11, color:'var(--muted)' }}>{d.unit}</span>
+                        <span style={S.tag(d.statusColor)}>{d.status}</span>
+                        {d.load !== '—' && <span style={{ fontSize:11, color:'var(--accent)', fontFamily:'monospace' }}>Load: {d.load}</span>}
+                      </div>
+                      <div style={{ fontSize:11, color:'var(--muted)' }}>Samsara CM32 · Drive today: {d.driveToday}</div>
+                    </div>
+                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Full Log', d.driver + ' HOS log opened')}>Full Log</button>
+                  </div>
+                  {/* HOS bar + shift/cycle */}
+                  <div style={{ display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
+                    <div style={{ flex:1, minWidth:200 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                        <span style={{ fontSize:11, color:'var(--muted)' }}>Drive Time Remaining</span>
+                        <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: parseFloat(d.hosLeft) > 8 ? 'var(--success)' : parseFloat(d.hosLeft) > 4 ? 'var(--warning)' : d.restart ? 'var(--muted)' : 'var(--danger)' }}>{d.hosLeft}</span>
+                      </div>
+                      {!d.restart && (
+                        <div style={{ height:8, background:'var(--border)', borderRadius:4 }}>
+                          <div style={{ height:'100%', width:`${(parseFloat(d.hosLeft)/11)*100}%`, background: parseFloat(d.hosLeft) > 8 ? 'var(--success)' : parseFloat(d.hosLeft) > 4 ? 'var(--warning)' : 'var(--danger)', borderRadius:4, transition:'width 0.5s' }} />
+                        </div>
+                      )}
+                      {d.restart && <div style={{ fontSize:11, color:'var(--accent3)' }}><Ic icon={Clock} /> 34hr restart in progress</div>}
+                    </div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      {[{ label:'Shift', value:d.shiftLeft }, { label:'Cycle', value:d.cycleLeft }].map(s => (
+                        <div key={s.label} style={{ padding:'6px 12px', background:'var(--surface2)', borderRadius:8, textAlign:'center', minWidth:55 }}>
+                          <div style={{ fontSize:9, color:'var(--muted)', marginBottom:2 }}>{s.label}</div>
+                          <div style={{ fontSize:12, fontWeight:700, color:'var(--success)' }}>{s.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* AI recommendation */}
+                  <div style={{ marginTop:10, fontSize:12, color: d.restart ? 'var(--muted)' : 'var(--success)', background: (d.restart ? 'var(--muted)' : 'var(--success)') + '10', padding:'8px 12px', borderRadius:8 }}>
+                    <Bot size={13} style={{ display:'inline', verticalAlign:'middle', marginRight:6 }} />
+                    {d.rec}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* HOS Events */}
+            <div style={S.panel}>
+              <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Recent HOS Events</div></div>
+              {[
+                { date:'Mar 6',  driver:'Marcus Lee',   event:'34hr restart completed',   type:'Info',   color:'var(--accent2)' },
+                { date:'Mar 4',  driver:'James Tucker',  event:'Pre-trip inspection done',  type:'DVIR',   color:'var(--success)' },
+                { date:'Mar 2',  driver:'Priya Patel',   event:'Sleeper berth 8h split',   type:'HOS',    color:'var(--accent)' },
+                { date:'Feb 28', driver:'James Tucker',  event:'ELD auto-synchronized',    type:'System', color:'var(--muted)' },
+              ].map((e, i) => (
+                <div key={i} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+                  <span style={{ fontSize:11, color:'var(--muted)', minWidth:42 }}>{e.date}</span>
+                  <span style={S.tag(e.color)}>{e.type}</span>
+                  <span style={{ fontSize:12, fontWeight:600 }}>{e.driver}</span>
+                  <span style={{ fontSize:12, color:'var(--muted)' }}>{e.event}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* ── DVIR ── */}
         {compTab === 'dvir' && (
           <>
-            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>Daily Vehicle Inspection Report — FMCSA §396.11</div>
-                <div style={{ fontSize:11, color:'var(--muted)' }}>Complete before each dispatch. Defects must be repaired before vehicle moves.</div>
+            <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+              <div style={{ flex:1, minWidth:200 }}>
+                <div style={{ fontSize:14, fontWeight:700, marginBottom:2 }}>Daily Vehicle Inspection Report</div>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>FMCSA §396.11 — Complete before each dispatch</div>
               </div>
               <select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)}
                 style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
                 {['Unit 01','Unit 02','Unit 03'].map(u => <option key={u}>{u}</option>)}
               </select>
-              <div style={{ fontSize:12, color:'var(--muted)' }}>{selectedUnit} · {new Date().toLocaleDateString()}</div>
+              <div style={{ fontSize:12, color:'var(--muted)' }}>{new Date().toLocaleDateString()}</div>
             </div>
 
             {defects > 0 && (
               <div style={{ padding:'12px 16px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:10, display:'flex', gap:10, alignItems:'center' }}>
-                <span style={{ fontSize:20 }}><Siren size={20} /></span>
+                <Siren size={20} color="var(--danger)" />
                 <div>
                   <div style={{ fontSize:13, fontWeight:700, color:'var(--danger)' }}>{defects} defect{defects !== 1 ? 's' : ''} found — DO NOT DISPATCH</div>
                   <div style={{ fontSize:11, color:'var(--muted)' }}>Vehicle must not be operated until repaired and re-inspected per FMCSA §396.11</div>
@@ -2400,143 +2701,74 @@ export function CarrierDVIR() {
               </div>
             </div>
 
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={FileText} /> Recent DVIRs</div>
-              <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                  {['Date','Unit','Driver','Result',''].map(h => <th key={h} style={{ padding:'9px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {[
-                    { date:'Mar 8, 2026',  unit:'Unit 01', driver:'James Tucker',  result:'No Defects', color:'var(--success)' },
-                    { date:'Mar 8, 2026',  unit:'Unit 02', driver:'Marcus Lee',    result:'No Defects', color:'var(--success)' },
-                    { date:'Mar 7, 2026',  unit:'Unit 03', driver:'Priya Patel',   result:'1 Defect — Resolved', color:'var(--warning)' },
-                    { date:'Mar 7, 2026',  unit:'Unit 01', driver:'James Tucker',  result:'No Defects', color:'var(--success)' },
-                  ].map((r,i) => (
-                    <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
-                      <td style={{ padding:'10px 14px', fontSize:12, color:'var(--muted)' }}>{r.date}</td>
-                      <td style={{ padding:'10px 14px', fontSize:12, fontWeight:700 }}>{r.unit}</td>
-                      <td style={{ padding:'10px 14px', fontSize:12 }}>{r.driver}</td>
-                      <td style={{ padding:'10px 14px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:r.color+'15', color:r.color }}>{r.result}</span></td>
-                      <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','DVIR',r.date + ' · ' + r.unit)}>View</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {/* ── ELD / HOS ── */}
-        {compTab === 'eld' && (
-          <>
-            <AiBanner title="All 3 drivers are HOS compliant — no violations in the last 30 days" sub="James Tucker has 8h 22m remaining today · Marcus Lee resets at midnight · Priya Patel on 34hr restart" />
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
-              {[
-                { label:'HOS Violations',  value:'0',    color:'var(--success)', sub:'Last 30 days' },
-                { label:'ELD Devices',     value:'3',    color:'var(--accent)',  sub:'All connected' },
-                { label:'Avg Drive Time',  value:'9.2h', color:'var(--accent2)', sub:'Per day this week' },
-              ].map(s => (
-                <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'13px 16px', textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>{s.label}</div>
-                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:s.color }}>{s.value}</div>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{s.sub}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={Activity} /> Driver HOS Status — Live</div>
-              {[
-                { driver:'James Tucker',  unit:'Unit 01', status:'Driving',     hosLeft:'8h 22m', driveToday:'5h 38m', shiftLeft:'9h 22m', cycleLeft:'52h', icon: CheckCircle, eld:'Samsara CM32' },
-                { driver:'Marcus Lee',    unit:'Unit 02', status:'On Duty',     hosLeft:'9h 45m', driveToday:'4h 15m', shiftLeft:'10h 45m',cycleLeft:'58h', icon: AlertCircle, eld:'Samsara CM32' },
-                { driver:'Priya Patel',   unit:'Unit 03', status:'Off Duty',    hosLeft:'11h 0m', driveToday:'0h',     shiftLeft:'14h',    cycleLeft:'70h', icon: CircleDot, eld:'Samsara CM32', restart:'34hr restart — resets 6AM' },
-              ].map(d => (
-                <div key={d.driver} style={{ padding:'14px 20px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>
-                  <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{typeof d.icon === "string" ? d.icon : <d.icon size={18} />}</div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:3 }}>
-                      <span style={{ fontSize:13, fontWeight:700 }}>{d.driver}</span>
-                      <span style={{ fontSize:11, color:'var(--muted)' }}>{d.unit}</span>
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:'var(--surface2)', color:'var(--muted)' }}>{d.status}</span>
-                    </div>
-                    {d.restart && <div style={{ fontSize:11, color:'var(--accent3)', marginBottom:3 }}><Ic icon={Clock} /> {d.restart}</div>}
-                    <div style={{ fontSize:11, color:'var(--muted)' }}>{d.eld} · Drive today: {d.driveToday}</div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, textAlign:'center' }}>
+            <div style={S.panel}>
+              <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={FileText} /> Recent DVIRs</div></div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', minWidth:500 }}>
+                  <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
+                    {['Date','Unit','Driver','Result',''].map(h => <th key={h} style={{ padding:'9px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
                     {[
-                      { label:'Drive Left',  value:d.hosLeft },
-                      { label:'Shift Left',  value:d.shiftLeft },
-                      { label:'Cycle Left',  value:d.cycleLeft },
-                    ].map(s => (
-                      <div key={s.label} style={{ padding:'6px 10px', background:'var(--surface2)', borderRadius:8 }}>
-                        <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>{s.label}</div>
-                        <div style={{ fontSize:12, fontWeight:700, color: parseFloat(s.value) < 2 ? 'var(--danger)' : parseFloat(s.value) < 4 ? 'var(--warning)' : 'var(--success)' }}>{s.value}</div>
-                      </div>
+                      { date:'Mar 8, 2026',  unit:'Unit 01', driver:'James Tucker',  result:'No Defects', color:'var(--success)' },
+                      { date:'Mar 8, 2026',  unit:'Unit 02', driver:'Marcus Lee',    result:'No Defects', color:'var(--success)' },
+                      { date:'Mar 7, 2026',  unit:'Unit 03', driver:'Priya Patel',   result:'1 Defect — Resolved', color:'var(--warning)' },
+                      { date:'Mar 7, 2026',  unit:'Unit 01', driver:'James Tucker',  result:'No Defects', color:'var(--success)' },
+                    ].map((r,i) => (
+                      <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'10px 14px', fontSize:12, color:'var(--muted)' }}>{r.date}</td>
+                        <td style={{ padding:'10px 14px', fontSize:12, fontWeight:700 }}>{r.unit}</td>
+                        <td style={{ padding:'10px 14px', fontSize:12 }}>{r.driver}</td>
+                        <td style={{ padding:'10px 14px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:r.color+'15', color:r.color }}>{r.result}</span></td>
+                        <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','DVIR',r.date + ' · ' + r.unit)}>View</button></td>
+                      </tr>
                     ))}
-                  </div>
-                  <button className="btn btn-ghost" style={{ fontSize:11, flexShrink:0 }} onClick={() => showToast('','ELD Log',d.driver + ' — opening full HOS log...')}>Full Log</button>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={AlertTriangle} /> Recent HOS Events</div>
-              {[
-                { date:'Mar 6', driver:'Marcus Lee',  event:'34hr restart completed',  type:'Info',    color:'var(--accent2)' },
-                { date:'Mar 4', driver:'James Tucker', event:'Pre-trip inspection done', type:'DVIR',   color:'var(--success)' },
-                { date:'Mar 2', driver:'Priya Patel',  event:'Sleeper berth 8h split',  type:'HOS',    color:'var(--accent)' },
-                { date:'Feb 28',driver:'James Tucker', event:'ELD auto-synchronized',   type:'System', color:'var(--muted)' },
-              ].map((e,i) => (
-                <div key={i} style={{ padding:'10px 18px', borderBottom:'1px solid var(--border)', display:'flex', gap:12, alignItems:'center' }}>
-                  <span style={{ fontSize:11, color:'var(--muted)', minWidth:46 }}>{e.date}</span>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:e.color+'15', color:e.color, minWidth:56, textAlign:'center' }}>{e.type}</span>
-                  <span style={{ fontSize:12, fontWeight:600 }}>{e.driver}</span>
-                  <span style={{ fontSize:12, color:'var(--muted)' }}>{e.event}</span>
-                </div>
-              ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
 
-        {/* ── CSA Score ── */}
+        {/* ── CSA SCORES ── */}
         {compTab === 'csa' && (
           <>
-            <AiBanner title="All 7 BASIC scores below intervention threshold — excellent safety record" sub="Unsafe Driving improved 4 pts this quarter · Clean crash record qualifies for premium freight rates" />
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+            <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
+              <Bot size={20} color="var(--success)" />
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>All 7 BASIC scores below intervention threshold</div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>Unsafe Driving improved 4pts this quarter · Clean crash record qualifies for premium freight</div>
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               {[
-                { label:'Safety Rating', value:'Satisfactory', color:'var(--success)', sub:'FMCSA Status' },
-                { label:'Inspections',   value:'24',           color:'var(--accent)',  sub:'Last 24 months' },
-                { label:'Violations',    value:'2',            color:'var(--warning)', sub:'Minor only' },
-                { label:'Crashes',       value:'0',            color:'var(--success)', sub:'Clean record' },
+                { label:'Safety Rating',  value:'Satisfactory', color:'var(--success)', sub:'FMCSA Status' },
+                { label:'Inspections',     value:'24',           color:'var(--accent)',  sub:'Last 24 months' },
+                { label:'Violations',      value:'2',            color:'var(--warning)', sub:'Minor only' },
+                { label:'Crashes',         value:'0',            color:'var(--success)', sub:'Clean record' },
               ].map(s => (
-                <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'13px 16px', textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>{s.label}</div>
-                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: s.value.length > 4 ? 18 : 26, color:s.color }}>{s.value}</div>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{s.sub}</div>
+                <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: s.value.length > 4 ? 15 : 22, color:s.color, letterSpacing:1 }}>{s.value}</div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{s.sub}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={Star} /> BASIC Score Breakdown</div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
-                {[
-                  { basic:'Unsafe Driving',       score:12, threshold:65, icon: Truck, tip:'Speeding, reckless driving · 4pt improvement this quarter' },
-                  { basic:'HOS Compliance',        score:8,  threshold:65, icon: Clock, tip:'Log falsification, ELD violations · 0 issues this year' },
-                  { basic:'Vehicle Maintenance',   score:22, threshold:80, icon: Wrench, tip:'OOS violations, equipment defects · Recent Priya inspection' },
-                  { basic:'Driver Fitness',        score:0,  threshold:80, icon: User, tip:'Unlicensed driver, CDL violations · All CDLs current' },
-                  { basic:'Controlled Substances', score:0,  threshold:50, icon: FlaskConical, tip:'Positive drug/alcohol tests · All clearinghouse checks passed' },
-                  { basic:'Crash Indicator',       score:5,  threshold:65, icon: Bomb, tip:'DOT-reportable crashes · Zero crashes all time' },
-                  { basic:'Hazmat Compliance',     score:0,  threshold:50, icon: AlertTriangle, tip:'Hazmat violations · N/A — non-hazmat carrier' },
-                ].map(b => {
+            <div style={S.panel}>
+              <div style={S.panelHead}>
+                <div style={S.panelTitle}><Ic icon={Shield} /> BASIC Score Breakdown</div>
+                <span style={{ fontSize:11, color:'var(--success)', fontWeight:700 }}>All Below Threshold</span>
+              </div>
+              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+                {BASIC_SCORES.map(b => {
                   const pct = (b.score / b.threshold) * 100
                   const scoreColor = pct > 75 ? 'var(--danger)' : pct > 50 ? 'var(--warning)' : 'var(--success)'
                   return (
                     <div key={b.basic} style={{ background:'var(--surface2)', borderRadius:10, padding:'12px 16px' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, flexWrap:'wrap', gap:8 }}>
                         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                          <span style={{ fontSize:18 }}>{typeof b.icon === "string" ? b.icon : <b.icon size={18} />}</span>
+                          <b.icon size={16} color={scoreColor} />
                           <span style={{ fontSize:12, fontWeight:700 }}>{b.basic}</span>
                         </div>
                         <div style={{ display:'flex', gap:12, alignItems:'center' }}>
@@ -2545,7 +2777,7 @@ export function CarrierDVIR() {
                         </div>
                       </div>
                       <div style={{ height:8, background:'var(--border)', borderRadius:4, position:'relative', overflow:'hidden' }}>
-                        <div style={{ height:'100%', width:`${Math.min(pct, 100)}%`, background:scoreColor, borderRadius:4, transition:'width 0.5s' }}/>
+                        <div style={{ height:'100%', width:`${Math.min(pct, 100)}%`, background:scoreColor, borderRadius:4, transition:'width 0.5s' }} />
                       </div>
                       <div style={{ fontSize:10, color:'var(--muted)', marginTop:6 }}>{b.tip}</div>
                     </div>
@@ -2555,639 +2787,146 @@ export function CarrierDVIR() {
             </div>
           </>
         )}
-      </div>
-    </div>
-  )
-}
-
-// ─── CSA SCORE ────────────────────────────────────────────────────────────────
-export function CarrierCSA() {
-  return (
-    <div style={{ ...S.page, paddingBottom:40 }}>
-      <AiBanner title="All 7 BASIC scores are below intervention threshold — excellent safety record" sub="Your Unsafe Driving score improved 4 points this quarter · Keep it up to qualify for premium freight rates" />
-      <div style={S.grid(4)}>
-        <StatCard label="Safety Rating" value="Satisfactory" change="FMCSA Status" color="var(--success)" changeType="neutral" />
-        <StatCard label="Inspections"   value="24"           change="Last 24 months" color="var(--accent)"  changeType="neutral" />
-        <StatCard label="Violations"    value="2"            change="Minor only"    color="var(--warning)"  changeType="neutral" />
-        <StatCard label="Crashes"       value="0"            change="Clean record"  color="var(--success)"  changeType="neutral" />
-      </div>
-      <div style={S.panel}>
-        <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Star} /> BASIC Score Breakdown</div></div>
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[
-            { basic:'Unsafe Driving',       score:12, threshold:65, color:'var(--success)' },
-            { basic:'HOS Compliance',        score:8,  threshold:65, color:'var(--success)' },
-            { basic:'Vehicle Maintenance',   score:22, threshold:80, color:'var(--success)' },
-            { basic:'Driver Fitness',        score:0,  threshold:80, color:'var(--success)' },
-            { basic:'Controlled Substances', score:0,  threshold:50, color:'var(--success)' },
-            { basic:'Crash Indicator',       score:5,  threshold:65, color:'var(--success)' },
-          ].map(b => (
-            <div key={b.basic}>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
-                <span style={{ fontWeight:600 }}>{b.basic}</span>
-                <span style={{ color:'var(--muted)' }}><b style={{color:b.color}}>{b.score}%</b> / {b.threshold}% threshold</span>
-              </div>
-              <div style={{ height:6, background:'var(--border)', borderRadius:3, position:'relative' }}>
-                <div style={{ height:'100%', width:`${(b.score/b.threshold)*100}%`, background:b.color, borderRadius:3, maxWidth:'100%' }} />
-                <div style={{ position:'absolute', top:0, left:`${(b.threshold/100)*100}%`, height:'100%', width:2, background:'rgba(255,255,255,0.2)' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── CLEARINGHOUSE ────────────────────────────────────────────────────────────
-const CH_DRIVERS = [
-  { name:'James Tucker',  cdl:'MN-223344', dob:'1984-06-12', state:'MN', unit:'Unit 01' },
-  { name:'Marcus Lee',    cdl:'IL-445566', dob:'1990-03-28', state:'IL', unit:'Unit 02' },
-  { name:'Priya Patel',   cdl:'CO-667788', dob:'1995-11-04', state:'CO', unit:'Unit 03' },
-]
-
-const INPUT = { width:'100%', marginTop:4, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }
-const SELECT = { ...INPUT }
-const LABEL  = { fontSize:11, color:'var(--muted)', fontWeight:600 }
-
-export function CarrierClearinghouse() {
-  const { showToast } = useApp()
-  const [tab, setTab] = useState('clearinghouse')
-
-  // ── Clearinghouse state ──────────────────────────────────────────────────────
-  const [chDriver, setChDriver]   = useState('')
-  const [chType, setChType]       = useState('Pre-Employment')
-  const [chConsent, setChConsent] = useState(false)
-  const [chOrders, setChOrders]   = useState([
-    { id:'CH-001', driver:'James Tucker',  cdl:'MN-223344', type:'Annual',        date:'Jan 15, 2026', status:'Complete', result:'Clear',   cost:1.25 },
-    { id:'CH-002', driver:'Marcus Lee',    cdl:'IL-445566', type:'Pre-Employment', date:'Nov 02, 2025', status:'Complete', result:'Clear',   cost:1.25 },
-    { id:'CH-003', driver:'Priya Patel',   cdl:'CO-667788', type:'Pre-Employment', date:'Oct 18, 2025', status:'Complete', result:'Clear',   cost:1.25 },
-    { id:'CH-004', driver:'James Tucker',  cdl:'MN-223344', type:'Annual',         date:'Jan 10, 2025', status:'Complete', result:'Clear',   cost:1.25 },
-  ])
-
-  // ── PSP state ────────────────────────────────────────────────────────────────
-  const [pspDriver, setPspDriver]   = useState('')
-  const [pspConsent, setPspConsent] = useState(false)
-  const [pspOrders, setPspOrders]   = useState([
-    { id:'PSP-001', driver:'James Tucker',  date:'Jan 14, 2026', status:'Complete', crashes:0, inspections:12, oos:0, cost:10 },
-    { id:'PSP-002', driver:'Marcus Lee',    date:'Nov 01, 2025', status:'Complete', crashes:0, inspections:7,  oos:1, cost:10 },
-    { id:'PSP-003', driver:'Priya Patel',   date:'Oct 17, 2025', status:'Complete', crashes:0, inspections:3,  oos:0, cost:10 },
-  ])
-  const [pspDetail, setPspDetail] = useState(null)
-
-  // ── MVR state ────────────────────────────────────────────────────────────────
-  const [mvrDriver, setMvrDriver]   = useState('')
-  const [mvrState, setMvrState]     = useState('MN')
-  const [mvrOrders, setMvrOrders]   = useState([
-    { id:'MVR-001', driver:'James Tucker',  state:'MN', date:'Jan 14, 2026', status:'Complete', violations:0, suspensions:0, points:0, cost:8.50 },
-    { id:'MVR-002', driver:'Marcus Lee',    state:'IL', date:'Nov 01, 2025', status:'Complete', violations:1, suspensions:0, points:1, cost:8.50 },
-    { id:'MVR-003', driver:'Priya Patel',   state:'CO', date:'Oct 17, 2025', status:'Complete', violations:0, suspensions:0, points:0, cost:8.50 },
-  ])
-
-  // ── Random Pool state ────────────────────────────────────────────────────────
-  const [poolDrivers] = useState([
-    { name:'James Tucker', unit:'Unit 01', lastDrug:'Jan 15, 2026', lastAlcohol:'Jan 15, 2026', nextDue:'Jul 2026',  poolStatus:'Active' },
-    { name:'Marcus Lee',   unit:'Unit 02', lastDrug:'Nov 02, 2025', lastAlcohol:'Nov 02, 2025', nextDue:'May 2026',  poolStatus:'Active' },
-    { name:'Priya Patel',  unit:'Unit 03', lastDrug:'Oct 18, 2025', lastAlcohol:'',              nextDue:'Apr 2026',  poolStatus:'Due Soon' },
-  ])
-  const [randomSelections] = useState([
-    { quarter:'Q1 2026', selected:'James Tucker', type:'Drug',    status:'Completed', date:'Jan 28, 2026' },
-    { quarter:'Q4 2025', selected:'Marcus Lee',   type:'Drug',    status:'Completed', date:'Oct 10, 2025' },
-    { quarter:'Q4 2025', selected:'Priya Patel',  type:'Alcohol', status:'Completed', date:'Oct 10, 2025' },
-  ])
-
-  const submitCH = () => {
-    if (!chDriver) { showToast('','Select Driver','Choose a driver to query'); return }
-    if (!chConsent) { showToast('','Consent Required','Driver must provide electronic consent for Clearinghouse queries'); return }
-    const d = CH_DRIVERS.find(x => x.name === chDriver)
-    const newOrder = { id:'CH-00'+(chOrders.length+1), driver:chDriver, cdl:d?.cdl||'', type:chType, date:'Mar 9, 2026', status:'Processing', result:'Pending', cost:1.25 }
-    setChOrders(o => [newOrder, ...o])
-    showToast('','Query Submitted',`${chDriver} · ${chType} · Processing — result in ~2 min`)
-    setChDriver(''); setChConsent(false)
-    setTimeout(() => setChOrders(o => o.map(x => x.id === newOrder.id ? {...x, status:'Complete', result:'Clear'} : x)), 3000)
-  }
-
-  const submitPSP = () => {
-    if (!pspDriver) { showToast('','Select Driver','Choose a driver for PSP report'); return }
-    if (!pspConsent) { showToast('','Consent Required','PSP requires signed driver disclosure & authorization form'); return }
-    const newOrder = { id:'PSP-00'+(pspOrders.length+1), driver:pspDriver, date:'Mar 9, 2026', status:'Processing', crashes:0, inspections:0, oos:0, cost:10 }
-    setPspOrders(o => [newOrder, ...o])
-    showToast('','PSP Order Submitted',`${pspDriver} · $10.00 charged · Results in ~5 min`)
-    setPspDriver(''); setPspConsent(false)
-    setTimeout(() => setPspOrders(o => o.map(x => x.id === newOrder.id ? {...x, status:'Complete', inspections:8, oos:0} : x)), 5000)
-  }
-
-  const submitMVR = () => {
-    if (!mvrDriver) { showToast('','Select Driver','Choose a driver for MVR'); return }
-    const d = CH_DRIVERS.find(x => x.name === mvrDriver)
-    const newOrder = { id:'MVR-00'+(mvrOrders.length+1), driver:mvrDriver, state:mvrState, date:'Mar 9, 2026', status:'Processing', violations:0, suspensions:0, points:0, cost:8.50 }
-    setMvrOrders(o => [newOrder, ...o])
-    showToast('','MVR Ordered',`${mvrDriver} · ${mvrState} · $8.50 charged · Results in ~3 min`)
-    setMvrDriver('')
-    setTimeout(() => setMvrOrders(o => o.map(x => x.id === newOrder.id ? {...x, status:'Complete'} : x)), 4000)
-  }
-
-  const TABS = [
-    { id:'clearinghouse', label:'Clearinghouse', sub:'FMCSA Drug & Alcohol' },
-    { id:'psp',           label:'PSP Reports',   sub:'Crash & Inspection History' },
-    { id:'mvr',           label:'MVR',            sub:'Motor Vehicle Records' },
-    { id:'random',        label:'Random Pool',    sub:'DOT Random Testing' },
-  ]
-
-  const statusColor = s => s === 'Complete' ? 'var(--success)' : s === 'Processing' ? 'var(--accent)' : s === 'Due Soon' ? 'var(--warning)' : 'var(--muted)'
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
-
-      {/* Sub-tab bar */}
-      <div style={{ flexShrink:0, background:'var(--surface)', borderBottom:'1px solid var(--border)', padding:'0 20px', display:'flex', gap:0 }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding:'11px 18px', border:'none', borderBottom: tab===t.id ? '2px solid var(--accent)' : '2px solid transparent', background:'transparent', color: tab===t.id ? 'var(--accent)' : 'var(--muted)', fontSize:12, fontWeight: tab===t.id ? 700 : 500, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:-1, whiteSpace:'nowrap' }}>
-            {t.label}
-          </button>
-        ))}
-        <div style={{ flex:1 }} />
-        <div style={{ display:'flex', alignItems:'center', fontSize:11, color:'var(--muted)', padding:'0 8px' }}>
-          <Check size={13} /> 3 drivers active · All clear
-        </div>
-      </div>
-
-      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
 
         {/* ── CLEARINGHOUSE ── */}
-        {tab === 'clearinghouse' && (<>
-          <div style={{ background:'linear-gradient(135deg,rgba(240,165,0,0.06),rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
-            <span style={{ fontSize:24 }}><GraduationCap size={24} /></span>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)', marginBottom:3 }}>FMCSA Drug & Alcohol Clearinghouse — Required by 49 CFR Part 382</div>
-              <div style={{ fontSize:12, color:'var(--muted)' }}>Pre-employment queries required before hiring · Annual queries required for all CDL drivers · $1.25/query billed to your account</div>
+        {compTab === 'clearinghouse' && (
+          <>
+            <div style={{ background:'linear-gradient(135deg,rgba(240,165,0,0.06),rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
+              <GraduationCap size={20} color="var(--accent)" />
+              <div style={{ flex:1, minWidth:200 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)', marginBottom:2 }}>FMCSA Drug & Alcohol Clearinghouse — 49 CFR Part 382</div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>Pre-employment queries required before hiring · Annual queries for all CDL drivers</div>
+              </div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>Balance</div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>$48.75</div>
+              </div>
             </div>
-            <div style={{ textAlign:'right', flexShrink:0 }}>
-              <div style={{ fontSize:11, color:'var(--muted)' }}>Account Balance</div>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>$48.75</div>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+              {/* Order form */}
+              <div style={S.panel}>
+                <div style={S.panelHead}>
+                  <div style={S.panelTitle}><Ic icon={Search} /> Order Query</div>
+                  <span style={S.tag('var(--accent)')}>$1.25</span>
+                </div>
+                <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+                  <div>
+                    <label style={{ fontSize:11, color:'var(--muted)', fontWeight:600 }}>Select Driver</label>
+                    <select value={chDriver} onChange={e => setChDriver(e.target.value)}
+                      style={{ width:'100%', marginTop:4, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }}>
+                      <option value="">— Select driver —</option>
+                      {COMPLIANCE_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} · {d.cdl}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:11, color:'var(--muted)', fontWeight:600 }}>Query Type</label>
+                    <select value={chType} onChange={e => setChType(e.target.value)}
+                      style={{ width:'100%', marginTop:4, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }}>
+                      {['Pre-Employment','Annual','Random','Return-to-Duty','Follow-Up'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  {chDriver && (
+                    <div style={{ background:'rgba(240,165,0,0.05)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'10px 14px', fontSize:12 }}>
+                      <div style={{ fontWeight:700, marginBottom:4, color:'var(--accent)' }}>Auto-filled from profile</div>
+                      {(() => { const d = COMPLIANCE_DRIVERS.find(x=>x.name===chDriver); return d ? (
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4, color:'var(--muted)' }}>
+                          <span>CDL: <b style={{ color:'var(--text)' }}>{d.cdl}</b></span>
+                          <span>State: <b style={{ color:'var(--text)' }}>{d.state}</b></span>
+                          <span>DOB: <b style={{ color:'var(--text)' }}>{d.dob}</b></span>
+                        </div>
+                      ) : null })()}
+                    </div>
+                  )}
+                  <div onClick={() => setChConsent(v => !v)}
+                    style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'10px 14px', background:'var(--surface2)', borderRadius:8, cursor:'pointer', border:`1px solid ${chConsent ? 'rgba(34,197,94,0.4)' : 'var(--border)'}` }}>
+                    <div style={{ width:18, height:18, borderRadius:4, background: chConsent ? 'var(--success)' : 'var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                      {chConsent && <Ic icon={Check} size={12} style={{ color:'#fff' }} />}
+                    </div>
+                    <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.4 }}>
+                      Driver has provided electronic consent per 49 CFR § 382.701.
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" style={{ padding:'11px 0' }} onClick={submitCH}>
+                    <Search size={13} /> Submit Query — $1.25
+                  </button>
+                </div>
+              </div>
+
+              {/* Annual compliance tracker */}
+              <div style={S.panel}>
+                <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Calendar} /> Annual Compliance</div></div>
+                <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+                  {COMPLIANCE_DRIVERS.map(d => {
+                    const lastQuery = chOrders.find(o => o.driver === d.name && o.type === 'Annual' && o.status === 'Complete')
+                    const due = lastQuery ? 'Jan 2027' : 'OVERDUE'
+                    const isDue = !lastQuery
+                    return (
+                      <div key={d.name} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', background:'var(--surface2)', borderRadius:10, border:`1px solid ${isDue ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, flexWrap:'wrap' }}>
+                        <div style={{ width:34, height:34, borderRadius:'50%', background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:11, color:'var(--accent)', flexShrink:0 }}>
+                          {d.avatar}
+                        </div>
+                        <div style={{ flex:1, minWidth:100 }}>
+                          <div style={{ fontSize:13, fontWeight:700, marginBottom:1 }}>{d.name}</div>
+                          <div style={{ fontSize:11, color:'var(--muted)' }}>{d.cdl} · {d.unit}</div>
+                        </div>
+                        <div style={{ textAlign:'right' }}>
+                          <div style={{ fontSize:10, color:'var(--muted)' }}>Due</div>
+                          <div style={{ fontSize:12, fontWeight:700, color: isDue ? 'var(--danger)' : 'var(--success)' }}>{due}</div>
+                        </div>
+                        {isDue && <button className="btn btn-primary" style={{ fontSize:10, padding:'4px 10px' }} onClick={() => setChDriver(d.name)}>Query</button>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-
-            {/* Order form */}
+            {/* Query history */}
             <div style={S.panel}>
               <div style={S.panelHead}>
-                <div style={S.panelTitle}><Ic icon={Search} /> Order Clearinghouse Query</div>
-                <span style={S.tag('var(--accent)')}>$1.25 / query</span>
+                <div style={S.panelTitle}><Ic icon={FileText} /> Query History</div>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>{chOrders.length} queries · ${(chOrders.reduce((s,o)=>s+o.cost,0)).toFixed(2)}</span>
               </div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-                <div>
-                  <label style={LABEL}>Select Driver</label>
-                  <select value={chDriver} onChange={e => setChDriver(e.target.value)} style={SELECT}>
-                    <option value="">— Select driver —</option>
-                    {CH_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} · {d.cdl} · {d.unit}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={LABEL}>Query Type</label>
-                  <select value={chType} onChange={e => setChType(e.target.value)} style={SELECT}>
-                    {['Pre-Employment','Annual','Random','Return-to-Duty','Follow-Up'].map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-                {chDriver && (
-                  <div style={{ background:'rgba(240,165,0,0.05)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'10px 14px', fontSize:12 }}>
-                    <div style={{ fontWeight:700, marginBottom:4, color:'var(--accent)' }}>Driver Info — Auto-filled from profile</div>
-                    {(() => { const d = CH_DRIVERS.find(x=>x.name===chDriver); return d ? (
-                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4, color:'var(--muted)' }}>
-                        <span>CDL: <b style={{ color:'var(--text)' }}>{d.cdl}</b></span>
-                        <span>State: <b style={{ color:'var(--text)' }}>{d.state}</b></span>
-                        <span>DOB: <b style={{ color:'var(--text)' }}>{d.dob}</b></span>
-                      </div>
-                    ) : null })()}
-                  </div>
-                )}
-                <div onClick={() => setChConsent(v => !v)}
-                  style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'10px 14px', background:'var(--surface2)', borderRadius:8, cursor:'pointer', border:`1px solid ${chConsent ? 'rgba(34,197,94,0.4)' : 'var(--border)'}` }}>
-                  <div style={{ width:18, height:18, borderRadius:4, background: chConsent ? 'var(--success)' : 'var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
-                    {chConsent && <Ic icon={Check} size={12} style={{ color:'#fff' }} />}
-                  </div>
-                  <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.4 }}>
-                    I confirm the driver has provided electronic consent for this Clearinghouse query as required by 49 CFR § 382.701.
-                  </div>
-                </div>
-                <button className="btn btn-primary" style={{ padding:'11px 0' }} onClick={submitCH}>
-                  <Search size={13} /> Submit Query — $1.25
-                </button>
-                <div style={{ fontSize:11, color:'var(--muted)', textAlign:'center' }}>
-                  Pre-employment: limited query sufficient · Full query requires driver's direct access
-                </div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', minWidth:600 }}>
+                  <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
+                    {['ID','Driver','CDL','Type','Date','Status','Result','Cost'].map(h => (
+                      <th key={h} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {chOrders.map(o => (
+                      <tr key={o.id} style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, color:'var(--accent)' }}>{o.id}</td>
+                        <td style={{ padding:'10px 12px', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>{o.driver}</td>
+                        <td style={{ padding:'10px 12px', fontSize:11, color:'var(--muted)' }}>{o.cdl}</td>
+                        <td style={{ padding:'10px 12px', fontSize:12 }}>{o.type}</td>
+                        <td style={{ padding:'10px 12px', fontSize:11, color:'var(--muted)', whiteSpace:'nowrap' }}>{o.date}</td>
+                        <td style={{ padding:'10px 12px' }}><span style={S.tag(o.status === 'Complete' ? 'var(--success)' : 'var(--accent)')}>{o.status}</span></td>
+                        <td style={{ padding:'10px 12px' }}><span style={S.tag(o.result === 'Clear' ? 'var(--success)' : o.result === 'Pending' ? 'var(--accent)' : 'var(--danger)')}>{o.result}</span></td>
+                        <td style={{ padding:'10px 12px', fontSize:12, color:'var(--muted)' }}>${o.cost.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-
-            {/* Annual compliance tracker */}
-            <div style={S.panel}>
-              <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Calendar} /> Annual Query Compliance</div></div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
-                {CH_DRIVERS.map(d => {
-                  const lastQuery = chOrders.find(o => o.driver === d.name && o.type === 'Annual' && o.status === 'Complete')
-                  const due = lastQuery ? 'Jan 2027' : 'OVERDUE'
-                  const isDue = !lastQuery
-                  return (
-                    <div key={d.name} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'var(--surface2)', borderRadius:10, border:`1px solid ${isDue ? 'rgba(239,68,68,0.3)' : 'var(--border)'}` }}>
-                      <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:12, color:'var(--accent)', flexShrink:0 }}>
-                        {d.name.split(' ').map(n=>n[0]).join('')}
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>{d.name}</div>
-                        <div style={{ fontSize:11, color:'var(--muted)' }}>CDL: {d.cdl} · {d.unit}</div>
-                      </div>
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:10, color:'var(--muted)' }}>Annual due</div>
-                        <div style={{ fontSize:12, fontWeight:700, color: isDue ? 'var(--danger)' : 'var(--success)' }}>{due}</div>
-                      </div>
-                      {isDue && <button className="btn btn-primary" style={{ fontSize:10, padding:'4px 10px' }} onClick={() => setChDriver(d.name)}>Query Now</button>}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Query history */}
-          <div style={S.panel}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}><Ic icon={FileText} /> Query History</div>
-              <span style={{ fontSize:11, color:'var(--muted)' }}>{chOrders.length} queries · ${(chOrders.reduce((s,o)=>s+o.cost,0)).toFixed(2)} total</span>
-            </div>
-            <table style={{ width:'100%', borderCollapse:'collapse' }}>
-              <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                {['Order ID','Driver','CDL','Type','Date','Status','Result','Cost'].map(h => (
-                  <th key={h} style={{ padding:'8px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {chOrders.map(o => (
-                  <tr key={o.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                    <td style={{ padding:'11px 14px', fontFamily:'monospace', fontSize:11, color:'var(--accent)' }}>{o.id}</td>
-                    <td style={{ padding:'11px 14px', fontSize:13, fontWeight:700 }}>{o.driver}</td>
-                    <td style={{ padding:'11px 14px', fontSize:11, color:'var(--muted)' }}>{o.cdl}</td>
-                    <td style={{ padding:'11px 14px', fontSize:12 }}>{o.type}</td>
-                    <td style={{ padding:'11px 14px', fontSize:11, color:'var(--muted)' }}>{o.date}</td>
-                    <td style={{ padding:'11px 14px' }}><span style={S.tag(statusColor(o.status))}>{o.status}</span></td>
-                    <td style={{ padding:'11px 14px' }}><span style={S.tag(o.result === 'Clear' ? 'var(--success)' : o.result === 'Pending' ? 'var(--accent)' : 'var(--danger)')}>{o.result}</span></td>
-                    <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>${o.cost.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>)}
-
-        {/* ── PSP REPORTS ── */}
-        {tab === 'psp' && (<>
-          <div style={{ background:'linear-gradient(135deg,rgba(77,142,240,0.06),rgba(0,212,170,0.04))', border:'1px solid rgba(77,142,240,0.2)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
-            <span style={{ fontSize:24 }}><FileText size={24} /></span>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--accent2)', marginBottom:3 }}>FMCSA Pre-Employment Screening Program (PSP)</div>
-              <div style={{ fontSize:12, color:'var(--muted)' }}>5-year crash history + 3-year inspection history from FMCSA · Requires signed driver disclosure & authorization · $10/report</div>
-            </div>
-            <div style={{ textAlign:'right', flexShrink:0 }}>
-              <div style={{ fontSize:11, color:'var(--muted)' }}>Account Balance</div>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent2)' }}>$245.00</div>
-            </div>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            <div style={S.panel}>
-              <div style={S.panelHead}>
-                <div style={S.panelTitle}><Ic icon={FileText} /> Order PSP Report</div>
-                <span style={S.tag('var(--accent2)')}>$10.00 / report</span>
-              </div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-                <div>
-                  <label style={LABEL}>Select Driver</label>
-                  <select value={pspDriver} onChange={e => setPspDriver(e.target.value)} style={SELECT}>
-                    <option value="">— Select driver —</option>
-                    {CH_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} · {d.cdl} · {d.unit}</option>)}
-                  </select>
-                </div>
-                {pspDriver && (
-                  <div style={{ background:'var(--surface2)', borderRadius:8, padding:'10px 14px' }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', marginBottom:6, letterSpacing:1 }}>PSP REPORT INCLUDES</div>
-                    <div style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12, color:'var(--muted)' }}>
-                      <span><Ic icon={Check} /> 5-year DOT reportable crash history</span>
-                      <span><Ic icon={Check} /> 3-year DOT roadside inspection history</span>
-                      <span><Ic icon={Check} /> Violation codes with descriptions</span>
-                      <span><Ic icon={Check} /> Out-of-service event details</span>
-                    </div>
-                  </div>
-                )}
-                <div onClick={() => setPspConsent(v => !v)}
-                  style={{ display:'flex', gap:10, alignItems:'flex-start', padding:'10px 14px', background:'var(--surface2)', borderRadius:8, cursor:'pointer', border:`1px solid ${pspConsent ? 'rgba(34,197,94,0.4)' : 'var(--border)'}` }}>
-                  <div style={{ width:18, height:18, borderRadius:4, background: pspConsent ? 'var(--success)' : 'var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
-                    {pspConsent && <Ic icon={Check} size={12} style={{ color:'#fff' }} />}
-                  </div>
-                  <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.4 }}>
-                    Driver has signed the FMCSA Disclosure & Authorization form as required by the Fair Credit Reporting Act (FCRA).
-                  </div>
-                </div>
-                <button className="btn btn-primary" style={{ padding:'11px 0' }} onClick={submitPSP}>
-                  <FileText size={13} /> Order PSP Report — $10.00
-                </button>
-              </div>
-            </div>
-
-            {/* PSP results detail */}
-            <div style={S.panel}>
-              <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={BarChart2} /> What Your Drivers Look Like</div></div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
-                {pspOrders.filter(o => o.status === 'Complete').map(o => {
-                  const isOpen = pspDetail === o.id
-                  return (
-                    <div key={o.id} style={{ background:'var(--surface2)', borderRadius:10, border:`1px solid ${o.oos > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, overflow:'hidden' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', cursor:'pointer' }} onClick={() => setPspDetail(isOpen ? null : o.id)}>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontSize:13, fontWeight:700 }}>{o.driver}</div>
-                          <div style={{ fontSize:11, color:'var(--muted)' }}>Ordered {o.date}</div>
-                        </div>
-                        <div style={{ display:'flex', gap:10 }}>
-                          <span style={{ textAlign:'center' }}>
-                            <div style={{ fontSize:9, color:'var(--muted)' }}>CRASHES</div>
-                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: o.crashes > 0 ? 'var(--danger)' : 'var(--success)' }}>{o.crashes}</div>
-                          </span>
-                          <span style={{ textAlign:'center' }}>
-                            <div style={{ fontSize:9, color:'var(--muted)' }}>INSPECTIONS</div>
-                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent2)' }}>{o.inspections}</div>
-                          </span>
-                          <span style={{ textAlign:'center' }}>
-                            <div style={{ fontSize:9, color:'var(--muted)' }}>OOS</div>
-                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: o.oos > 0 ? 'var(--warning)' : 'var(--success)' }}>{o.oos}</div>
-                          </span>
-                        </div>
-                        <span style={{ color:'var(--muted)', fontSize:11 }}>{isOpen ? '▲' : '▼'}</span>
-                      </div>
-                      {isOpen && (
-                        <div style={{ padding:'0 14px 14px', borderTop:'1px solid var(--border)' }}>
-                          <div style={{ fontSize:11, color:'var(--muted)', marginTop:10, marginBottom:6, fontWeight:700, letterSpacing:1 }}>INSPECTION HISTORY (last 3 years)</div>
-                          {[
-                            { date:'Feb 12, 2026', type:'Level I', result:'Pass', violation:'None', state:'IL' },
-                            { date:'Nov 08, 2025', type:'Level II', result:'Pass', violation:'None', state:'TN' },
-                            { date:'Aug 23, 2025', type:'Level I', result: o.oos > 0 ? 'OOS — Brake issue (corrected)' : 'Pass', violation: o.oos > 0 ? 'Brake defect' : 'None', state:'OH' },
-                          ].map((ins, i) => (
-                            <div key={i} style={{ display:'flex', gap:8, fontSize:11, padding:'5px 0', borderBottom:'1px solid var(--border)', alignItems:'center' }}>
-                              <span style={{ color:'var(--muted)', minWidth:90 }}>{ins.date}</span>
-                              <span style={{ minWidth:60 }}>{ins.type}</span>
-                              <span style={{ color:'var(--muted)' }}>{ins.state}</span>
-                              <span style={{ flex:1, color: ins.result === 'Pass' ? 'var(--success)' : 'var(--warning)' }}>{ins.result}</span>
-                            </div>
-                          ))}
-                          <button className="btn btn-ghost" style={{ marginTop:10, fontSize:11 }} onClick={() => showToast('','PSP Downloaded',`${o.driver} PSP report saved`)}><Ic icon={Download} /> Download Full PSP PDF</button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div style={S.panel}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}><Ic icon={FileText} /> PSP Order History</div>
-              <span style={{ fontSize:11, color:'var(--muted)' }}>{pspOrders.length} reports · ${(pspOrders.reduce((s,o)=>s+o.cost,0)).toFixed(2)} total</span>
-            </div>
-            <table style={{ width:'100%', borderCollapse:'collapse' }}>
-              <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                {['Order ID','Driver','Date','Status','Crashes (5yr)','Inspections (3yr)','OOS Events','Cost'].map(h => (
-                  <th key={h} style={{ padding:'8px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {pspOrders.map(o => (
-                  <tr key={o.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                    <td style={{ padding:'11px 14px', fontFamily:'monospace', fontSize:11, color:'var(--accent2)' }}>{o.id}</td>
-                    <td style={{ padding:'11px 14px', fontSize:13, fontWeight:700 }}>{o.driver}</td>
-                    <td style={{ padding:'11px 14px', fontSize:11, color:'var(--muted)' }}>{o.date}</td>
-                    <td style={{ padding:'11px 14px' }}><span style={S.tag(statusColor(o.status))}>{o.status}</span></td>
-                    <td style={{ padding:'11px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: o.crashes > 0 ? 'var(--danger)' : 'var(--success)' }}>{o.crashes}</td>
-                    <td style={{ padding:'11px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent2)' }}>{o.inspections}</td>
-                    <td style={{ padding:'11px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: o.oos > 0 ? 'var(--warning)' : 'var(--success)' }}>{o.oos}</td>
-                    <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>${o.cost.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>)}
-
-        {/* ── MVR ── */}
-        {tab === 'mvr' && (<>
-          <div style={{ background:'linear-gradient(135deg,rgba(0,212,170,0.06),rgba(77,142,240,0.04))', border:'1px solid rgba(0,212,170,0.2)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
-            <span style={{ fontSize:24 }}><FileCheck size={24} /></span>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--accent3)', marginBottom:3 }}>Motor Vehicle Record (MVR) — State DMV</div>
-              <div style={{ fontSize:12, color:'var(--muted)' }}>Official state driving record — violations, suspensions, license status · Required annually by most insurers · $8.50–$14/state</div>
-            </div>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            <div style={S.panel}>
-              <div style={S.panelHead}>
-                <div style={S.panelTitle}><Ic icon={FileCheck} /> Order MVR</div>
-                <span style={S.tag('var(--accent3)')}>From $8.50</span>
-              </div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-                <div>
-                  <label style={LABEL}>Select Driver</label>
-                  <select value={mvrDriver} onChange={e => { setMvrDriver(e.target.value); const d=CH_DRIVERS.find(x=>x.name===e.target.value); if(d) setMvrState(d.state) }} style={SELECT}>
-                    <option value="">— Select driver —</option>
-                    {CH_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} · {d.unit}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={LABEL}>License State</label>
-                  <select value={mvrState} onChange={e => setMvrState(e.target.value)} style={SELECT}>
-                    {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div style={{ background:'var(--surface2)', borderRadius:8, padding:'10px 14px', fontSize:11, color:'var(--muted)', display:'flex', flexDirection:'column', gap:4 }}>
-                  <div style={{ fontWeight:700, color:'var(--text)', marginBottom:4 }}>MVR includes:</div>
-                  <span><Ic icon={Check} /> License class, status & expiration</span>
-                  <span><Ic icon={Check} /> Moving violations (3–7 years)</span>
-                  <span><Ic icon={Check} /> DUI/DWI history</span>
-                  <span><Ic icon={Check} /> License suspensions & revocations</span>
-                  <span><Ic icon={Check} /> Accident history (state reported)</span>
-                </div>
-                <button className="btn btn-primary" style={{ padding:'11px 0' }} onClick={submitMVR}>
-                  <FileCheck size={13} /> Order MVR — $8.50
-                </button>
-              </div>
-            </div>
-
-            <div style={S.panel}>
-              <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={BarChart2} /> Driver MVR Summary</div></div>
-              <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
-                {mvrOrders.filter(o => o.status === 'Complete').map(o => (
-                  <div key={o.id} style={{ background:'var(--surface2)', borderRadius:10, padding:'14px', border:`1px solid ${o.violations > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}` }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:700 }}>{o.driver}</div>
-                        <div style={{ fontSize:11, color:'var(--muted)' }}>{o.state} MVR · {o.date}</div>
-                      </div>
-                      <span style={S.tag(o.violations === 0 ? 'var(--success)' : 'var(--warning)')}>
-                        {o.violations === 0 ? 'Clean Record' : `${o.violations} Violation${o.violations > 1 ? 's' : ''}`}
-                      </span>
-                    </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-                      {[
-                        { label:'Violations', value:o.violations, color: o.violations > 0 ? 'var(--warning)' : 'var(--success)' },
-                        { label:'Suspensions', value:o.suspensions, color: o.suspensions > 0 ? 'var(--danger)' : 'var(--success)' },
-                        { label:'Points', value:o.points, color: o.points > 3 ? 'var(--warning)' : 'var(--success)' },
-                      ].map(s => (
-                        <div key={s.label} style={{ background:'var(--surface)', borderRadius:6, padding:'8px', textAlign:'center' }}>
-                          <div style={{ fontSize:9, color:'var(--muted)', marginBottom:2 }}>{s.label}</div>
-                          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:s.color }}>{s.value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <button className="btn btn-ghost" style={{ marginTop:10, fontSize:11, width:'100%' }} onClick={() => showToast('','MVR Downloaded',`${o.driver} · ${o.state} MVR saved`)}><Ic icon={Download} /> Download MVR PDF</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div style={S.panel}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}><Ic icon={FileText} /> MVR Order History</div>
-              <span style={{ fontSize:11, color:'var(--muted)' }}>{mvrOrders.length} records · ${(mvrOrders.reduce((s,o)=>s+o.cost,0)).toFixed(2)} total</span>
-            </div>
-            <table style={{ width:'100%', borderCollapse:'collapse' }}>
-              <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                {['Order ID','Driver','State','Date','Status','Violations','Suspensions','Points','Cost'].map(h => (
-                  <th key={h} style={{ padding:'8px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {mvrOrders.map(o => (
-                  <tr key={o.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                    <td style={{ padding:'11px 14px', fontFamily:'monospace', fontSize:11, color:'var(--accent3)' }}>{o.id}</td>
-                    <td style={{ padding:'11px 14px', fontSize:13, fontWeight:700 }}>{o.driver}</td>
-                    <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>{o.state}</td>
-                    <td style={{ padding:'11px 14px', fontSize:11, color:'var(--muted)' }}>{o.date}</td>
-                    <td style={{ padding:'11px 14px' }}><span style={S.tag(statusColor(o.status))}>{o.status}</span></td>
-                    <td style={{ padding:'11px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: o.violations > 0 ? 'var(--warning)' : 'var(--success)' }}>{o.violations}</td>
-                    <td style={{ padding:'11px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: o.suspensions > 0 ? 'var(--danger)' : 'var(--success)' }}>{o.suspensions}</td>
-                    <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>{o.points}</td>
-                    <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>${o.cost.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>)}
-
-        {/* ── RANDOM POOL ── */}
-        {tab === 'random' && (<>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-            {[
-              { label:'Pool Size',          value:'3',    sub:'CDL drivers enrolled',    color:'var(--accent)' },
-              { label:'Drug Rate (DOT)',     value:'50%',  sub:'Min 1–2 tests this year', color:'var(--accent2)' },
-              { label:'Alcohol Rate (DOT)',  value:'10%',  sub:'Recommended annually',    color:'var(--accent3)' },
-              { label:'Completed 2026',      value:'1',    sub:'Q1 selection done',       color:'var(--success)' },
-            ].map(s => (
-              <div key={s.label} style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', textAlign:'center' }}>
-                <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>{s.label}</div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:s.color }}>{s.value}</div>
-                <div style={{ fontSize:10, color:'var(--muted)', marginTop:4 }}>{s.sub}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ background:'rgba(240,165,0,0.05)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:12, padding:'14px 18px', fontSize:12 }}>
-            <div style={{ fontWeight:700, color:'var(--accent)', marginBottom:6 }}><Ic icon={Zap} /> DOT Random Testing Requirements — 49 CFR Part 382</div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, color:'var(--muted)' }}>
-              <div><b style={{ color:'var(--text)' }}>Drug testing:</b> Minimum 50% of average driver count annually · Random, unannounced · Urine specimen</div>
-              <div><b style={{ color:'var(--text)' }}>Alcohol testing:</b> Minimum 10% of average driver count annually · Only pre-duty, post-accident, or reasonable suspicion</div>
-              <div><b style={{ color:'var(--text)' }}>Consortium:</b> Small carriers (&lt;50 drivers) typically use a C/TPA (Third-Party Administrator) random pool</div>
-              <div><b style={{ color:'var(--text)' }}>Recordkeeping:</b> Maintain test records 1–5 years · DER must receive MRO-verified results</div>
-            </div>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            <div style={S.panel}>
-              <div style={S.panelHead}>
-                <div style={S.panelTitle}><Ic icon={User} /> Pool Members</div>
-                <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => showToast('','Pool Updated','Random selection for Q2 2026 has been generated')}>Generate Q2 Selection</button>
-              </div>
-              <div>
-                {poolDrivers.map(d => (
-                  <div key={d.name} style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:12 }}>
-                    <div style={{ width:36, height:36, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:12, color:'var(--accent)', flexShrink:0 }}>
-                      {d.name.split(' ').map(n=>n[0]).join('')}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>{d.name} · <span style={{ color:'var(--muted)', fontWeight:400, fontSize:11 }}>{d.unit}</span></div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>Last drug: {d.lastDrug || '—'} · Last alcohol: {d.lastAlcohol || '—'}</div>
-                    </div>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:10, color:'var(--muted)' }}>Next due</div>
-                      <div style={{ fontSize:12, fontWeight:700, color: d.poolStatus === 'Due Soon' ? 'var(--warning)' : 'var(--muted)' }}>{d.nextDue}</div>
-                    </div>
-                    <span style={S.tag(d.poolStatus === 'Active' ? 'var(--success)' : 'var(--warning)')}>{d.poolStatus}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={S.panel}>
-              <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Dice5} /> Random Selections Log</div></div>
-              <div>
-                {randomSelections.map((r,i) => (
-                  <div key={i} style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:12 }}>
-                    <div style={{ width:36, height:36, borderRadius:8, background: r.type === 'Drug' ? 'rgba(240,165,0,0.1)' : 'rgba(77,142,240,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
-                      {r.type === 'Drug' ? <Pill size={14} /> : <Beer size={14} />}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:13, fontWeight:700, marginBottom:2 }}>{r.selected}</div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>{r.quarter} · {r.type} test · {r.date}</div>
-                    </div>
-                    <span style={S.tag('var(--success)')}>{r.status}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding:'12px 16px', borderTop:'1px solid var(--border)' }}>
-                <button className="btn btn-ghost" style={{ fontSize:11, width:'100%' }} onClick={() => showToast('','C/TPA Connect','Opening consortium enrollment — integrate with your TPA for automated selections')}><Ic icon={Plug} /> Connect C/TPA Consortium</button>
-              </div>
-            </div>
-          </div>
-
-          <div style={S.panel}>
-            <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={FileText} /> Collection Site Locator</div></div>
-            <div style={{ padding:16 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:12 }}>
-                {[
-                  { name:'Quest Diagnostics', type:'Lab Partner', locations:'2,200+ sites', turnaround:'24-48hr', color:'var(--accent)' },
-                  { name:'LabCorp',           type:'Lab Partner', locations:'1,900+ sites', turnaround:'24-48hr', color:'var(--accent2)' },
-                  { name:'Concentra',         type:'Occupational Health', locations:'500+ sites', turnaround:'Same day', color:'var(--accent3)' },
-                ].map(c => (
-                  <div key={c.name} style={{ background:'var(--surface2)', borderRadius:10, padding:14 }}>
-                    <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>{c.name}</div>
-                    <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6 }}>{c.type}</div>
-                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:11 }}>
-                      <span style={{ color:'var(--muted)' }}><Ic icon={MapPin} /> {c.locations}</span>
-                      <span style={{ color:'var(--success)' }}><Ic icon={Zap} /> {c.turnaround}</span>
-                    </div>
-                    <button className="btn btn-ghost" style={{ marginTop:10, fontSize:11, width:'100%' }} onClick={() => showToast('','Locator',`Finding nearest ${c.name} collection site`)}>Find Nearest →</button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize:11, color:'var(--muted)', textAlign:'center' }}>All collection sites are SAMHSA-certified · Results sent directly to your MRO</div>
-            </div>
-          </div>
-        </>)}
-
+          </>
+        )}
       </div>
     </div>
   )
 }
+
+// CarrierCSA now redirects to unified compliance center
+export function CarrierCSA() { return <AIComplianceCenter defaultTab="csa" /> }
+
+// CarrierClearinghouse now redirects to unified compliance center
+export function CarrierClearinghouse() { return <AIComplianceCenter defaultTab="clearinghouse" /> }
+
+// CarrierDVIR is the unified AI Compliance Center
+export function CarrierDVIR() { return <AIComplianceCenter /> }
 
 // ─── DRIVER PROFILES ───────────────────────────────────────────────────────────
 const DRIVER_DATA = [
@@ -3358,7 +3097,7 @@ export function DriverProfiles() {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap: 12 }}>
           {[
             { label: 'Loads MTD',  value: d.stats.loadsMTD,                    color: 'var(--accent)' },
             { label: 'Miles MTD',  value: d.stats.milesMTD.toLocaleString(),   color: 'var(--accent2)' },
@@ -3501,7 +3240,7 @@ export function BrokerDirectory() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
             {[
               { label: 'Avg Pay Speed', value: broker.paySpeed, color: 'var(--accent2)' },
               { label: 'Total Loads',   value: broker.loadsTotal, color: 'var(--accent)' },
@@ -3580,7 +3319,7 @@ export function ExpenseTracker() {
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', textAlign: 'center', gridColumn: 'span 1' }}>
           <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>TOTAL MTD</div>
           <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--danger)' }}>${grandTotal.toLocaleString()}</div>
@@ -3651,7 +3390,7 @@ export function ExpenseTracker() {
       {/* Add form */}
       {showForm && (
         <div style={{ background: 'var(--surface)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap: 10, marginBottom: 10 }}>
             {[
               { key:'date',   label:'Date',      type:'text', ph:'Mar 12' },
               { key:'amount', label:'Amount ($)', type:'number', ph:'250' },
@@ -3679,7 +3418,7 @@ export function ExpenseTracker() {
 
       {/* Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth:600 }}>
           <thead><tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
             {['Date','Category','Amount','Load','Driver','Notes'].map(h => (
               <th key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
@@ -3699,7 +3438,7 @@ export function ExpenseTracker() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   )
@@ -3864,7 +3603,7 @@ export function FactoringCashflow() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, textAlign: 'right' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap: 16, textAlign: 'right' }}>
                     <div>
                       <div style={{ fontSize: 9, color: 'var(--muted)' }}>AGE</div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: ageColor }}>{inv.days}d</div>
@@ -3908,7 +3647,7 @@ export function FactoringCashflow() {
       {/* ── Cashflow Forecast tab ── */}
       {tab === 'cashflow' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
             {CASHFLOW_WEEKS.map((w, i) => (
               <div key={w.week} style={{ background: 'var(--surface)', border: `1px solid ${i === 0 ? 'rgba(240,165,0,0.3)' : 'var(--border)'}`, borderRadius: 12, padding: 16 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: i === 0 ? 'var(--accent)' : 'var(--muted)', marginBottom: 12 }}>{w.week}</div>
@@ -4481,7 +4220,7 @@ export function FleetManager() {
           {subTab === 'maintenance' && (
             <>
               {/* Stats */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
                 {[
                   { label:'Services Logged',  value: truckLogs.length,                         color:'var(--accent)' },
                   { label:'Total Maint Cost', value:'$' + totalMaintCost.toLocaleString(),      color:'var(--danger)' },
@@ -4499,7 +4238,7 @@ export function FleetManager() {
               {showAddService && (
                 <div style={{ background:'var(--surface)', border:'1px solid rgba(240,165,0,0.3)', borderRadius:12, padding:18 }}>
                   <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)', marginBottom:14 }}><Ic icon={Wrench} /> Log New Service — {truck.unit}</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:12 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10, marginBottom:12 }}>
                     {[
                       { key:'date',    label:'Date',         type:'text',   ph:'Mar 8' },
                       { key:'mileage', label:'Mileage',      type:'number', ph: truck.odometer.toString() },
@@ -4532,11 +4271,11 @@ export function FleetManager() {
 
               {/* Service history */}
               <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-                <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
                   <div style={{ fontWeight:700, fontSize:13 }}><Ic icon={Wrench} /> Service History — {truck.unit}</div>
                   <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => setShowAddService(s => !s)}>{showAddService ? '✕ Cancel' : '+ Log Service'}</button>
                 </div>
-                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <div style={{ overflowX:'auto' }}><table style={{ width:'100%', borderCollapse:'collapse', minWidth:700 }}>
                   <thead><tr style={{ background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
                     {['Date','Mileage','Service Type','Cost','Shop','Next Due','Notes'].map(h => (
                       <th key={h} style={{ padding:'9px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
@@ -4558,7 +4297,7 @@ export function FleetManager() {
                       <tr><td colSpan={7} style={{ padding:32, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No service records yet — log the first service above</td></tr>
                     )}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             </>
           )}
@@ -4566,7 +4305,7 @@ export function FleetManager() {
           {/* ── ANALYTICS TAB ── */}
           {subTab === 'analytics' && (
             <>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
                 {[
                   { label:'6-Week Revenue',  value:'$' + totalRev.toLocaleString(),    color:'var(--accent)' },
                   { label:'Operating Cost',  value:'$' + totalCost.toLocaleString(),   color:'var(--danger)' },
@@ -4657,7 +4396,7 @@ export function FleetManager() {
               </div>
 
               {/* Utilization breakdown */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12 }}>
                 {[
                   { label:'Revenue per Mile', value:'$' + (totalRev / totalMiles).toFixed(2) + '/mi', icon: DollarSign, color:'var(--accent)', note:'6-week avg across all loads' },
                   { label:'Cost per Mile',    value:'$' + (totalCost / totalMiles).toFixed(2) + '/mi', icon: DollarSign, color:'var(--danger)', note:'Fuel + maintenance + insurance' },
@@ -5279,7 +5018,7 @@ export function LaneIntel() {
               </div>
 
               {/* KPIs */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:12 }}>
                 {[
                   { label:'Avg RPM',       value:'$' + lane.avgRpm + '/mi', color:'var(--accent)',  sub:'30-day avg' },
                   { label:'Top RPM',       value:'$' + lane.topRpm + '/mi', color:'var(--success)', sub:'Best spot rate' },
@@ -5494,6 +5233,25 @@ export function CommandCenter() {
           </div>
 
           <div style={{ flex:1, overflowY:'auto', minHeight:0, display:'flex', flexDirection:'column' }}>
+            {/* Queue Summary — prominent KPIs */}
+            {activeLoads.length > 0 && (
+              <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {[
+                    { l:'Active Loads',  v: String(activeLoads.length), c:'var(--accent2)' },
+                    { l:'Total Miles',   v: activeLoads.reduce((s,l)=>s+(parseFloat(l.miles)||0),0).toLocaleString(), c:'var(--muted)' },
+                    { l:'Total Gross',   v: '$' + activeLoads.reduce((s,l)=>s+(l.gross||0),0).toLocaleString(), c:'var(--accent)' },
+                    { l:'Avg RPM',       v: activeLoads.length ? '$' + (activeLoads.reduce((s,l)=>s+(l.rate||0),0)/activeLoads.length).toFixed(2) : '—', c:'var(--success)' },
+                  ].map(s => (
+                    <div key={s.l} style={{ textAlign:'center', background:'var(--surface2)', borderRadius:8, padding:'8px 6px', border:'1px solid var(--border)' }}>
+                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:s.c, lineHeight:1 }}>{s.v}</div>
+                      <div style={{ fontSize:8, color:'var(--muted)', marginTop:3, fontWeight:700, letterSpacing:0.5 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {queueLoad.length === 0 && (
               <div style={{ padding:20, textAlign:'center', fontSize:12, color:'var(--muted)' }}>No loads in this status</div>
             )}
@@ -5505,54 +5263,42 @@ export function CommandCenter() {
               return (
                 <div key={load.loadId}
                   onClick={() => setSelDriver(load.driver === selDriver ? null : load.driver)}
-                  style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer',
+                  style={{ padding:'16px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer',
                     borderLeft:`3px solid ${isSel ? color : 'transparent'}`,
-                    background: isSel ? color+'10' : 'transparent', transition:'all 0.15s' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                    <span style={{ fontSize:12, fontWeight:700, color: isSel ? color : 'var(--text)' }}>{load.loadId}</span>
-                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6, background:statusC+'15', color:statusC }}>{load.status}</span>
+                    background: isSel ? color+'10' : 'transparent', transition:'all 0.15s' }}
+                  onMouseOver={e => { if (!isSel) e.currentTarget.style.background='rgba(255,255,255,0.02)' }}
+                  onMouseOut={e => { if (!isSel) e.currentTarget.style.background='transparent' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <span style={{ fontSize:13, fontWeight:800, color: isSel ? color : 'var(--accent)', fontFamily:'monospace' }}>{load.loadId}</span>
+                    <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:6, background:statusC+'15', color:statusC }}>{load.status}</span>
                   </div>
-                  <div style={{ fontSize:13, fontWeight:700, marginBottom:3 }}>
+                  <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>
                     {load.origin?.split(',')[0]} → {load.dest?.split(',')[0]}
                   </div>
-                  <div style={{ fontSize:11, color:'var(--muted)', marginBottom:8, display:'flex', alignItems:'center', gap:8 }}>
-                    {CC_UNIT[load.driver]} · {load.driver} · {load.miles} mi
-                    {load.stops?.length > 0 && (
-                      <span style={{ fontSize:9, fontWeight:800, padding:'1px 6px', borderRadius:5, background:'rgba(77,142,240,0.15)', color:'var(--accent2)' }}>
-                        {load.stops.length} STOPS
-                      </span>
-                    )}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                    <div style={{ fontSize:11, color:'var(--muted)', display:'flex', alignItems:'center', gap:6 }}>
+                      {CC_UNIT[load.driver]} · {load.driver}
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:11, color:'var(--muted)' }}>{load.miles} mi</span>
+                      {load.stops?.length > 0 && (
+                        <span style={{ fontSize:9, fontWeight:800, padding:'2px 7px', borderRadius:5, background:'rgba(77,142,240,0.15)', color:'var(--accent2)' }}>
+                          {load.stops.length} STOPS
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ height:4, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:`${prog*100}%`, background:color, borderRadius:2 }}/>
+                  <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${prog*100}%`, background:color, borderRadius:3, transition:'width 0.3s' }}/>
                   </div>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:4 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:6 }}>
                     <span style={{ fontSize:10, color:'var(--muted)' }}>{Math.round(prog*100)}% complete</span>
-                    <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>${load.rate}/mi</span>
+                    <span style={{ fontSize:11, fontWeight:800, color:'var(--accent)' }}>${load.rate}/mi</span>
                   </div>
                 </div>
               )
             })}
 
-            {/* Queue summary — fills dead space */}
-            {queueLoad.length > 0 && (
-              <div style={{ margin:'12px 14px', padding:'12px 14px', background:'var(--surface2)', borderRadius:10, border:'1px solid var(--border)' }}>
-                <div style={{ fontSize:9, fontWeight:800, color:'var(--muted)', letterSpacing:1.5, marginBottom:8 }}>QUEUE SUMMARY</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                  {[
-                    { l:'Total Loads',  v: activeLoads.length },
-                    { l:'Total Miles',  v: activeLoads.reduce((s,l)=>s+(parseFloat(l.miles)||0),0).toLocaleString() + ' mi' },
-                    { l:'Total Gross',  v: '$' + activeLoads.reduce((s,l)=>s+(l.gross||0),0).toLocaleString() },
-                    { l:'Avg RPM',      v: activeLoads.length ? '$' + (activeLoads.reduce((s,l)=>s+(l.rate||0),0)/activeLoads.length).toFixed(2) : '—' },
-                  ].map(s => (
-                    <div key={s.l} style={{ textAlign:'center' }}>
-                      <div style={{ fontSize:9, color:'var(--muted)', marginBottom:2 }}>{s.l}</div>
-                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>{s.v}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             <div style={{ flex:1 }} />
           </div>
 
@@ -6007,7 +5753,7 @@ function AIRateNegotiator({ load, lane, bkr }) {
       <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
 
         {/* Suggested counter card */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10 }}>
           {[
             { label:'Posted Rate', val:`$${load.gross.toLocaleString()}`, sub:`$${load.rate}/mi`, color:'var(--muted)' },
             { label:'Lane Avg',    val:`$${Math.round(ln.avgRpm*load.miles).toLocaleString()}`, sub:`$${ln.avgRpm.toFixed(2)}/mi avg`, color:'var(--text)' },
@@ -6580,7 +6326,7 @@ export function CashFlowForecaster() {
     <div style={{ padding:20, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:16 }}>
 
       {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
         {kpis.map(k => (
           <div key={k.l} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'14px 16px' }}>
             <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600, letterSpacing:0.5 }}>{k.l.toUpperCase()}</div>
@@ -7498,7 +7244,7 @@ export function DriverScorecard() {
 }
 
 // ─── DAT ALERT BOT ────────────────────────────────────────────────────────────
-const DAT_API = 'http://localhost:4000'
+const DAT_API = import.meta.env.VITE_DAT_API_URL || ''
 
 const DAT_EQUIP_OPTS = ['All', 'Dry Van', 'Reefer', 'Flatbed']
 
@@ -7536,6 +7282,7 @@ export function DATAlertBot() {
 
   // SSE connection
   useEffect(() => {
+    if (!DAT_API) return
     const es = new EventSource(`${DAT_API}/api/dat/alerts/stream`)
 
     es.onmessage = (e) => {
@@ -7570,6 +7317,11 @@ export function DATAlertBot() {
 
   // Manual search
   const handleSearch = async () => {
+    if (!DAT_API) {
+      showToast('', 'DAT API', 'DAT API not configured — showing mock data')
+      setSearchLoading(false)
+      return
+    }
     setSearchLoading(true)
     try {
       const resp = await fetch(`${DAT_API}/api/dat/search`, {
@@ -7789,7 +7541,7 @@ export function DATAlertBot() {
               )}
 
               {/* Quick economics */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:10 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:10 }}>
                 {[
                   { l:'Gross',    v:`$${selLoad.gross?.toLocaleString()}`,     c:'var(--accent)'  },
                   { l:'Rate/mi',  v:`$${selLoad.rate?.toFixed(2)}`,            c:'var(--text)'    },
@@ -7989,7 +7741,7 @@ export function PLDashboard() {
         ))}
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16 }}>
         <div style={S.panel}>
           <div style={S.panelHead}>
             <div style={S.panelTitle}>Revenue Breakdown</div>
@@ -8582,7 +8334,7 @@ export function CarrierPackage() {
     { key:'drug',      label:'Drug & Alcohol Policy', required:false },
   ]
 
-  const linkUrl = 'https://pkg.qivori.com/c/' + (company?.mc||'MC-294810').replace('MC-','')
+  const linkUrl = 'https://pkg.qivori.com/c/' + (company?.mc||'').replace('MC-','')
   const doneCount = INS.filter(f=>f.required&&insurance[f.key]?.policy).length + DOCS.filter(f=>f.required&&docs[f.key]?.uploaded).length
   const totalReq  = INS.filter(f=>f.required).length + DOCS.filter(f=>f.required).length
   const pct = Math.round((doneCount/totalReq)*100)
@@ -8639,10 +8391,10 @@ export function CarrierPackage() {
                 }
               </div>
               <div style={{ flex:1 }}>
-                <div style={{ fontWeight:700, fontSize:16, marginBottom:4 }}>{company?.name || 'Swift Carriers LLC'}</div>
+                <div style={{ fontWeight:700, fontSize:16, marginBottom:4 }}>{company?.name || 'Your Company'}</div>
                 <div style={{ display:'flex', gap:16, fontSize:12, color:'var(--muted)' }}>
-                  <span>{company?.mc||'MC-294810'}</span>
-                  <span>{company?.dot||'DOT-3821049'}</span>
+                  <span>{company?.mc||''}</span>
+                  <span>{company?.dot||''}</span>
                   <span>{company?.phone || '(612) 555-0182'}</span>
                 </div>
               </div>
@@ -9039,7 +8791,7 @@ export function EquipmentManager() {
             )}
 
             {/* Key stats */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
               {[
                 { label:'Odometer',     value: sel.odometer || '—',    icon: Route },
                 { label:'Next Service', value: sel.nextService || '—', icon: Wrench, warn: isExpiringSoon(sel.nextService) },
@@ -9230,14 +8982,14 @@ export function AnalyticsDashboard() {
   const IMPACT_COLORS = { High:'var(--danger)', Medium:'var(--accent)', Opportunity:'var(--success)', Info:'var(--accent2)' }
 
   return (
-    <div style={S.page}>
+    <div style={{ ...S.page, paddingBottom:60 }}>
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:10 }}>
         <div>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>AI ANALYTICS</div>
           <div style={{ fontSize:12, color:'var(--muted)' }}>Powered by Qivori Intelligence Engine</div>
         </div>
-        <div style={{ display:'flex', gap:6 }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {[
             { id:'insights', label:'AI Insights' },
             { id:'financial', label:'Financial' },
@@ -9257,7 +9009,7 @@ export function AnalyticsDashboard() {
       {aiTab === 'insights' && (<>
 
         {/* AI Health Score + Key Metrics */}
-        <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'minmax(200px,280px) 1fr', gap:16 }}>
           {/* Health Score Ring */}
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:24, textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
             <div style={{ position:'relative', width:140, height:140, marginBottom:16 }}>
@@ -9280,7 +9032,7 @@ export function AnalyticsDashboard() {
           </div>
 
           {/* Score Breakdown Gauges */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12 }}>
             {[
               { label:'Net Margin', value:`${margin}%`, target:'30%', pct:Math.min(100,Math.round((margin/40)*100)), color: margin>=30?'var(--success)':margin>=20?'var(--accent)':'var(--danger)', detail: margin>=30?'Above industry avg':'Below 30% target' },
               { label:'Rate/Mile', value:`$${avgRPM}`, target:'$2.80', pct:Math.min(100,Math.round((Number(avgRPM)/3.5)*100)), color: Number(avgRPM)>=2.8?'var(--success)':Number(avgRPM)>=2.3?'var(--accent)':'var(--danger)', detail: Number(avgRPM)>=2.8?'Strong rate':'Below national avg' },
@@ -9338,7 +9090,7 @@ export function AnalyticsDashboard() {
         </div>
 
         {/* Projected Revenue */}
-        <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:12, padding:'18px 22px', display:'flex', alignItems:'center', gap:20 }}>
+        <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:12, padding:'18px 22px', display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
           <div style={{ width:44, height:44, borderRadius:12, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <Sparkles size={22} color="var(--accent)" />
           </div>
@@ -9364,7 +9116,7 @@ export function AnalyticsDashboard() {
       {/* ── FINANCIAL TAB ─────────────────────────────────────── */}
       {aiTab === 'financial' && (<>
         {/* KPI Row */}
-        <div style={S.grid(5)}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
           <StatCard label="Gross Revenue" value={totalRevenue >= 1000 ? `$${(totalRevenue/1000).toFixed(1)}K` : `$${totalRevenue}`} change={revTrendPct >= 0 ? `↑ ${revTrendPct}%` : `↓ ${Math.abs(revTrendPct)}%`} color="var(--accent)" changeType={revTrendPct>=0?'up':'down'} />
           <StatCard label="Net Profit" value={netProfit >= 1000 ? `$${(netProfit/1000).toFixed(1)}K` : `$${netProfit}`} change={`${margin}% margin`} color="var(--success)" changeType={margin>=30?'up':'down'} />
           <StatCard label="Avg Load" value={`$${avgLoadSize.toLocaleString()}`} change={`${loads.length} total`} color="var(--accent2)" changeType="neutral" />
@@ -9372,7 +9124,7 @@ export function AnalyticsDashboard() {
           <StatCard label="Unpaid" value={`$${(unpaidTotal/1000).toFixed(1)}K`} change={`${invoices.filter(i=>i.status!=='Paid').length} invoices`} color={unpaidTotal>0?'var(--danger)':'var(--success)'} changeType="neutral" />
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16 }}>
           {/* Revenue vs Expenses Chart */}
           <div style={S.panel}>
             <div style={S.panelHead}>
@@ -9457,7 +9209,7 @@ export function AnalyticsDashboard() {
       {/* ── OPERATIONS TAB ────────────────────────────────────── */}
       {aiTab === 'operations' && (<>
         {/* Ops KPIs */}
-        <div style={S.grid(5)}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
           <StatCard label="Total Loads" value={String(loads.length)} change={`${deliveredLoads.length} delivered`} color="var(--accent)" changeType="neutral" />
           <StatCard label="Miles Driven" value={totalMiles >= 1000 ? `${(totalMiles/1000).toFixed(1)}K` : String(totalMiles)} change={`$${avgRPM}/mi`} color="var(--accent2)" changeType="neutral" />
           <StatCard label="Fleet Util." value={`${utilization}%`} change={`${truckCount} trucks`} color={utilization>=80?'var(--success)':'var(--accent)'} changeType={utilization>=80?'up':'down'} />
@@ -9465,7 +9217,7 @@ export function AnalyticsDashboard() {
           <StatCard label="Avg Load/Mo" value={String(Math.round(loads.length/Math.max(revenueByMonth.filter(m=>m.loads>0).length,1)))} change="loads per month" color="var(--accent3)" changeType="neutral" />
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:16 }}>
           {/* Top Lanes with AI scoring */}
           <div style={S.panel}>
             <div style={S.panelHead}>

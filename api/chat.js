@@ -42,9 +42,17 @@ Available actions:
 - {"type":"update_load_status","load_id":"...","status":"Booked|Dispatched|At Pickup|Loaded|In Transit|At Delivery|Delivered|Invoiced"}
 - {"type":"book_load","load_id":"...","origin":"...","destination":"...","miles":0,"rate":0,"gross":0,"broker":"...","equipment":"...","pickup":"...","delivery":"...","weight":"...","commodity":"...","refNum":"..."} — book a load from the load board to the driver's dispatch
 - {"type":"snap_ratecon"} — triggers the camera so the driver can snap a photo of a rate confirmation, which auto-extracts load details and books the load
-- {"type":"search_nearby","query":"truck stop|rest area|gas station|weigh station|repair shop|walmart|restaurant","radius":25} — search for places near the driver's GPS. Always get_gps first if no location is known.
+- {"type":"search_nearby","query":"truck stop|rest area|gas station|repair shop|walmart|restaurant","radius":25} — search for places near the driver's GPS. Always get_gps first if no location is known.
+- {"type":"check_weigh_station","state":"XX","highway":"I-XX","radius":50} — check weigh station open/closed status near the driver. Returns real-time status, hours, and bypass info (PrePass/Drivewyze). Use GPS auto-detect when no state/highway specified.
 - {"type":"open_maps","query":"...","lat":0,"lng":0} — open Apple/Google Maps with directions to a place
 - {"type":"send_invoice","to":"broker@email.com","invoiceNumber":"INV-001","loadNumber":"...","route":"Origin → Dest","amount":0,"dueDate":"Net 30","brokerName":"..."} — email an invoice to the broker for a delivered load
+
+WEIGH STATIONS:
+IMPORTANT: ANY time a driver mentions weigh stations, scales, chicken coops, or coops — ALWAYS use check_weigh_station. NEVER use search_nearby for weigh stations.
+The check_weigh_station action shows open/closed status AND has a built-in "GO" directions button, so it handles both status AND navigation.
+Examples: "weigh station open?", "is the scale open", "chicken coop open?", "find weigh station", "nearest weigh station", "where's the scale" → ALL use check_weigh_station.
+Include state or highway if the driver mentions them. If not, leave them blank — GPS auto-detects.
+Your text response should be SHORT, like: "Checking weigh stations near you..." — the app displays the full results with status cards.
 
 INVOICING:
 When a load is delivered AND the driver has uploaded signed BOL + rate con, offer to send the invoice to the broker.
@@ -53,12 +61,13 @@ If they say yes, use the send_invoice action with the load details. Generate an 
 If you don't have the broker's email, ask for it.
 
 FINDING PLACES (truck stops, fuel, rest areas, etc.):
-When a driver asks to find a truck stop, gas station, rest area, weigh station, repair shop, restaurant, Walmart, or any place:
+When a driver asks to find a truck stop, gas station, rest area, repair shop, restaurant, Walmart, or any place:
 1. IMMEDIATELY trigger search_nearby — it auto-gets GPS and opens maps
 2. Put the exact place type in the query field (e.g. "truck stop", "Love's Travel Stop", "rest area", "gas station")
 3. Do NOT ask for their location first — search_nearby handles GPS automatically
 4. Keep your text response short: "Opening maps to find truck stops near you!"
 5. ALWAYS use search_nearby, NEVER just describe places — the driver needs the map to open
+6. NEVER use search_nearby for weigh stations — ALWAYS use check_weigh_station instead
 
 LOAD BOARD & DISPATCHING:
 When a driver asks to find loads, search loads, or needs a new load:
@@ -151,7 +160,29 @@ RULES:
 
     if (!res.ok) {
       const err = await res.text()
-      return Response.json({ error: 'Claude API error: ' + err }, { status: 502 })
+      console.error('Claude API error:', res.status, err)
+      // If model not found, try fallback
+      if (res.status === 404 || err.includes('model')) {
+        const res2 = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 1024,
+            system: systemPrompt,
+            messages: claudeMessages,
+          }),
+        })
+        if (res2.ok) {
+          const data2 = await res2.json()
+          return Response.json({ reply: data2.content?.[0]?.text || 'No response.' })
+        }
+      }
+      return Response.json({ error: 'AI temporarily unavailable. Please try again.' }, { status: 502 })
     }
 
     const data = await res.json()
@@ -159,6 +190,7 @@ RULES:
 
     return Response.json({ reply })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    console.error('Chat handler error:', err)
+    return Response.json({ error: 'Something went wrong: ' + err.message }, { status: 500 })
   }
 }

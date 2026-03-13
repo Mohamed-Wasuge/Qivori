@@ -14,7 +14,11 @@ export default async function handler(req) {
   }
 
   try {
-    const { messages, context, loadBoard } = await req.json()
+    let body
+    try { body = await req.json() } catch {
+      return Response.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
+    const { messages, context, loadBoard } = body
 
     // Build system prompt with carrier context + action capabilities
     const systemPrompt = `You are Qivori AI, a smart assistant for trucking owner-operators and small fleet carriers. You help drivers manage their business from their phone.

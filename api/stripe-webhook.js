@@ -10,8 +10,8 @@ export default async function handler(req) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
 
-  if (!stripeKey || !supabaseUrl || !supabaseServiceKey) {
-    return Response.json({ error: 'Missing env vars' }, { status: 500 })
+  if (!stripeKey || !supabaseUrl || !supabaseServiceKey || !webhookSecret) {
+    return Response.json({ error: 'Missing env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_URL, and SUPABASE_SERVICE_KEY are all required' }, { status: 500 })
   }
 
   try {

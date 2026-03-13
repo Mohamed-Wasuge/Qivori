@@ -8,6 +8,11 @@ export default async function handler(req) {
     return Response.json({ error: 'POST only' }, { status: 405 })
   }
 
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return Response.json({ success: false, error: 'ANTHROPIC_API_KEY not configured. Add it in Vercel → Settings → Environment Variables.' }, { status: 500 })
+  }
+
   try {
     const formData = await req.formData()
     const file = formData.get('file')
@@ -51,7 +56,7 @@ Rules:
 
     const headers = {
       'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
     }
     if (isPdf) headers['anthropic-beta'] = 'pdfs-2024-09-25'

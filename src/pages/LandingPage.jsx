@@ -646,6 +646,33 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
+      {/* ── FAQ ──────────────────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '80px 40px' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <FadeIn>
+            <div style={{ textAlign: 'center', marginBottom: 48 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>FAQ</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2 }}>COMMON QUESTIONS</h2>
+            </div>
+          </FadeIn>
+          {[
+            { q: 'Is there a setup fee?', a: 'No. Zero setup fees, zero onboarding costs, zero hidden charges. Sign up and start using Qivori immediately — your account is ready in under 60 seconds.' },
+            { q: 'Can I cancel anytime?', a: 'Yes. All plans are month-to-month with no contracts. Cancel with one click from your account settings — no phone calls, no emails, no hassle.' },
+            { q: 'Do you integrate with ELD devices?', a: 'Yes. Qivori connects with major ELD providers to pull HOS data, driver logs, and vehicle diagnostics directly into your compliance dashboard.' },
+            { q: 'Is there a free trial?', a: 'Yes — 14 days free on every plan, no credit card required. Use every feature with zero limitations. If you don\'t love it, you pay nothing.' },
+          ].map((item, i) => (
+            <FadeIn key={i} delay={i * 0.08}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 28px', marginBottom: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ color: 'var(--accent)', fontSize: 16 }}>Q.</span> {item.q}
+                </div>
+                <div style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, paddingLeft: 26 }}>{item.a}</div>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </section>
+
       {/* ── FINAL CTA ─────────────────────────────────────────────────── */}
       <section className="lp-section" style={{ padding: '100px 40px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 600, height: 600, borderRadius: '50%', background: 'radial-gradient(circle, rgba(240,165,0,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />

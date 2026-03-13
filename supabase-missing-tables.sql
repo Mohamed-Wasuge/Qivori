@@ -310,6 +310,19 @@ CREATE POLICY "ws_reports_insert" ON weigh_station_reports FOR INSERT WITH CHECK
 CREATE INDEX IF NOT EXISTS idx_ws_reports_station ON weigh_station_reports(station_key);
 CREATE INDEX IF NOT EXISTS idx_ws_reports_time ON weigh_station_reports(reported_at DESC);
 
+-- ─── WAITLIST (lead capture) ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS waitlist (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
+-- Public insert (no auth required — landing page visitors)
+CREATE POLICY "waitlist_insert" ON waitlist FOR INSERT WITH CHECK (true);
+-- Allow count queries from landing page (only id exposed, not emails)
+CREATE POLICY "waitlist_select" ON waitlist FOR SELECT USING (true);
+
 -- ═══════════════════════════════════════════════════════════════
 -- DONE! All tables created.
 -- ═══════════════════════════════════════════════════════════════

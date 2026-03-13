@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -23,6 +24,186 @@ function FadeIn({ children, delay = 0, style = {} }) {
     <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(24px)', transition: `all 0.6s ease ${delay}s`, ...style }}>
       {children}
     </div>
+  )
+}
+
+function WaitlistSection() {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState('idle') // idle | submitting | success | error
+  const [count, setCount] = useState(200)
+
+  useEffect(() => {
+    (async () => {
+      const { count: c } = await supabase.from('waitlist').select('*', { count: 'exact', head: true })
+      if (c && c > 0) setCount(200 + c)
+    })()
+  }, [])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!email || !email.includes('@')) return
+    setStatus('submitting')
+    const { error } = await supabase.from('waitlist').insert({ email: email.trim().toLowerCase() })
+    if (error) {
+      if (error.code === '23505') {
+        setStatus('success')
+        return
+      }
+      setStatus('error')
+      return
+    }
+    setCount(c => c + 1)
+    setStatus('success')
+  }
+
+  return (
+    <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '32px 40px', background: 'rgba(255,255,255,0.01)' }}>
+      <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+          <Ic icon={Users} size={16} color="var(--accent)" />
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 2, color: 'var(--accent)' }}>{count}+</span>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Join {count}+ carriers on the waitlist</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>Get early access and lock in launch pricing</div>
+
+        {status === 'success' ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12 }}>
+            <Ic icon={Check} size={16} color="var(--success)" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>You're on the list! We'll be in touch.</span>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, maxWidth: 420, margin: '0 auto' }}>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              style={{ flex: 1, padding: '10px 14px', fontSize: 13, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', outline: 'none' }}
+            />
+            <button
+              type="submit"
+              disabled={status === 'submitting'}
+              style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap', opacity: status === 'submitting' ? 0.6 : 1 }}
+            >
+              {status === 'submitting' ? 'Joining...' : 'Get Early Access'}
+            </button>
+          </form>
+        )}
+        {status === 'error' && (
+          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 8 }}>Something went wrong. Try again.</div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ChatBubble() {
+  const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState([
+    { role: 'assistant', text: 'Hi! I\'m Qivori AI. Ask me anything about our platform — pricing, features, how it works for owner-operators.' }
+  ])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return
+    const userMsg = input.trim()
+    setInput('')
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }])
+    setLoading(true)
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
+          context: 'This is a landing page visitor asking about Qivori AI. Answer questions about pricing (Solo $99/mo, Fleet $299/mo, Enterprise $599/mo), features, free trial (14 days, no credit card). Keep answers short and helpful. Direct them to sign up.',
+        }),
+      })
+      const data = await res.json()
+      setMessages(prev => [...prev, { role: 'assistant', text: data.reply || 'Sorry, I had trouble responding. Try again!' }])
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', text: 'Having trouble connecting. Please try again in a moment.' }])
+    }
+    setLoading(false)
+  }
+
+  return (
+    <>
+      {/* Chat Window */}
+      {open && (
+        <div style={{ position: 'fixed', bottom: 90, right: 20, width: 360, maxWidth: 'calc(100vw - 40px)', height: 480, maxHeight: 'calc(100dvh - 120px)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', zIndex: 999, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '1px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Ic icon={Zap} size={14} color="var(--accent)" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Qivori AI</div>
+                <div style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--success)' }} /> Online
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+              <Ic icon={X} size={16} color="var(--muted)" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {messages.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                <div style={{
+                  padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                  background: m.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
+                  color: m.role === 'user' ? '#000' : 'var(--text)',
+                  border: m.role === 'user' ? 'none' : '1px solid var(--border)',
+                  fontSize: 13, lineHeight: 1.55, fontWeight: m.role === 'user' ? 600 : 400
+                }}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div style={{ alignSelf: 'flex-start', padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '14px 14px 14px 4px', fontSize: 13, color: 'var(--muted)' }}>
+                Typing...
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSend()}
+              placeholder="Ask about Qivori..."
+              style={{ flex: 1, padding: '10px 14px', fontSize: 13, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', outline: 'none' }}
+            />
+            <button onClick={handleSend} disabled={loading} style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: loading ? 0.5 : 1 }}>
+              <Ic icon={Send} size={14} color="#000" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Button */}
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          position: 'fixed', bottom: 20, right: 20, width: 56, height: 56, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', cursor: 'pointer',
+          boxShadow: '0 8px 32px rgba(240,165,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 998, transition: 'transform 0.2s'
+        }}
+        onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
+      >
+        <Ic icon={open ? X : MessageCircle} size={24} color="#000" />
+      </button>
+    </>
   )
 }
 
@@ -69,9 +250,9 @@ const PLANS = [
 ]
 
 const TESTIMONIALS = [
-  { name: 'James T.', role: 'Owner-Operator, Atlanta', text: 'I used to spend 2 hours a day on DAT just finding decent loads. Now I ask Qivori and it finds me the best ones in seconds. Made $340 more per load last month.', rating: 5 },
-  { name: 'Kevin L.', role: 'Fleet Owner, 4 trucks', text: 'IFTA used to take me a whole weekend every quarter. Qivori auto-calculates everything from my loads. Filed in 5 minutes last quarter.', rating: 5 },
-  { name: 'Maria S.', role: 'Owner-Operator, Dallas', text: 'The voice AI is a game changer. I just talk to my phone while driving — book loads, submit check calls, send invoices. No more pulling over to use 5 different apps.', rating: 5 },
+  { name: 'James T.', role: 'Owner-Operator', truck: 'Freightliner Cascadia', text: 'I used to spend 2 hours a day on DAT just finding decent loads. Now I ask Qivori and it finds me the best ones in seconds. Saved $2,400 last month just on better load picks.', rating: 5 },
+  { name: 'Kevin L.', role: 'Fleet Owner, 4 trucks', truck: 'Peterbilt 579s', text: 'IFTA used to take me a whole weekend every quarter. Qivori auto-calculates everything from my loads. Filed in 5 minutes last quarter. My accountant couldn\'t believe it.', rating: 5 },
+  { name: 'Maria S.', role: 'Owner-Operator', truck: 'Kenworth T680', text: 'The voice AI is a game changer. I just talk to my phone while driving — book loads, submit check calls, send invoices. No more pulling over to use 5 different apps. Saved me 40 hours a week easy.', rating: 5 },
 ]
 
 const HOW_IT_WORKS = [
@@ -81,10 +262,10 @@ const HOW_IT_WORKS = [
 ]
 
 const STATS = [
-  { value: '$340', label: 'Extra profit per load', icon: DollarSign },
-  { value: '10hrs', label: 'Saved per week', icon: Clock },
-  { value: '2.5%', label: 'Flat factoring rate', icon: CreditCard },
-  { value: '94%', label: 'AI match accuracy', icon: Bot },
+  { value: '$2,400', label: 'Average saved per month', icon: DollarSign },
+  { value: '40+', label: 'Hours saved weekly', icon: Clock },
+  { value: '89/100', label: 'Average AI load score', icon: Bot },
+  { value: '14', label: 'Day free trial', icon: Shield },
 ]
 
 export default function LandingPage({ onGetStarted }) {
@@ -159,6 +340,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-section-heading { font-size: 32px !important; }
           .lp-cta-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
+          .lp-video-tags { display: none !important; }
         }
         @media (max-width: 480px) {
           .lp-hero h1 { font-size: 32px !important; }
@@ -256,17 +438,8 @@ export default function LandingPage({ onGetStarted }) {
         </FadeIn>
       </section>
 
-      {/* ── TRUSTED BY ────────────────────────────────────────────────── */}
-      <section style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '24px 40px', background: 'rgba(255,255,255,0.01)' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: 2, marginBottom: 16 }}>TRUSTED BY CARRIERS ACROSS AMERICA</div>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 40, flexWrap: 'wrap', opacity: 0.4 }}>
-            {['Swift Carriers', 'PrimeRoute LLC', 'R&J Transport', 'FastHaul Express', 'Southern Freight', 'Express Carriers'].map(name => (
-              <span key={name} style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--text)' }}>{name}</span>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ── WAITLIST ────────────────────────────────────────────────── */}
+      <WaitlistSection />
 
       {/* ── STATS ─────────────────────────────────────────────────────── */}
       <section style={{ padding: '60px 40px', background: 'var(--surface)' }}>
@@ -502,11 +675,46 @@ export default function LandingPage({ onGetStarted }) {
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{t.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t.role}</div>
+                    <div style={{ fontSize: 10, color: 'var(--accent2)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}><Ic icon={Truck} size={10} /> {t.truck}</div>
                   </div>
                 </div>
               </div>
             </FadeIn>
           ))}
+        </div>
+      </section>
+
+      {/* ── VIDEO DEMO ──────────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '80px 40px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          <FadeIn>
+            <div style={{ textAlign: 'center', marginBottom: 48 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>SEE IT IN ACTION</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
+                WATCH THE DEMO
+              </h2>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto' }}>See how Qivori helps owner-operators find better loads, dispatch smarter, and get paid faster — all from one platform.</p>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', border: '2px solid rgba(240,165,0,0.2)', background: 'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(0,212,170,0.02))', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}
+              onClick={() => { /* TODO: open video modal */ }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, rgba(240,165,0,0.08) 0%, transparent 60%)' }} />
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, position: 'relative', zIndex: 1 }}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, #f0a500, #e09000)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 32px rgba(240,165,0,0.4)', transition: 'transform 0.2s' }}
+                  onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <Ic icon={Play} size={32} color="#000" style={{ marginLeft: 4 }} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Watch Demo — 2 min</span>
+              </div>
+              <div className="lp-video-tags" style={{ position: 'absolute', bottom: 20, left: 20, display: 'flex', gap: 8 }}>
+                {['AI Load Board', 'Voice Dispatch', 'Auto-Invoice'].map(tag => (
+                  <span key={tag} style={{ fontSize: 10, fontWeight: 700, background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.2)', color: 'var(--accent)', padding: '4px 10px', borderRadius: 6 }}>{tag}</span>
+                ))}
+              </div>
+            </div>
+          </FadeIn>
         </div>
       </section>
 
@@ -735,11 +943,24 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 960, margin: '0 auto', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>© 2026 Qivori AI. All rights reserved.</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Ic icon={Globe} size={14} color="var(--muted)" /></div>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Ic icon={Headphones} size={14} color="var(--muted)" /></div>
+            {[
+              { icon: Twitter, label: 'Twitter' },
+              { icon: Linkedin, label: 'LinkedIn' },
+              { icon: Facebook, label: 'Facebook' },
+              { icon: Instagram, label: 'Instagram' },
+            ].map(s => (
+              <a key={s.label} href="#" aria-label={s.label} style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s', textDecoration: 'none' }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(240,165,0,0.4)'; e.currentTarget.style.background = 'rgba(240,165,0,0.06)' }}
+                onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)' }}>
+                <Ic icon={s.icon} size={14} color="var(--muted)" />
+              </a>
+            ))}
           </div>
         </div>
       </footer>
+
+      {/* ── LIVE CHAT BUBBLE ───────────────────────────────────────── */}
+      <ChatBubble />
 
     </div>
   )

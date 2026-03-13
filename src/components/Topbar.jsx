@@ -4,7 +4,8 @@ import { Search, Bell } from 'lucide-react'
 const PAGE_TITLES = {
   dashboard: 'OVERVIEW', loadboard: 'ALL LOADS', carriers: 'USERS',
   brokers: 'BROKERS', support: 'SUPPORT', payments: 'REVENUE',
-  settings: 'SETTINGS',
+  settings: 'SETTINGS', waitlist: 'WAITLIST', analytics: 'ANALYTICS',
+  activity: 'SECURITY & ACTIVITY',
   // Broker pages
   'broker-dashboard': 'DASHBOARD', 'broker-post': 'POST LOAD',
   'broker-loads': 'MY LOADS', 'broker-carriers': 'FIND CARRIERS',

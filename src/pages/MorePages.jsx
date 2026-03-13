@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
-import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail, Plus, X } from 'lucide-react'
+import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail, Plus, X, Download, Send, ArrowDown, BarChart2 } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -128,106 +128,215 @@ export function Shippers() {
   )
 }
 
-/* ─── Revenue & Subscriptions ────────────────────────────────────────────── */
+/* ─── Revenue & Subscriptions (Live Data) ─────────────────────────────────── */
 export function Payments() {
   const { showToast } = useApp()
+  const [profiles, setProfiles] = useState([])
+  const [invoices, setInvoices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [timeRange, setTimeRange] = useState('month')
 
-  const subscriptions = [
-    { company: 'R&J Transport', type: 'Carrier', plan: 'Small Fleet', amount: '$99', status: 'Paid', next: 'Apr 15', method: 'Visa •••• 4242' },
-    { company: 'Express Carriers', type: 'Carrier', plan: 'Growing Fleet', amount: '$199', status: 'Paid', next: 'Apr 22', method: 'MC •••• 8821' },
-    { company: 'Elite Logistics', type: 'Broker', plan: 'Standard', amount: '$75', status: 'Paid', next: 'Apr 10', method: 'Visa •••• 1234' },
-    { company: 'Southern Freight', type: 'Carrier', plan: 'Small Fleet', amount: '$99', status: 'Paid', next: 'Apr 3', method: 'ACH •••• 6654' },
-    { company: 'FastHaul Express', type: 'Carrier', plan: 'Small Fleet', amount: '$99', status: 'Trial', next: 'Mar 22', method: '—' },
-    { company: 'Blue Line Freight', type: 'Carrier', plan: 'Solo', amount: '$49', status: 'Failed', next: 'Retry Mar 11', method: 'Visa •••• 9091' },
-    { company: 'Apex Logistics', type: 'Broker', plan: 'Standard', amount: '$75', status: 'Trial', next: 'Mar 23', method: '—' },
-  ]
+  useEffect(() => {
+    (async () => {
+      const [pRes, iRes] = await Promise.all([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.from('invoices').select('*').order('created_at', { ascending: false }),
+      ])
+      setProfiles(pRes.data || [])
+      setInvoices(iRes.data || [])
+      setLoading(false)
+    })()
+  }, [])
 
-  const statusPill = (s) => ({ Paid: 'pill-green', Trial: 'pill-blue', Failed: 'pill-red', Cancelled: 'pill-muted' }[s] || 'pill-yellow')
+  const planPrices = { solo: 99, fleet: 299, enterprise: 599, growing: 599 }
+  const planLabels = { solo: 'Solo ($99)', fleet: 'Fleet ($299)', enterprise: 'Enterprise ($599)', growing: 'Enterprise ($599)' }
+  const activeUsers = profiles.filter(p => p.status === 'active')
+  const trialUsers = profiles.filter(p => p.status === 'trial')
+  const failedUsers = profiles.filter(p => p.status === 'failed')
+  const cancelledUsers = profiles.filter(p => p.status === 'cancelled' || p.status === 'suspended')
+
+  const mrr = activeUsers.reduce((sum, u) => sum + (planPrices[u.plan] || 0), 0)
+  const totalRevenue = invoices.filter(i => i.status === 'Paid').reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const churnRate = profiles.length > 0 ? ((cancelledUsers.length / profiles.length) * 100).toFixed(1) : '0.0'
+
+  // Today's signups
+  const today = new Date().toDateString()
+  const signupsToday = profiles.filter(p => new Date(p.created_at).toDateString() === today).length
+
+  // Trials expiring this week (assume 14-day trial)
+  const trialsExpiring = trialUsers.filter(u => {
+    const created = new Date(u.created_at)
+    const expires = new Date(created.getTime() + 14 * 86400000)
+    const diff = expires - Date.now()
+    return diff > 0 && diff < 7 * 86400000
+  })
+
+  // Plan breakdown
+  const planBreakdown = Object.entries(
+    activeUsers.reduce((acc, u) => { acc[u.plan || 'trial'] = (acc[u.plan || 'trial'] || 0) + 1; return acc }, {})
+  ).map(([plan, count]) => ({
+    plan: planLabels[plan] || plan,
+    count,
+    mrr: count * (planPrices[plan] || 0),
+    color: { solo: 'var(--accent2)', fleet: 'var(--accent)', enterprise: 'var(--accent3)', growing: 'var(--accent3)' }[plan] || 'var(--muted)'
+  })).sort((a, b) => b.mrr - a.mrr)
+  const totalPlanUsers = planBreakdown.reduce((s, p) => s + p.count, 0) || 1
+
+  // Revenue chart (last 30 days of signups as proxy)
+  const chartDays = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 90
+  const chartData = []
+  for (let i = chartDays - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000)
+    const dayStr = d.toDateString()
+    const signups = profiles.filter(p => new Date(p.created_at).toDateString() === dayStr).length
+    const dayRevenue = invoices
+      .filter(inv => new Date(inv.created_at).toDateString() === dayStr && inv.status === 'Paid')
+      .reduce((s, inv) => s + (parseFloat(inv.amount) || 0), 0)
+    chartData.push({
+      label: d.toLocaleDateString('en-US', chartDays <= 7 ? { weekday: 'short' } : { month: 'short', day: 'numeric' }),
+      signups,
+      revenue: dayRevenue,
+    })
+  }
+  const maxSignups = Math.max(...chartData.map(d => d.signups), 1)
+
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+  const statusPill = (s) => ({ Paid: 'pill-green', Trial: 'pill-blue', Failed: 'pill-red', Cancelled: 'pill-muted', active: 'pill-green', trial: 'pill-blue' }[s] || 'pill-yellow')
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading revenue data...</div>
 
   return (
     <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="stats-grid cols4 fade-in">
+      {/* KPI row */}
+      <div className="stats-grid cols6 fade-in">
         {[
-          { label: 'Monthly Revenue (MRR)', value: '$4,830', change: '+22% vs last month', color: 'var(--accent)' },
-          { label: 'Active Subscriptions', value: '58', change: '52 carriers + 6 brokers', color: 'var(--success)' },
-          { label: 'Trial Users', value: '8', change: 'Converting in 14 days', color: 'var(--accent3)' },
-          { label: 'Churn Rate', value: '2.1%', change: 'Below 5% target', color: 'var(--accent2)' },
+          { label: 'Monthly Revenue (MRR)', value: '$' + mrr.toLocaleString(), sub: activeUsers.length + ' paying', color: 'var(--accent)', icon: DollarSign },
+          { label: 'New Signups Today', value: signupsToday.toString(), sub: 'Last 24 hours', color: signupsToday > 0 ? 'var(--success)' : 'var(--muted)', icon: Users },
+          { label: 'Active Subscriptions', value: activeUsers.length.toString(), sub: trialUsers.length + ' on trial', color: 'var(--success)', icon: CreditCard },
+          { label: 'Trials Expiring', value: trialsExpiring.length.toString(), sub: 'This week', color: trialsExpiring.length > 0 ? 'var(--warning)' : 'var(--success)', icon: Clock },
+          { label: 'Failed Payments', value: failedUsers.length.toString(), sub: failedUsers.length > 0 ? 'Needs attention' : 'All clear', color: failedUsers.length > 0 ? 'var(--danger)' : 'var(--success)', icon: AlertTriangle },
+          { label: 'Churn Rate', value: churnRate + '%', sub: cancelledUsers.length + ' lost', color: parseFloat(churnRate) > 5 ? 'var(--danger)' : 'var(--success)', icon: TrendingUp },
         ].map(s => (
           <div key={s.label} className="stat-card">
-            <div className="stat-label">{s.label}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div className="stat-label" style={{ marginBottom: 0 }}>{s.label}</div>
+              <Ic icon={s.icon} size={14} color="var(--muted)" />
+            </div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className="stat-change up">{s.change}</div>
+            <div className="stat-change up" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Ic icon={ArrowUpRight} size={11} /> {s.sub}
+            </div>
           </div>
         ))}
       </div>
 
+      {/* Revenue chart + Plan breakdown */}
       <div className="grid2 fade-in">
         <div className="panel">
           <div className="panel-header">
-            <div className="panel-title"><Ic icon={CreditCard} size={14} /> Subscriptions</div>
-            <button className="btn btn-ghost">Export CSV</button>
-          </div>
-          <table>
-            <thead><tr><th>Company</th><th>Type</th><th>Plan</th><th>Amount</th><th>Status</th><th>Next Bill</th></tr></thead>
-            <tbody>
-              {subscriptions.map(s => (
-                <tr key={s.company} onClick={() => showToast('', s.company, s.plan + ' · ' + s.amount + '/mo · ' + s.method)}>
-                  <td><strong>{s.company}</strong></td>
-                  <td>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                      background: s.type === 'Carrier' ? 'rgba(34,197,94,0.1)' : 'rgba(77,142,240,0.1)',
-                      color: s.type === 'Carrier' ? 'var(--success)' : 'var(--accent3)' }}>
-                      {s.type}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: 12 }}>{s.plan}</td>
-                  <td className="mono" style={{ fontWeight: 700, color: 'var(--accent)' }}>{s.amount}</td>
-                  <td><span className={'pill ' + statusPill(s.status)}><span className="pill-dot" />{s.status}</span></td>
-                  <td style={{ fontSize: 11, color: s.status === 'Failed' ? 'var(--danger)' : 'var(--muted)' }}>{s.next}</td>
-                </tr>
+            <div className="panel-title"><Ic icon={BarChart2} size={14} /> Signup Activity</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['week', 'month', 'quarter'].map(r => (
+                <button key={r} className={'filter-chip' + (timeRange === r ? ' active' : '')} onClick={() => setTimeRange(r)}
+                  style={{ fontSize: 10, textTransform: 'capitalize' }}>{r}</button>
               ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Plan breakdown */}
-          <div className="panel">
-            <div className="panel-header"><div className="panel-title"><Ic icon={TrendingUp} size={14} /> Plan Breakdown</div></div>
-            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {[
-                { plan: 'Solo ($49)', count: 28, mrr: '$1,372', pct: 28, color: 'var(--accent2)' },
-                { plan: 'Small Fleet ($99)', count: 18, mrr: '$1,782', pct: 37, color: 'var(--accent)' },
-                { plan: 'Growing Fleet ($199)', count: 6, mrr: '$1,194', pct: 25, color: 'var(--accent3)' },
-                { plan: 'Broker Standard ($75)', count: 6, mrr: '$450', pct: 10, color: 'var(--accent4)' },
-              ].map(p => (
-                <div key={p.plan}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>{p.plan}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.count} users · <span className="mono" style={{ color: p.color, fontWeight: 700 }}>{p.mrr}</span></span>
-                  </div>
-                  <div style={{ height: 5, background: 'var(--border)', borderRadius: 3 }}>
-                    <div style={{ width: p.pct + '%', height: '100%', background: p.color, borderRadius: 3 }} />
-                  </div>
+            </div>
+          </div>
+          <div style={{ padding: 16 }}>
+            <div style={{ display: 'flex', gap: timeRange === 'week' ? 8 : 3, alignItems: 'flex-end', height: 140, overflowX: 'auto' }}>
+              {chartData.map((d, i) => (
+                <div key={i} style={{ flex: timeRange === 'week' ? 1 : '0 0 ' + (100 / Math.min(chartData.length, 30)) + '%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: timeRange === 'week' ? 0 : 12 }}>
+                  {d.signups > 0 && <div style={{ fontSize: 8, color: 'var(--accent)', fontWeight: 700 }}>{d.signups}</div>}
+                  <div style={{
+                    width: '100%', borderRadius: '3px 3px 0 0',
+                    background: d.signups > 0 ? 'linear-gradient(180deg, var(--accent), rgba(240,165,0,0.3))' : 'var(--border)',
+                    height: Math.max((d.signups / maxSignups) * 110, 3),
+                  }} />
+                  {(timeRange === 'week' || i % (timeRange === 'month' ? 5 : 15) === 0) && (
+                    <div style={{ fontSize: 8, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{d.label}</div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Quick actions */}
-          <div className="panel">
-            <div className="panel-header"><div className="panel-title"><Ic icon={DollarSign} size={14} /> Revenue Actions</div></div>
-            <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
-                onClick={() => showToast('', 'Reminder Sent', 'Payment reminder sent to 2 failed accounts')}>
-                <Ic icon={Mail} size={14} /> Send Payment Reminders
-              </button>
-              <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}
-                onClick={() => showToast('', 'Exported', 'Revenue report downloaded as CSV')}>
-                <Ic icon={TrendingUp} size={14} /> Export Revenue Report
-              </button>
+        <div className="panel">
+          <div className="panel-header"><div className="panel-title"><Ic icon={TrendingUp} size={14} /> Plan Breakdown</div></div>
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {planBreakdown.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No active subscriptions yet</div>
+            ) : planBreakdown.map(p => (
+              <div key={p.plan}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{p.plan}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.count} users · <span className="mono" style={{ color: p.color, fontWeight: 700 }}>${p.mrr.toLocaleString()}</span></span>
+                </div>
+                <div style={{ height: 5, background: 'var(--border)', borderRadius: 3 }}>
+                  <div style={{ width: Math.round((p.count / totalPlanUsers) * 100) + '%', height: '100%', background: p.color, borderRadius: 3 }} />
+                </div>
+              </div>
+            ))}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>Total MRR</span>
+              <span className="mono" style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>${mrr.toLocaleString()}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Subscribers table */}
+      <div className="panel fade-in">
+        <div className="panel-header">
+          <div className="panel-title"><Ic icon={CreditCard} size={14} /> All Subscribers</div>
+          <button className="btn btn-ghost" onClick={() => {
+            const csv = ['Name,Email,Role,Plan,Status,Joined']
+            profiles.forEach(p => csv.push(`"${p.full_name || ''}","${p.email}","${p.role}","${p.plan || 'trial'}","${p.status}","${p.created_at}"`))
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a'); a.href = url; a.download = 'qivori-subscribers.csv'; a.click()
+            showToast('', 'Exported', 'Downloaded subscribers CSV')
+          }}>
+            <Ic icon={Download} size={12} /> Export CSV
+          </button>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Plan</th><th>Amount</th><th>Status</th><th>Joined</th></tr></thead>
+          <tbody>
+            {profiles.slice(0, 20).map(p => (
+              <tr key={p.id}>
+                <td><strong>{p.full_name || p.company_name || 'No name'}</strong></td>
+                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{p.email}</td>
+                <td>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                    background: p.role === 'carrier' ? 'rgba(34,197,94,0.1)' : p.role === 'broker' ? 'rgba(77,142,240,0.1)' : 'rgba(240,165,0,0.1)',
+                    color: p.role === 'carrier' ? 'var(--success)' : p.role === 'broker' ? 'var(--accent3)' : 'var(--accent)' }}>
+                    {p.role}
+                  </span>
+                </td>
+                <td style={{ fontSize: 12, fontWeight: 600 }}>{(p.plan || 'trial').charAt(0).toUpperCase() + (p.plan || 'trial').slice(1)}</td>
+                <td className="mono" style={{ fontWeight: 700, color: 'var(--accent)' }}>${planPrices[p.plan] || 0}/mo</td>
+                <td><span className={'pill ' + statusPill(p.status)}><span className="pill-dot" />{p.status}</span></td>
+                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(p.created_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Revenue actions */}
+      <div className="panel fade-in">
+        <div className="panel-header"><div className="panel-title"><Ic icon={DollarSign} size={14} /> Revenue Actions</div></div>
+        <div style={{ padding: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost" onClick={() => showToast('', 'Reminder Sent', 'Payment reminder sent to failed accounts')}>
+            <Ic icon={Mail} size={14} /> Send Payment Reminders
+          </button>
+          <button className="btn btn-ghost" onClick={() => showToast('', 'Opening Stripe', 'Redirecting to Stripe Dashboard...')}>
+            <Ic icon={CreditCard} size={14} /> Open Stripe Dashboard
+          </button>
+          <button className="btn btn-ghost" onClick={() => showToast('', 'Exported', 'Revenue report downloaded')}>
+            <Ic icon={Download} size={14} /> Export Revenue Report
+          </button>
         </div>
       </div>
     </div>
@@ -251,7 +360,6 @@ export function Documents() {
       .select('*')
       .order('created_at', { ascending: false })
     if (error) {
-      console.error('Error fetching tickets:', error)
       showToast('', 'Error', 'Failed to load tickets')
     }
     setTickets(data || [])

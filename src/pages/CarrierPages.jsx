@@ -160,6 +160,7 @@ export function CarrierDashboard() {
 
 // ─── AI DISPATCH COPILOT ───────────────────────────────────────────────────────
 // DAT-normalized load shape — swap normalizeDATLoad() when API keys are ready
+// Sample load board data — replaced by DAT API when connected
 const MARKET_LOADS = [
   { id:'DAT-8821', from:'ATL', fromFull:'Atlanta, GA',    to:'CHI', toFull:'Chicago, IL',      miles:674,  gross:3840, rpm:2.94, weight:'42,000', commodity:'Auto Parts',   broker:'Echo Global',      brokerScore:98, brokerPay:'< 24hr',  pickup:'Today 2PM',    delivery:'Mar 9 · 10AM',  equipment:'Dry Van', deadhead:22, aiScore:96, mktLow:2.55, mktAvg:2.80, mktHigh:3.10, tags:['AI TOP PICK','FAST PAY'], source:'dat' },
   { id:'DAT-4440', from:'MEM', fromFull:'Memphis, TN',    to:'NYC', toFull:'New York, NY',      miles:1100, gross:5100, rpm:3.10, weight:'39,800', commodity:'Electronics',  broker:'Coyote Logistics', brokerScore:92, brokerPay:'< 48hr',  pickup:'Tomorrow 8AM', delivery:'Mar 12 · 6PM',  equipment:'Dry Van', deadhead:8,  aiScore:91, mktLow:2.80, mktAvg:3.05, mktHigh:3.35, tags:['HIGH VALUE'], source:'dat' },
@@ -171,11 +172,7 @@ const MARKET_LOADS = [
   { id:'DAT-5318', from:'HOU', fromFull:'Houston, TX',    to:'CHI', toFull:'Chicago, IL',       miles:1090, gross:3800, rpm:2.86, weight:'43,000', commodity:'Chemicals',    broker:'Uber Freight',     brokerScore:90, brokerPay:'< 24hr',  pickup:'Mar 12 7AM',   delivery:'Mar 14 · 6PM',  equipment:'Tanker',  deadhead:30, aiScore:76, mktLow:2.65, mktAvg:2.85, mktHigh:3.10, tags:['FAST PAY'], source:'dat' },
 ]
 
-const DISPATCH_DRIVERS = [
-  { name:'James Tucker',  status:'Available', location:'Atlanta, GA',   hos:'10h 30m', unit:'Unit 01' },
-  { name:'Marcus Lee',    status:'Available', location:'Chicago, IL',   hos:'8h 45m',  unit:'Unit 02' },
-  { name:'Priya Patel',   status:'On Load',   location:'Denver, CO',    hos:'6h 0m',   unit:'Unit 03' },
-]
+const DISPATCH_DRIVERS = []
 
 const COPILOT_SUGGESTIONS = (load) => [
   `Should I take this ${load.from}→${load.to} load at $${load.rpm.toFixed(2)}/mi?`,
@@ -867,11 +864,7 @@ export function SmartDispatch() {
 
 // ─── REVENUE INTELLIGENCE ──────────────────────────────────────────────────────
 // ─── TRUCK ROI ──────────────────────────────────────────────────────────────
-const TRUCK_MAP = {
-  'James Tucker': { unit:'Unit 01', make:'Kenworth T680',        year:'2021', color:'var(--accent)'  },
-  'Marcus Lee':   { unit:'Unit 02', make:'Peterbilt 579',         year:'2020', color:'var(--accent2)' },
-  'Priya Patel':  { unit:'Unit 03', make:'Freightliner Cascadia', year:'2022', color:'var(--accent3)' },
-}
+const TRUCK_MAP = {}
 
 function TruckROI() {
   const { loads, expenses } = useCarrier()
@@ -1170,42 +1163,7 @@ export function RevenueIntel() {
 }
 
 // ─── DRIVER SETTLEMENT ─────────────────────────────────────────────────────────
-const SETTLE_DRIVERS = [
-  {
-    id: 'james', name: 'James Tucker', avatar: 'JT', model: 'percent', modelVal: 28,
-    loads: [
-      { id: 'FM-4421', route: 'ATL → CHI', miles: 674,  gross: 3840, date: 'Mar 8'  },
-      { id: 'FM-4460', route: 'DAL → MIA', miles: 1491, gross: 5600, date: 'Mar 11' },
-      { id: 'FM-4412', route: 'PHX → LAX', miles: 372,  gross: 1850, date: 'Mar 12' },
-    ],
-    history: [
-      { period: 'Feb W4', gross: 8200, net: 2296, status: 'Paid',    date: 'Mar 1'  },
-      { period: 'Feb W3', gross: 6100, net: 1708, status: 'Paid',    date: 'Feb 22' },
-      { period: 'Feb W2', gross: 7400, net: 2072, status: 'Paid',    date: 'Feb 15' },
-    ]
-  },
-  {
-    id: 'marcus', name: 'Marcus Lee', avatar: 'ML', model: 'permile', modelVal: 0.52,
-    loads: [
-      { id: 'FM-4440', route: 'MEM → NYC', miles: 1100, gross: 5100, date: 'Mar 10' },
-      { id: 'FM-4445', route: 'DEN → HOU', miles: 1020, gross: 3400, date: 'Mar 10' },
-    ],
-    history: [
-      { period: 'Feb W4', gross: 6800, net: 1100, status: 'Paid',    date: 'Mar 1'  },
-      { period: 'Feb W3', gross: 4200, net: 1122, status: 'Paid',    date: 'Feb 22' },
-    ]
-  },
-  {
-    id: 'priya', name: 'Priya Patel', avatar: 'PP', model: 'flat', modelVal: 900,
-    loads: [
-      { id: 'FM-4388', route: 'MEM → NYC', miles: 1100, gross: 5100, date: 'Mar 10' },
-    ],
-    history: [
-      { period: 'Feb W4', gross: 3400, net: 900,  status: 'Paid',    date: 'Mar 1'  },
-      { period: 'Feb W3', gross: 3200, net: 900,  status: 'Paid',    date: 'Feb 22' },
-    ]
-  },
-]
+const SETTLE_DRIVERS = []
 
 const PAY_MODELS = [
   { id: 'percent', label: '% of Gross', desc: 'e.g. 28%' },
@@ -1238,11 +1196,11 @@ export function DriverSettlement() {
   const driverDeductions = deductions[activeDriver] || []
 
   // Merge context delivered loads with hardcoded history for this driver
-  const driverName = driver.name
+  const driverName = driver?.name || ''
   const contextLoads = ctxLoads
     .filter(l => l.driver === driverName && (l.status === 'Delivered' || l.status === 'Invoiced'))
     .map(l => ({ id: l.loadId, route: l.origin.split(',')[0] + ' → ' + l.dest.split(',')[0], miles: l.miles, gross: l.gross, date: l.pickup?.split(' ·')[0] || 'Mar' }))
-  const mergedLoads = contextLoads.length > 0 ? contextLoads : driver.loads
+  const mergedLoads = contextLoads.length > 0 ? contextLoads : (driver?.loads || [])
 
   const loadPays = mergedLoads.map(l => ({ ...l, pay: calcPay(l, model, modelVal) }))
   const grossPay = loadPays.reduce((s, l) => s + l.pay, 0)
@@ -1283,7 +1241,7 @@ export function DriverSettlement() {
         <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowSheet(s => !s)}>
           {showSheet ? '✕ Close Sheet' : 'Settlement Sheet'}
         </button>
-        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => showToast('', 'FastPay Sent', `${driver.name} · $${netPay.toLocaleString()} · 24hr deposit`)}>
+        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => showToast('', 'FastPay Sent', `${driver?.name || 'Driver'} · $${netPay.toLocaleString()} · 24hr deposit`)}>
           <Zap size={13} /> FastPay ${netPay.toLocaleString()}
         </button>
       </div>
@@ -2305,11 +2263,7 @@ const DVIR_ITEMS_DEFAULT = [
   {item:'Fire Ext.',     status:'Pass'}, {item:'Seat Belts',     status:'Pass'},
 ]
 
-const COMPLIANCE_DRIVERS = [
-  { name:'James Tucker', cdl:'MN-223344', dob:'1984-06-12', state:'MN', unit:'Unit 01', avatar:'JT' },
-  { name:'Marcus Lee',   cdl:'IL-445566', dob:'1990-03-28', state:'IL', unit:'Unit 02', avatar:'ML' },
-  { name:'Priya Patel',  cdl:'CO-667788', dob:'1995-11-04', state:'CO', unit:'Unit 03', avatar:'PP' },
-]
+const COMPLIANCE_DRIVERS = []
 
 const BASIC_SCORES = [
   { basic:'Unsafe Driving',       score:12, threshold:65, icon: Truck,         tip:'Speeding, reckless driving · 4pt improvement this quarter' },
@@ -2929,35 +2883,7 @@ export function CarrierClearinghouse() { return <AIComplianceCenter defaultTab="
 export function CarrierDVIR() { return <AIComplianceCenter /> }
 
 // ─── DRIVER PROFILES ───────────────────────────────────────────────────────────
-const DRIVER_DATA = [
-  {
-    id: 'james', name: 'James Tucker', avatar: 'JT', phone: '(612) 555-0192', email: 'j.tucker@email.com',
-    hired: 'Jan 14, 2024', cdl: 'MN-223344', cdlClass: 'Class A', cdlExpiry: 'Aug 2026',
-    medCard: 'Sep 2025', status: 'Active', hos: '8h 22m', unit: 'Unit 01',
-    stats: { loadsMTD: 6, milesMTD: 4210, grossMTD: 11290, payMTD: 3161, rating: 4.9 },
-    endorsements: ['Hazmat', 'Doubles/Triples'],
-    violations: [],
-    payModel: '28% of Gross',
-  },
-  {
-    id: 'marcus', name: 'Marcus Lee', avatar: 'ML', phone: '(312) 555-0847', email: 'm.lee@email.com',
-    hired: 'Mar 3, 2024', cdl: 'IL-445566', cdlClass: 'Class A', cdlExpiry: 'Mar 2027',
-    medCard: 'Nov 2025', status: 'Available', hos: '11h 00m', unit: 'Unit 02',
-    stats: { loadsMTD: 4, milesMTD: 2800, grossMTD: 8500, payMTD: 1122, rating: 4.7 },
-    endorsements: ['Doubles/Triples'],
-    violations: [{ date: 'Jan 2025', type: 'Speeding 5–10 over', points: 1 }],
-    payModel: '$0.52/mile',
-  },
-  {
-    id: 'priya', name: 'Priya Patel', avatar: 'PP', phone: '(720) 555-0341', email: 'p.patel@email.com',
-    hired: 'Oct 10, 2025', cdl: 'CO-667788', cdlClass: 'Class A', cdlExpiry: 'Oct 2028',
-    medCard: 'Oct 2026', status: 'Off Duty', hos: 'Restart', unit: 'Unit 03',
-    stats: { loadsMTD: 2, milesMTD: 1920, grossMTD: 5100, payMTD: 1800, rating: 4.8 },
-    endorsements: ['Reefer'],
-    violations: [],
-    payModel: '$900/load',
-  },
-]
+const DRIVER_DATA = []
 
 export function DriverProfiles() {
   const { showToast } = useApp()
@@ -3446,26 +3372,11 @@ export function ExpenseTracker() {
 
 
 // ─── FACTORING & CASHFLOW ──────────────────────────────────────────────────────
-const INVOICES = [
-  { id:'INV-0041', loadId:'FM-4421', broker:'Echo Global',      route:'ATL→CHI', amount:3840, days:2,  brokerScore:98, paySpeed:'< 24hr', status:'Ready',   priority:'HIGH' },
-  { id:'INV-0038', loadId:'FM-4388', broker:'Coyote Logistics', route:'MEM→NYC', amount:5100, days:5,  brokerScore:92, paySpeed:'< 48hr', status:'Ready',   priority:'HIGH' },
-  { id:'INV-0035', loadId:'FM-4445', broker:'Transplace',       route:'DEN→HOU', amount:3400, days:11, brokerScore:68, paySpeed:'< 7 days',status:'Ready',  priority:'URGENT' },
-  { id:'INV-0029', loadId:'FM-4412', broker:'Worldwide Express', route:'PHX→LAX', amount:1850, days:4, brokerScore:81, paySpeed:'< 3 days',status:'Pending', priority:'MEDIUM' },
-]
+const INVOICES = []
 
-const HISTORY = [
-  { id:'INV-0028', broker:'Echo Global',      amount:4200, fee:105,  net:4095, factoredOn:'Mar 6',  received:'Mar 7',  status:'Received' },
-  { id:'INV-0025', broker:'CH Robinson',      amount:3100, fee:77.5, net:3022, factoredOn:'Mar 3',  received:'Mar 4',  status:'Received' },
-  { id:'INV-0021', broker:'Coyote Logistics', amount:5600, fee:140,  net:5460, factoredOn:'Feb 28', received:'Mar 1',  status:'Received' },
-  { id:'INV-0018', broker:'Echo Global',      amount:2900, fee:72.5, net:2827, factoredOn:'Feb 24', received:'Feb 25', status:'Received' },
-]
+const HISTORY = []
 
-const CASHFLOW_WEEKS = [
-  { week:'This Week', incoming:8940, outgoing:5800, net:3140, factored:3840 },
-  { week:'Next Week', incoming:5100, outgoing:4200, net:900,  factored:0 },
-  { week:'Week 3',    incoming:6200, outgoing:4800, net:1400, factored:0 },
-  { week:'Week 4',    incoming:4100, outgoing:3900, net:200,  factored:0 },
-]
+const CASHFLOW_WEEKS = []
 
 const PRIORITY_COLORS = { HIGH:'var(--success)', MEDIUM:'var(--accent)', URGENT:'var(--danger)' }
 
@@ -3792,59 +3703,9 @@ export function FactoringCashflow() {
 }
 
 // ─── FLEET MANAGER ─────────────────────────────────────────────────────────────
-const FLEET_TRUCKS = [
-  {
-    id:'unit01', unit:'Unit 01', status:'En Route', statusColor:'var(--success)',
-    year:2021, make:'Freightliner', model:'Cascadia', vin:'1FUJGLDR5MLKJ2841',
-    plate:'MN-94821', color:'White', gvw:'80,000 lbs', fuel:'Diesel',
-    regExpiry:'Dec 2026', insExpiry:'Jun 2025', dotInspection:'Dec 2025',
-    odometer:287420, driver:'James Tucker', unit_cost: 128000,
-    mpg:[7.2,7.0,7.1,7.3,7.2,7.4],
-    miles:[2100,1850,2400,2200,1900,2350],
-    revenue:[6120,5400,7020,6430,5550,6860],
-    opCost:[3800,3400,4200,3900,3500,4100],
-  },
-  {
-    id:'unit02', unit:'Unit 02', status:'Available', statusColor:'var(--accent2)',
-    year:2019, make:'Kenworth', model:'T680', vin:'1XKWDB9X5KJ213892',
-    plate:'IL-77103', color:'Black', gvw:'80,000 lbs', fuel:'Diesel',
-    regExpiry:'Mar 2026', insExpiry:'Dec 2025', dotInspection:'Nov 2025',
-    odometer:412800, driver:'Marcus Lee', unit_cost: 105000,
-    mpg:[6.9,6.8,6.7,6.9,7.0,6.8],
-    miles:[1900,2100,1700,2000,2200,1850],
-    revenue:[5540,6120,4960,5830,6420,5390],
-    opCost:[3400,3700,3100,3500,3900,3300],
-  },
-  {
-    id:'unit03', unit:'Unit 03', status:'Off Duty', statusColor:'var(--muted)',
-    year:2018, make:'Peterbilt', model:'579', vin:'1XPBD49X9JD432104',
-    plate:'CO-55291', color:'Silver', gvw:'80,000 lbs', fuel:'Diesel',
-    regExpiry:'Oct 2025', insExpiry:'Oct 2025', dotInspection:'Dec 2024',
-    odometer:561300, driver:'Priya Patel', unit_cost: 89000,
-    mpg:[6.4,6.3,6.2,6.4,6.1,6.4],
-    miles:[1600,1400,1800,1500,1200,1700],
-    revenue:[4160,3640,4680,3900,3120,4420],
-    opCost:[3200,2900,3500,3100,2700,3300],
-  },
-]
+const FLEET_TRUCKS = []
 
-const MAINT_LOGS = {
-  unit01: [
-    { id:1, date:'Feb 15', mileage:285000, type:'Oil Change',         cost:180,  shop:'Freightliner Dealer MN',     notes:'Synthetic 15W-40, filter replaced',              nextDue:'290,000 mi' },
-    { id:2, date:'Jan 8',  mileage:278000, type:'Tire Rotation',      cost:120,  shop:'Speedco',                    notes:'All 18 tires rotated + pressure check',           nextDue:'293,000 mi' },
-    { id:3, date:'Dec 2',  mileage:271000, type:'DOT Inspection',     cost:320,  shop:'Certified Fleet Services',   notes:'Passed. New brake pads front axle.',              nextDue:'Dec 2025' },
-  ],
-  unit02: [
-    { id:1, date:'Feb 28', mileage:410000, type:'Brake Service',      cost:890,  shop:'Kenworth Dealer IL',         notes:'Rear brake drums + shoes replaced',               nextDue:'430,000 mi' },
-    { id:2, date:'Jan 20', mileage:405000, type:'Oil Change',         cost:195,  shop:'Speedco Chicago',            notes:'Full synthetic + DPF cleaning',                   nextDue:'420,000 mi' },
-    { id:3, date:'Nov 14', mileage:398000, type:'Coolant Flush',      cost:210,  shop:'TA Truck Service',           notes:'Full system flush + new thermostat',               nextDue:'448,000 mi' },
-  ],
-  unit03: [
-    { id:1, date:'Mar 1',  mileage:560500, type:'Oil Change + Brakes',cost:680,  shop:'Peterbilt Denver',           notes:'Oil change + brakes at 40% life — monitor closely',nextDue:'565,000 mi' },
-    { id:2, date:'Jan 22', mileage:551000, type:'Tire Replacement',   cost:2200, shop:'Speedco Denver',             notes:'4 new drives + 2 steers. Old tires at 3/32.',      nextDue:'601,000 mi' },
-    { id:3, date:'Dec 10', mileage:545000, type:'DOT Inspection',     cost:340,  shop:'Certified Fleet Services',   notes:'Passed with 2 minor violations — fixed.',          nextDue:'Dec 2025' },
-  ],
-}
+const MAINT_LOGS = {}
 
 const SERVICE_TYPES = ['Oil Change','Tire Rotation','Tire Replacement','Brake Service','DOT Inspection','Coolant Flush','DPF Cleaning','Transmission Service','AC Service','Other']
 const WEEKS = ['W1','W2','W3','W4','W5','W6']
@@ -3950,12 +3811,12 @@ export function FleetManager() {
   const truck = trucks.find(t => t.id === selectedTruck)
   const truckLogs = logs[selectedTruck] || []
   const totalMaintCost = truckLogs.reduce((s, l) => s + l.cost, 0)
-  const avgMpg = (truck.mpg.reduce((s,v) => s+v, 0) / truck.mpg.length).toFixed(1)
-  const totalMiles = truck.miles.reduce((s,v) => s+v, 0)
-  const totalRev = truck.revenue.reduce((s,v) => s+v, 0)
-  const totalCost = truck.opCost.reduce((s,v) => s+v, 0)
+  const avgMpg = truck ? (truck.mpg.reduce((s,v) => s+v, 0) / truck.mpg.length).toFixed(1) : '0.0'
+  const totalMiles = truck ? truck.miles.reduce((s,v) => s+v, 0) : 0
+  const totalRev = truck ? truck.revenue.reduce((s,v) => s+v, 0) : 0
+  const totalCost = truck ? truck.opCost.reduce((s,v) => s+v, 0) : 0
   const netProfit = totalRev - totalCost
-  const maxRev = Math.max(...truck.revenue)
+  const maxRev = truck ? Math.max(...truck.revenue) : 0
 
   const addService = () => {
     if (!newService.date || !newService.type) return
@@ -4089,6 +3950,9 @@ export function FleetManager() {
       {/* ── Right panel ── */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
+        {!truck ? (
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:14 }}>No trucks added yet. Click "+ Add Truck" to get started.</div>
+        ) : (<>
         {/* Truck header */}
         <div style={{ flexShrink:0, padding:'14px 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>
           <div style={{ width:44, height:44, borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}><Truck size={20} /></div>
@@ -4415,6 +4279,7 @@ export function FleetManager() {
             </>
           )}
         </div>
+      </>)}
       </div>
     </div>
   )
@@ -4444,29 +4309,7 @@ const PE_STATUS_META = {
   waived:     { label:'Waived',      color:'var(--muted)',    bg:'rgba(74,85,112,0.12)'  },
 }
 
-const SAMPLE_ONBOARDS = [
-  {
-    id:'d1', name:'James Tucker', cdl:'CDL-A', cdlNum:'IL-CDL-449821', phone:'(312) 555-0182', email:'james@rjtransport.com',
-    dob:'Apr 12, 1988', state:'IL', added:'Mar 1', avatar:'JT',
-    checks:{ drug:'cleared', clearinghouse:'cleared', mvr:'cleared', psp:'cleared', employment:'cleared', cdl:'cleared', road_test:'cleared', medical:'cleared', eld:'cleared', pay:'cleared' },
-    results:{ drug:'No violations · Negative', clearinghouse:'No violations on record', mvr:'Clean record · 0 violations', psp:'0 crashes · 2 inspections · No OOS', employment:'Verified — Swift LLC 2021–2024', cdl:'Class A · HazMat · Tanker · Valid to Jan 2028', road_test:'Passed — Mar 1, 2026', medical:'Certified · Expires Mar 1, 2028', eld:'CM32-Unit01 · Paired', pay:'Direct deposit · FastPay enrolled' },
-    medExpiry:'Mar 1, 2028', cdlExpiry:'Jan 15, 2028',
-  },
-  {
-    id:'d2', name:'Maria Santos', cdl:'CDL-A', cdlNum:'MN-CDL-881047', phone:'(612) 555-0219', email:'maria@email.com',
-    dob:'Sep 3, 1992', state:'MN', added:'Mar 6', avatar:'MS',
-    checks:{ drug:'processing', clearinghouse:'cleared', mvr:'cleared', psp:'cleared', employment:'ordered', cdl:'cleared', road_test:'manual', medical:'idle', eld:'idle', pay:'idle' },
-    results:{ clearinghouse:'No violations on record', mvr:'Clean record · 0 violations', psp:'0 crashes · 0 inspections', cdl:'Class A · Valid to Aug 2027' },
-    medExpiry:'', cdlExpiry:'Aug 22, 2027',
-  },
-  {
-    id:'d3', name:'Devon Williams', cdl:'CDL-B', cdlNum:'', phone:'(414) 555-0334', email:'devon@email.com',
-    dob:'Feb 28, 1995', state:'WI', added:'Mar 8', avatar:'DW',
-    checks:{ drug:'idle', clearinghouse:'idle', mvr:'idle', psp:'idle', employment:'idle', cdl:'idle', road_test:'idle', medical:'idle', eld:'idle', pay:'idle' },
-    results:{},
-    medExpiry:'', cdlExpiry:'',
-  },
-]
+const SAMPLE_ONBOARDS = []
 
 export function DriverOnboarding() {
   const { showToast } = useApp()
@@ -4910,6 +4753,7 @@ export function DriverOnboarding() {
 }
 
 // ─── LANE INTELLIGENCE ────────────────────────────────────────────────────────
+// Reference lane data — replaced by live lane analytics when connected
 const LANES = [
   { id:'l1', from:'ATL', to:'CHI', fromFull:'Atlanta, GA',   toFull:'Chicago, IL',    miles:674,  loads:12, avgRpm:2.94, topRpm:3.20, avgGross:1981, trend:+8,  rating:'hot', ratingLabel:'HOT',    color:'var(--success)',  brokers:['Echo Global','Coyote Logistics','XPO'], backhaul:88, deadhead:22, equipment:'Dry Van' },
   { id:'l2', from:'DAL', to:'MIA', fromFull:'Dallas, TX',    toFull:'Miami, FL',      miles:1491, loads:8,  avgRpm:3.22, topRpm:3.45, avgGross:4802, trend:+12, rating:'hot', ratingLabel:'HOT',    color:'var(--success)',  brokers:['Echo Global','Transplace'],             backhaul:72, deadhead:15, equipment:'Dry Van/Reefer' },
@@ -5165,9 +5009,9 @@ const CITY_XY = {
   'Minneapolis, MN':  [558, 278],
 }
 
-const CC_COLOR = { 'James Tucker': '#f0a500', 'Marcus Lee': '#4d8ef0', 'Priya Patel': '#00d4aa' }
-const CC_UNIT  = { 'James Tucker': 'Unit 01',  'Marcus Lee': 'Unit 02',  'Priya Patel': 'Unit 03'  }
-const CC_HOS   = { 'James Tucker': '8h 14m',   'Marcus Lee': '11h 0m',   'Priya Patel': '10h 30m'  }
+const CC_COLOR = {}
+const CC_UNIT  = {}
+const CC_HOS   = {}
 const CC_PROG  = { 'Rate Con Received':0.05, 'Assigned to Driver':0.15, 'En Route to Pickup':0.30, 'Loaded':0.45, 'In Transit':0.65, 'Delivered':1.0 }
 
 // Gantt: 7 AM – midnight (17 hrs). Simulated "now" = 10:30 AM
@@ -5178,11 +5022,7 @@ const NOW_PCT     = ((NOW_HOUR - GANTT_START) / GANTT_HOURS) * 100
 const GANTT_HOURS_LABELS = ['7AM','8AM','9AM','10AM','11AM','12PM','1PM','2PM','3PM','4PM','5PM','6PM','7PM','8PM','9PM','10PM','11PM','12AM']
 
 // Per-driver Gantt block positions (start hour, end hour)
-const GANTT_BLOCKS = {
-  'James Tucker': { start: 7,  end: 17 },
-  'Marcus Lee':   { start: 8,  end: 20 },
-  'Priya Patel':  { start: 6,  end: 16 },
-}
+const GANTT_BLOCKS = {}
 
 export function CommandCenter() {
   const { showToast } = useApp()
@@ -5562,6 +5402,7 @@ export function CommandCenter() {
             const t     = trucks.find(tk => tk.driver === driver)
             const color = CC_COLOR[driver]
             const blk   = GANTT_BLOCKS[driver]
+            if (!blk) return null
             const left  = ((blk.start - GANTT_START) / GANTT_HOURS) * 100
             const width = ((blk.end - blk.start)    / GANTT_HOURS) * 100
 
@@ -5633,6 +5474,7 @@ const LB_LANE = {
   'HOU→NYC': { avgRpm:3.25, trend:+10, backhaul:70 },
 }
 
+// Sample load board — replaced by live DAT feed when connected
 const BOARD_LOADS = [
   { id:'LD-001', broker:'Echo Global',       origin:'Chicago, IL',    dest:'Atlanta, GA',      miles:674,  rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM',  deadhead:0,   refNum:'EC-89100', laneKey:'CHI→ATL' },
   { id:'LD-002', broker:'Coyote Logistics',  origin:'Chicago, IL',    dest:'Miami, FL',         miles:1377, rate:3.15, gross:4338, weight:'38,500', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 7:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:0,   refNum:'CL-23001', laneKey:'CHI→MIA' },
@@ -6952,7 +6794,7 @@ export function CheckCallCenter() {
 }
 
 // ─── DRIVER SCORECARD ─────────────────────────────────────────────────────────
-const DS_DRIVERS = ['James Tucker', 'Marcus Lee', 'Priya Patel']
+const DS_DRIVERS = []
 
 const DS_WEEKS = ['Feb 16', 'Feb 23', 'Mar 2', 'Mar 9']
 
@@ -9302,10 +9144,7 @@ export function AnalyticsDashboard() {
 // ─── REFERRAL PROGRAM ──────────────────────────────────────────────────────────
 export function ReferralProgram() {
   const { showToast } = useApp()
-  const [referrals, setReferrals] = useState([
-    { name:'Mike Johnson', email:'mike@jmtrucking.com', status:'Signed Up', date:'Mar 5, 2026', reward:'$25 credit' },
-    { name:'Sarah Williams', email:'sarah@swexpress.com', status:'Subscribed', date:'Feb 28, 2026', reward:'1 month free' },
-  ])
+  const [referrals, setReferrals] = useState([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [copied, setCopied] = useState(false)

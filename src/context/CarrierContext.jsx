@@ -115,51 +115,7 @@ function normalizeCompany(c) {
   }
 }
 
-// ─── Fallback mock data ──────────────────────────────────────
-const MOCK_LOADS = [
-  { id:'mock-1', load_number:'QV-5001', broker:'Echo Global',      origin:'Atlanta, GA',   destination:'Chicago, IL',     miles:674,  rate_per_mile:2.94, gross_pay:3840, pickup_date:'2026-03-08', pickup_time:'2:00 PM',  delivery_date:'2026-03-09', delivery_time:'10:00 AM',  weight:'42,000', commodity:'Auto Parts',   driver_name:'James Tucker', status:'Delivered',          reference_number:'EC-88421' },
-  { id:'mock-2', load_number:'QV-5002', broker:'Coyote Logistics', origin:'Memphis, TN',   destination:'New York, NY',    miles:1100, rate_per_mile:3.10, gross_pay:5100, pickup_date:'2026-03-10', pickup_time:'8:00 AM',  delivery_date:'2026-03-12', delivery_time:'6:00 PM',   weight:'39,800', commodity:'Electronics',  driver_name:'Marcus Lee',   status:'Rate Con Received',  reference_number:'CL-22910' },
-  { id:'mock-3', load_number:'QV-5003', broker:'Echo Global',      origin:'Dallas, TX',    destination:'Miami, FL',       miles:1491, rate_per_mile:3.22, gross_pay:5600, pickup_date:'2026-03-11', pickup_time:'7:00 AM',  delivery_date:'2026-03-13', delivery_time:'5:00 PM',   weight:'38,500', commodity:'Food & Bev',   driver_name:'James Tucker', status:'In Transit',         reference_number:'EC-88430' },
-  { id:'mock-4', load_number:'QV-5004', broker:'Transplace',       origin:'Denver, CO',    destination:'Houston, TX',     miles:1020, rate_per_mile:2.61, gross_pay:3400, pickup_date:'2026-03-10', pickup_time:'6:00 AM',  delivery_date:'2026-03-12', delivery_time:'4:00 PM',   weight:'41,200', commodity:'Machinery',    driver_name:'Priya Patel',  status:'Assigned to Driver', reference_number:'TP-19203' },
-  { id:'mock-5', load_number:'QV-5005', broker:'W. Express',       origin:'Phoenix, AZ',   destination:'Los Angeles, CA', miles:372,  rate_per_mile:2.41, gross_pay:1850, pickup_date:'2026-03-07', pickup_time:'5:00 PM',  delivery_date:'2026-03-08', delivery_time:'9:00 AM',   weight:'45,000', commodity:'Retail',       driver_name:'James Tucker', status:'Invoiced',           reference_number:'WE-55102' },
-  { id:'mock-6', load_number:'QV-5006', broker:'Transplace',       origin:'Chicago, IL',   destination:'Atlanta, GA',     miles:674,  rate_per_mile:2.72, gross_pay:1833, pickup_date:'2026-02-28', pickup_time:'9:00 AM',  delivery_date:'2026-03-01', delivery_time:'7:00 PM',   weight:'40,000', commodity:'Auto Parts',   driver_name:'Marcus Lee',   status:'Invoiced',           reference_number:'TP-18899' },
-]
-
-const MOCK_INVOICES = [
-  { id:'mock-inv-1', invoice_number:'INV-0100', load_number:'QV-5001', broker:'Echo Global',      route:'ATL → CHI', amount:3840, invoice_date:'2026-03-09', due_date:'2026-04-08', status:'Unpaid',   driver_name:'James Tucker' },
-  { id:'mock-inv-2', invoice_number:'INV-0101', load_number:'QV-5005', broker:'W. Express',       route:'PHX → LAX', amount:1850, invoice_date:'2026-03-08', due_date:'2026-04-07', status:'Unpaid',   driver_name:'James Tucker' },
-  { id:'mock-inv-3', invoice_number:'INV-0102', load_number:'QV-5006', broker:'Transplace',       route:'CHI → ATL', amount:1833, invoice_date:'2026-03-01', due_date:'2026-03-31', status:'Factored', driver_name:'Marcus Lee'   },
-  { id:'mock-inv-4', invoice_number:'INV-0103', load_number:'QV-4380', broker:'Coyote Logistics', route:'MEM → NYC', amount:4200, invoice_date:'2026-02-22', due_date:'2026-03-24', status:'Paid',     driver_name:'Marcus Lee'   },
-]
-
-const MOCK_EXPENSES = [
-  { id:'mock-exp-1', date:'2026-03-08', category:'Fuel',        amount:284.50, merchant:'Pilot Travel Center',   load_number:'QV-5001', notes:'Fill-up before pickup',  driver_name:'James Tucker' },
-  { id:'mock-exp-2', date:'2026-03-07', category:'Fuel',        amount:312.00, merchant:"Love's Travel Stops",   load_number:'QV-5005', notes:'Diesel + DEF',            driver_name:'James Tucker' },
-  { id:'mock-exp-3', date:'2026-03-06', category:'Maintenance', amount:420.00, merchant:'TA Truck Service',      load_number:'',        notes:'Oil change + filter',     driver_name:'' },
-  { id:'mock-exp-4', date:'2026-03-05', category:'Tolls',       amount:38.75,  merchant:'Illinois Tollway',      load_number:'QV-5006', notes:'I-90 tolls',              driver_name:'Marcus Lee' },
-  { id:'mock-exp-5', date:'2026-03-03', category:'Lumper',      amount:200.00, merchant:'Chicago Distribution',  load_number:'QV-5002', notes:'Unload fee',              driver_name:'Marcus Lee' },
-  { id:'mock-exp-6', date:'2026-02-28', category:'Fuel',        amount:297.00, merchant:'Pilot Travel Center',   load_number:'QV-5006', notes:'',                        driver_name:'Marcus Lee' },
-  { id:'mock-exp-7', date:'2026-02-26', category:'Permits',     amount:200.00, merchant:'IFTA/Oversize',         load_number:'',        notes:'Q1 permits',              driver_name:'' },
-]
-
-const MOCK_COMPANY = {
-  name: 'Swift Carriers LLC', mc_number: 'MC-294810', dot_number: 'DOT-3821049',
-  address: '1420 Truckers Blvd, Minneapolis, MN 55401',
-  phone: '(612) 555-0182', email: 'ops@swiftcarriers.com', ein: '82-4910283',
-  logo: '',
-}
-
-const MOCK_DRIVERS = [
-  { id:'mock-drv-1', full_name:'James Tucker', email:'j.tucker@email.com', phone:'(612) 555-0192', license_number:'MN-223344', license_state:'MN', license_expiry:'2026-08-01', medical_card_expiry:'2025-09-01', status:'Active', hire_date:'2024-01-14', notes:'Hazmat, Doubles/Triples endorsements' },
-  { id:'mock-drv-2', full_name:'Marcus Lee', email:'m.lee@email.com', phone:'(312) 555-0847', license_number:'IL-445566', license_state:'IL', license_expiry:'2027-03-01', medical_card_expiry:'2025-11-01', status:'Active', hire_date:'2024-03-03', notes:'Doubles/Triples endorsement' },
-  { id:'mock-drv-3', full_name:'Priya Patel', email:'p.patel@email.com', phone:'(720) 555-0341', license_number:'CO-667788', license_state:'CO', license_expiry:'2028-10-01', medical_card_expiry:'2026-10-01', status:'Active', hire_date:'2025-10-10', notes:'Reefer endorsement' },
-]
-
-const MOCK_VEHICLES = [
-  { id:'mock-veh-1', unit_number:'Unit 01', type:'Truck', year:2021, make:'Freightliner', model:'Cascadia', vin:'1FUJGLDR5MLKJ2841', license_plate:'MN-94821', license_state:'MN', status:'Active', current_miles:287420, insurance_expiry:'2025-06-01', registration_expiry:'2026-12-01', notes:'White, 80000 lbs GVW, Diesel' },
-  { id:'mock-veh-2', unit_number:'Unit 02', type:'Truck', year:2019, make:'Kenworth', model:'T680', vin:'1XKWDB9X5KJ213892', license_plate:'IL-77103', license_state:'IL', status:'Active', current_miles:412800, insurance_expiry:'2025-12-01', registration_expiry:'2026-03-01', notes:'Black, 80000 lbs GVW, Diesel' },
-  { id:'mock-veh-3', unit_number:'Unit 03', type:'Truck', year:2018, make:'Peterbilt', model:'579', vin:'1XPBD49X9JD432104', license_plate:'CO-55291', license_state:'CO', status:'Active', current_miles:561300, insurance_expiry:'2025-10-01', registration_expiry:'2025-10-01', notes:'Silver, 80000 lbs GVW, Diesel' },
-]
+// ─── No mock data — production uses Supabase only ───────────
 
 // ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
@@ -448,14 +404,14 @@ export function CarrierProvider({ children }) {
     }
   }, [company, useDb])
 
-  // ─── Reset (loads demo data for testing) ────────────────────────
+  // ─── Reset (clears all local data) ──────────────────────────────
   const resetData = useCallback(() => {
-    setLoads(MOCK_LOADS.map(normalizeLoad))
-    setInvoices(MOCK_INVOICES.map(normalizeInvoice))
-    setExpenses(MOCK_EXPENSES.map(normalizeExpense))
-    setDrivers(MOCK_DRIVERS)
-    setVehicles(MOCK_VEHICLES)
-    setCompany(normalizeCompany(MOCK_COMPANY))
+    setLoads([])
+    setInvoices([])
+    setExpenses([])
+    setDrivers([])
+    setVehicles([])
+    setCompany(normalizeCompany({}))
     setCheckCalls({})
   }, [])
 

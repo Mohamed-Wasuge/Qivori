@@ -50,19 +50,33 @@ class ViewErrorBoundary extends Component {
 // (MODULES array removed — components are now accessed via hub sub-tabs)
 
 // ── Overview tab content ───────────────────────────────────────────────────────
-const OV_ALERTS = [
-  { icon: AlertTriangle, text:"Unit 03 oil change due in 800 mi — 94% breakdown risk if skipped", color:'var(--warning)', action:'Schedule' },
-  { icon: AlertCircle, text:"Maria Santos CDL expires in 18 days — renew before dispatching", color:'var(--danger)',  action:'Renew' },
-  { icon: CreditCard, text:"INV-042 ($2,666) ready for FastPay — collect by Mar 12 for best rate", color:'var(--accent)', action:'Collect' },
-  { icon: Building2, text:"Transplace payment 8 days overdue on FM-4398 ($2,100)", color:'var(--danger)', action:'Contact' },
-]
+// Alerts are generated dynamically from real data below
 const STATUS_DOT = { 'In Transit':'var(--success)', 'Loaded':'var(--accent2)', 'Assigned to Driver':'var(--accent)', 'En Route to Pickup':'var(--accent2)', 'Rate Con Received':'var(--accent)', 'Available':'var(--muted)' }
 
 function OverviewTab({ onTabChange }) {
   const { showToast } = useApp()
   const { loads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles } = useCarrier()
   const [dismissed, setDismissed] = useState([])
-  const alerts = OV_ALERTS.filter((_, i) => !dismissed.includes(i))
+
+  // Generate alerts dynamically from real data
+  const generatedAlerts = []
+  if (unpaidInvoices.length > 0) {
+    const totalUnpaid = unpaidInvoices.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+    generatedAlerts.push({ icon: CreditCard, text: `${unpaidInvoices.length} unpaid invoice(s) totaling $${totalUnpaid.toLocaleString()} — collect to improve cash flow`, color: 'var(--accent)', action: 'View' })
+  }
+  if (vehicles.some(v => v.current_miles > 0 && v.next_service_miles && v.current_miles >= v.next_service_miles - 1000)) {
+    generatedAlerts.push({ icon: AlertTriangle, text: 'Vehicle maintenance coming due soon — schedule service', color: 'var(--warning)', action: 'Schedule' })
+  }
+  if (drivers.some(d => d.medical_card_expiry && new Date(d.medical_card_expiry) < new Date(Date.now() + 30 * 86400000))) {
+    generatedAlerts.push({ icon: AlertCircle, text: 'Driver medical card expiring within 30 days — renew before dispatching', color: 'var(--danger)', action: 'Renew' })
+  }
+  if (loads.length === 0) {
+    generatedAlerts.push({ icon: Package, text: 'No loads yet — add your first load to get started', color: 'var(--accent)', action: 'Add Load' })
+  }
+  if (drivers.length === 0) {
+    generatedAlerts.push({ icon: Users, text: 'No drivers added — add your first driver to start dispatching', color: 'var(--accent2)', action: 'Add Driver' })
+  }
+  const alerts = generatedAlerts.filter((_, i) => !dismissed.includes(i))
 
   const revDisplay = totalRevenue >= 1000 ? `$${(totalRevenue/1000).toFixed(1)}K` : `$${totalRevenue}`
   const netProfit  = totalRevenue - totalExpenses
@@ -89,6 +103,58 @@ function OverviewTab({ onTabChange }) {
 
   return (
     <div style={{ padding: 20, paddingBottom: 60, overflowY: 'auto', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Empty state / onboarding */}
+      {loads.length === 0 && drivers.length === 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Welcome heading */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Ic icon={Zap} size={26} color="var(--accent)" />
+            </div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 2, color: 'var(--foreground)', marginBottom: 6 }}>Welcome to Qivori AI</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>Your intelligent carrier management platform. Complete the steps below to get started.</div>
+          </div>
+
+          {/* Quick-action cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '18px 16px', textAlign: 'center' }}>
+              <Ic icon={Package} size={22} color="var(--accent)" style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Get started by adding your first load</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>Book a load to start tracking revenue and dispatching drivers.</div>
+              <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => onTabChange('loads')}>Add Load</button>
+            </div>
+            <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '18px 16px', textAlign: 'center' }}>
+              <Ic icon={Users} size={22} color="var(--accent2)" style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Add your first driver</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>Register a driver to assign loads and manage dispatch.</div>
+              <button className="btn btn-ghost" style={{ fontSize: 12, borderColor: 'var(--accent2)', color: 'var(--accent2)' }} onClick={() => onTabChange('fleet')}>Add Driver</button>
+            </div>
+          </div>
+
+          {/* Onboarding checklist */}
+          <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Ic icon={ClipboardList} size={14} color="var(--accent)" /> Onboarding Checklist
+            </div>
+            {[
+              { label: 'Add first load', done: loads.length > 0, tab: 'loads' },
+              { label: 'Add a driver', done: drivers.length > 0, tab: 'fleet' },
+              { label: 'Upload documents', done: false, tab: 'docs' },
+              { label: 'Set up payment', done: false, tab: 'financials' },
+            ].map((item, i) => (
+              <div key={i} onClick={() => onTabChange(item.tab)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', cursor: 'pointer', transition: 'opacity 0.15s' }}
+                onMouseOver={e => e.currentTarget.style.opacity = '0.8'}
+                onMouseOut={e => e.currentTarget.style.opacity = '1'}>
+                <div style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${item.done ? 'var(--success)' : 'var(--border)'}`, background: item.done ? 'rgba(0,212,170,0.1)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {item.done && <Ic icon={CheckCircle} size={14} color="var(--success)" />}
+                </div>
+                <div style={{ fontSize: 12, color: item.done ? 'var(--muted)' : 'var(--foreground)', textDecoration: item.done ? 'line-through' : 'none' }}>{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI banner */}
       <div style={{ background: 'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(0,212,170,0.05))', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -1306,7 +1372,7 @@ function ProfitIQTab() {
 }
 
 // ── Dispatch tab ───────────────────────────────────────────────────────────────
-const DRIVERS = ['James Tucker', 'Marcus Lee', 'Priya Patel']
+const DRIVERS = [] // populated from context
 const STATUS_FLOW = ['Rate Con Received', 'Assigned to Driver', 'En Route to Pickup', 'Loaded', 'In Transit', 'Delivered', 'Invoiced']
 const STATUS_COLORS = {
   'Rate Con Received': 'var(--accent)',
@@ -2716,13 +2782,12 @@ function CarrierLayoutInner() {
     return () => window.removeEventListener('keydown', h)
   }, [])
 
+  // Generate notifications from real data
   const ALL_NOTIFS = [
-    { icon: Zap,             title:'AI Match: ATL→CHI',     sub:'$3,840 · Score 96 · Pickup today',       color:'var(--accent)',  view:'loads' },
-    { icon: Wrench,          title:'Unit 03 — Service Due',  sub:'800 miles remaining · Schedule now',      color:'var(--warning)', view:'fleet' },
-    { icon: CreditCard,      title:'FastPay Available',       sub:'INV-042 · $2,666 ready for collection',  color:'var(--success)', view:'financials' },
-    { icon: BarChart2,       title:'IFTA Refund Detected',   sub:'$112.81 credit this quarter',             color:'var(--accent3)', view:'compliance' },
-    { icon: AlertTriangle,   title:'Broker Alert',           sub:'Transplace — payment 8 days overdue',    color:'var(--danger)',  view:'compliance' },
-    { icon: Truck,           title:'Unit 02 Available',       sub:'Marcus Lee · Chicago · 11hr HOS',        color:'var(--accent2)', view:'fleet' },
+    ...(activeLoads.length > 0 ? [{ icon: Zap, title: `${activeLoads.length} Active Load(s)`, sub: 'View your dispatch board', color: 'var(--accent)', view: 'loads' }] : []),
+    ...(unpaidInvoices.length > 0 ? [{ icon: CreditCard, title: `${unpaidInvoices.length} Unpaid Invoice(s)`, sub: `$${unpaidInvoices.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0).toLocaleString()} outstanding`, color: 'var(--success)', view: 'financials' }] : []),
+    ...(loads.length === 0 ? [{ icon: Package, title: 'Get Started', sub: 'Add your first load to begin dispatching', color: 'var(--accent)', view: 'loads' }] : []),
+    ...(drivers.length === 0 ? [{ icon: Users, title: 'Add Drivers', sub: 'Add your drivers to assign loads', color: 'var(--accent2)', view: 'drivers' }] : []),
   ]
   const notifs = ALL_NOTIFS.filter((_, i) => !dismissedNotifs.includes(i))
 

@@ -18,21 +18,8 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// ── LOAD BOARD DATA (same as desktop AILoadBoard) ─────────
-const BOARD_LOADS = [
-  { id:'LD-001', broker:'Echo Global',       origin:'Chicago, IL',    dest:'Atlanta, GA',      miles:674,  rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM',  deadhead:0,   refNum:'EC-89100', score:82 },
-  { id:'LD-002', broker:'Coyote Logistics',  origin:'Chicago, IL',    dest:'Miami, FL',         miles:1377, rate:3.15, gross:4338, weight:'38,500', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 7:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:0,   refNum:'CL-23001', score:88 },
-  { id:'LD-004', broker:'XPO',               origin:'Chicago, IL',    dest:'New York, NY',      miles:790,  rate:3.08, gross:2433, weight:'39,000', commodity:'Retail',        equipment:'Dry Van',  pickup:'Mar 10 · 9:00 AM', delivery:'Mar 12 · 8:00 AM',  deadhead:0,   refNum:'XP-44210', score:85 },
-  { id:'LD-005', broker:'Echo Global',       origin:'Atlanta, GA',    dest:'Chicago, IL',       miles:674,  rate:3.12, gross:2103, weight:'40,500', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 11 · 7:00 AM', delivery:'Mar 12 · 5:00 PM',  deadhead:8,   refNum:'EC-89120', score:90 },
-  { id:'LD-006', broker:'CH Robinson',       origin:'Atlanta, GA',    dest:'Miami, FL',         miles:660,  rate:3.22, gross:2125, weight:'37,200', commodity:'Food & Bev',    equipment:'Reefer',   pickup:'Mar 10 · 6:00 AM', delivery:'Mar 11 · 8:00 PM',  deadhead:8,   refNum:'CHR-77301', score:86 },
-  { id:'LD-008', broker:'Echo Global',       origin:'Dallas, TX',     dest:'Miami, FL',         miles:1491, rate:3.22, gross:4801, weight:'38,500', commodity:'Food & Bev',    equipment:'Dry Van',  pickup:'Mar 11 · 7:00 AM', delivery:'Mar 13 · 5:00 PM',  deadhead:42,  refNum:'EC-89130', score:91 },
-  { id:'LD-010', broker:'Coyote Logistics',  origin:'Dallas, TX',     dest:'Los Angeles, CA',   miles:1435, rate:2.92, gross:4190, weight:'40,000', commodity:'Automotive',    equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 14 · 2:00 PM',  deadhead:42,  refNum:'CL-23020', score:79 },
-  { id:'LD-011', broker:'Coyote Logistics',  origin:'Memphis, TN',    dest:'New York, NY',      miles:1100, rate:3.18, gross:3498, weight:'39,800', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 12 · 6:00 PM',  deadhead:25,  refNum:'CL-23010', score:87 },
-  { id:'LD-015', broker:'Transplace',        origin:'Denver, CO',     dest:'Houston, TX',       miles:1020, rate:2.61, gross:2662, weight:'41,200', commodity:'Machinery',     equipment:'Flatbed',  pickup:'Mar 10 · 6:00 AM', delivery:'Mar 12 · 4:00 PM',  deadhead:68,  refNum:'TP-19310', score:72 },
-  { id:'LD-018', broker:'Echo Global',       origin:'Houston, TX',    dest:'New York, NY',      miles:1636, rate:3.28, gross:5366, weight:'38,000', commodity:'Petrochemicals', equipment:'Dry Van', pickup:'Mar 11 · 5:00 AM', delivery:'Mar 15 · 8:00 AM',  deadhead:85,  refNum:'EC-89140', score:93 },
-  { id:'LD-017', broker:'TQL',               origin:'Houston, TX',    dest:'Atlanta, GA',       miles:792,  rate:2.88, gross:2281, weight:'37,500', commodity:'Chemicals',     equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:85,  refNum:'TQ-11010', score:65 },
-  { id:'LD-016', broker:'XPO',               origin:'Denver, CO',     dest:'Chicago, IL',       miles:1003, rate:2.75, gross:2758, weight:'40,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 11 · 8:00 AM', delivery:'Mar 13 · 6:00 PM',  deadhead:68,  refNum:'XP-44220', score:78 },
-]
+// ─── Load board data populated from context ───────────
+const BOARD_LOADS = []
 
 export default function MobileLayout() {
   return (
@@ -182,10 +169,11 @@ function MobileAI() {
 
   // Build load board context for AI
   const buildLoadBoard = useCallback(() => {
-    return BOARD_LOADS.map(l =>
-      `${l.id} | ${l.origin} → ${l.dest} | ${l.miles}mi | $${l.gross} ($${l.rate}/mi) | ${l.equipment} | ${l.broker} | Score:${l.score} | Pickup:${l.pickup} | Delivery:${l.delivery} | ${l.commodity} | DH:${l.deadhead}mi | Ref:${l.refNum}`
-    ).join('\n')
-  }, [])
+    const boardData = loads.length > 0 ? loads : BOARD_LOADS
+    return boardData.map(l =>
+      `${l.load_number || l.id} | ${l.origin_city || l.origin || ''}, ${l.origin_state || ''} → ${l.destination_city || l.dest || ''}, ${l.destination_state || ''} | ${l.miles || 0}mi | $${l.rate || 0} | ${l.equipment_type || l.equipment || ''} | ${l.broker_name || l.broker || ''}`
+    ).join('\n') || 'No loads available yet.'
+  }, [loads])
 
   // Parse action blocks from AI response
   const parseActions = (text) => {

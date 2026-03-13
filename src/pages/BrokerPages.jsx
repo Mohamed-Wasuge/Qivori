@@ -24,61 +24,7 @@ const badge = (bg, color) => ({
   borderRadius: 20, fontSize: 11, fontWeight: 700, background: bg, color
 })
 
-// ── Demo Data ──────────────────────────────────────────────────────────────
-const DEMO_LOADS = [
-  { id: 'BL-1001', origin: 'Atlanta, GA', dest: 'Chicago, IL', rate: 3200, equipment: 'Dry Van', status: 'Posted', carrier: null, tracking: null, notes: [] },
-  { id: 'BL-1002', origin: 'Dallas, TX', dest: 'Miami, FL', rate: 4800, equipment: 'Reefer', status: 'Matched', carrier: null, tracking: null, notes: [] },
-  { id: 'BL-1003', origin: 'Memphis, TN', dest: 'New York, NY', rate: 5100, equipment: 'Dry Van', status: 'Booked',
-    carrier: { name: 'R&J Transport LLC', mc: 'MC-338821', dot: 'DOT-2847291', safety: 96, truck: '2022 Freightliner Cascadia', driver: 'James Tucker', phone: '(214) 555-0341', insurance: 'Active', eld: true, onTime: 98 },
-    tracking: null,
-    notes: [
-      { from: 'carrier', name: 'James Tucker', text: 'Confirmed pickup for tomorrow 8AM. Truck is in Memphis now.', time: '2h ago' },
-      { from: 'broker', name: 'You', text: 'Great, shipper expects you at Dock 4. Ask for Mike at receiving.', time: '1h ago' },
-    ]},
-  { id: 'BL-1004', origin: 'Phoenix, AZ', dest: 'Los Angeles, CA', rate: 1850, equipment: 'Flatbed', status: 'In Transit',
-    carrier: { name: 'Western Haul Inc', mc: 'MC-451002', dot: 'DOT-3102844', safety: 91, truck: '2023 Peterbilt 579', driver: 'Marcus Rivera', phone: '(602) 555-1188', insurance: 'Active', eld: true, onTime: 95 },
-    tracking: { location: 'Buckeye, AZ', lat: 33.37, lng: -112.58, updated: '4 min ago', eta: 'Today 6:30 PM', milesLeft: 142, pctComplete: 62, speed: '64 mph', nextStop: 'Los Angeles, CA', status: 'On Schedule' },
-    notes: [
-      { from: 'carrier', name: 'Marcus Rivera', text: 'Loaded and rolling. Traffic clear on I-10 westbound.', time: '3h ago' },
-      { from: 'broker', name: 'You', text: 'Receiver closes at 8PM, you have plenty of time.', time: '2h ago' },
-      { from: 'carrier', name: 'Marcus Rivera', text: 'Copy that. ETA 6:30 PM.', time: '1h ago' },
-    ]},
-  { id: 'BL-1005', origin: 'Nashville, TN', dest: 'Charlotte, NC', rate: 1650, equipment: 'Dry Van', status: 'Delivered',
-    carrier: { name: 'Blue Line Freight', mc: 'MC-289114', dot: 'DOT-2219043', safety: 88, truck: '2021 Kenworth T680', driver: 'David Park', phone: '(615) 555-7720', insurance: 'Active', eld: true, onTime: 92 },
-    tracking: { location: 'Charlotte, NC', pctComplete: 100, status: 'Delivered', updated: 'Mar 3, 11:42 AM' },
-    notes: [
-      { from: 'carrier', name: 'David Park', text: 'Delivered and signed. POD uploaded.', time: 'Mar 3' },
-    ]},
-  { id: 'BL-1006', origin: 'Denver, CO', dest: 'Houston, TX', rate: 3400, equipment: 'Dry Van', status: 'Delivered',
-    carrier: { name: 'Peak Transport Co', mc: 'MC-510033', dot: 'DOT-3384012', safety: 94, truck: '2022 Volvo VNL 860', driver: 'Sarah Kim', phone: '(303) 555-2290', insurance: 'Active', eld: true, onTime: 97 },
-    tracking: { location: 'Houston, TX', pctComplete: 100, status: 'Delivered', updated: 'Mar 5, 2:15 PM' },
-    notes: [] },
-  { id: 'BL-1007', origin: 'Chicago, IL', dest: 'Detroit, MI', rate: 1200, equipment: 'Step Deck', status: 'Booked',
-    carrier: { name: 'Midwest Express LLC', mc: 'MC-667210', dot: 'DOT-4001587', safety: 85, truck: '2020 International LT', driver: 'Tom Bradley', phone: '(312) 555-4410', insurance: 'Active', eld: true, onTime: 90 },
-    tracking: null,
-    notes: [
-      { from: 'carrier', name: 'Tom Bradley', text: 'Will pick up tomorrow morning. Any dock restrictions?', time: '30m ago' },
-    ]},
-  { id: 'BL-1008', origin: 'Seattle, WA', dest: 'Portland, OR', rate: 950, equipment: 'Reefer', status: 'Posted', carrier: null, tracking: null, notes: [] },
-]
-
-const DEMO_CARRIERS = [
-  { name: 'R&J Transport LLC', mc: 'MC-338821', dot: 'DOT-2847291', safety: 96, equipment: ['Dry Van', 'Reefer'], lanes: ['ATL-CHI', 'DAL-MIA', 'MEM-NYC'], onTime: 98, loads: 142, preferred: true },
-  { name: 'Western Haul Inc', mc: 'MC-451002', dot: 'DOT-3102844', safety: 91, equipment: ['Flatbed', 'Step Deck'], lanes: ['PHX-LAX', 'DEN-HOU', 'DAL-PHX'], onTime: 95, loads: 87, preferred: true },
-  { name: 'Blue Line Freight', mc: 'MC-289114', dot: 'DOT-2219043', safety: 88, equipment: ['Dry Van'], lanes: ['NAS-CLT', 'ATL-JAX', 'CLT-RDU'], onTime: 92, loads: 63, preferred: false },
-  { name: 'Peak Transport Co', mc: 'MC-510033', dot: 'DOT-3384012', safety: 94, equipment: ['Dry Van', 'Reefer'], lanes: ['DEN-HOU', 'DEN-DAL', 'KC-CHI'], onTime: 97, loads: 118, preferred: true },
-  { name: 'Midwest Express LLC', mc: 'MC-667210', dot: 'DOT-4001587', safety: 85, equipment: ['Step Deck', 'Flatbed'], lanes: ['CHI-DET', 'CHI-IND', 'CHI-STL'], onTime: 90, loads: 44, preferred: false },
-  { name: 'Sunbelt Carriers', mc: 'MC-773401', dot: 'DOT-4229018', safety: 78, equipment: ['Dry Van'], lanes: ['MIA-ATL', 'JAX-ATL', 'MIA-NAS'], onTime: 85, loads: 29, preferred: false },
-]
-
-const DEMO_INVOICES = [
-  { id: 'INV-4001', load: 'BL-1005', carrier: 'Blue Line Freight', amount: 1650, status: 'Paid', date: 'Mar 3, 2026' },
-  { id: 'INV-4002', load: 'BL-1006', carrier: 'Peak Transport Co', amount: 3400, status: 'Paid', date: 'Mar 5, 2026' },
-  { id: 'INV-4003', load: 'BL-1003', carrier: 'R&J Transport LLC', amount: 5100, status: 'Pending', date: 'Mar 8, 2026' },
-  { id: 'INV-4004', load: 'BL-1004', carrier: 'Western Haul Inc', amount: 1850, status: 'Pending', date: 'Mar 9, 2026' },
-  { id: 'INV-4005', load: 'BL-1007', carrier: 'Midwest Express LLC', amount: 1200, status: 'Pending', date: 'Mar 10, 2026' },
-  { id: 'INV-4006', load: 'BL-0998', carrier: 'Sunbelt Carriers', amount: 2200, status: 'Overdue', date: 'Feb 20, 2026' },
-]
+// ─── No demo data — production uses Supabase only ───────────
 
 const statusColor = (s) => {
   const m = { Posted: 'var(--warning)', Matched: 'var(--accent2)', Booked: 'var(--success)', 'In Transit': 'var(--accent)', Delivered: 'var(--muted)' }

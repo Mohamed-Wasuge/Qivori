@@ -52,18 +52,18 @@ const FEATURES = [
 
 const PLANS = [
   {
-    name: 'Solo', sub: '1 truck · Owner-operator', price: '$49', color: 'var(--accent2)',
+    name: 'Solo', sub: '1 truck · Owner-operator', price: '$99', annual: '$990/yr', color: 'var(--accent2)',
     features: ['AI Load Board + DAT', 'Fleet Map', 'P&L Dashboard', 'IFTA Filing', 'Invoicing & Factoring', 'Carrier Package', 'Fuel Optimizer'],
     cta: 'Start Free Trial', highlight: false, stripeId: 'solo',
   },
   {
-    name: 'Small Fleet', sub: '2–5 trucks', price: '$99', color: 'var(--accent)',
+    name: 'Fleet', sub: '2–10 trucks', price: '$299', annual: '$2,990/yr', color: 'var(--accent)',
     features: ['Everything in Solo', 'Multi-driver dispatch', 'Pre-Employment Screening', 'Driver Scorecards', 'Broker Risk Intel', 'Check Call Center', 'Equipment Manager'],
     cta: 'Start Free Trial', highlight: true, stripeId: 'fleet',
   },
   {
-    name: 'Growing Fleet', sub: '6–15 trucks', price: '$199', color: 'var(--accent3)',
-    features: ['Everything in Small Fleet', 'Unlimited drivers', 'QuickBooks integration', 'DAT API live feed', 'Cash Flow Forecasting', 'Priority support', 'Custom reporting'],
+    name: 'Enterprise', sub: '10+ trucks', price: '$599', annual: '$5,990/yr', color: 'var(--accent3)',
+    features: ['Everything in Fleet', 'Unlimited drivers', 'QuickBooks integration', 'DAT API live feed', 'Cash Flow Forecasting', 'Priority support', 'Custom reporting'],
     cta: 'Start Free Trial', highlight: false, stripeId: 'growing',
   },
 ]
@@ -534,7 +534,7 @@ export default function LandingPage({ onGetStarted }) {
 
               {/* Price Row */}
               {[
-                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: '$49/mo', qivoriHighlight: true },
+                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: 'From $99/mo', qivoriHighlight: true },
                 { feature: 'Setup / Onboarding Fee', legacy: '$500–1,500', enterprise: '$2,000–10,000', qivori: '$0', qivoriHighlight: true },
                 { feature: 'Contract Length', legacy: '12 months', enterprise: '24–36 months', qivori: 'Month-to-month', qivoriHighlight: true },
                 { feature: 'AI Load Scoring', legacy: false, enterprise: false, qivori: true },
@@ -613,9 +613,12 @@ export default function LandingPage({ onGetStarted }) {
                   )}
                   <div style={{ fontSize: 11, fontWeight: 800, color: plan.color, letterSpacing: 1.5, marginBottom: 6 }}>{plan.name.toUpperCase()}</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 18 }}>{plan.sub}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 24 }}>
-                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: plan.color, lineHeight: 1 }}>{plan.price}</span>
-                    <span style={{ fontSize: 14, color: 'var(--muted)' }}>/mo</span>
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                      <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: plan.color, lineHeight: 1 }}>{plan.price}</span>
+                      <span style={{ fontSize: 14, color: 'var(--muted)' }}>/mo</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>or <span style={{ color: plan.color, fontWeight: 700 }}>{plan.annual}</span> <span style={{ fontSize: 10, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>Save 2 months</span></div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28, flex: 1 }}>
                     {plan.features.map(f => (
@@ -659,7 +662,7 @@ export default function LandingPage({ onGetStarted }) {
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 14, padding: '18px 52px', color: '#000', fontSize: 17, fontWeight: 800, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", boxShadow: '0 8px 40px rgba(240,165,0,0.35)', marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               <Ic icon={Zap} size={20} /> Start Free — No Card Needed
             </button>
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>14 days free · Then from $49/month · Cancel anytime</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>14 days free · Then from $99/month · Cancel anytime</div>
           </div>
         </FadeIn>
       </section>

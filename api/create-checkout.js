@@ -1,9 +1,9 @@
 export const config = { runtime: 'edge' }
 
 const PLANS = {
-  solo:    { name: 'Solo',         price_cents: 4900,  trial_days: 14 },
-  fleet:   { name: 'Small Fleet',  price_cents: 9900,  trial_days: 14 },
-  growing: { name: 'Growing Fleet', price_cents: 19900, trial_days: 14 },
+  solo:    { name: 'Solo',       price_cents: 9900,  trial_days: 14 },
+  fleet:   { name: 'Fleet',     price_cents: 29900, trial_days: 14 },
+  growing: { name: 'Enterprise', price_cents: 59900, trial_days: 14 },
 }
 
 export default async function handler(req) {

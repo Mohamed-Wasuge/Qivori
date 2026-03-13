@@ -150,6 +150,9 @@ export default function LandingPage({ onGetStarted }) {
           .lp-dat-grid { grid-template-columns: 1fr !important; padding: 28px 20px !important; }
           .lp-dat-heading { font-size: 30px !important; }
           .lp-pricing-grid { grid-template-columns: 1fr !important; }
+          .lp-compare-table > div { grid-template-columns: 1.5fr 1fr 1fr 1fr !important; }
+          .lp-compare-table > div > div { padding: 10px 8px !important; font-size: 11px !important; }
+          .lp-compare-stats { grid-template-columns: 1fr !important; }
           .lp-ai-grid { grid-template-columns: 1fr !important; }
           .lp-how-grid { grid-template-columns: 1fr !important; }
           .lp-testimonials-grid { grid-template-columns: 1fr !important; }
@@ -504,6 +507,84 @@ export default function LandingPage({ onGetStarted }) {
               </div>
             </FadeIn>
           ))}
+        </div>
+      </section>
+
+      {/* ── TMS COMPARISON ─────────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '80px 40px' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <FadeIn>
+            <div style={{ textAlign: 'center', marginBottom: 48 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>WHY SWITCH</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>TRADITIONAL TMS vs QIVORI</h2>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>Most TMS platforms were built for mega-carriers with 500+ trucks. You're paying enterprise prices for features you'll never use.</p>
+            </div>
+          </FadeIn>
+
+          {/* Comparison Table */}
+          <FadeIn delay={0.1}>
+            <div className="lp-compare-table" style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              {/* Table Header */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', background: 'var(--surface2)', borderBottom: '2px solid var(--border)' }}>
+                <div style={{ padding: '16px 20px', fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 2 }}>FEATURE</div>
+                <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, textAlign: 'center' }}>LEGACY TMS</div>
+                <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, textAlign: 'center' }}>ENTERPRISE TMS</div>
+                <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, textAlign: 'center' }}>QIVORI</div>
+              </div>
+
+              {/* Price Row */}
+              {[
+                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: '$49/mo', qivoriHighlight: true },
+                { feature: 'Setup / Onboarding Fee', legacy: '$500–1,500', enterprise: '$2,000–10,000', qivori: '$0', qivoriHighlight: true },
+                { feature: 'Contract Length', legacy: '12 months', enterprise: '24–36 months', qivori: 'Month-to-month', qivoriHighlight: true },
+                { feature: 'AI Load Scoring', legacy: false, enterprise: false, qivori: true },
+                { feature: 'AI Dispatch Assistant', legacy: false, enterprise: 'Add-on', qivori: true },
+                { feature: 'IFTA Auto-Filing', legacy: 'Add-on', enterprise: true, qivori: true },
+                { feature: 'Rate Con OCR (Auto-Read)', legacy: false, enterprise: 'Add-on', qivori: true },
+                { feature: 'Receipt Scanning', legacy: false, enterprise: false, qivori: true },
+                { feature: 'Broker Risk Scores', legacy: false, enterprise: false, qivori: true },
+                { feature: 'Invoicing + Factoring', legacy: 'Add-on', enterprise: true, qivori: true },
+                { feature: 'Fleet GPS Tracking', legacy: '$20/truck extra', enterprise: true, qivori: true },
+                { feature: 'Driver Scorecards', legacy: false, enterprise: 'Add-on', qivori: true },
+                { feature: 'Mobile App for Drivers', legacy: 'Extra fee', enterprise: true, qivori: true },
+                { feature: 'Weigh Station Alerts', legacy: false, enterprise: false, qivori: true },
+                { feature: 'QuickBooks Integration', legacy: true, enterprise: true, qivori: true },
+                { feature: 'Free Trial', legacy: false, enterprise: false, qivori: '14 days', qivoriHighlight: true },
+              ].map((row, i) => {
+                const renderCell = (val, highlight) => {
+                  if (val === true) return <span style={{ color: 'var(--success)', fontSize: 16 }}><Ic icon={Check} size={16} /></span>
+                  if (val === false) return <span style={{ color: 'var(--muted)', fontSize: 13 }}>—</span>
+                  return <span style={{ fontSize: 12, fontWeight: highlight ? 800 : 600, color: highlight ? 'var(--accent)' : 'var(--text)' }}>{val}</span>
+                }
+                return (
+                  <div key={row.feature} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', borderBottom: i < 15 ? '1px solid var(--border)' : 'none',
+                    background: i % 2 === 0 ? 'var(--bg)' : 'var(--surface)', transition: 'background 0.15s' }}>
+                    <div style={{ padding: '13px 20px', fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center' }}>{row.feature}</div>
+                    <div style={{ padding: '13px 12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{renderCell(row.legacy)}</div>
+                    <div style={{ padding: '13px 12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{renderCell(row.enterprise)}</div>
+                    <div style={{ padding: '13px 12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: row.qivoriHighlight ? 'rgba(240,165,0,0.04)' : 'transparent' }}>{renderCell(row.qivori, row.qivoriHighlight)}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </FadeIn>
+
+          {/* Bottom Stats */}
+          <FadeIn delay={0.2}>
+            <div className="lp-compare-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 32 }}>
+              {[
+                { stat: '80%', label: 'Less than legacy TMS pricing', color: 'var(--success)' },
+                { stat: '$0', label: 'Setup fees, onboarding, or contracts', color: 'var(--accent)' },
+                { stat: '12+', label: 'Features included that others charge extra for', color: 'var(--accent2)' },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 20px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 44, color: s.color, lineHeight: 1, marginBottom: 8 }}>{s.stat}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </FadeIn>
         </div>
       </section>
 

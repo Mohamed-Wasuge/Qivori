@@ -53,29 +53,67 @@ function AiBanner({ title, sub, action, onAction }) {
 // ─── AI DASHBOARD ─────────────────────────────────────────────────────────────
 export function CarrierDashboard() {
   const { navigatePage, showToast } = useApp()
+  const ctx = useCarrier() || {}
+  const loads = ctx.loads || []
+  const activeLoads = ctx.activeLoads || []
+  const invoices = ctx.invoices || []
+  const expenses = ctx.expenses || []
+  const drivers = ctx.drivers || []
+  const vehicles = ctx.vehicles || []
+  const totalRevenue = ctx.totalRevenue || 0
+  const totalExpenses = ctx.totalExpenses || 0
+  const unpaidInvoices = ctx.unpaidInvoices || []
+
+  const totalMiles = loads.reduce((s, l) => s + (Number(l.miles) || 0), 0)
+  const fleetUtil = Math.round((activeLoads.length / (vehicles.length || 1)) * 100)
+  const netProfit = totalRevenue - totalExpenses
+
+  const fmtCurrency = (v) => {
+    if (v >= 1000) return '$' + (v / 1000).toFixed(1) + 'K'
+    return '$' + v.toLocaleString()
+  }
+
   const [dismissed, setDismissed] = useState([])
 
-  const recommendations = [
-    { id: 1, type: 'LOAD MATCH', color: 'var(--accent)', icon: Zap, title: 'High-value load: CHI→ATL', sub: '$3,840 · 674mi · $2.94/mi · AI Score 96', action: 'View Load' },
-    { id: 2, type: 'RATE ALERT', color: 'var(--accent2)', icon: TrendingUp, title: 'MSP→CHI rates up +14% today', sub: 'Best window in 3 weeks — 6 loads available now', action: 'See Loads' },
-    { id: 3, type: 'FASTPAY', color: 'var(--accent3)', icon: CreditCard, title: 'Invoice INV-042 ready for FastPay', sub: '$2,666 available · Net $2,599 after 2.5% fee · 24hr deposit', action: 'Collect Now' },
-    { id: 4, type: 'MAINTENANCE', color: 'var(--warning)', icon: Wrench, title: 'Unit 03 — oil change due in 800mi', sub: 'AI predicts 94% chance of failure if skipped · Schedule now', action: 'Schedule' },
-  ].filter(r => !dismissed.includes(r.id))
+  const recommendations = useMemo(() => {
+    const recs = []
+    let id = 1
+    if (loads.length === 0) recs.push({ id: id++, type: 'GET STARTED', color: 'var(--accent)', icon: Plus, title: 'Add your first load to start tracking revenue', sub: 'Go to Loads to create a new shipment', action: 'Add Load', onAction: () => navigatePage('carrier-loads') })
+    if (drivers.length === 0) recs.push({ id: id++, type: 'DRIVERS', color: 'var(--accent2)', icon: Users, title: 'Add drivers to enable dispatch', sub: 'Go to Drivers to add your team', action: 'Add Driver', onAction: () => navigatePage('carrier-drivers') })
+    if (unpaidInvoices.length > 0) recs.push({ id: id++, type: 'INVOICES', color: 'var(--warning)', icon: Receipt, title: `You have ${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length > 1 ? 's' : ''}`, sub: `Total outstanding: $${unpaidInvoices.reduce((s, i) => s + (Number(i.amount) || Number(i.total) || 0), 0).toLocaleString()}`, action: 'View', onAction: () => navigatePage('carrier-invoicing') })
+    if (activeLoads.length > 0) recs.push({ id: id++, type: 'IN TRANSIT', color: 'var(--accent3)', icon: Truck, title: `You have ${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} in transit`, sub: 'Monitor progress in dispatch', action: 'Track', onAction: () => navigatePage('carrier-dispatch') })
+    return recs
+  }, [loads.length, drivers.length, unpaidInvoices.length, activeLoads.length])
+
+  const filteredRecs = recommendations.filter(r => !dismissed.includes(r.id))
+
+  const brokerStats = useMemo(() => {
+    const stats = {}
+    loads.forEach(l => {
+      const name = l.broker_name || l.broker || 'Unknown'
+      if (!stats[name]) stats[name] = { name, loads: 0, revenue: 0 }
+      stats[name].loads++
+      stats[name].revenue += Number(l.rate) || Number(l.gross) || 0
+    })
+    return Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+  }, [loads])
+
+  const fuelExpenses = expenses.filter(e => (e.category || '').toLowerCase().includes('fuel')).reduce((s, e) => s + (Number(e.amount) || 0), 0)
 
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>
       <AiBanner
-        title="AI Engine Active — 3 high-priority actions need your attention"
-        sub="Your avg earnings this week: $4,200 · Market rates on your lanes are up 8% · 12 matched loads ready"
+        title={activeLoads.length > 0 ? `AI Engine Active — ${activeLoads.length} load${activeLoads.length > 1 ? 's' : ''} in transit` : 'AI Engine Active — Add loads to get started'}
+        sub={totalRevenue > 0 ? `Revenue MTD: ${fmtCurrency(totalRevenue)} · ${loads.length} total loads · ${activeLoads.length} active` : 'Start by adding loads, drivers, and vehicles to see insights'}
         action="Smart Dispatch →"
         onAction={() => navigatePage('carrier-dispatch')}
       />
 
       <div style={S.grid(4)}>
-        <StatCard label="Revenue MTD" value="$12.4K" change="↑ 18% vs last month" color="var(--accent)" />
-        <StatCard label="Net Profit MTD" value="$4,820" change="↑ after fuel + pay" color="var(--success)" />
-        <StatCard label="Miles Driven" value="4,200" change="This month" color="var(--accent2)" changeType="neutral" />
-        <StatCard label="AI Bid Win Rate" value="78%" change="↑ 6% this week" color="var(--accent3)" />
+        <StatCard label="Revenue MTD" value={totalRevenue > 0 ? fmtCurrency(totalRevenue) : '$0'} change={loads.length > 0 ? `${loads.length} loads` : 'No loads yet'} color="var(--accent)" changeType="neutral" />
+        <StatCard label="Expenses MTD" value={totalExpenses > 0 ? fmtCurrency(totalExpenses) : '$0'} change={netProfit >= 0 ? `Net: +${fmtCurrency(netProfit)}` : `Net: -${fmtCurrency(Math.abs(netProfit))}`} color="var(--success)" changeType={netProfit >= 0 ? 'up' : 'down'} />
+        <StatCard label="Total Miles" value={totalMiles > 0 ? totalMiles.toLocaleString() : '0'} change={loads.length > 0 ? `Across ${loads.length} loads` : 'No miles yet'} color="var(--accent2)" changeType="neutral" />
+        <StatCard label="Fleet Utilization" value={vehicles.length > 0 ? `${fleetUtil}%` : '—'} change={vehicles.length > 0 ? `${activeLoads.length}/${vehicles.length} vehicles active` : 'Add vehicles to track'} color="var(--accent3)" changeType="neutral" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
@@ -83,10 +121,10 @@ export function CarrierDashboard() {
         <div style={S.panel}>
           <div style={S.panelHead}>
             <div style={S.panelTitle}><Ic icon={Bot} /> AI Recommendations</div>
-            <span style={S.badge('var(--accent)')}>{recommendations.length} active</span>
+            <span style={S.badge('var(--accent)')}>{filteredRecs.length} active</span>
           </div>
           <div>
-            {recommendations.map(r => (
+            {filteredRecs.map(r => (
               <div key={r.id} style={{ ...S.row, borderBottom: '1px solid var(--border)' }}
                 onMouseOver={e => e.currentTarget.style.background = 'var(--surface2)'}
                 onMouseOut={e => e.currentTarget.style.background = 'transparent'}
@@ -101,34 +139,36 @@ export function CarrierDashboard() {
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-primary" style={{ fontSize: 11, padding: '5px 10px' }}
-                    onClick={() => showToast(r.icon, r.type, r.title)}>{r.action}</button>
+                    onClick={() => r.onAction ? r.onAction() : showToast(r.icon, r.type, r.title)}>{r.action}</button>
                   <button className="btn btn-ghost" style={{ fontSize: 11, padding: '5px 8px' }}
                     onClick={() => setDismissed(d => [...d, r.id])}>✕</button>
                 </div>
               </div>
             ))}
-            {recommendations.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>All caught up!</div>}
+            {filteredRecs.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>All caught up!</div>}
           </div>
         </div>
 
-        {/* Week Projection */}
+        {/* Financials Overview */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={S.panel}>
             <div style={S.panelHead}>
-              <div style={S.panelTitle}><Ic icon={TrendingUp} /> Weekly Projection</div>
+              <div style={S.panelTitle}><Ic icon={TrendingUp} /> Financials Overview</div>
             </div>
             <div style={S.panelBody}>
-              {[
-                { label: 'Projected Gross', value: '$6,200', color: 'var(--accent)' },
-                { label: 'Est. Fuel Cost', value: '−$980', color: 'var(--danger)' },
-                { label: 'Driver Pay (28%)', value: '−$1,736', color: 'var(--danger)' },
-                { label: 'Net This Week', value: '$3,484', color: 'var(--success)', bold: true },
+              {totalRevenue > 0 || totalExpenses > 0 ? [
+                { label: 'Gross Revenue', value: fmtCurrency(totalRevenue), color: 'var(--accent)' },
+                { label: 'Fuel Costs', value: fuelExpenses > 0 ? `−${fmtCurrency(fuelExpenses)}` : '$0', color: 'var(--danger)' },
+                { label: 'Total Expenses', value: totalExpenses > 0 ? `−${fmtCurrency(totalExpenses)}` : '$0', color: 'var(--danger)' },
+                { label: 'Net Profit', value: netProfit >= 0 ? fmtCurrency(netProfit) : `−${fmtCurrency(Math.abs(netProfit))}`, color: netProfit >= 0 ? 'var(--success)' : 'var(--danger)', bold: true },
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{item.label}</div>
                   <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: item.bold ? 22 : 18, color: item.color }}>{item.value}</div>
                 </div>
-              ))}
+              )) : (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No financial data yet. Add loads to see projections.</div>
+              )}
             </div>
           </div>
 
@@ -137,19 +177,17 @@ export function CarrierDashboard() {
               <div style={S.panelTitle}><Ic icon={Briefcase} /> Broker Leaderboard</div>
             </div>
             <div>
-              {[
-                { name: 'Echo Global', score: 98, pay: '< 24hr', tag: 'var(--success)' },
-                { name: 'Coyote Logistics', score: 92, pay: '< 48hr', tag: 'var(--accent2)' },
-                { name: 'CH Robinson', score: 85, pay: '< 3 days', tag: 'var(--accent)' },
-              ].map(b => (
+              {brokerStats.length > 0 ? brokerStats.map(b => (
                 <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 700 }}>{b.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Pays {b.pay}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.loads} load{b.loads > 1 ? 's' : ''} · ${b.revenue.toLocaleString()}</div>
                   </div>
-                  <span style={S.badge(b.tag)}>Score {b.score}</span>
+                  <span style={S.badge('var(--accent)')}>{b.loads} loads</span>
                 </div>
-              ))}
+              )) : (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No broker data yet. Add loads with broker info.</div>
+              )}
             </div>
           </div>
         </div>
@@ -1464,11 +1502,6 @@ const CITIES = {
   'Phoenix, AZ':   { x: 20, y: 66 }, 'Los Angeles, CA':{ x: 10, y: 62 },
   'Omaha, NE':     { x: 46, y: 46 }, 'Minneapolis, MN':{ x: 50, y: 32 },
 }
-const DRIVER_MAP = {
-  'James Tucker': { unit:'Unit 01', color:'#f0a500', homecity:'Chicago, IL' },
-  'Marcus Lee':   { unit:'Unit 02', color:'#00d4aa', homecity:'Chicago, IL' },
-  'Priya Patel':  { unit:'Unit 03', color:'#6b7280', homecity:'Denver, CO'  },
-}
 const STATUS_PROGRESS = { 'Rate Con Received':0.05, 'Assigned to Driver':0.10, 'En Route to Pickup':0.20, 'Loaded':0.45, 'In Transit':0.65, 'Delivered':1, 'Invoiced':1 }
 const STATUS_LABEL = { 'Rate Con Received':'Ready', 'Assigned to Driver':'Assigned', 'En Route to Pickup':'En Route', 'Loaded':'Loaded', 'In Transit':'En Route', 'Delivered':'Delivered', 'Invoiced':'Delivered' }
 
@@ -1570,18 +1603,27 @@ export function StopTimeline({ load, onAdvance }) {
 
 export function FleetMap() {
   const { showToast } = useApp()
-  const { loads } = useCarrier()
-  const activeLoads = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
+  const ctx = useCarrier() || {}
+  const drivers = ctx.drivers || []
+  const vehicles = ctx.vehicles || []
+  const loads = ctx.activeLoads || (ctx.loads || []).filter(l => !['Delivered','Invoiced'].includes(l.status))
+
+  const UNIT_COLORS = ['#f0a500','#00d4aa','#6b7280','#e74c3c','#3498db','#9b59b6','#1abc9c','#e67e22']
 
   // Build real truck data from context
-  const trucksData = Object.entries(DRIVER_MAP).map(([driver, info]) => {
-    const load = activeLoads.find(l => l.driver === driver)
+  const trucksData = drivers.map((d, i) => {
+    const driverName = d.name || d.full_name || `Driver ${i+1}`
+    const vehicle = vehicles[i]
+    const unit = vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : `Unit ${String(i+1).padStart(2,'0')}`
+    const color = UNIT_COLORS[i % UNIT_COLORS.length]
+    const load = loads.find(l => (l.driver_name || l.driver) === driverName)
+    const homecity = d.city || d.home_city || 'Unknown'
     if (load) {
-      const from = load.origin  || info.homecity
-      const to   = load.dest    || info.homecity
-      return { unit:info.unit, driver, from, to, progress: STATUS_PROGRESS[load.status] || 0.5, status: STATUS_LABEL[load.status] || load.status, color:info.color, load:load.loadId, eta: load.delivery?.split(' · ')[0] || 'TBD' }
+      const from = load.origin || homecity
+      const to   = load.dest   || homecity
+      return { unit, driver: driverName, from, to, progress: STATUS_PROGRESS[load.status] || 0.5, status: STATUS_LABEL[load.status] || load.status, color, load: load.loadId, eta: load.delivery?.split(' · ')[0] || 'TBD' }
     }
-    return { unit:info.unit, driver, from:info.homecity, to:info.homecity, progress:1, status:'Available', color:info.color, load:'—', eta:'Ready' }
+    return { unit, driver: driverName, from: homecity, to: homecity, progress: 1, status: 'Available', color, load: '—', eta: 'Ready' }
   })
 
   const [selectedTruck, setSelectedTruck] = useState(trucksData[0]?.unit || 'Unit 01')
@@ -1590,6 +1632,22 @@ export function FleetMap() {
     const from = CITIES[t.from] || { x:50, y:50 }
     const to   = CITIES[t.to]   || { x:50, y:50 }
     return { x: from.x + (to.x - from.x) * t.progress, y: from.y + (to.y - from.y) * t.progress }
+  }
+
+  if (!drivers.length) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', background:'#0a0e1a' }}>
+        <div style={{ textAlign:'center', padding:'40px 32px' }}>
+          <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
+            <Truck size={26} color="var(--accent)" />
+          </div>
+          <div style={{ fontSize:15, fontWeight:700, color:'#fff', marginBottom:8 }}>No drivers added yet</div>
+          <div style={{ fontSize:13, color:'rgba(255,255,255,0.45)', lineHeight:1.6, maxWidth:280 }}>
+            Add your first driver to see fleet map.
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -1742,19 +1800,53 @@ export function FleetMap() {
 // ─── FLEET & GPS ───────────────────────────────────────────────────────────────
 export function CarrierFleet() {
   const { showToast } = useApp()
-  const trucks = [
-    { unit:'Unit 01', driver:'James Tucker', status:'En Route', loc:'Omaha, NE', dest:'Chicago, IL', load:'FM-4421', eta:'4:30 PM', hos:'8h 22m', mpg:7.2, nextService:'4,200 mi', eld:'MacroPoint', hosColor:'var(--success)' },
-    { unit:'Unit 02', driver:'Marcus Lee',   status:'Available', loc:'Chicago, IL', dest:'—', load:'—', eta:'—', hos:'11h 00m', mpg:6.9, nextService:'1,800 mi', eld:'MacroPoint', hosColor:'var(--success)' },
-    { unit:'Unit 03', driver:'Priya Patel',  status:'Off Duty',  loc:'Denver, CO', dest:'—', load:'—', eta:'—', hos:'Restart', mpg:6.4, nextService:'800 mi', eld:'MacroPoint', hosColor:'var(--warning)' },
-  ]
+  const ctx = useCarrier() || {}
+  const vehicles = ctx.vehicles || []
+  const drivers = ctx.drivers || []
+  const loads = ctx.activeLoads || (ctx.loads || []).filter(l => !['Delivered','Invoiced'].includes(l.status))
+
+  const trucks = vehicles.map((v, i) => {
+    const driver = drivers[i]
+    const driverName = driver ? (driver.name || driver.full_name || `Driver ${i+1}`) : 'Unassigned'
+    const unitLabel = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || `Unit ${String(i+1).padStart(2,'0')}`
+    const load = loads.find(l => (l.driver_name || l.driver) === driverName)
+    const status = load ? 'En Route' : driver ? 'Available' : 'Unassigned'
+    const loc = driver?.city || driver?.home_city || v.location || 'Unknown'
+    return {
+      unit: unitLabel, driver: driverName, status, loc,
+      dest: load?.dest || '—', load: load?.loadId || '—', eta: load?.delivery?.split(' · ')[0] || '—',
+      hos: driver?.hos_remaining || '—', mpg: v.mpg || '—',
+      nextService: v.next_service || '—', eld: v.eld_provider || 'N/A',
+      hosColor: 'var(--success)',
+    }
+  })
+
+  const enRouteCount = trucks.filter(t => t.status === 'En Route').length
+  const availableCount = trucks.filter(t => t.status === 'Available').length
+
+  if (!vehicles.length) {
+    return (
+      <div style={{ ...S.page, paddingBottom:40 }}>
+        <div style={{ textAlign:'center', padding:'60px 32px' }}>
+          <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
+            <Truck size={26} color="var(--accent)" />
+          </div>
+          <div style={{ fontSize:15, fontWeight:700, marginBottom:8 }}>No vehicles added yet</div>
+          <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.6, maxWidth:300, margin:'0 auto' }}>
+            Add your first vehicle to see your fleet overview here.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>
-      <AiBanner title="Predictive Alert: Unit 03 service due in 800mi — schedule before next dispatch" sub="AI flagged low MPG (6.4) on Unit 03 · Likely cause: tire pressure · Est. $140/week extra fuel cost" action="Schedule Service" onAction={() => showToast('','Service Scheduled','Unit 03 · Denver service center · Tomorrow 8AM')} />
       <div style={S.grid(4)}>
-        <StatCard label="Fleet Online" value="3/3" change="All ELDs connected" color="var(--success)" changeType="neutral" />
-        <StatCard label="En Route"    value="1"    change="FM-4421 · ATL→CHI"  color="var(--accent)"  changeType="neutral" />
-        <StatCard label="Available"   value="1"    change="Unit 02 · Chicago"   color="var(--accent2)" changeType="neutral" />
-        <StatCard label="Fleet MPG"   value="6.8"  change="↓ Unit 03 pulling avg down" color="var(--warning)" changeType="down" />
+        <StatCard label="Fleet Online" value={`${trucks.length}/${trucks.length}`} change="Vehicles tracked" color="var(--success)" changeType="neutral" />
+        <StatCard label="En Route"    value={String(enRouteCount)}    change={enRouteCount ? 'Active loads' : 'None'}  color="var(--accent)"  changeType="neutral" />
+        <StatCard label="Available"   value={String(availableCount)}    change={availableCount ? 'Ready to dispatch' : 'None'}   color="var(--accent2)" changeType="neutral" />
+        <StatCard label="Total Vehicles" value={String(trucks.length)}  change={`${drivers.length} drivers assigned`} color="var(--muted)" changeType="neutral" />
       </div>
       {trucks.map(t => {
         const sp = t.status==='En Route' ? 'var(--success)' : t.status==='Available' ? 'var(--accent3)' : 'var(--muted)'
@@ -1810,60 +1902,91 @@ export function CarrierFleet() {
 // ─── FUEL OPTIMIZER ───────────────────────────────────────────────────────────
 export function FuelOptimizer() {
   const { showToast } = useApp()
+  const ctx = useCarrier() || {}
+  const expenses = ctx.expenses || []
+  const loads = ctx.loads || []
+  const vehicles = ctx.vehicles || []
+
+  const fuelExpenses = expenses.filter(e => (e.cat || e.category || '').toLowerCase() === 'fuel')
+  const fuelSpend = fuelExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+  const totalMiles = loads.reduce((s, l) => s + (parseFloat(l.miles) || 0), 0)
+  const costPerMile = totalMiles > 0 ? (fuelSpend / totalMiles).toFixed(2) : '--'
+  const vehicleMpgs = vehicles.map(v => parseFloat(v.mpg)).filter(n => !isNaN(n) && n > 0)
+  const avgMpg = vehicleMpgs.length > 0 ? (vehicleMpgs.reduce((s, m) => s + m, 0) / vehicleMpgs.length).toFixed(1) : '--'
+  const hasData = fuelSpend > 0 || totalMiles > 0
+
+  if (!hasData) {
+    return (
+      <div style={{ ...S.page, paddingBottom:40 }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flex:1, gap:12, color:'var(--muted)' }}>
+          <Fuel size={40} />
+          <div style={{ fontSize:15, fontWeight:700 }}>No fuel data yet</div>
+          <div style={{ fontSize:13 }}>Add fuel expenses to see optimization insights.</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>
-      <AiBanner title="AI found $84 in fuel savings on your next load: ATL→CHI route" sub="Optimal stops: Pilot Chattanooga ($3.76/gal) + Love's Effingham ($3.71/gal) vs avg $3.89/gal on direct route" action="Apply Route" onAction={() => showToast('','Route Applied','Saving $84 on ATL→CHI · Nav updated')} />
       <div style={S.grid(4)}>
-        <StatCard label="Fleet Avg MPG" value="6.8"   change="Unit 03 drags it down" color="var(--accent)"  changeType="neutral"/>
-        <StatCard label="Fuel MTD"      value="$2,840" change="↓ $320 vs last mo"   color="var(--success)"/>
-        <StatCard label="Cost/Mile"     value="$0.57"  change="Diesel avg $3.89"    color="var(--muted)"   changeType="neutral"/>
-        <StatCard label="Saved MTD"     value="$420"   change="Via AI routing"       color="var(--accent2)" changeType="neutral"/>
+        <StatCard label="Fleet Avg MPG" value={avgMpg} change={vehicleMpgs.length > 0 ? `${vehicleMpgs.length} vehicle${vehicleMpgs.length !== 1 ? 's' : ''}` : 'No vehicle MPG data'} color="var(--accent)" changeType="neutral"/>
+        <StatCard label="Fuel Spend" value={`$${fuelSpend.toLocaleString()}`} change={`${fuelExpenses.length} fuel expense${fuelExpenses.length !== 1 ? 's' : ''}`} color="var(--warning)"/>
+        <StatCard label="Cost/Mile" value={costPerMile === '--' ? '--' : `$${costPerMile}`} change={totalMiles > 0 ? `${totalMiles.toLocaleString()} total miles` : 'No miles data'} color="var(--muted)" changeType="neutral"/>
+        <StatCard label="Total Miles" value={totalMiles > 0 ? totalMiles.toLocaleString() : '--'} change={`${loads.length} load${loads.length !== 1 ? 's' : ''}`} color="var(--accent2)" changeType="neutral"/>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 16 }}>
         <div style={S.panel}>
-          <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Fuel} /> Optimal Fuel Stops · ATL→CHI</div></div>
+          <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Fuel} /> Fuel Expenses</div></div>
           <div>
-            {[
-              { stop:'Pilot Travel Center — Chattanooga, TN', price:3.76, gallons:60, cost:226, saving:7.8, recommended:true },
-              { stop:"Love's Travel Stop — Effingham, IL",    price:3.71, gallons:40, cost:148, saving:7.2, recommended:true },
-              { stop:'Flying J — Indianapolis, IN',           price:3.91, gallons:50, cost:196, saving:0,   recommended:false },
-            ].map(s => (
-              <div key={s.stop} style={{ ...S.row, background: s.recommended ? 'rgba(34,197,94,0.03)' : 'transparent' }}>
+            {fuelExpenses.slice(0, 10).map((e, i) => (
+              <div key={i} style={S.row}>
                 <div><Fuel size={18} /></div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{s.stop}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.gallons} gal · ${s.cost} · {s.saving > 0 ? `Saving $${s.saving}` : 'Standard price'}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{e.notes || e.description || 'Fuel'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.date || '--'}{e.load ? ` \u00b7 Load ${e.load}` : ''}{e.driver ? ` \u00b7 ${e.driver}` : ''}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: 22, color: s.price < 3.85 ? 'var(--success)' : 'var(--muted)' }}>${s.price}</div>
-                  {s.recommended && <span style={S.tag('var(--success)')}>AI PICK</span>}
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: 22, color: 'var(--warning)' }}>${(Number(e.amount) || 0).toLocaleString()}</div>
                 </div>
               </div>
             ))}
+            {fuelExpenses.length === 0 && (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No fuel expenses recorded yet.</div>
+            )}
           </div>
         </div>
         <div style={S.panel}>
           <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={BarChart2} /> Fleet Efficiency</div></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { unit:'Unit 01', mpg:7.2, driver:'James Tucker', status:'Good',   color:'var(--success)' },
-              { unit:'Unit 02', mpg:6.9, driver:'Marcus Lee',   status:'Good',   color:'var(--success)' },
-              { unit:'Unit 03', mpg:6.4, driver:'Priya Patel',  status:'Low MPG',color:'var(--warning)' },
-            ].map(u => (
-              <div key={u.unit} style={{ background:'var(--surface2)', borderRadius:8, padding:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                  <div style={{ fontSize:12, fontWeight:700 }}>{u.unit} · {u.driver}</div>
-                  <span style={S.tag(u.color)}>{u.status}</span>
+            {vehicles.length > 0 ? vehicles.map((v, i) => {
+              const mpg = parseFloat(v.mpg) || 0
+              const status = mpg >= 6.5 ? 'Good' : mpg > 0 ? 'Low MPG' : 'No Data'
+              const color = mpg >= 6.5 ? 'var(--success)' : mpg > 0 ? 'var(--warning)' : 'var(--muted)'
+              return (
+                <div key={v.id || i} style={{ background:'var(--surface2)', borderRadius:8, padding:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                    <div style={{ fontSize:12, fontWeight:700 }}>{v.name || v.unit || `Vehicle ${i + 1}`}{v.driver ? ` \u00b7 ${v.driver}` : ''}</div>
+                    <span style={S.tag(color)}>{status}</span>
+                  </div>
+                  {mpg > 0 && (
+                    <>
+                      <div style={{ height:6, background:'var(--border)', borderRadius:3 }}>
+                        <div style={{ height:'100%', width:`${Math.min((mpg/10)*100, 100)}%`, background:color, borderRadius:3 }} />
+                      </div>
+                      <div style={{ fontSize:11, color, marginTop:4 }}>{mpg} MPG</div>
+                    </>
+                  )}
                 </div>
-                <div style={{ height:6, background:'var(--border)', borderRadius:3 }}>
-                  <div style={{ height:'100%', width:`${(u.mpg/8)*100}%`, background:u.color, borderRadius:3 }} />
-                </div>
-                <div style={{ fontSize:11, color:u.color, marginTop:4 }}>{u.mpg} MPG</div>
+              )
+            }) : (
+              <div style={{ textAlign:'center', color:'var(--muted)', fontSize:13, padding:16 }}>No vehicles added yet.</div>
+            )}
+            {totalMiles > 0 && fuelSpend > 0 && (
+              <div style={{ marginTop:4, padding:12, background:'rgba(240,165,0,0.06)', borderRadius:8, border:'1px solid rgba(240,165,0,0.2)', fontSize:12 }}>
+                <Bot size={14} style={{display:"inline",verticalAlign:"middle"}} /> <b>AI Tip:</b> Your fleet averages <b style={{color:'var(--accent)'}}>${costPerMile}/mile</b> in fuel cost across {totalMiles.toLocaleString()} miles.
               </div>
-            ))}
-            <div style={{ marginTop:4, padding:12, background:'rgba(240,165,0,0.06)', borderRadius:8, border:'1px solid rgba(240,165,0,0.2)', fontSize:12 }}>
-              <Bot size={14} style={{display:"inline",verticalAlign:"middle"}} /> <b>AI Tip:</b> Unit 03 low MPG likely caused by tire pressure or air filter. Fixing it could save <b style={{color:'var(--accent)'}}>~$140/week</b> in fuel.
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -3099,25 +3222,50 @@ export function DriverProfiles() {
 }
 
 // ─── BROKER DIRECTORY ──────────────────────────────────────────────────────────
-const BROKERS_DATA = [
-  { id: 1, name: 'Echo Global Logistics', mc: 'MC-199704', score: 98, paySpeed: '< 24hr', loadsTotal: 42, loadsQtr: 12, disputed: 0, contact: 'Sarah Kim', phone: '(312) 555-0100', email: 's.kim@echo.com', avgRate: '$3.01/mi', preferred: true, tag: 'var(--success)', notes: 'Best payer. Always on time. Preferred broker.' },
-  { id: 2, name: 'Coyote Logistics', mc: 'MC-385191', score: 92, paySpeed: '< 48hr', loadsTotal: 28, loadsQtr: 8, disputed: 1, contact: 'Mike Torres', phone: '(773) 555-0248', email: 'm.torres@coyote.com', avgRate: '$2.88/mi', preferred: true, tag: 'var(--accent2)', notes: 'Reliable. 1 dispute resolved in our favor.' },
-  { id: 3, name: 'CH Robinson', mc: 'MC-023514', score: 85, paySpeed: '< 3 days', loadsTotal: 61, loadsQtr: 6, disputed: 2, contact: 'Dana Lewis', phone: '(952) 555-0392', email: 'd.lewis@chrobinson.com', avgRate: '$2.74/mi', preferred: false, tag: 'var(--accent)', notes: 'High volume but slower pay. Negotiate rates up.' },
-  { id: 4, name: 'Transplace', mc: 'MC-302718', score: 68, paySpeed: '< 7 days', loadsTotal: 14, loadsQtr: 3, disputed: 3, contact: 'Bob Walsh', phone: '(972) 555-0541', email: 'b.walsh@transplace.com', avgRate: '$2.61/mi', preferred: false, tag: 'var(--warning)', notes: 'Slow payer. 3 disputes. Use only for high-rate loads.' },
-  { id: 5, name: 'Worldwide Express', mc: 'MC-448291', score: 81, paySpeed: '< 3 days', loadsTotal: 9, loadsQtr: 2, disputed: 0, contact: 'Lena Park', phone: '(214) 555-0711', email: 'l.park@wwex.com', avgRate: '$2.79/mi', preferred: false, tag: 'var(--accent)', notes: 'Good rates on short lanes. Clean payment history.' },
-]
-
 export function BrokerDirectory() {
   const { showToast } = useApp()
+  const ctx = useCarrier() || {}
+  const loads = ctx.loads || []
+  const invoices = ctx.invoices || []
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState(1)
+  const [selected, setSelected] = useState(null)
   const [filter, setFilter] = useState('All')
 
-  const filtered = BROKERS_DATA
+  const brokerMap = {}
+  loads.forEach(l => {
+    const name = l.broker_name || l.broker
+    if (!name) return
+    if (!brokerMap[name]) brokerMap[name] = { name, loads: 0, revenue: 0, onTime: 0, delivered: 0 }
+    brokerMap[name].loads++
+    brokerMap[name].revenue += Number(l.rate) || Number(l.gross) || 0
+    if (l.status === 'delivered') {
+      brokerMap[name].delivered++
+      brokerMap[name].onTime++
+    }
+  })
+  const brokers = Object.values(brokerMap).sort((a,b) => b.loads - a.loads).map((b, i) => {
+    const onTimeRate = b.delivered > 0 ? Math.round((b.onTime / b.delivered) * 100) : 0
+    const score = Math.min(99, 70 + Math.min(b.loads * 3, 15) + (onTimeRate > 80 ? 10 : 0))
+    const tag = score >= 85 ? 'var(--success)' : score >= 70 ? 'var(--accent)' : 'var(--warning)'
+    const preferred = score >= 85
+    return { ...b, id: i + 1, score, tag, preferred, onTimeRate }
+  })
+
+  const filtered = brokers
     .filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
     .filter(b => filter === 'All' ? true : filter === 'Preferred' ? b.preferred : b.score < 80)
 
-  const broker = BROKERS_DATA.find(b => b.id === selected)
+  const selBroker = brokers.find(b => b.id === selected) || (filtered.length > 0 ? filtered[0] : null)
+
+  if (brokers.length === 0) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:12, color:'var(--muted)' }}>
+        <Briefcase size={40} />
+        <div style={{ fontSize:15, fontWeight:700 }}>No broker data yet</div>
+        <div style={{ fontSize:13 }}>Complete loads to build your broker directory.</div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -3137,7 +3285,7 @@ export function BrokerDirectory() {
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {filtered.map(b => {
-            const isSel = selected === b.id
+            const isSel = selBroker && selBroker.id === b.id
             return (
               <div key={b.id} onClick={() => setSelected(b.id)}
                 style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderLeft: `3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition: 'all 0.15s' }}>
@@ -3145,58 +3293,40 @@ export function BrokerDirectory() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{b.name}</div>
                   <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: b.tag }}>{b.score}</span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Pays {b.paySpeed} · {b.loadsQtr} loads this qtr</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.loads} load{b.loads !== 1 ? 's' : ''} \u00b7 ${b.revenue.toLocaleString()} revenue</div>
                 {b.preferred && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--success)', marginTop: 2, display: 'inline-block' }}><Star size={9} /> PREFERRED</span>}
               </div>
             )
           })}
         </div>
-        <div style={{ padding: 12, borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-primary" style={{ width: '100%', fontSize: 12 }} onClick={() => showToast('', 'Add Broker', 'Opening broker form...')}>+ Add Broker</button>
-        </div>
       </div>
 
       {/* Detail */}
-      {broker && (
+      {selBroker && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 1 }}>{broker.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{broker.mc} · Contact: {broker.contact}</div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
-                <span style={{ fontSize: 12 }}><Ic icon={Phone} /> {broker.phone}</span>
-                <span style={{ fontSize: 12 }}><Ic icon={Send} /> {broker.email}</span>
-              </div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 1 }}>{selBroker.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>{selBroker.loads} load{selBroker.loads !== 1 ? 's' : ''} completed</div>
             </div>
-            <div style={{ textAlign: 'center', background: 'var(--surface)', border: `2px solid ${broker.tag}`, borderRadius: 12, padding: '10px 20px' }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, color: broker.tag, lineHeight: 1 }}>{broker.score}</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Risk Score</div>
+            <div style={{ textAlign: 'center', background: 'var(--surface)', border: `2px solid ${selBroker.tag}`, borderRadius: 12, padding: '10px 20px' }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 40, color: selBroker.tag, lineHeight: 1 }}>{selBroker.score}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Score</div>
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
             {[
-              { label: 'Avg Pay Speed', value: broker.paySpeed, color: 'var(--accent2)' },
-              { label: 'Total Loads',   value: broker.loadsTotal, color: 'var(--accent)' },
-              { label: 'This Quarter',  value: broker.loadsQtr,   color: 'var(--accent)' },
-              { label: 'Disputes',      value: broker.disputed,   color: broker.disputed > 0 ? 'var(--danger)' : 'var(--success)' },
+              { label: 'Total Loads', value: selBroker.loads, color: 'var(--accent)' },
+              { label: 'Revenue', value: `$${selBroker.revenue.toLocaleString()}`, color: 'var(--success)' },
+              { label: 'Delivered', value: selBroker.delivered, color: 'var(--accent2)' },
+              { label: 'On-Time Rate', value: selBroker.delivered > 0 ? `${selBroker.onTimeRate}%` : '--', color: selBroker.onTimeRate >= 80 ? 'var(--success)' : 'var(--warning)' },
             ].map(s => (
               <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{s.label}</div>
                 <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: s.color }}>{s.value}</div>
               </div>
             ))}
-          </div>
-
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}><Ic icon={FileText} /> Notes</div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>{broker.notes}</div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn btn-primary" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'Calling', broker.contact + ' · ' + broker.phone)}><Ic icon={Phone} /> Call</button>
-            <button className="btn btn-ghost"   style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'Email', broker.email)}><Ic icon={Send} /> Email</button>
-            <button className="btn btn-ghost"   style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', broker.preferred ? 'Removed from Preferred' : 'Added to Preferred', broker.name)}>{broker.preferred ? 'Preferred' : 'Add Preferred'}</button>
           </div>
         </div>
       )}

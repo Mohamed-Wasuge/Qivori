@@ -448,3 +448,35 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   /* Hide less important things */
   .hide-mobile { display: none !important; }
 }
+
+/* ── GLOBAL LAYOUT FIX ──────────────────────────────────────────────
+   Ensures all page content areas scroll instead of clipping.
+   The main content wrapper (.carrier-main) is the scroll root.
+   Page components fill it and scroll internally when needed.
+   ─────────────────────────────────────────────────────────────────── */
+.carrier-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Every direct child page fills available height */
+.carrier-main > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Any flex column layout inside a page: scrollable content panels */
+.carrier-main [style*="overflow"] {
+  /* Let CSS override inline overflow:hidden that clips content */
+}
+
+/* Scrollable panels inside pages — ensure they can scroll */
+.page-scroll {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}

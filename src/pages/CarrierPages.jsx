@@ -449,7 +449,7 @@ export function SmartDispatch() {
   const tagColor = t => t.includes('URGENT')||t.includes('DEAD')||t.includes('SLOW') ? 'var(--danger)' : t==='AI TOP PICK' ? 'var(--accent)' : t==='FAST PAY' ? 'var(--success)' : 'var(--accent2)'
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden', background:'var(--bg)' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto', background:'var(--bg)' }}>
 
       {/* ── PANEL 1: LOAD LIST ── */}
       <div style={{ width: sel ? 360 : '100%', minWidth: 340, display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', height:'100%', overflow:'hidden', flexShrink:0 }}>
@@ -1661,7 +1661,7 @@ export function FleetMap() {
   }
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
       {/* Map area */}
       <div style={{ flex:1, position:'relative', background:'#0a0e1a', overflow:'hidden' }}>
         {/* Grid lines */}
@@ -2224,7 +2224,7 @@ export function CarrierIFTA() {
   const owed = stateData.filter(r => r.tax > 0).reduce((s, r) => s + r.tax, 0)
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       {/* Sub-nav */}
       <div style={{ flexShrink:0, display:'flex', gap:2, padding:'0 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
         {[{ id:'report', label:`${quarterLabel} Report` }, { id:'entry', label:'Enter Mileage' }, { id:'history', label:'Filing History' }].map(t => (
@@ -2498,7 +2498,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   ]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       {/* Tab bar */}
       <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 16px', background:'var(--surface)', borderBottom:'1px solid var(--border)', alignItems:'center', overflowX:'auto' }}>
         {COMP_TABS.map(t => (
@@ -3985,7 +3985,7 @@ export function FleetManager() {
   }
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* ── Add Truck Modal ── */}
       {showAddTruck && (
@@ -4602,7 +4602,7 @@ export function DriverOnboarding() {
   const inp = { width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', outline:'none' }
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* Add Driver Modal */}
       {showAdd && (
@@ -4951,7 +4951,7 @@ export function LaneIntel() {
   const estNet = lane.avgGross - estFuel - estDriverPay
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* Lane list sidebar */}
       <div style={{ width:220, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
@@ -5210,7 +5210,7 @@ export function CommandCenter() {
   const queueLoad = filterStatus === 'All' ? activeLoads : activeLoads.filter(l => l.status === filterStatus)
 
   return (
-    <div className="cc-root" style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden', background:'var(--bg)' }}>
+    <div className="cc-root" style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto', background:'var(--bg)' }}>
 
       {/* ── TOP 3-PANEL ROW ─────────────────────────────────────────── */}
       <div className="cc-panels" style={{ flex:1, display:'flex', overflow:'hidden', minHeight:0 }}>
@@ -5956,7 +5956,7 @@ export function AILoadBoard() {
   const selectStyle = { ...inputStyle, cursor:'pointer' }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
 
       {/* Header */}
       <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0 }}>
@@ -6666,7 +6666,7 @@ export function CheckCallCenter() {
   const inp = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none', width:'100%', boxSizing:'border-box' }
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* LEFT: Load list */}
       <div style={{ width:260, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', background:'var(--surface)' }}>
@@ -7039,7 +7039,7 @@ export function DriverScorecard() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
 
       {/* Header */}
       <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0 }}>
@@ -7389,7 +7389,7 @@ export function DATAlertBot() {
   const inputStyle = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none' }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
 
       {/* Header */}
       <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
@@ -8677,7 +8677,7 @@ export function EquipmentManager() {
   }
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* Add Modal */}
       {showAdd && (

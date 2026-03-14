@@ -538,7 +538,7 @@ function SettingsTab() {
   )
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* Sidebar */}
       <div style={{ width:200, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column' }}>
@@ -1035,7 +1035,7 @@ function ProfitIQTab() {
   const valStyle= (color, size=26) => ({ fontFamily:"'Bebas Neue',sans-serif", fontSize:size, color, lineHeight:1.1 })
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
 
       {/* Sub-tab bar */}
       <div style={{ flexShrink:0, background:'var(--surface)', borderBottom:'1px solid var(--border)', padding:'0 20px', display:'flex', alignItems:'center', gap:2 }}>
@@ -2428,7 +2428,7 @@ function DriversHub() {
   const [tab, setTab] = useState('profiles')
   const TABS = [{ id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'profiles' && <DriverProfiles />}
@@ -2446,7 +2446,7 @@ function FleetHub() {
   const [tab, setTab] = useState('overview')
   const TABS = [{ id:'overview', label:'Fleet Overview' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'equipment', label:'Equipment' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'overview' && <FleetManager />}
@@ -2463,7 +2463,7 @@ function FinancialsHub() {
   const [tab, setTab] = useState('pl')
   const TABS = [{ id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables' },{ id:'cash-flow', label:'Cash Flow' },{ id:'expenses', label:'Expenses' },{ id:'factoring', label:'Factoring' },{ id:'quickbooks', label:'QuickBooks' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'pl' && <PLDashboard />}
@@ -2483,7 +2483,7 @@ function ComplianceHub() {
   const [tab, setTab] = useState('center')
   const TABS = [{ id:'center', label:'Compliance Center' },{ id:'ifta', label:'IFTA & DOT' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'center' && <CarrierDVIR />}
@@ -2551,7 +2551,7 @@ function LoadsPipeline({ onOpenDrawer }) {
   const PIPE_TABS = [{ id:'pipeline', label:'Pipeline' },{ id:'list', label:'List View' },{ id:'dispatch', label:'Dispatch Board' },{ id:'check-calls', label:'Check Calls' },{ id:'command', label:'Command Center' },{ id:'lane-intel', label:'Lane Intel' }]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
       <HubTabBar tabs={PIPE_TABS} active={pipeTab} onChange={setPipeTab} />
       <div style={{ flex:1, overflow:'auto' }}>
         {pipeTab === 'pipeline' && (
@@ -2962,7 +2962,7 @@ function CarrierLayoutInner() {
         </div>
 
         {/* MAIN CONTENT */}
-        <div style={{ flex:1, minHeight:0, overflow:'auto', display:'flex', flexDirection:'column', position:'relative' }}>
+        <div className="carrier-main">
           <ViewErrorBoundary key={activeView}>
             {resolveView(activeView, navTo, setDrawerLoadId)}
           </ViewErrorBoundary>

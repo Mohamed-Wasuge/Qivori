@@ -2393,10 +2393,10 @@ export default function CarrierLayout() {
 // ── CRM Sidebar nav (flat, no nesting) ──────────────────────────────────────
 const NAV = [
   { id:'dashboard',   icon: Monitor,      label:'Dashboard'    },
-  { id:'loads',        icon: Package,      label:'Loads',       badgeKey:'loads'  },
+  { id:'loads',        icon: Package,      label:'Loads'        },
   { id:'drivers',      icon: Users,        label:'Drivers'      },
   { id:'fleet',        icon: Truck,        label:'Fleet'        },
-  { id:'financials',   icon: DollarSign,   label:'Financials',  badgeKey:'finance' },
+  { id:'financials',   icon: DollarSign,   label:'Financials'   },
   { id:'compliance',   icon: Shield,       label:'Compliance'   },
   { id:'settings',     icon: SettingsIcon, label:'Settings'     },
   { id:'_divider' },
@@ -2761,7 +2761,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
 }
 
 function CarrierLayoutInner() {
-  const { logout, showToast, theme, setTheme } = useApp()
+  const { logout, showToast, theme, setTheme, profile } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
 
   const [activeView,    setActiveView]    = useState('dashboard')
@@ -2790,12 +2790,6 @@ function CarrierLayoutInner() {
     ...(drivers.length === 0 ? [{ icon: Users, title: 'Add Drivers', sub: 'Add your drivers to assign loads', color: 'var(--accent2)', view: 'drivers' }] : []),
   ]
   const notifs = ALL_NOTIFS.filter((_, i) => !dismissedNotifs.includes(i))
-
-  // Badges per nav item
-  const BADGES = {
-    loads:      activeLoads.length    || null,
-    finance:    unpaidInvoices.length || null,
-  }
 
   const sStyle = { fontFamily:"'DM Sans',sans-serif", width:'100vw', height:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', overflow:'hidden' }
   const inp    = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 12px', color:'var(--text)', fontSize:12, outline:'none', fontFamily:"'DM Sans',sans-serif" }
@@ -2913,83 +2907,51 @@ function CarrierLayoutInner() {
         <div className={`carrier-sidebar${mobileNav ? ' mobile-open' : ''}`} style={{ width:220, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto', overflowX:'hidden' }}>
 
           {/* Company badge */}
-          <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-              {/* Logo or initials */}
-              <div style={{ width:36, height:36, borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)',
+          <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)',
                 display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
                 {company?.logo
                   ? <img src={company.logo} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
-                  : <span style={{ fontSize:12, fontWeight:800, color:'var(--accent)' }}>
-                      {(company?.name || 'SC').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+                  : <span style={{ fontSize:11, fontWeight:800, color:'var(--accent)' }}>
+                      {(company?.name || profile?.company_name || 'Q').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
                     </span>
                 }
               </div>
               <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                  {company?.name || 'Your Company'}
+                  {company?.name || profile?.company_name || profile?.full_name || 'Qivori'}
                 </div>
-                <div style={{ fontSize:10, color:'var(--muted)' }}>{company?.mc ? `${company.mc} · ` : ''}{activeLoads.length} loads active</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>{company?.mc ? `MC ${company.mc}` : company?.dot ? `DOT ${company.dot}` : 'Carrier'}</div>
               </div>
-            </div>
-            {/* Quick status */}
-            <div style={{ fontSize:10, color:'var(--success)', display:'flex', alignItems:'center', gap:5, padding:'4px 10px', background:'rgba(0,212,170,0.06)', borderRadius:6, border:'1px solid rgba(0,212,170,0.15)' }}>
-              <div style={{ width:5, height:5, borderRadius:'50%', background:'var(--success)', boxShadow:'0 0 5px var(--success)' }}/>
-              <span style={{ fontWeight:700 }}>System Online</span>
             </div>
           </div>
 
           {/* Nav items — flat */}
-          <div style={{ flex:1, padding:'8px 0' }}>
+          <div style={{ flex:1, padding:'4px 0', overflowY:'auto', minHeight:0 }}>
             {NAV.map(item => {
-              if (item.id === '_divider') return <div key="_div" style={{ margin:'6px 16px', borderTop:'1px solid var(--border)' }} />
+              if (item.id === '_divider') return <div key="_div" style={{ margin:'4px 16px', borderTop:'1px solid var(--border)' }} />
               const isActive = activeView === item.id
-              const badge = BADGES[item.badgeKey]
               return (
                 <div key={item.id} onClick={() => navTo(item.id)}
-                  style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 16px', cursor:'pointer',
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 16px', cursor:'pointer',
                     borderLeft:`3px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
                     background: isActive ? 'rgba(240,165,0,0.06)' : 'transparent',
-                    transition:'all 0.12s', marginBottom:1 }}
+                    transition:'all 0.12s' }}
                   onMouseOver={e => { if (!isActive) e.currentTarget.style.background='rgba(255,255,255,0.03)' }}
                   onMouseOut={e  => { if (!isActive) e.currentTarget.style.background='transparent' }}>
-                  <span style={{ width:22, display:'flex', justifyContent:'center', alignItems:'center', flexShrink:0 }}>
-                    {React.createElement(item.icon, { size:16, color: isActive ? 'var(--accent)' : undefined })}
+                  <span style={{ width:20, display:'flex', justifyContent:'center', alignItems:'center', flexShrink:0 }}>
+                    {React.createElement(item.icon, { size:15, color: isActive ? 'var(--accent)' : undefined })}
                   </span>
-                  <span style={{ fontSize:13, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text)', flex:1 }}>{item.label}</span>
-                  {badge && <span style={{ fontSize:9, fontWeight:800, background:'var(--danger)', color:'#fff', borderRadius:10, padding:'1px 6px', flexShrink:0 }}>{badge}</span>}
+                  <span style={{ fontSize:12, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text)', flex:1 }}>{item.label}</span>
                 </div>
               )
             })}
           </div>
 
-          {/* Bottom: AI Intelligence + Log Out */}
-          <div style={{ padding:'12px 14px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-            <div onClick={() => navTo('load-board')}
-              style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.12), rgba(240,165,0,0.04))', border:'1px solid rgba(240,165,0,0.35)', borderRadius:10, padding:'12px 14px', cursor:'pointer', marginBottom:8, transition:'all 0.15s' }}
-              onMouseOver={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.boxShadow='0 0 16px rgba(240,165,0,0.15)' }}
-              onMouseOut={e => { e.currentTarget.style.borderColor='rgba(240,165,0,0.35)'; e.currentTarget.style.boxShadow='none' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                <div style={{ width:28, height:28, borderRadius:8, background:'rgba(240,165,0,0.2)', border:'1px solid rgba(240,165,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <Ic icon={Zap} size={14} color="var(--accent)" />
-                </div>
-                <div>
-                  <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5 }}>AI FREIGHT INTEL</div>
-                  <div style={{ fontSize:9, color:'var(--success)', fontWeight:700, display:'flex', alignItems:'center', gap:3 }}>
-                    <div style={{ width:4, height:4, borderRadius:'50%', background:'var(--success)', boxShadow:'0 0 4px var(--success)' }}/>
-                    Live scoring
-                  </div>
-                </div>
-              </div>
-              <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5, fontWeight:600 }}>
-                HOU→NYC <span style={{ color:'var(--accent)', fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", fontSize:16 }}>99</span><span style={{ fontSize:10, color:'var(--muted)' }}>/100</span>
-              </div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:6 }}>
-                <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)' }}>$3.28/mi</span>
-                <span style={{ fontSize:10, color:'var(--accent)', fontWeight:700 }}>Open Board →</span>
-              </div>
-            </div>
-            <button onClick={logout} style={{ width:'100%', padding:'8px', background:'transparent', border:'1px solid var(--border)', borderRadius:8, color:'var(--muted)', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
+          {/* Bottom: Log Out */}
+          <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+            <button onClick={logout} style={{ width:'100%', padding:'7px', background:'transparent', border:'1px solid var(--border)', borderRadius:8, color:'var(--muted)', fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
               onMouseOver={e => { e.currentTarget.style.borderColor='var(--danger)'; e.currentTarget.style.color='var(--danger)' }}
               onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--muted)' }}>
               Log Out

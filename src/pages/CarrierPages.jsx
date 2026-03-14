@@ -1274,7 +1274,7 @@ export function DriverSettlement() {
             return (
               <button key={d.id} onClick={() => setActiveDriver(d.id)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, background: isActive ? 'rgba(240,165,0,0.08)' : 'var(--surface)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: isActive ? 'var(--accent)' : 'var(--surface2)', color: isActive ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{d.avatar}</div>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: isActive ? 'var(--accent)' : 'var(--surface2)', color: isActive ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{d?.avatar || '?'}</div>
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? 'var(--accent)' : 'var(--text)' }}>{d.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>{(ctxLoads.filter(l => l.driver === d.name && (l.status==='Delivered'||l.status==='Invoiced')).length || d.loads.length)} loads this period</div>
@@ -2949,7 +2949,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     return (
                       <div key={d.name} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', background:'var(--surface2)', borderRadius:10, border:`1px solid ${isDue ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, flexWrap:'wrap' }}>
                         <div style={{ width:34, height:34, borderRadius:'50%', background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:11, color:'var(--accent)', flexShrink:0 }}>
-                          {d.avatar}
+                          {d?.avatar || '?'}
                         </div>
                         <div style={{ flex:1, minWidth:100 }}>
                           <div style={{ fontSize:13, fontWeight:700, marginBottom:1 }}>{d.name}</div>
@@ -3117,7 +3117,7 @@ export function DriverProfiles() {
             <div key={dr.id} onClick={() => setSelected(dr.id)}
               style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderLeft: `3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition: 'all 0.15s' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: isSel ? 'var(--accent)' : 'var(--surface2)', color: isSel ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{dr.avatar}</div>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: isSel ? 'var(--accent)' : 'var(--surface2)', color: isSel ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{dr?.avatar || '?'}</div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{dr.name}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -3133,9 +3133,17 @@ export function DriverProfiles() {
 
       {/* Profile detail */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {!d ? (
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12, color:'var(--muted)' }}>
+            <Users size={32} />
+            <div style={{ fontSize:14, fontWeight:600 }}>No drivers yet</div>
+            <div style={{ fontSize:12 }}>Add your first driver to get started</div>
+            <button className="btn btn-primary" style={{ fontSize:12, marginTop:8 }} onClick={() => setShowAdd(true)}>+ Add Driver</button>
+          </div>
+        ) : <>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>{d.avatar}</div>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>{d.avatar || '?'}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1 }}>{d.name}</span>
@@ -3215,6 +3223,7 @@ export function DriverProfiles() {
             </div>
           </div>
         </div>
+      </>}
       </div>
     </div>
     </>
@@ -4645,7 +4654,7 @@ export function DriverOnboarding() {
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
                   <div style={{ width:30, height:30, borderRadius:'50%', background:`${elig.color}20`, border:`1.5px solid ${elig.color}50`,
                     display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:elig.color, flexShrink:0 }}>
-                    {d.avatar}
+                    {d?.avatar || '?'}
                   </div>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:12, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color: isSel ? 'var(--accent)' : 'var(--text)' }}>{d.name}</div>
@@ -4683,7 +4692,7 @@ export function DriverOnboarding() {
             <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>
               <div style={{ width:46, height:46, borderRadius:'50%', background:`${elig.color}18`, border:`2px solid ${elig.color}50`,
                 display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:800, color:elig.color, flexShrink:0 }}>
-                {driver.avatar}
+                {driver?.avatar || '?'}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4, flexWrap:'wrap' }}>

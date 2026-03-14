@@ -938,6 +938,15 @@ function TruckROI() {
   const sel = trucks[selIdx] || trucks[0]
   const marginColor = (m) => m > 30 ? 'var(--success)' : m > 15 ? 'var(--warning)' : 'var(--danger)'
 
+  if (!sel) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', flexDirection:'column', gap:12, color:'var(--muted)' }}>
+        <div style={{ fontSize:14, fontWeight:600 }}>No truck data yet</div>
+        <div style={{ fontSize:12 }}>Add drivers and complete loads to see ROI analysis</div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display:'flex', gap:16, height:'100%', overflow:'hidden' }}>
       {/* ── Left: ranked cards */}
@@ -4930,8 +4939,11 @@ export function LaneIntel() {
     return { ...l, loads: myLoads.length, avgRpm: realRpm, avgGross: realGrossAvg, _myLoads: myLoads }
   })
 
-  const lane = enrichedLanes.find(l => l.id === selected)
+  const lane = enrichedLanes.find(l => l.id === selected) || enrichedLanes[0]
   const sorted = [...enrichedLanes].sort((a, b) => sortBy === 'rpm' ? b.avgRpm - a.avgRpm : sortBy === 'trend' ? b.trend - a.trend : b.loads - a.loads)
+  if (!lane) {
+    return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'var(--muted)', fontSize:14 }}>No lane data available</div>
+  }
   const laneHistory = lane._myLoads || []
 
   const estFuel = Math.round(lane.miles / 6.9 * 3.85)
@@ -7007,6 +7019,24 @@ export function DriverScorecard() {
   const statBoxStyle = { background:'var(--surface2)', borderRadius:10, padding:'12px 14px', textAlign:'center', flex:1 }
   const labelStyle   = { fontSize:10, color:'var(--muted)', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:0.5 }
   const valStyle     = { fontFamily:"'Bebas Neue',sans-serif", fontSize:26, lineHeight:1 }
+
+  if (!d) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+        <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0 }}>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2, lineHeight:1 }}>
+            DRIVER <span style={{ color:'var(--accent)' }}>SCORECARD</span>
+          </div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>Performance report · All drivers · Real-time data</div>
+        </div>
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12, color:'var(--muted)' }}>
+          <Users size={32} />
+          <div style={{ fontSize:14, fontWeight:600 }}>No drivers yet</div>
+          <div style={{ fontSize:12 }}>Add drivers to see their performance scorecards</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>

@@ -2430,7 +2430,7 @@ function DriversHub() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'hidden' }}>
+      <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'profiles' && <DriverProfiles />}
         {tab === 'settlement' && <DriverSettlement />}
         {tab === 'scorecards' && <DriverScorecard />}
@@ -2448,7 +2448,7 @@ function FleetHub() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'hidden' }}>
+      <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'overview' && <FleetManager />}
         {tab === 'map' && <FleetMap />}
         {tab === 'fuel' && <FuelOptimizer />}
@@ -2465,7 +2465,7 @@ function FinancialsHub() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'hidden' }}>
+      <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'pl' && <PLDashboard />}
         {tab === 'profit-iq' && <ProfitIQTab />}
         {tab === 'receivables' && <ReceivablesAging />}
@@ -2485,7 +2485,7 @@ function ComplianceHub() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'hidden' }}>
+      <div style={{ flex:1, overflow:'auto' }}>
         {tab === 'center' && <CarrierDVIR />}
         {tab === 'ifta' && <CarrierIFTA />}
         {tab === 'broker-risk' && <BrokerRiskIntel />}
@@ -2553,7 +2553,7 @@ function LoadsPipeline({ onOpenDrawer }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
       <HubTabBar tabs={PIPE_TABS} active={pipeTab} onChange={setPipeTab} />
-      <div style={{ flex:1, overflow:'hidden' }}>
+      <div style={{ flex:1, overflow:'auto' }}>
         {pipeTab === 'pipeline' && (
           <div style={{ display:'flex', gap:12, padding:16, height:'100%', overflowX:'auto' }}>
             {KANBAN_COLUMNS.map(col => {
@@ -2962,7 +2962,7 @@ function CarrierLayoutInner() {
         </div>
 
         {/* MAIN CONTENT */}
-        <div style={{ flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column', position:'relative' }}>
+        <div style={{ flex:1, minHeight:0, overflow:'auto', display:'flex', flexDirection:'column', position:'relative' }}>
           <ViewErrorBoundary key={activeView}>
             {resolveView(activeView, navTo, setDrawerLoadId)}
           </ViewErrorBoundary>

@@ -136,7 +136,7 @@ function AppContent() {
           <Sidebar />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <Topbar />
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingBottom: 40 }}>
               <PageComponent key={currentPage} />
             </div>
           </div>

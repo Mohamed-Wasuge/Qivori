@@ -2428,9 +2428,9 @@ function DriversHub() {
   const [tab, setTab] = useState('profiles')
   const TABS = [{ id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'profiles' && <DriverProfiles />}
         {tab === 'settlement' && <DriverSettlement />}
         {tab === 'scorecards' && <DriverScorecard />}
@@ -2446,9 +2446,9 @@ function FleetHub() {
   const [tab, setTab] = useState('overview')
   const TABS = [{ id:'overview', label:'Fleet Overview' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'equipment', label:'Equipment' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'overview' && <FleetManager />}
         {tab === 'map' && <FleetMap />}
         {tab === 'fuel' && <FuelOptimizer />}
@@ -2463,9 +2463,9 @@ function FinancialsHub() {
   const [tab, setTab] = useState('pl')
   const TABS = [{ id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables' },{ id:'cash-flow', label:'Cash Flow' },{ id:'expenses', label:'Expenses' },{ id:'factoring', label:'Factoring' },{ id:'quickbooks', label:'QuickBooks' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'pl' && <PLDashboard />}
         {tab === 'profit-iq' && <ProfitIQTab />}
         {tab === 'receivables' && <ReceivablesAging />}
@@ -2483,9 +2483,9 @@ function ComplianceHub() {
   const [tab, setTab] = useState('center')
   const TABS = [{ id:'center', label:'Compliance Center' },{ id:'ifta', label:'IFTA & DOT' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'center' && <CarrierDVIR />}
         {tab === 'ifta' && <CarrierIFTA />}
         {tab === 'broker-risk' && <BrokerRiskIntel />}
@@ -2551,11 +2551,11 @@ function LoadsPipeline({ onOpenDrawer }) {
   const PIPE_TABS = [{ id:'pipeline', label:'Pipeline' },{ id:'list', label:'List View' },{ id:'dispatch', label:'Dispatch Board' },{ id:'check-calls', label:'Check Calls' },{ id:'command', label:'Command Center' },{ id:'lane-intel', label:'Lane Intel' }]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, overflow:'hidden' }}>
       <HubTabBar tabs={PIPE_TABS} active={pipeTab} onChange={setPipeTab} />
-      <div style={{ flex:1, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0, overflow:'auto', display:'flex', flexDirection:'column' }}>
         {pipeTab === 'pipeline' && (
-          <div style={{ display:'flex', gap:12, padding:16, height:'100%', overflowX:'auto' }}>
+          <div style={{ display:'flex', gap:6, padding:'10px 10px', flex:1, minHeight:0, maxHeight:'100%', overflow:'hidden' }}>
             {KANBAN_COLUMNS.map(col => {
               const colLoads = loads.filter(l => col.statuses.includes(l.status))
               const colTotal = colLoads.reduce((s,l) => s + (l.gross || l.gross_pay || 0), 0)
@@ -2564,10 +2564,11 @@ function LoadsPipeline({ onOpenDrawer }) {
                   onDragOver={e => { e.preventDefault(); setDragOver(col.id) }}
                   onDragLeave={() => setDragOver(null)}
                   onDrop={e => handleDrop(e, col)}
-                  style={{ width:280, flexShrink:0, display:'flex', flexDirection:'column', background: dragOver === col.id ? 'rgba(240,165,0,0.04)' : 'transparent',
+                  style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', minHeight:0,
+                    background: dragOver === col.id ? 'rgba(240,165,0,0.04)' : 'transparent',
                     border: `1px solid ${dragOver === col.id ? 'var(--accent)' : 'var(--border)'}`, borderRadius:12, transition:'all 0.15s' }}>
                   {/* Column header */}
-                  <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+                  <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                         <div style={{ width:8, height:8, borderRadius:'50%', background:col.color }} />
@@ -2578,7 +2579,7 @@ function LoadsPipeline({ onOpenDrawer }) {
                     {colTotal > 0 && <div style={{ fontSize:10, color:'var(--muted)' }}>${colTotal.toLocaleString()} total</div>}
                   </div>
                   {/* Cards */}
-                  <div style={{ flex:1, overflowY:'auto', padding:8, paddingBottom:40 }}>
+                  <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:8 }}>
                     {colLoads.length === 0 && (
                       <div style={{ padding:20, textAlign:'center', fontSize:11, color:'var(--muted)', border:'1px dashed var(--border)', borderRadius:8 }}>
                         Drop loads here
@@ -2899,7 +2900,7 @@ function CarrierLayoutInner() {
       </div>
 
       {/* ── BODY: SIDEBAR + CONTENT ───────────────────────────────── */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', minHeight:0 }}>
 
         {/* Mobile sidebar overlay */}
         {mobileNav && <div className="mobile-nav-overlay" onClick={() => setMobileNav(false)}

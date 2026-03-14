@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock, MapPin, Wrench, FileText, Phone, Package, Truck, Users, CreditCard, Receipt, Zap, Bot, Star, Activity, Search, Shield, Bell, Wallet, Map, Droplets, FileCheck, ShieldCheck, AlertCircle, User, UserPlus, Briefcase, Settings, Layers, Eye, Download, Upload, Send, Check, ChevronRight, Plus, Filter, Calendar, Hash, Gauge, Radio, TrendingUp, TrendingDown, MessageCircle, Flag, Square, Edit3 as PencilIcon, Moon, Lightbulb, Cpu, Fuel, Route, Navigation, CircleDot, Bookmark, MailOpen, Inbox, Building2, FlaskConical, Sparkles, Trophy, ArrowRight, RefreshCw, Brain, Construction, Snowflake, TrafficCone, BellOff, Banknote, Archive, Paperclip, HardDrive, Siren, Dumbbell, GraduationCap, Dice5, Plug, Heart, Pill, Beer, Bomb, Save } from 'lucide-react'
+import { BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock, MapPin, Wrench, FileText, Phone, Package, Truck, Users, CreditCard, Receipt, Zap, Bot, Star, Activity, Search, Shield, Bell, Wallet, Map, Droplets, FileCheck, ShieldCheck, AlertCircle, User, UserPlus, Briefcase, Settings, Layers, Eye, Download, Upload, Send, Check, ChevronRight, Plus, Filter, Calendar, Hash, Gauge, Radio, TrendingUp, TrendingDown, MessageCircle, Flag, Square, Edit3 as PencilIcon, Moon, Lightbulb, Cpu, Fuel, Route, Navigation, CircleDot, Bookmark, MailOpen, Inbox, Building2, FlaskConical, Sparkles, Trophy, ArrowRight, RefreshCw, Brain, Construction, Snowflake, TrafficCone, BellOff, Banknote, Archive, Paperclip, HardDrive, Siren, Dumbbell, GraduationCap, Dice5, Plug, Heart, Pill, Beer, Bomb, Save, Trash2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF, generateSettlementPDF, generateIFTAPDF } from '../utils/generatePDF'
@@ -182,7 +182,7 @@ export function CarrierDashboard() {
                 <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 700 }}>{b.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.loads} load{b.loads > 1 ? 's' : ''} · ${b.revenue.toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.loads} load{b.loads > 1 ? 's' : ''} · ${(b.revenue||0).toLocaleString()}</div>
                   </div>
                   <span style={S.badge('var(--accent)')}>{b.loads} loads</span>
                 </div>
@@ -517,7 +517,7 @@ export function SmartDispatch() {
                   <div>
                     <div style={{ fontSize:14, fontWeight:800, marginBottom:2 }}>
                       {load.from} <span style={{ color:'var(--muted)' }}>→</span> {load.to}
-                      <span style={{ fontSize:10, color:'var(--muted)', fontWeight:400, marginLeft:5 }}>{load.miles.toLocaleString()}mi</span>
+                      <span style={{ fontSize:10, color:'var(--muted)', fontWeight:400, marginLeft:5 }}>{(load.miles||0).toLocaleString()}mi</span>
                     </div>
                     <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
                       {load.tags.map(t => <span key={t} style={{ ...S.tag(tagColor(t)), fontSize:8 }}>{t}</span>)}
@@ -525,8 +525,8 @@ export function SmartDispatch() {
                     </div>
                   </div>
                   <div style={{ textAlign:'right', flexShrink:0, marginLeft:8 }}>
-                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)', lineHeight:1 }}>${load.gross.toLocaleString()}</div>
-                    <div style={{ fontSize:10, color: aboveMarket ? 'var(--success)' : 'var(--muted)', fontWeight: aboveMarket ? 700 : 400 }}>${load.rpm.toFixed(2)}/mi</div>
+                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)', lineHeight:1 }}>${(load.gross||0).toLocaleString()}</div>
+                    <div style={{ fontSize:10, color: aboveMarket ? 'var(--success)' : 'var(--muted)', fontWeight: aboveMarket ? 700 : 400 }}>${(load.rpm||0).toFixed(2)}/mi</div>
                   </div>
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -556,7 +556,7 @@ export function SmartDispatch() {
                 <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:0.5, lineHeight:1.1 }}>
                   {sel.fromFull} <span style={{ color:'var(--accent)' }}>→</span> {sel.toFull}
                 </div>
-                <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{sel.id} · {sel.miles.toLocaleString()} mi · {sel.equipment} · {sel.commodity}</div>
+                <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{sel.id} · {(sel.miles||0).toLocaleString()} mi · {sel.equipment} · {sel.commodity}</div>
               </div>
               <button className="btn btn-ghost" style={{ fontSize:16, flexShrink:0 }} onClick={() => setSelected(null)}>✕</button>
             </div>
@@ -631,7 +631,7 @@ export function SmartDispatch() {
               {/* Results */}
               <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:6 }}>
                 {[
-                  { label:'Gross Revenue', value:'$'+sel.gross.toLocaleString(), color:'var(--accent)', big:true },
+                  { label:'Gross Revenue', value:'$'+(sel.gross||0).toLocaleString(), color:'var(--accent)', big:true },
                   { label:`Fuel (${sel.miles}mi ÷ ${ci.mpg||6.8}mpg × $${ci.fuelPrice||3.89})`, value:'−$'+calcFuel.toLocaleString(), color:'var(--danger)' },
                   { label:`Driver Pay (${ci.driverPct||28}%)`, value:'−$'+calcDriverPay.toLocaleString(), color:'var(--danger)' },
                   { label:'Other Costs', value:`−$${calcOther}`, color:'var(--muted)' },
@@ -921,7 +921,7 @@ function TruckROI() {
 
     const laneTotals = {}
     dLoads.forEach(l => {
-      const key = l.origin.split(',')[0].substring(0,3).toUpperCase() + '→' + l.dest.split(',')[0].substring(0,3).toUpperCase()
+      const key = (l.origin||'').split(',')[0].substring(0,3).toUpperCase() + '→' + (l.dest||'').split(',')[0].substring(0,3).toUpperCase()
       if (!laneTotals[key]) laneTotals[key] = 0
       laneTotals[key] += l.gross
     })
@@ -1041,7 +1041,7 @@ function TruckROI() {
               <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={BarChart2} /> Performance Stats</div></div>
               <div style={{ padding:'0 14px' }}>
                 {[
-                  { label:'Total Miles',       value:`${sel.miles.toLocaleString()} mi` },
+                  { label:'Total Miles',       value:`${(sel.miles||0).toLocaleString()} mi` },
                   { label:'Avg Load Value',    value:`$${sel.avgLoad.toLocaleString()}` },
                   { label:'Revenue Per Mile',  value:`$${sel.rpm.toFixed(2)}` },
                   { label:'Cost Per Mile',     value:`$${sel.miles ? (sel.costs/sel.miles).toFixed(2) : '0.00'}` },
@@ -1069,10 +1069,10 @@ function TruckROI() {
                     {sel.recentLoads.map(l => (
                       <tr key={l.loadId}>
                         <td className="mono" style={{ color:'var(--accent)', fontSize:12 }}>{l.loadId}</td>
-                        <td>{l.origin.split(',')[0]} → {l.dest.split(',')[0]}</td>
-                        <td style={{ color:'var(--muted)' }}>{l.miles.toLocaleString()}</td>
-                        <td style={{ color:'var(--accent2)' }}>${l.rate.toFixed(2)}</td>
-                        <td style={{ fontWeight:700 }}>${l.gross.toLocaleString()}</td>
+                        <td>{(l.origin||'').split(',')[0]} → {(l.dest||'').split(',')[0]}</td>
+                        <td style={{ color:'var(--muted)' }}>{(l.miles||0).toLocaleString()}</td>
+                        <td style={{ color:'var(--accent2)' }}>${(l.rate||0).toFixed(2)}</td>
+                        <td style={{ fontWeight:700 }}>${(l.gross||0).toLocaleString()}</td>
                         <td><span style={S.tag(l.status==='Delivered'?'var(--success)':'var(--accent)')}>{l.status}</span></td>
                       </tr>
                     ))}
@@ -1255,7 +1255,7 @@ export function DriverSettlement() {
   const driverName = driver?.name || ''
   const contextLoads = ctxLoads
     .filter(l => l.driver === driverName && (l.status === 'Delivered' || l.status === 'Invoiced'))
-    .map(l => ({ id: l.loadId, route: l.origin.split(',')[0] + ' → ' + l.dest.split(',')[0], miles: l.miles, gross: l.gross, date: l.pickup?.split(' ·')[0] || 'Mar' }))
+    .map(l => ({ id: l.loadId, route: (l.origin||'').split(',')[0] + ' → ' + (l.dest||'').split(',')[0], miles: l.miles, gross: l.gross, date: l.pickup?.split(' ·')[0] || 'Mar' }))
   const mergedLoads = contextLoads.length > 0 ? contextLoads : (driver?.loads || [])
 
   const loadPays = mergedLoads.map(l => ({ ...l, pay: calcPay(l, model, modelVal) }))
@@ -2680,7 +2680,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 <div key={d.driver} style={{ padding:'16px 18px', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10, flexWrap:'wrap' }}>
                     <div style={{ width:38, height:38, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:12, color:'var(--accent)', flexShrink:0 }}>
-                      {d.driver.split(' ').map(n=>n[0]).join('')}
+                      {(d.driver||'').split(' ').map(n=>n[0]).join('')}
                     </div>
                     <div style={{ flex:1, minWidth:120 }}>
                       <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:2, flexWrap:'wrap' }}>
@@ -3042,9 +3042,52 @@ export function DriverProfiles() {
   })) : DRIVER_DATA
   const [selected, setSelected] = useState(driverList[0]?.id || 'james')
   const [showAdd, setShowAdd] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [editD, setEditD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
   const [newD, setNewD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const d = driverList.find(x => x.id === selected) || driverList[0]
+
+  const handleEditDriver = async () => {
+    if (!editD.name) { showToast('error', 'Error', 'Name is required'); return }
+    setSaving(true)
+    try {
+      await editDriver(selected, {
+        full_name: editD.name, phone: editD.phone, email: editD.email,
+        license_number: editD.license_number, license_state: editD.license_state,
+        license_expiry: editD.license_expiry || null, medical_card_expiry: editD.medical_card_expiry || null,
+      })
+      showToast('success', 'Driver Updated', editD.name + ' updated successfully')
+      setShowEdit(false)
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to update driver')
+    }
+    setSaving(false)
+  }
+
+  const handleDeleteDriver = async (id, name) => {
+    try {
+      await removeDriver(id)
+      showToast('success', 'Driver Removed', name + ' has been removed')
+      setConfirmDelete(null)
+      if (selected === id) setSelected(driverList.find(x => x.id !== id)?.id || null)
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to remove driver')
+    }
+  }
+
+  const openEditDriver = () => {
+    if (!d) return
+    const raw = dbDrivers.find(x => x.id === d.id)
+    setEditD({
+      name: raw?.full_name || d.name || '', phone: raw?.phone || d.phone || '',
+      email: raw?.email || d.email || '', license_number: raw?.license_number || d.cdl || '',
+      license_state: raw?.license_state || '', license_expiry: raw?.license_expiry || '',
+      medical_card_expiry: raw?.medical_card_expiry || '',
+    })
+    setShowEdit(true)
+  }
 
   const handleAddDriver = async () => {
     if (!newD.name) { showToast('error', 'Error', 'Name is required'); return }
@@ -3114,6 +3157,55 @@ export function DriverProfiles() {
         </div>
       )}
 
+      {/* Edit Driver Modal */}
+      {showEdit && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if (e.target===e.currentTarget) setShowEdit(false) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:440, padding:24 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Edit Driver</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>Update driver details</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {[
+                { key:'name', label:'Full Name *', ph:'John Smith' },
+                { key:'phone', label:'Phone', ph:'(612) 555-0198' },
+                { key:'email', label:'Email', ph:'driver@email.com' },
+                { key:'license_number', label:'CDL Number', ph:'MN-12345678' },
+                { key:'license_state', label:'License State', ph:'MN' },
+                { key:'license_expiry', label:'CDL Expiry', ph:'', type:'date' },
+                { key:'medical_card_expiry', label:'Medical Card Expiry', ph:'', type:'date' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                  <input type={f.type||'text'} value={editD[f.key]} onChange={e => setEditD(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={addInp} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:18 }}>
+              <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} onClick={handleEditDriver} disabled={saving || !editD.name}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setShowEdit(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if (e.target===e.currentTarget) setConfirmDelete(null) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:360, padding:24, textAlign:'center' }}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'var(--danger)' }}>Remove Driver?</div>
+            <div style={{ fontSize:13, color:'var(--muted)', marginBottom:20 }}>This will permanently remove <b>{confirmDelete.name}</b>. This cannot be undone.</div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="btn btn-danger" style={{ flex:1, padding:'11px 0' }} onClick={() => handleDeleteDriver(confirmDelete.id, confirmDelete.name)}>Remove</button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setConfirmDelete(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div style={{ display: 'flex', height: '100%', overflow: 'auto' }}>
       {/* Driver list */}
       <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
@@ -3166,8 +3258,8 @@ export function DriverProfiles() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => showToast('', 'Message', `Opening chat with ${d.name}`)}><Ic icon={MessageCircle} /> Message</button>
-            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => showToast('', 'Edit Profile', d.name)}><Ic icon={PencilIcon} /> Edit</button>
+            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={openEditDriver}><Ic icon={PencilIcon} /> Edit</button>
+            <button className="btn btn-danger" style={{ fontSize: 12 }} onClick={() => setConfirmDelete({ id: d.id, name: d.name })}><Ic icon={Trash2} /> Remove</button>
           </div>
         </div>
 
@@ -3909,6 +4001,45 @@ export function FleetManager() {
   const [newTruck, setNewTruck] = useState(BLANK_TRUCK)
   const [vinLoading, setVinLoading] = useState(false)
   const [vinResult, setVinResult] = useState(null)
+  // Edit Truck modal
+  const [showEditTruck, setShowEditTruck] = useState(false)
+  const [editTruckData, setEditTruckData] = useState(BLANK_TRUCK)
+  // Delete confirmation
+  const [confirmDeleteTruck, setConfirmDeleteTruck] = useState(null)
+
+  const openEditTruck = () => {
+    if (!truck) return
+    setEditTruckData({ vin: truck.vin || '', year: truck.year || '', make: truck.make || '', model: truck.model || '', color: truck.color || '', plate: truck.plate || '', gvw: truck.gvw || '', fuel: truck.fuel || 'Diesel', odometer: String(truck.odometer || ''), driver: truck.driver || '', regExpiry: truck.regExpiry || '', insExpiry: truck.insExpiry || '', dotInspection: truck.dotInspection || '', unit_cost: String(truck.unit_cost || '') })
+    setShowEditTruck(true)
+  }
+
+  const saveEditTruck = async () => {
+    try {
+      await editVehicle(selectedTruck, {
+        vin: editTruckData.vin, year: parseInt(editTruckData.year) || null,
+        make: editTruckData.make, model: editTruckData.model,
+        license_plate: editTruckData.plate, current_miles: parseInt(editTruckData.odometer) || 0,
+        insurance_expiry: editTruckData.insExpiry || null, registration_expiry: editTruckData.regExpiry || null,
+      })
+      setTrucks(t => t.map(tr => tr.id === selectedTruck ? { ...tr, ...editTruckData, odometer: parseInt(editTruckData.odometer) || 0 } : tr))
+      showToast('success', 'Truck Updated', `${editTruckData.year} ${editTruckData.make} ${editTruckData.model} updated`)
+      setShowEditTruck(false)
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to update truck')
+    }
+  }
+
+  const handleDeleteTruck = async (id) => {
+    try {
+      await removeVehicle(id)
+      setTrucks(t => t.filter(tr => tr.id !== id))
+      setConfirmDeleteTruck(null)
+      if (selectedTruck === id) setSelectedTruck(trucks.find(t => t.id !== id)?.id || null)
+      showToast('success', 'Truck Removed', 'Vehicle has been removed')
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to remove truck')
+    }
+  }
 
   const decodeVIN = async (vin) => {
     if (vin.length !== 17) return
@@ -4075,6 +4206,53 @@ export function FleetManager() {
         </div>
       )}
 
+      {/* ── Edit Truck Modal ── */}
+      {showEditTruck && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
+          onClick={e => { if (e.target===e.currentTarget) setShowEditTruck(false) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:440, padding:24 }}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Edit Truck</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>Update vehicle details</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              {[
+                { key:'make', label:'Make', ph:'Freightliner' },
+                { key:'model', label:'Model', ph:'Cascadia' },
+                { key:'year', label:'Year', ph:'2023' },
+                { key:'plate', label:'License Plate', ph:'ABC-1234' },
+                { key:'odometer', label:'Odometer', ph:'120000' },
+                { key:'regExpiry', label:'Registration Expiry', ph:'', type:'date' },
+                { key:'insExpiry', label:'Insurance Expiry', ph:'', type:'date' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                  <input type={f.type||'text'} value={editTruckData[f.key]} onChange={e => setEditTruckData(t => ({ ...t, [f.key]: e.target.value }))} placeholder={f.ph}
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:18 }}>
+              <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} onClick={saveEditTruck}>Save Changes</button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setShowEditTruck(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Truck Confirmation ── */}
+      {confirmDeleteTruck && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if (e.target===e.currentTarget) setConfirmDeleteTruck(null) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:360, padding:24, textAlign:'center' }}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:8, color:'var(--danger)' }}>Remove Vehicle?</div>
+            <div style={{ fontSize:13, color:'var(--muted)', marginBottom:20 }}>This will permanently remove <b>{confirmDeleteTruck.unit}</b>. This cannot be undone.</div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="btn btn-danger" style={{ flex:1, padding:'11px 0' }} onClick={() => handleDeleteTruck(confirmDeleteTruck.id)}>Remove</button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setConfirmDeleteTruck(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Truck sidebar ── */}
       <div style={{ width:200, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
         <div style={{ padding:'14px 16px 8px', borderBottom:'1px solid var(--border)' }}>
@@ -4123,9 +4301,9 @@ export function FleetManager() {
             </div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
-            <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Edit','Opening truck profile editor...')}><Ic icon={PencilIcon} /> Edit</button>
+            <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={openEditTruck}><Ic icon={PencilIcon} /> Edit</button>
             <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { setSubTab('maintenance'); setShowAddService(true) }}><Ic icon={Wrench} /> Log Service</button>
-            <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => showToast('','Fleet Map','Locating ' + truck.unit + '...')}><Ic icon={Radio} /> Track Live</button>
+            <button className="btn btn-danger" style={{ fontSize:11 }} onClick={() => setConfirmDeleteTruck(truck)}><Ic icon={Trash2} /> Remove</button>
           </div>
         </div>
 

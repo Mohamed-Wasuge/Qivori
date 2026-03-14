@@ -449,29 +449,26 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   .hide-mobile { display: none !important; }
 }
 
-/* ── GLOBAL LAYOUT FIX ──────────────────────────────────────────────
-   The .carrier-main div is the scroll root for all carrier pages.
-   It fills the remaining viewport below the topbar, scrolls vertically,
-   and its direct children stretch to fill available height.
+/* ── PERMANENT GLOBAL LAYOUT FIX ───────────────────────────────────
+   .carrier-main is the ONE scroll root for every carrier page.
+   Parent is a ROW flex (sidebar | content), so height:100% stretches
+   to fill the row. overflow-y:auto makes this the scroll container.
    ─────────────────────────────────────────────────────────────────── */
 .carrier-main {
-  flex: 1;
+  flex: 1;                          /* fill remaining WIDTH after sidebar */
+  height: 100%;                     /* fill parent's full HEIGHT (row flex cross-axis) */
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
-}
-
-/* Every direct child page fills available height */
-.carrier-main > * {
-  flex: 1;
-  min-height: 0;
-}
-
-/* Utility: force an element to scroll */
-.page-scroll {
-  overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Direct child fills available height (hub wrapper / page root) */
+.carrier-main > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }

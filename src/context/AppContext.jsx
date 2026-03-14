@@ -187,11 +187,15 @@ export function AppProvider({ children }) {
           setCurrentPage(correctPage)
         }
         showToast('', 'Welcome, ' + displayName, 'Signed in as ' + ROLES[prof?.role || quickRole].badgeText)
+      }).catch(e => {
+        console.warn('[Qivori] Profile fetch error:', e)
+        showToast('', 'Welcome, ' + displayName, 'Signed in')
       })
 
       return { ok: true }
     } catch (e) {
-      return { error: 'Login failed. Please try again.' }
+      console.error('[Qivori] Login error:', e)
+      return { error: e?.message || 'Login failed. Please try again.' }
     }
   }, [fetchProfile, showToast])
 

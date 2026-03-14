@@ -31,10 +31,12 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Unregister any existing service worker to prevent stale cache issues
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {})
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(r => r.unregister())
         })
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k)))
       }
     </script>
   </body>

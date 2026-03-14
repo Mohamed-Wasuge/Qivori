@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect, Component } from 'react'
 import { AppProvider, useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -155,10 +155,40 @@ function AppContent() {
   )
 }
 
+class AppErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(err, info) { console.error('[Qivori] App crash:', err, info) }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ width:'100vw', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0c0f15', color:'#c8d0dc', fontFamily:"'DM Sans',sans-serif" }}>
+          <div style={{ textAlign:'center', maxWidth:400, padding:32 }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:4, marginBottom:8 }}>
+              QI<span style={{ color:'#f0a500' }}>VORI</span>
+            </div>
+            <div style={{ fontSize:14, fontWeight:600, marginBottom:16 }}>Something went wrong</div>
+            <div style={{ fontSize:12, color:'#6b7590', background:'#131720', border:'1px solid #1e2330', borderRadius:8, padding:'10px 14px', fontFamily:'monospace', marginBottom:20, wordBreak:'break-word' }}>
+              {String(this.state.error)}
+            </div>
+            <button onClick={() => { this.setState({ error: null }); window.location.reload() }}
+              style={{ padding:'10px 24px', fontSize:13, fontWeight:700, background:'#f0a500', color:'#000', border:'none', borderRadius:8, cursor:'pointer' }}>
+              Reload App
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <AppErrorBoundary>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </AppErrorBoundary>
   )
 }

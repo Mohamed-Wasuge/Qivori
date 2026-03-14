@@ -2762,7 +2762,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
 
 function CarrierLayoutInner() {
   const { logout, showToast, theme, setTheme } = useApp()
-  const { activeLoads, unpaidInvoices, company } = useCarrier()
+  const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
 
   const [activeView,    setActiveView]    = useState('dashboard')
   const [drawerLoadId,  setDrawerLoadId]  = useState(null)

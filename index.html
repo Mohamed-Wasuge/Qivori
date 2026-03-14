@@ -31,13 +31,18 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Unregister any existing service worker to prevent stale cache issues
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(regs => {
-          regs.forEach(r => r.unregister())
-        })
-        caches.keys().then(keys => keys.forEach(k => caches.delete(k)))
-      }
+      try {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) regs[i].unregister()
+          }).catch(function(){})
+          if (typeof caches !== 'undefined') {
+            caches.keys().then(function(keys) {
+              for (var i = 0; i < keys.length; i++) caches.delete(keys[i])
+            }).catch(function(){})
+          }
+        }
+      } catch(e) {}
     </script>
   </body>
 </html>

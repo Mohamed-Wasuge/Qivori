@@ -172,10 +172,10 @@ function OverviewTab({ onTabChange }) {
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12 }}>
         {[
-          { label: 'Revenue MTD',      value: revDisplay,              sub: '↑ 18% vs Feb',         color: 'var(--accent)',  click: () => onTabChange('financials') },
+          { label: 'Revenue MTD',      value: revDisplay,              sub: '',         color: 'var(--accent)',  click: () => onTabChange('financials') },
           { label: 'Net Profit MTD',   value: netDisplay,              sub: 'After fuel + pay',      color: 'var(--success)', click: () => onTabChange('financials') },
           { label: 'Active Loads',     value: String(activeLoads.length), sub: `${unpaidInvoices.length} invoice${unpaidInvoices.length !== 1 ? 's' : ''} pending`, color: 'var(--accent2)', click: () => onTabChange('loads') },
-          { label: 'Fleet Utilization',value: activeLoads.length ? `${Math.round((activeLoads.length/fleetRows.length)*100)}%` : '0%', sub: `${activeLoads.filter(l=>l.driver).length} of ${fleetRows.length} trucks running`, color: 'var(--accent3)', click: () => onTabChange('fleet') },
+          { label: 'Fleet Utilization',value: activeLoads.length && fleetRows.length > 0 ? `${Math.round((activeLoads.length/fleetRows.length)*100)}%` : '0%', sub: `${activeLoads.filter(l=>l.driver).length} of ${fleetRows.length} trucks running`, color: 'var(--accent3)', click: () => onTabChange('fleet') },
           { label: 'Avg RPM',          value: avgRPM === '—' ? '—' : `$${avgRPM}`, sub: 'Active loads',        color: 'var(--accent)',  click: () => onTabChange('financials') },
         ].map(s => (
           <div key={s.label} onClick={s.click} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s' }}
@@ -309,7 +309,7 @@ function OverviewTab({ onTabChange }) {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
           <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 700, fontSize: 13, display:'flex', alignItems:'center', gap:6 }}><Ic icon={Zap} size={14} /> Alerts & Actions</div>
-            {dismissed.length < OV_ALERTS.length && <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setDismissed(OV_ALERTS.map((_,i)=>i))}>Clear all</button>}
+            {dismissed.length < generatedAlerts.length && <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setDismissed(generatedAlerts.map((_,i)=>i))}>Clear all</button>}
           </div>
           {alerts.length === 0
             ? <div style={{ padding: 28, textAlign: 'center', color: 'var(--success)', fontSize: 13, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><Ic icon={CheckCircle} size={14} color="var(--success)" /> All clear — no alerts today</div>
@@ -321,7 +321,7 @@ function OverviewTab({ onTabChange }) {
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   <button className="btn btn-ghost" style={{ fontSize: 10, padding: '3px 8px', color: a.color }} onClick={() => showToast('', a.action, a.text)}>{a.action}</button>
-                  <button onClick={() => setDismissed(d => [...d, OV_ALERTS.indexOf(a)])} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>
+                  <button onClick={() => setDismissed(d => [...d, generatedAlerts.indexOf(a)])} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>
                 </div>
               </div>
             ))

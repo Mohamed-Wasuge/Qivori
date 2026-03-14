@@ -1191,6 +1191,14 @@ export function DriverSettlement() {
   const [showSheet, setShowSheet] = useState(false)
 
   const driver = SETTLE_DRIVERS.find(d => d.id === activeDriver)
+
+  if (!driver) return (
+    <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>No Drivers Yet</div>
+      <div style={{ fontSize: 12 }}>Add drivers to view settlement details</div>
+    </div>
+  )
+
   const model = models[activeDriver]
   const modelVal = modelVals[activeDriver]
   const driverDeductions = deductions[activeDriver] || []

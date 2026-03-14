@@ -9,7 +9,7 @@ const Ic = ({ icon: Icon, size = 14, ...p }) => <Icon size={size} {...p} />
 
 // ─── shared helpers ────────────────────────────────────────────────────────────
 const S = {
-  page: { padding: 20, paddingBottom: 60, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 },
+  page: { padding: 20, paddingBottom: 60, overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16 },
   panel: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' },
   panelHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--border)' },
   panelTitle: { fontSize: 13, fontWeight: 700 },
@@ -2498,7 +2498,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   ]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       {/* Tab bar */}
       <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 16px', background:'var(--surface)', borderBottom:'1px solid var(--border)', alignItems:'center', overflowX:'auto' }}>
         {COMP_TABS.map(t => (

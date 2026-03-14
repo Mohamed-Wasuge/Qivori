@@ -1,13 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+// These are PUBLIC keys (anon key + project URL) — safe for client-side code.
+// Real security is enforced by Supabase Row Level Security (RLS) policies.
+const FALLBACK_URL = 'https://jrencclzfztrilrldmwf.supabase.co'
+const FALLBACK_KEY = 'sb_publishable_JPboIPM1fpNAZC6RtdCWGQ_ZvaKCC3g'
 
-if (!url || !url.startsWith('http')) {
-  console.error('[Qivori] VITE_SUPABASE_URL is not set. Check your environment variables.')
-}
-if (!key || key.includes('VITE_')) {
-  console.error('[Qivori] VITE_SUPABASE_ANON_KEY is not set. Check your environment variables.')
-}
+const raw_url = import.meta.env.VITE_SUPABASE_URL
+const raw_key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(url || '', key || '')
+const url = (raw_url && raw_url.startsWith('http')) ? raw_url : FALLBACK_URL
+const key = (raw_key && !raw_key.includes('VITE_')) ? raw_key : FALLBACK_KEY
+
+export const supabase = createClient(url, key)

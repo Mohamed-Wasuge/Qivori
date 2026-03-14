@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, Component } from 'react'
+import * as Sentry from '@sentry/react'
 import {
   Monitor, Layers, Receipt, Truck, Shield, Users, Briefcase, Settings as SettingsIcon,
   Search, Bell, Moon, Eye, Zap, Wrench, CreditCard, BarChart2, AlertTriangle,
@@ -25,7 +26,7 @@ const Ic = ({ icon: Icon, size = 16, color, style, ...props }) => <Icon size={si
 class ViewErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  componentDidCatch(err, info) { console.error('[Qivori] View crash:', err, info) }
+  componentDidCatch(err, info) { console.error('[Qivori] View crash:', err, info); Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
   render() {
     if (this.state.error) {
       return (

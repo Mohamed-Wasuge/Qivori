@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect, Component } from 'react'
+import * as Sentry from '@sentry/react'
 import { AppProvider, useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
@@ -158,7 +159,7 @@ function AppContent() {
 class AppErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  componentDidCatch(err, info) { console.error('[Qivori] App crash:', err, info) }
+  componentDidCatch(err, info) { console.error('[Qivori] App crash:', err, info); Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
   render() {
     if (this.state.error) {
       return (

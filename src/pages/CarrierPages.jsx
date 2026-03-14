@@ -2498,7 +2498,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   ]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
       {/* Tab bar */}
       <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 16px', background:'var(--surface)', borderBottom:'1px solid var(--border)', alignItems:'center', overflowX:'auto' }}>
         {COMP_TABS.map(t => (

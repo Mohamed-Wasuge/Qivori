@@ -28,7 +28,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline loading indicator — prevents black screen while JS loads -->
+      <div id="boot-loader" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#0c0f15;position:fixed;top:0;left:0;z-index:99999">
+        <div style="text-align:center">
+          <div style="font-family:'Bebas Neue',system-ui,sans-serif;font-size:28px;letter-spacing:4px;color:#c8d0dc">QI<span style="color:#f0a500">VORI</span><span style="font-size:12px;color:#2cb896;letter-spacing:1px;font-family:'DM Sans',system-ui,sans-serif;font-weight:700;margin-left:6px">AI</span></div>
+          <div style="width:40px;height:3px;background:#1a1f2a;border-radius:2px;margin:12px auto 0;overflow:hidden">
+            <div style="width:50%;height:100%;background:#f0a500;border-radius:2px;animation:qbl 1s ease-in-out infinite alternate"></div>
+          </div>
+          <style>@keyframes qbl{from{transform:translateX(-100%)}to{transform:translateX(100%)}}</style>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
       try {

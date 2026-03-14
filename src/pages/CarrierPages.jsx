@@ -452,7 +452,7 @@ export function SmartDispatch() {
     <div style={{ display:'flex', height:'100%', overflow:'auto', background:'var(--bg)' }}>
 
       {/* ── PANEL 1: LOAD LIST ── */}
-      <div style={{ width: sel ? 360 : '100%', minWidth: 340, display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', height:'100%', overflow:'hidden', flexShrink:0 }}>
+      <div style={{ width: sel ? 360 : '100%', minWidth: 340, display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', height:'100%', overflowY:'auto', overflowX:'hidden', flexShrink:0 }}>
 
         {/* Search bar + Add Load */}
         <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', display:'flex', gap:6 }}>
@@ -948,7 +948,7 @@ function TruckROI() {
   }
 
   return (
-    <div style={{ display:'flex', gap:16, height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', gap:16, height:'100%', overflow:'auto' }}>
       {/* ── Left: ranked cards */}
       <div style={{ width:270, display:'flex', flexDirection:'column', gap:10, flexShrink:0, overflowY:'auto' }}>
         <div style={{ fontSize:10, color:'var(--muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:1, paddingBottom:4 }}>Ranked by Net Profit</div>
@@ -1202,7 +1202,7 @@ export function RevenueIntel() {
       )}
 
       {tab === 'trucks' && (
-        <div style={{ flex:1, minHeight:0, overflow:'hidden' }}>
+        <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
           <TruckROI />
         </div>
       )}
@@ -3114,7 +3114,7 @@ export function DriverProfiles() {
         </div>
       )}
 
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'auto' }}>
       {/* Driver list */}
       <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3287,9 +3287,9 @@ export function BrokerDirectory() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'auto' }}>
       {/* List */}
-      <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
+      <div style={{ width: 280, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input placeholder="Search brokers..." value={search} onChange={e => setSearch(e.target.value)}
             style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none' }} />
@@ -4105,7 +4105,7 @@ export function FleetManager() {
       </div>
 
       {/* ── Right panel ── */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflowY:'auto' }}>
 
         {!truck ? (
           <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:14 }}>No trucks added yet. Click "+ Add Truck" to get started.</div>
@@ -4696,7 +4696,7 @@ export function DriverOnboarding() {
         const requiredCleared = PE_CHECKS.filter(c => c.required).every(c => driver.checks[c.id] === 'cleared' || driver.checks[c.id] === 'waived')
 
         return (
-          <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          <div style={{ flex:1, display:'flex', flexDirection:'column', overflowY:'auto' }}>
 
             {/* Header */}
             <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>
@@ -4984,7 +4984,7 @@ export function LaneIntel() {
       </div>
 
       {/* Detail panel */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflowY:'auto' }}>
         {lane && (
           <>
             {/* Header */}
@@ -5838,7 +5838,7 @@ export function AILoadBoard() {
   const { showToast } = useApp()
   const { addLoad } = useCarrier()
   const [filters, setFilters] = useState({ equip:'All', minRpm:'', sortBy:'score' })
-  const [selected, setSelected] = useState(BOARD_LOADS[0].id)
+  const [selected, setSelected] = useState(BOARD_LOADS[0]?.id || null)
   const [booked, setBooked]     = useState({})
   const [assignDriver, setAssignDriver] = useState('')
   const [rateConFile, setRateConFile] = useState(null)
@@ -5985,7 +5985,7 @@ export function AILoadBoard() {
       </div>
 
       {/* Body */}
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', overflow:'auto' }}>
 
         {/* LEFT: Load list */}
         <div style={{ width:380, flexShrink:0, borderRight:'1px solid var(--border)', overflowY:'auto' }}>
@@ -6736,7 +6736,7 @@ export function CheckCallCenter() {
 
       {/* RIGHT: Detail + log form */}
       {load ? (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflowY:'auto' }}>
 
           {/* Header */}
           <div style={{ padding:'14px 22px', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0, display:'flex', alignItems:'center', gap:16 }}>
@@ -7051,7 +7051,7 @@ export function DriverScorecard() {
         </div>
       </div>
 
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', overflow:'auto' }}>
 
         {/* LEFT: Driver list */}
         <div style={{ width:260, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
@@ -7439,7 +7439,7 @@ export function DATAlertBot() {
         </div>
       </div>
 
-      <div style={{ flex:1, display:'flex', overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', overflow:'auto' }}>
 
         {/* LEFT: Alert feed */}
         <div style={{ width:380, flexShrink:0, borderRight:'1px solid var(--border)', overflowY:'auto', display:'flex', flexDirection:'column' }}>
@@ -8763,7 +8763,7 @@ export function EquipmentManager() {
 
       {/* RIGHT DETAIL */}
       {sel && (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflowY:'auto' }}>
 
           {/* Header */}
           <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>

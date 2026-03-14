@@ -133,6 +133,9 @@ export function AppProvider({ children }) {
         setView('app')
       }
       setAuthLoading(false)
+    }).catch(e => {
+      console.warn('[Qivori] Auth init error:', e)
+      setAuthLoading(false)
     })
 
     // Listen for auth changes (only handle sign-out here; sign-in handled by loginWithCredentials)

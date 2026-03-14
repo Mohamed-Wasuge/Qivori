@@ -26,3 +26,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 )
+
+// Remove boot loader once React has mounted
+const boot = document.getElementById('boot-loader')
+if (boot) boot.remove()

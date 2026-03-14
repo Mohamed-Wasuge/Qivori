@@ -1,26 +1,41 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
 
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
+
   try {
-    // Read body as text first, then parse — avoids Edge Runtime JSON parsing issues with large payloads
     const rawText = await req.text()
+
+    // Validate payload size (20MB max for base64 documents)
+    if (rawText.length > 20 * 1024 * 1024) {
+      return Response.json({ error: 'Payload too large' }, { status: 413, headers: corsHeaders(req) })
+    }
+
     let body
     try { body = JSON.parse(rawText) } catch (parseErr) {
-      return Response.json({ error: 'JSON parse error: ' + parseErr.message, bodyLen: rawText.length }, { status: 400 })
+      return Response.json({ error: 'JSON parse error' }, { status: 400, headers: corsHeaders(req) })
     }
 
     const file = body.file
     const mediaType = body.mediaType
 
     if (!file) {
-      return Response.json({ error: 'No file in request body' }, { status: 400 })
+      return Response.json({ error: 'No file in request body' }, { status: 400, headers: corsHeaders(req) })
+    }
+
+    // Validate media type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+    if (mediaType && !allowedTypes.some(t => mediaType.includes(t.split('/')[1]))) {
+      return Response.json({ error: 'Invalid file type' }, { status: 400, headers: corsHeaders(req) })
     }
 
     const isPdf = (mediaType || '').includes('pdf')
@@ -99,21 +114,21 @@ Rules:
     const data = await response.json()
 
     if (data.error) {
-      return Response.json({ error: data.error.message }, { status: 500 })
+      return Response.json({ error: data.error.message }, { status: 500, headers: corsHeaders(req) })
     }
 
     const text = data.content?.[0]?.text || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       try {
-        return Response.json(JSON.parse(jsonMatch[0]))
+        return Response.json(JSON.parse(jsonMatch[0]), { headers: corsHeaders(req) })
       } catch {
-        return Response.json({ error: 'Invalid JSON from AI', raw: text.slice(0, 200) }, { status: 500 })
+        return Response.json({ error: 'Invalid JSON from AI' }, { status: 500, headers: corsHeaders(req) })
       }
     }
 
-    return Response.json({ error: 'Could not extract data. Try a clearer image.' }, { status: 500 })
+    return Response.json({ error: 'Could not extract data. Try a clearer image.' }, { status: 500, headers: corsHeaders(req) })
   } catch (e) {
-    return Response.json({ error: e.message || 'Server error' }, { status: 500 })
+    return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }
 }

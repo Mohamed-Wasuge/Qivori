@@ -1,26 +1,30 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
+
+  // Require authenticated user
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
-    return Response.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    return Response.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500, headers: corsHeaders(req) })
   }
 
   try {
     let body
     try { body = await req.json() } catch {
-      return Response.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+      return Response.json({ error: 'Request body must be valid JSON' }, { status: 400, headers: corsHeaders(req) })
     }
     const { messages, context, loadBoard } = body
 
-    // Build system prompt with carrier context + action capabilities
     const systemPrompt = `You are Qivori AI, a smart assistant for trucking owner-operators and small fleet carriers. You help drivers manage their business from their phone.
 
 You are concise, friendly, and action-oriented. When the driver asks you to DO something (submit check call, add expense, view loads), you respond with a JSON action block that the app will execute.
@@ -165,7 +169,6 @@ RULES:
     if (!res.ok) {
       const err = await res.text()
       console.error('Claude API error:', res.status, err)
-      // If model not found, try fallback
       if (res.status === 404 || err.includes('model')) {
         const res2 = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -183,18 +186,18 @@ RULES:
         })
         if (res2.ok) {
           const data2 = await res2.json()
-          return Response.json({ reply: data2.content?.[0]?.text || 'No response.' })
+          return Response.json({ reply: data2.content?.[0]?.text || 'No response.' }, { headers: corsHeaders(req) })
         }
       }
-      return Response.json({ error: 'AI temporarily unavailable. Please try again.' }, { status: 502 })
+      return Response.json({ error: 'AI temporarily unavailable. Please try again.' }, { status: 502, headers: corsHeaders(req) })
     }
 
     const data = await res.json()
     const reply = data.content?.[0]?.text || 'No response from AI.'
 
-    return Response.json({ reply })
+    return Response.json({ reply }, { headers: corsHeaders(req) })
   } catch (err) {
     console.error('Chat handler error:', err)
-    return Response.json({ error: 'Something went wrong: ' + err.message }, { status: 500 })
+    return Response.json({ error: 'Something went wrong' }, { status: 500, headers: corsHeaders(req) })
   }
 }

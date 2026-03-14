@@ -1,28 +1,29 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
-  const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
-  const vapidPublicKey = process.env.VITE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    return Response.json({ error: 'Supabase not configured' }, { status: 500 })
+    return Response.json({ error: 'Supabase not configured' }, { status: 500, headers: corsHeaders(req) })
   }
 
   try {
     const { userId, title, body, url, tag } = await req.json()
-    if (!userId) return Response.json({ error: 'userId required' }, { status: 400 })
+    if (!userId) return Response.json({ error: 'userId required' }, { status: 400, headers: corsHeaders(req) })
 
-    // Get user's push subscriptions
-    const subRes = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions?user_id=eq.${userId}&select=subscription_json`, {
+    const subRes = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions?user_id=eq.${encodeURIComponent(userId)}&select=subscription_json`, {
       headers: {
         'apikey': supabaseServiceKey,
         'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -31,22 +32,9 @@ export default async function handler(req) {
     const subs = await subRes.json()
 
     if (!subs || subs.length === 0) {
-      return Response.json({ error: 'No push subscriptions found for user' }, { status: 404 })
+      return Response.json({ error: 'No push subscriptions found for user' }, { status: 404, headers: corsHeaders(req) })
     }
 
-    const payload = JSON.stringify({
-      title: title || 'Qivori AI',
-      body: body || 'You have a new notification',
-      url: url || '/',
-      tag: tag || 'qivori-notification',
-    })
-
-    // Send push to all user's subscriptions
-    // Note: Full web push with VAPID requires crypto signing.
-    // For now, store the notification and the service worker will pick it up.
-    // For production, integrate with a push service like OneSignal or use web-push npm package on a Node runtime.
-
-    // Store notification for in-app delivery
     await fetch(`${supabaseUrl}/rest/v1/notifications`, {
       method: 'POST',
       headers: {
@@ -64,8 +52,8 @@ export default async function handler(req) {
       }),
     })
 
-    return Response.json({ success: true, sent: subs.length })
+    return Response.json({ success: true, sent: subs.length }, { headers: corsHeaders(req) })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }
 }

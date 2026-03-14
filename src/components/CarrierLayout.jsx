@@ -19,6 +19,7 @@ import {
   PLDashboard, ReceivablesAging, DriverPayReport, CashRunway, QuickBooksExport, CarrierPackage, EquipmentManager,
   AnalyticsDashboard, ReferralProgram, SMSSettings,
 } from '../pages/CarrierPages'
+import { apiFetch } from '../lib/api'
 
 const Ic = ({ icon: Icon, size = 16, color, style, ...props }) => <Icon size={size} color={color} style={style} {...props} />
 
@@ -1424,7 +1425,7 @@ async function parseRateConWithAI(file) {
     throw compErr
   }
 
-  const res = await fetch('/api/parse-ratecon', {
+  const res = await apiFetch('/api/parse-ratecon', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file: b64, mediaType: mt })
@@ -2241,7 +2242,7 @@ function AIChatbox() {
     setInput('')
     setLoading(true)
     try {
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages, context: buildContext() }),

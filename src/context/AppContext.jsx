@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { apiFetch } from '../lib/api'
 import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
@@ -284,7 +285,7 @@ export function AppProvider({ children }) {
   const openBillingPortal = async () => {
     if (!subscription.customerId) return
     try {
-      const res = await fetch('/api/create-portal', {
+      const res = await apiFetch('/api/create-portal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId: subscription.customerId }),

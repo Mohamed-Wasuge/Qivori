@@ -32,7 +32,7 @@ export default function LoginPage() {
 
   const handleSignUp = async () => {
     if (!fullName || !email || !password) { setError('Please fill in all required fields.'); return }
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
     setLoading(true)
     setError('')
     const result = await signUp(email, password, selectedRole, fullName, companyName)
@@ -179,7 +179,7 @@ export default function LoginPage() {
           </div>
 
           <div className="form-group" style={{ marginBottom: error ? 12 : 20 }}>
-            <label className="form-label">Password * <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(min 6 characters)</span></label>
+            <label className="form-label">Password * <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(min 8 characters)</span></label>
             <input className="form-input" type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
               onKeyDown={e => e.key === 'Enter' && handleSignUp()} />

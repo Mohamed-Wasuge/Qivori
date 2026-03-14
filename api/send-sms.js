@@ -1,28 +1,31 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken = process.env.TWILIO_AUTH_TOKEN
   const fromNumber = process.env.TWILIO_PHONE_NUMBER
 
   if (!accountSid || !authToken || !fromNumber) {
-    return Response.json({ error: 'Twilio not configured' }, { status: 500 })
+    return Response.json({ error: 'Twilio not configured' }, { status: 500, headers: corsHeaders(req) })
   }
 
   try {
     const { to, message } = await req.json()
     if (!to || !message) {
-      return Response.json({ error: 'to and message are required' }, { status: 400 })
+      return Response.json({ error: 'to and message are required' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // Clean phone number
     const cleanTo = to.replace(/[^\d+]/g, '')
 
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
@@ -41,12 +44,12 @@ export default async function handler(req) {
     if (!res.ok) {
       const err = await res.text()
       console.error('Twilio error:', err)
-      return Response.json({ error: 'Failed to send SMS' }, { status: 502 })
+      return Response.json({ error: 'Failed to send SMS' }, { status: 502, headers: corsHeaders(req) })
     }
 
     const data = await res.json()
-    return Response.json({ success: true, sid: data.sid })
+    return Response.json({ success: true, sid: data.sid }, { headers: corsHeaders(req) })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }
 }

@@ -1,21 +1,28 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
 
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {
-    return Response.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 })
+    return Response.json({ error: 'RESEND_API_KEY not configured' }, { status: 500, headers: corsHeaders(req) })
   }
 
   try {
     const { to, referralCode, referralLink } = await req.json()
-    if (!to) return Response.json({ error: 'Recipient email is required' }, { status: 400 })
+    if (!to) return Response.json({ error: 'Recipient email is required' }, { status: 400, headers: corsHeaders(req) })
+
+    const safeReferralCode = String(referralCode || '').replace(/[<>"'&]/g, '')
+    const safeReferralLink = (referralLink || 'https://qivori.com').replace(/[<>"']/g, '')
 
     const html = `
 <!DOCTYPE html>
@@ -37,23 +44,23 @@ export default async function handler(req) {
       <div style="background:#1e1e2a;border:1px solid #2a2a35;border-radius:12px;padding:20px;margin-bottom:24px;">
         <div style="font-size:12px;color:#f0a500;font-weight:700;letter-spacing:1px;margin-bottom:12px;">WHAT YOU GET</div>
         <div style="margin-bottom:8px;color:#c8c8d0;font-size:13px;">&#x2705; AI dispatcher that works 24/7</div>
-        <div style="margin-bottom:8px;color:#c8c8d0;font-size:13px;">&#x2705; One-tap load booking & invoicing</div>
+        <div style="margin-bottom:8px;color:#c8c8d0;font-size:13px;">&#x2705; One-tap load booking &amp; invoicing</div>
         <div style="margin-bottom:8px;color:#c8c8d0;font-size:13px;">&#x2705; Auto IFTA calculation for all 50 states</div>
         <div style="margin-bottom:8px;color:#c8c8d0;font-size:13px;">&#x2705; 14-day free trial — no credit card needed</div>
         <div style="color:#22c55e;font-size:13px;font-weight:700;">&#x1F381; Plus a FREE month when you subscribe!</div>
       </div>
 
       <div style="text-align:center;">
-        <a href="${referralLink || 'https://qivori.com'}" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">
+        <a href="${safeReferralLink}" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">
           Join Qivori AI Free
         </a>
       </div>
 
-      ${referralCode ? `<div style="text-align:center;margin-top:16px;"><span style="color:#555;font-size:11px;">Referral code: <strong style="color:#f0a500;">${referralCode}</strong></span></div>` : ''}
+      ${safeReferralCode ? `<div style="text-align:center;margin-top:16px;"><span style="color:#555;font-size:11px;">Referral code: <strong style="color:#f0a500;">${safeReferralCode}</strong></span></div>` : ''}
     </div>
 
     <div style="text-align:center;padding-top:16px;">
-      <p style="color:#555;font-size:11px;margin:0;">Qivori AI · AI-Powered TMS for Trucking</p>
+      <p style="color:#555;font-size:11px;margin:0;">Qivori AI - AI-Powered TMS for Trucking</p>
     </div>
   </div>
 </body>
@@ -74,13 +81,11 @@ export default async function handler(req) {
     })
 
     if (!res.ok) {
-      const err = await res.text()
-      console.error('Resend error:', err)
-      return Response.json({ error: 'Failed to send referral email' }, { status: 502 })
+      return Response.json({ error: 'Failed to send referral email' }, { status: 502, headers: corsHeaders(req) })
     }
 
-    return Response.json({ success: true })
+    return Response.json({ success: true }, { headers: corsHeaders(req) })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }
 }

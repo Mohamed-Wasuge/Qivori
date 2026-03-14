@@ -3,6 +3,7 @@ import { BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock
 import { useApp } from '../context/AppContext'
 import { useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF, generateSettlementPDF, generateIFTAPDF } from '../utils/generatePDF'
+import { apiFetch } from '../lib/api'
 
 const Ic = ({ icon: Icon, size = 14, ...p }) => <Icon size={size} {...p} />
 
@@ -349,7 +350,7 @@ export function SmartDispatch() {
     try {
       const { b64, mt } = await compressAddImg(file)
       if (!b64 || b64.length < 50) { showToast('','Error','Could not read file'); setAddParsing(false); return }
-      const res = await fetch('/api/parse-ratecon', {
+      const res = await apiFetch('/api/parse-ratecon', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ file: b64, mediaType: mt })
       })
@@ -430,7 +431,7 @@ export function SmartDispatch() {
       `Available drivers: ${dispatchDrivers.filter(d=>d.status==='Available').map(d=>d.name+' ('+d.hos+' HOS, '+d.location+')').join(', ')}`,
     ].join('\n')
     try {
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: next, context }),
@@ -3376,7 +3377,7 @@ export function ExpenseTracker() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/parse-receipt', { method: 'POST', body: fd })
+      const res = await apiFetch('/api/parse-receipt', { method: 'POST', body: fd })
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
       const d = json.data
@@ -5876,7 +5877,7 @@ export function AILoadBoard() {
         return
       }
       showToast('','Sending to AI',`${(base64.length/1024).toFixed(0)} KB compressed — analyzing...`)
-      const res = await fetch('/api/parse-ratecon', {
+      const res = await apiFetch('/api/parse-ratecon', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ file: base64, mediaType })
       })
@@ -9313,7 +9314,7 @@ export function ReferralProgram() {
     }
     setSending(true)
     try {
-      await fetch('/api/send-referral', {
+      await apiFetch('/api/send-referral', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: inviteEmail, referralCode, referralLink }),
@@ -9495,7 +9496,7 @@ export function SMSSettings() {
     if (!phone) { showToast('error', 'No Phone', 'Enter your phone number first'); return }
     setTestSending(true)
     try {
-      const res = await fetch('/api/send-sms', {
+      const res = await apiFetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: phone, message: 'Qivori AI test notification — SMS alerts are working!' }),

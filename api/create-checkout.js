@@ -1,3 +1,5 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 const PLANS = {
@@ -7,26 +9,27 @@ const PLANS = {
 }
 
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
 
   const stripeKey = process.env.STRIPE_SECRET_KEY
   if (!stripeKey) {
-    return Response.json({ error: 'STRIPE_SECRET_KEY not configured. Add it in Vercel → Settings → Environment Variables.' }, { status: 500 })
+    return Response.json({ error: 'STRIPE_SECRET_KEY not configured' }, { status: 500, headers: corsHeaders(req) })
   }
 
   try {
     const { planId, email, userId } = await req.json()
     const plan = PLANS[planId]
-    if (!plan) return Response.json({ error: 'Invalid plan' }, { status: 400 })
+    if (!plan) return Response.json({ error: 'Invalid plan' }, { status: 400, headers: corsHeaders(req) })
 
-    const origin = req.headers.get('origin') || 'https://qivori.ai'
+    const origin = req.headers.get('origin') || 'https://qivori.com'
 
-    // Create Stripe Checkout Session via API (no SDK needed for edge)
     const params = new URLSearchParams()
     params.append('mode', 'subscription')
     params.append('success_url', `${origin}/?checkout=success&plan=${planId}`)
@@ -55,11 +58,11 @@ export default async function handler(req) {
 
     const session = await res.json()
     if (session.error) {
-      return Response.json({ error: session.error.message }, { status: 400 })
+      return Response.json({ error: session.error.message }, { status: 400, headers: corsHeaders(req) })
     }
 
-    return Response.json({ url: session.url, sessionId: session.id })
+    return Response.json({ url: session.url, sessionId: session.id }, { headers: corsHeaders(req) })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }
 }

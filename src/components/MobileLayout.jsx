@@ -6,6 +6,7 @@ import {
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
   CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell
 } from 'lucide-react'
+import { apiFetch } from '../lib/api'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -128,7 +129,7 @@ function MobileAI() {
           if (sub) {
             const { user } = await import('../lib/supabase').then(m => ({ user: null })).catch(() => ({ user: null }))
             // Save subscription — will work once VAPID keys are configured
-            fetch('/api/push-subscribe', {
+            apiFetch('/api/push-subscribe', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId: 'anonymous', subscription: sub.toJSON() }),
@@ -299,7 +300,7 @@ function MobileAI() {
             if (action.state) body.state = action.state
             if (action.highway) body.highway = action.highway
             if (action.radius) body.radius = action.radius
-            const wsRes = await fetch('/api/weigh-stations', {
+            const wsRes = await apiFetch('/api/weigh-stations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(body),
@@ -340,7 +341,7 @@ function MobileAI() {
         }
         case 'send_invoice': {
           try {
-            const res = await fetch('/api/send-invoice', {
+            const res = await apiFetch('/api/send-invoice', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -472,7 +473,7 @@ function MobileAI() {
   // ── WEIGH STATION REPORT ──────────────────────
   const reportWeighStation = async (ws, reportStatus) => {
     try {
-      await fetch('/api/weigh-stations', {
+      await apiFetch('/api/weigh-stations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -645,7 +646,7 @@ function MobileAI() {
       const mediaType = file.type || 'image/jpeg'
 
       // Send to parse-ratecon API
-      const res = await fetch('/api/parse-ratecon', {
+      const res = await apiFetch('/api/parse-ratecon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: base64, mediaType }),
@@ -730,7 +731,7 @@ function MobileAI() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

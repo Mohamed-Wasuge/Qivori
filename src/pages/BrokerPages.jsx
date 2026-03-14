@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { fetchLoads, createLoad, updateLoad, fetchInvoices, createInvoice, updateInvoice, fetchDrivers, fetchDocuments, createDocument } from '../lib/database'
+import { apiFetch } from '../lib/api'
 import {
   Package, TrendingUp, Truck, DollarSign, Clock, CheckCircle, MapPin,
   Search, Star, Shield, Phone, ChevronDown, ChevronUp, Zap, Bot,
@@ -207,7 +208,7 @@ export function BrokerPostLoad() {
     try {
       const { b64: base64, mt: mediaType } = await compressImg(file)
 
-      const res = await fetch('/api/parse-ratecon', {
+      const res = await apiFetch('/api/parse-ratecon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: base64, mediaType })

@@ -1,5 +1,7 @@
 export const config = { runtime: 'edge' }
 
+// Stripe webhook — no CORS needed (called by Stripe servers, not browser)
+// No user auth — authenticated via Stripe webhook signature (HMAC)
 export default async function handler(req) {
   if (req.method !== 'POST') {
     return Response.json({ error: 'POST only' }, { status: 405 })
@@ -11,31 +13,50 @@ export default async function handler(req) {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
 
   if (!stripeKey || !supabaseUrl || !supabaseServiceKey || !webhookSecret) {
-    return Response.json({ error: 'Missing env vars: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_URL, and SUPABASE_SERVICE_KEY are all required' }, { status: 500 })
+    return Response.json({ error: 'Missing required env vars' }, { status: 500 })
   }
 
   try {
     const body = await req.text()
 
-    // Verify webhook signature if secret is configured
-    if (webhookSecret) {
-      const sig = req.headers.get('stripe-signature')
-      if (!sig) return Response.json({ error: 'No signature' }, { status: 400 })
+    // Verify Stripe webhook signature (HMAC-SHA256)
+    const sig = req.headers.get('stripe-signature')
+    if (!sig) return Response.json({ error: 'No signature' }, { status: 400 })
 
-      // Simple signature verification for edge (without Stripe SDK)
-      const timestamp = sig.split(',').find(s => s.startsWith('t='))?.split('=')[1]
-      if (!timestamp) return Response.json({ error: 'Bad signature' }, { status: 400 })
+    const timestamp = sig.split(',').find(s => s.startsWith('t='))?.split('=')[1]
+    const v1Sig = sig.split(',').find(s => s.startsWith('v1='))?.split('=')[1]
 
-      // Verify timestamp is within 5 minutes
-      const now = Math.floor(Date.now() / 1000)
-      if (Math.abs(now - parseInt(timestamp)) > 300) {
-        return Response.json({ error: 'Timestamp too old' }, { status: 400 })
-      }
+    if (!timestamp || !v1Sig) {
+      return Response.json({ error: 'Bad signature format' }, { status: 400 })
+    }
+
+    // Verify timestamp is within 5 minutes (prevent replay attacks)
+    const now = Math.floor(Date.now() / 1000)
+    if (Math.abs(now - parseInt(timestamp)) > 300) {
+      return Response.json({ error: 'Timestamp too old' }, { status: 400 })
+    }
+
+    // Verify HMAC signature
+    const signedPayload = `${timestamp}.${body}`
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(webhookSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload))
+    const expectedSig = Array.from(new Uint8Array(signatureBytes))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+
+    if (expectedSig !== v1Sig) {
+      return Response.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
     const event = JSON.parse(body)
 
-    // Handle relevant events
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
@@ -44,7 +65,6 @@ export default async function handler(req) {
         const customerId = session.customer
 
         if (customerEmail && subscriptionId) {
-          // Fetch subscription details from Stripe
           const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
             headers: { 'Authorization': `Bearer ${stripeKey}` },
           })
@@ -53,12 +73,11 @@ export default async function handler(req) {
           const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
           const currentPeriodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null
 
-          // Update profile in Supabase
           await updateProfile(supabaseUrl, supabaseServiceKey, customerEmail, {
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             subscription_plan: planId,
-            subscription_status: subscription.status, // 'trialing' or 'active'
+            subscription_status: subscription.status,
             trial_ends_at: trialEnd,
             current_period_end: currentPeriodEnd,
             status: 'active',
@@ -74,7 +93,6 @@ export default async function handler(req) {
         const currentPeriodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null
         const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
 
-        // Find profile by stripe_customer_id
         await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
           subscription_plan: planId,
           subscription_status: subscription.status,
@@ -111,11 +129,10 @@ export default async function handler(req) {
     return Response.json({ received: true })
   } catch (err) {
     console.error('Webhook error:', err)
-    return Response.json({ error: err.message }, { status: 500 })
+    return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 }
 
-// Update profile by email
 async function updateProfile(supabaseUrl, serviceKey, email, updates) {
   const res = await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}`, {
     method: 'PATCH',
@@ -130,7 +147,6 @@ async function updateProfile(supabaseUrl, serviceKey, email, updates) {
   if (!res.ok) console.error('Profile update failed:', await res.text())
 }
 
-// Update profile by Stripe customer ID
 async function updateProfileByCustomer(supabaseUrl, serviceKey, customerId, updates) {
   const res = await fetch(`${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`, {
     method: 'PATCH',

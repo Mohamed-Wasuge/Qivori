@@ -6,6 +6,9 @@
     <title>Qivori — AI-Powered Freight Intelligence</title>
     <meta name="description" content="Qivori is the AI-powered TMS platform for carriers and brokers. Load board, dispatch, fleet tracking, IFTA, P&L, compliance — all in one place." />
     <meta name="theme-color" content="#07090e" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -42,6 +45,7 @@
     </div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Clear stale service workers and caches
       try {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function(regs) {
@@ -54,6 +58,19 @@
           }
         }
       } catch(e) {}
+
+      // Safety net: if JS crashes completely, show error instead of black screen
+      window.addEventListener('error', function(e) {
+        var boot = document.getElementById('boot-loader')
+        if (boot) {
+          boot.innerHTML = '<div style="text-align:center;padding:40px">'
+            + '<div style="font-family:Bebas Neue,system-ui;font-size:28px;letter-spacing:4px;color:#c8d0dc;margin-bottom:16px">QI<span style="color:#f0a500">VORI</span></div>'
+            + '<div style="color:#d95555;font-size:14px;font-weight:600;margin-bottom:12px;font-family:DM Sans,system-ui">Failed to load</div>'
+            + '<div style="color:#6b7590;font-size:12px;margin-bottom:20px;font-family:DM Sans,system-ui">Try refreshing the page (Ctrl+Shift+R)</div>'
+            + '<button onclick="location.reload(true)" style="padding:10px 24px;font-size:13px;font-weight:700;background:#f0a500;color:#000;border:none;border-radius:8px;cursor:pointer;font-family:DM Sans,system-ui">Reload</button>'
+            + '</div>'
+        }
+      })
     </script>
   </body>
 </html>

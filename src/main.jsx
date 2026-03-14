@@ -27,6 +27,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 )
 
-// Remove boot loader once React has mounted
-const boot = document.getElementById('boot-loader')
-if (boot) boot.remove()
+// Remove boot loader after React has painted (not just called render)
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    const boot = document.getElementById('boot-loader')
+    if (boot) boot.remove()
+  })
+})

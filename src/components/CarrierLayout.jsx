@@ -363,7 +363,7 @@ function OverviewTab({ onTabChange }) {
       {/* ── PIPELINE BAR ──────────────────────────────────────────── */}
       <div style={pan}>
         {panHead('LOAD PIPELINE', Layers, <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => onTabChange('loads')}>Open Pipeline</button>)}
-        <div style={{ padding:'10px 14px', display:'flex', gap:4 }}>
+        <div style={{ padding:'10px 14px', display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:6 }}>
           {[
             { label:'Booked', statuses:['Rate Con Received','Booked'], color:'var(--accent)' },
             { label:'Dispatched', statuses:['Assigned to Driver','En Route to Pickup'], color:'var(--accent3)' },
@@ -376,12 +376,12 @@ function OverviewTab({ onTabChange }) {
             const total = loads.length || 1
             return (
               <div key={col.label} onClick={() => onTabChange('loads')}
-                style={{ flex:1, cursor:'pointer', textAlign:'center', padding:'8px 4px', borderRadius:6, background:'var(--surface2)', border:'1px solid var(--border)', transition:'all 0.12s' }}
+                style={{ cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'10px 4px', borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)', transition:'all 0.12s' }}
                 onMouseOver={e => { e.currentTarget.style.borderColor=col.color; e.currentTarget.style.background=col.color+'08' }}
                 onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.background='var(--surface2)' }}>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:20, color:col.color, lineHeight:1, fontWeight:700 }}>{count}</div>
-                <div style={{ fontSize:8, color:'var(--muted)', marginTop:3, fontWeight:700, letterSpacing:0.5 }}>{col.label.toUpperCase()}</div>
-                <div style={{ height:2, background:'var(--border)', borderRadius:1, marginTop:5, overflow:'hidden' }}>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, color:col.color, lineHeight:1, fontWeight:700 }}>{count}</div>
+                <div style={{ fontSize:9, color:'var(--muted)', marginTop:5, fontWeight:700, letterSpacing:0.5, textAlign:'center' }}>{col.label.toUpperCase()}</div>
+                <div style={{ width:'80%', height:2, background:'var(--border)', borderRadius:1, marginTop:6, overflow:'hidden' }}>
                   <div style={{ height:'100%', width:`${Math.min((count/total)*100, 100)}%`, background:col.color, borderRadius:1 }} />
                 </div>
               </div>

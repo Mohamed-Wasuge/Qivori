@@ -361,6 +361,9 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Referral Program */}
+        <ReferralPanel />
+
         {/* Integrations */}
         <div className="panel fade-in">
           <div className="panel-header"><div className="panel-title"><Ic icon={Wrench} size={14} /> Integrations</div></div>
@@ -388,6 +391,71 @@ export function Settings() {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ReferralPanel() {
+  const { showToast } = useApp()
+  const [referralData, setReferralData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { apiFetch } = await import('../lib/api')
+        const res = await apiFetch('/api/referral')
+        if (res.ok) setReferralData(await res.json())
+      } catch {}
+      setLoading(false)
+    })()
+  }, [])
+
+  const copyLink = () => {
+    if (referralData?.link) {
+      navigator.clipboard.writeText(referralData.link).then(() => {
+        showToast('', 'Link Copied!', referralData.link)
+      })
+    }
+  }
+
+  return (
+    <div className="panel fade-in" style={{ marginBottom: 16 }}>
+      <div className="panel-header">
+        <div className="panel-title"><Ic icon={Users} size={14} /> Referral Program</div>
+        <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '3px 8px', borderRadius: 20 }}>Earn Free Months</span>
+      </div>
+      <div style={{ padding: 16 }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>Loading referral data...</div>
+        ) : referralData ? (
+          <>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>YOUR REFERRAL LINK</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input value={referralData.link || ''} readOnly style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--text)' }} />
+                <button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 11, fontWeight: 700 }} onClick={copyLink}>Copy</button>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>Share this link. When someone signs up and pays, you get <strong style={{ color: 'var(--success)' }}>1 month free</strong>. They get <strong style={{ color: 'var(--accent)' }}>14 extra days</strong> on their trial.</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              {[
+                { label: 'Clicks', value: referralData.totalClicks || 0, color: 'var(--accent)' },
+                { label: 'Signups', value: referralData.signups || 0, color: 'var(--accent2)' },
+                { label: 'Paid', value: referralData.paid || 0, color: 'var(--success)' },
+                { label: 'Rewards', value: referralData.rewardsEarned || 0, color: '#f0a500' },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>{s.label}</div>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: s.color }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>Sign in to see your referral link</div>
+        )}
       </div>
     </div>
   )

@@ -211,6 +211,7 @@ export function AppProvider({ children }) {
 
     // Create profile row
     if (data.user) {
+      const refCode = typeof localStorage !== 'undefined' ? localStorage.getItem('qivori_ref') : null
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
         email,
@@ -218,6 +219,7 @@ export function AppProvider({ children }) {
         full_name: fullName,
         company_name: companyName,
         status: 'pending',
+        referred_by: refCode || null,
       })
       if (profileError) console.error('Profile creation error:', profileError)
 
@@ -227,6 +229,16 @@ export function AppProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, fullName, role }),
       }).catch(() => {})
+
+      // Track referral signup (fire and forget)
+      if (refCode) {
+        fetch('/api/referral', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'signup', referralCode: refCode, email }),
+        }).catch(() => {})
+        localStorage.removeItem('qivori_ref')
+      }
     }
 
     return { ok: true, needsConfirmation: !data.session }

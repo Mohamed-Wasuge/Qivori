@@ -31,6 +31,10 @@
     }
   ],
   "rewrites": [
+    { "source": "/ref/:code", "destination": "/?ref=:code" },
     { "source": "/((?!api/).*)", "destination": "/" }
+  ],
+  "crons": [
+    { "path": "/api/lifecycle-cron", "schedule": "0 */6 * * *" }
   ]
 }

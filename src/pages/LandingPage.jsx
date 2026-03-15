@@ -279,6 +279,21 @@ export default function LandingPage({ onGetStarted }) {
   const [checkoutLoading, setCheckoutLoading] = useState(null)
   const [founderCount, setFounderCount] = useState(0)
 
+  // Track referral code from URL (?ref=code or /ref/code)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const refCode = params.get('ref')
+    if (refCode) {
+      localStorage.setItem('qivori_ref', refCode)
+      // Track referral click
+      fetch('/api/referral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'click', referralCode: refCode }),
+      }).catch(() => {})
+    }
+  }, [])
+
   // Fetch Autopilot AI subscriber count for founder spots
   useEffect(() => {
     async function fetchFounderCount() {

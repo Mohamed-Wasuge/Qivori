@@ -18,7 +18,7 @@ import LoadBoard from './pages/LoadBoard'
 import Carriers from './pages/Carriers'
 import { Shippers, Payments, Documents } from './pages/MorePages'
 import { Onboarding, AIEngine, Settings } from './pages/ExtraPages'
-import { WaitlistManager, Analytics, ActivityLog, MasterAgent } from './pages/AdminPages'
+import { WaitlistManager, Analytics, ActivityLog, MasterAgent, RevenueDashboard } from './pages/AdminPages'
 import { BrokerDashboard, BrokerPostLoad, BrokerLoads, BrokerCarriers, BrokerPayments } from './pages/BrokerPages'
 import {
   CarrierDashboard, SmartDispatch, RevenueIntel,
@@ -34,7 +34,7 @@ const PAGES = {
   loadboard: LoadBoard,
   carriers: Carriers,
   brokers: Shippers,       // Shippers component now renders Broker management
-  payments: Payments,      // Payments component now renders Revenue/Subscriptions
+  payments: RevenueDashboard, // Admin Revenue Dashboard (MRR, ARR, churn, signups)
   support: Documents,      // Documents component now renders Support Tickets
   settings: Settings,
   waitlist: WaitlistManager,

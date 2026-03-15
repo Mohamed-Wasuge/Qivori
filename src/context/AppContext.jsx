@@ -23,6 +23,7 @@ export const ROLES = {
       { id: 'support', icon: FileText, label: 'Support' },
       { id: 'waitlist', icon: UserPlus, label: 'Waitlist' },
       { id: 'analytics', icon: BarChart2, label: 'Analytics' },
+      { id: 'ai-agent', icon: Bot, label: 'AI Agent', badge: 'LIVE', badgeClass: 'green' },
       { id: 'activity', icon: Shield, label: 'Security' },
       { id: 'settings', icon: Settings, label: 'Settings' },
     ],

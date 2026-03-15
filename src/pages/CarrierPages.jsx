@@ -198,10 +198,9 @@ export function CarrierDashboard() {
 }
 
 // ─── AI DISPATCH COPILOT ───────────────────────────────────────────────────────
-// DAT-normalized load shape — swap normalizeDATLoad() when API keys are ready
-// Sample load board data — replaced by DAT API when connected
-const MARKET_LOADS = [
-  { id:'DAT-8821', from:'ATL', fromFull:'Atlanta, GA', to:'CHI', toFull:'Chicago, IL', miles:674, gross:3840, rpm:2.94, weight:'42,000', commodity:'Auto Parts', broker:'Echo Global', brokerScore:98, brokerPay:'< 24hr', pickup:'Today 2PM', delivery:'Mar 9 · 10AM', equipment:'Dry Van', deadhead:22, aiScore:96, mktLow:2.55, mktAvg:2.80, mktHigh:3.10, tags:['AI TOP PICK','FAST PAY'], source:'dat' },
+// Fallback sample data — used when no load board API keys are configured
+const SAMPLE_MARKET_LOADS = [
+  { id:'DAT-8821', from:'ATL', fromFull:'Atlanta, GA', to:'CHI', toFull:'Chicago, IL', miles:674, gross:3840, rpm:2.94, weight:'42,000', commodity:'Auto Parts', broker:'Echo Global', brokerScore:98, brokerPay:'< 24hr', pickup:'Today 2PM', delivery:'Mar 9 · 10AM', equipment:'Dry Van', deadhead:22, aiScore:96, mktLow:2.55, mktAvg:2.80, mktHigh:3.10, tags:['AI TOP PICK','FAST PAY'], source:'sample' },
 ]
 
 const DISPATCH_DRIVERS = []
@@ -222,7 +221,7 @@ export function SmartDispatch() {
     location: '', hos: '—', unit: '',
   })) : DISPATCH_DRIVERS
 
-  const [loads, setLoads] = useState(MARKET_LOADS)
+  const [loads, setLoads] = useState(SAMPLE_MARKET_LOADS)
   const [selected, setSelected] = useState(null)
   const [filter, setFilter] = useState('All')
   const [searchOrigin, setSearchOrigin] = useState('')
@@ -233,6 +232,65 @@ export function SmartDispatch() {
   const [aiMessages, setAiMessages]     = useState({})     // keyed by load.id
   const [aiInput, setAiInput]           = useState('')
   const [aiLoading, setAiLoading]       = useState(false)
+  const [lbSource, setLbSource]         = useState('')
+  const [lbLoading, setLbLoading]       = useState(false)
+
+  // Fetch live loads from API
+  useEffect(() => {
+    let cancelled = false
+    async function fetchLiveLoads() {
+      setLbLoading(true)
+      try {
+        const params = new URLSearchParams()
+        if (searchOrigin) params.set('origin', searchOrigin)
+        if (searchDest) params.set('destination', searchDest)
+        if (equipment !== 'All') params.set('equipment', equipment)
+        const res = await apiFetch(`/api/load-board?${params}`)
+        if (!res.ok) throw new Error('API error')
+        const data = await res.json()
+        if (!cancelled && data.loads?.length > 0) {
+          // Normalize API loads to SmartDispatch shape
+          const mapped = data.loads.map(l => ({
+            id: l.id,
+            from: (l.originCity || l.origin || '').split(',')[0]?.trim().slice(0, 3).toUpperCase() || l.origin?.slice(0, 3)?.toUpperCase() || '',
+            fromFull: l.origin || `${l.originCity}, ${l.originState}`,
+            to: (l.destCity || l.dest || '').split(',')[0]?.trim().slice(0, 3).toUpperCase() || l.dest?.slice(0, 3)?.toUpperCase() || '',
+            toFull: l.dest || `${l.destCity}, ${l.destState}`,
+            miles: l.miles || 0,
+            gross: l.gross || 0,
+            rpm: l.rate || 0,
+            weight: l.weight || '',
+            commodity: l.commodity || '',
+            broker: l.broker || 'Unknown',
+            brokerScore: 70,
+            brokerPay: '< 5 days',
+            pickup: l.pickup || '',
+            delivery: l.delivery || '',
+            equipment: l.equipment || 'Dry Van',
+            deadhead: l.deadhead || 0,
+            aiScore: l.aiScore || 50,
+            mktLow: (l.rate || 2.50) - 0.30,
+            mktAvg: l.rate || 2.70,
+            mktHigh: (l.rate || 2.90) + 0.25,
+            tags: l.aiScore >= 80 ? ['AI TOP PICK'] : [],
+            source: l.source || 'api',
+            refNum: l.refNum || '',
+          }))
+          setLoads(mapped)
+          setLbSource(data.source || '')
+          if (!selected && mapped.length > 0) setSelected(mapped[0].id)
+        }
+      } catch {
+        // Keep sample data as fallback
+      } finally {
+        if (!cancelled) setLbLoading(false)
+      }
+    }
+    fetchLiveLoads()
+    // Refresh every 15 min
+    const interval = setInterval(fetchLiveLoads, 15 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [searchOrigin, searchDest, equipment])
   // editable calc inputs per load
   const [calcInputs, setCalcInputs]     = useState({})
   // Add Load modal
@@ -5750,18 +5808,18 @@ export function CommandCenter() {
 }
 
 // ─── AI LOAD BOARD ────────────────────────────────────────────────────────────
-// Broker risk reference — add your brokers here
+// Broker risk reference — grows from API data over time
 const LB_BROKER = {
   'Echo Global': { risk:'LOW', score:98, pay:'< 24hr', color:'var(--success)' },
 }
 
-// Lane market rates — populated by DAT feed when connected
+// Lane market rates — populated by load board API data
 const LB_LANE = {
   'CHI→ATL': { avgRpm:2.72, trend:0, backhaul:50 },
 }
 
-// Sample load board — replaced by live DAT feed when connected
-const BOARD_LOADS = [
+// Fallback sample load — shown when no API keys configured
+const SAMPLE_BOARD_LOADS = [
   { id:'LD-001', broker:'Echo Global', origin:'Chicago, IL', dest:'Atlanta, GA', miles:674, rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts', equipment:'Dry Van', pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM', deadhead:0, refNum:'EC-89100', laneKey:'CHI→ATL' },
 ]
 
@@ -5933,12 +5991,62 @@ export function AILoadBoard() {
   const { showToast } = useApp()
   const { addLoad } = useCarrier()
   const [filters, setFilters] = useState({ equip:'All', minRpm:'', sortBy:'score' })
-  const [selected, setSelected] = useState(BOARD_LOADS[0]?.id || null)
+  const [boardLoads, setBoardLoads] = useState(SAMPLE_BOARD_LOADS)
+  const [selected, setSelected] = useState(SAMPLE_BOARD_LOADS[0]?.id || null)
   const [booked, setBooked]     = useState({})
   const [assignDriver, setAssignDriver] = useState('')
   const [rateConFile, setRateConFile] = useState(null)
   const [parsingRC, setParsingRC] = useState(false)
+  const [lbSource, setLbSource] = useState('')
+  const [lbLoading, setLbLoading] = useState(false)
   const rcFileRef = useRef(null)
+
+  // Fetch live loads from API
+  useEffect(() => {
+    let cancelled = false
+    async function fetchLiveLoads() {
+      setLbLoading(true)
+      try {
+        const params = new URLSearchParams()
+        if (filters.equip !== 'All') params.set('equipment', filters.equip)
+        const res = await apiFetch(`/api/load-board?${params}`)
+        if (!res.ok) throw new Error('API error')
+        const data = await res.json()
+        if (!cancelled && data.loads?.length > 0) {
+          const mapped = data.loads.map(l => ({
+            id: l.id,
+            broker: l.broker || 'Unknown',
+            origin: l.origin || `${l.originCity}, ${l.originState}`,
+            dest: l.dest || `${l.destCity}, ${l.destState}`,
+            miles: l.miles || 0,
+            rate: l.rate || 0,
+            gross: l.gross || 0,
+            weight: l.weight || '',
+            commodity: l.commodity || '',
+            equipment: l.equipment || 'Dry Van',
+            pickup: l.pickup || '',
+            delivery: l.delivery || '',
+            deadhead: l.deadhead || 0,
+            refNum: l.refNum || '',
+            laneKey: l.laneKey || '',
+            source: l.source || 'api',
+          }))
+          setBoardLoads(mapped)
+          setLbSource(data.source || '')
+          if (!selected || !mapped.find(l => l.id === selected)) {
+            setSelected(mapped[0]?.id || null)
+          }
+        }
+      } catch {
+        // Keep sample data as fallback
+      } finally {
+        if (!cancelled) setLbLoading(false)
+      }
+    }
+    fetchLiveLoads()
+    const interval = setInterval(fetchLiveLoads, 15 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [filters.equip])
 
   const compressImage = (file) => new Promise((resolve) => {
     if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
@@ -6007,8 +6115,8 @@ export function AILoadBoard() {
   const sf = (k, v) => setFilters(p => ({ ...p, [k]: v }))
 
   const scored = useMemo(() =>
-    BOARD_LOADS.map(l => ({ ...l, aiScore: calcAiScore(l) }))
-  , [])
+    boardLoads.map(l => ({ ...l, aiScore: calcAiScore(l) }))
+  , [boardLoads])
 
   const filtered = useMemo(() => {
     let r = scored

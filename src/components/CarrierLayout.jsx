@@ -1618,7 +1618,7 @@ const DOC_COLORS = { 'Rate Con': 'var(--accent)', 'BOL': 'var(--accent2)', 'POD'
 
 function BookedLoads() {
   const { showToast } = useApp()
-  const { loads: bookedLoads, addLoad: ctxAddLoad, updateLoadStatus: ctxUpdateStatus, company } = useCarrier()
+  const { loads: bookedLoads, addLoad: ctxAddLoad, updateLoadStatus: ctxUpdateStatus, removeLoad, company } = useCarrier()
   const [loadDocs, setLoadDocs] = useState({
     1: [{ id: 1, name: 'EC-88421-ratecon.pdf', type: 'Rate Con', size: '124 KB', uploadedAt: 'Mar 8', dataUrl: null }],
     2: [{ id: 2, name: 'CL-22910-ratecon.pdf', type: 'Rate Con', size: '98 KB',  uploadedAt: 'Mar 8', dataUrl: null }],
@@ -2110,6 +2110,10 @@ function BookedLoads() {
                   <button className="btn btn-ghost" style={{ fontSize: 11, marginLeft: 'auto', color: docsOpenId === load.id ? 'var(--accent)' : undefined }}
                     onClick={() => setDocsOpenId(docsOpenId === load.id ? null : load.id)}>
                     Documents {loadDocs[load.id]?.length ? `(${loadDocs[load.id].length})` : ''}
+                  </button>
+                  <button className="btn btn-ghost" style={{ fontSize: 11, color: 'var(--danger)' }}
+                    onClick={() => { if (window.confirm(`Delete load ${load.loadId}? This cannot be undone.`)) removeLoad(load.loadId) }}>
+                    Delete Load
                   </button>
                 </div>
 

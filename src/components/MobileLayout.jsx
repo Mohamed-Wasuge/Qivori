@@ -1197,6 +1197,121 @@ function MobileAI() {
       }
     }
 
+    // ── ACCOUNT MANAGEMENT — upgrade/downgrade plan ──
+    if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(solo|fleet|enterprise|autopilot|growing)\b/.test(lowerText)) {
+      // Detect which plan they want
+      let targetPlan = null
+      if (/solo/i.test(lowerText)) targetPlan = { id: 'solo', name: 'Solo', price: '$99/mo' }
+      else if (/fleet/i.test(lowerText)) targetPlan = { id: 'fleet', name: 'Fleet', price: '$299/mo' }
+      else if (/enterprise|growing/i.test(lowerText)) targetPlan = { id: 'growing', name: 'Enterprise', price: '$599/mo' }
+
+      if (targetPlan) {
+        // Generate Stripe checkout link
+        try {
+          const res = await apiFetch('/api/create-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ planId: targetPlan.id, email: user?.email, userId: user?.id }),
+          })
+          const data = await res.json()
+          if (data.url) {
+            setMessages(m => [...m, { role: 'assistant', content: `**Upgrade to ${targetPlan.name} (${targetPlan.price})**\n\nI've generated your checkout link. Tap below to complete:\n\n[Upgrade Now](${data.url})\n\nIncludes a 14-day free trial. Cancel anytime.` }])
+            speak(`Opening checkout for the ${targetPlan.name} plan at ${targetPlan.price}.`)
+            setTimeout(() => window.open(data.url, '_blank'), 1500)
+          } else {
+            setMessages(m => [...m, { role: 'assistant', content: `Couldn't create checkout: ${data.error || 'Try again later.'}` }])
+          }
+        } catch (err) {
+          setMessages(m => [...m, { role: 'assistant', content: `Error creating checkout: ${err.message}` }])
+        }
+      } else {
+        // No specific plan mentioned — show options
+        setMessages(m => [...m, { role: 'assistant', content: `**Available Plans:**\n\n**Solo** — $99/mo\nPerfect for owner-operators. AI dispatch, load scoring, compliance.\n\n**Fleet** — $299/mo\nFor small fleets. Everything in Solo + fleet management, driver scorecards.\n\n**Enterprise** — $599/mo\nFull platform. Everything in Fleet + Autopilot AI, priority support.\n\nSay **"upgrade to Solo"**, **"upgrade to Fleet"**, or **"upgrade to Enterprise"** to get started.` }])
+        speak('I have three plans available. Solo at 99, Fleet at 299, and Enterprise at 599 per month. Which would you like?')
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── ACCOUNT MANAGEMENT — activate/deactivate features ──
+    if (/\b(activate|enable|turn\s*on|start|deactivate|disable|turn\s*off|stop)\s+(load\s*find|proactive|autopilot|eld|hos\s*track|ifta|fuel\s*optim|broker\s*risk|csa|compliance|dvir|clearinghouse|notifications?|push)\b/i.test(lowerText)) {
+      const isActivate = /\b(activate|enable|turn\s*on|start)\b/i.test(lowerText)
+      const featureMatch = lowerText.match(/\b(load\s*find\w*|proactive|autopilot|eld|hos\s*track\w*|ifta|fuel\s*optim\w*|broker\s*risk|csa|compliance|dvir|clearinghouse|notifications?|push)\b/i)
+      const feature = featureMatch ? featureMatch[1].trim() : 'unknown'
+
+      const featureNames = {
+        'load find': 'Proactive Load Finding', 'proactive': 'Proactive Load Finding', 'autopilot': 'Autopilot AI',
+        'eld': 'ELD/HOS Tracking', 'hos track': 'HOS Tracking', 'ifta': 'IFTA Reporting',
+        'fuel optim': 'Fuel Optimizer', 'broker risk': 'Broker Risk Intel', 'csa': 'CSA Score Monitor',
+        'compliance': 'AI Compliance Center', 'dvir': 'DVIR', 'clearinghouse': 'Drug & Alcohol Clearinghouse',
+        'notification': 'Push Notifications', 'notifications': 'Push Notifications', 'push': 'Push Notifications',
+      }
+      const friendlyName = Object.entries(featureNames).find(([k]) => feature.includes(k))?.[1] || feature
+
+      // Save setting to Supabase
+      try {
+        const { supabase: sb } = await import('../lib/supabase')
+        const settingKey = `feature_${feature.replace(/\s+/g, '_')}`
+        await sb.from('platform_settings').upsert({
+          owner_id: user?.id,
+          key: settingKey,
+          value: isActivate ? 'true' : 'false',
+        }, { onConflict: 'owner_id,key' })
+
+        const action = isActivate ? 'activated' : 'deactivated'
+        setMessages(m => [...m, { role: 'assistant', content: `**${friendlyName}** has been **${action}**.\n\n${isActivate ? 'This feature is now active on your account.' : 'This feature has been turned off. You can re-enable it anytime by saying "activate ' + feature + '".'}` }])
+        speak(`${friendlyName} has been ${action}.`)
+        showToast('success', `Feature ${isActivate ? 'Activated' : 'Deactivated'}`, friendlyName)
+      } catch (err) {
+        setMessages(m => [...m, { role: 'assistant', content: `Couldn't update that setting: ${err.message}. Try going to Settings manually.` }])
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── ACCOUNT MANAGEMENT — help / how-to questions ──
+    if (/\b(help\s*(me\s*)?(with|using|about|understand)|how\s*(do\s*i|to|can\s*i)|what\s*is|explain|show\s*me\s*(how|my))\s+(bol|bill\s*of\s*lading|ifta|rate\s*con|invoice|expense|check\s*call|eld|hos|dvir|csa|clearinghouse|fuel|dispatch|load\s*board|settlement|factoring|quickbooks)\b/i.test(lowerText)) {
+      // Let the AI handle this with extra context — don't return, fall through to AI
+      // But add platform context to help it answer
+    }
+
+    // ── ACCOUNT MANAGEMENT — escalate to admin ──
+    if (/\b(talk\s*to\s*(a\s*)?(human|admin|support|person|agent)|escalate|can'?t\s*(figure|solve|fix)|need\s*help\s*from\s*(admin|support|team))\b/i.test(lowerText)) {
+      // Send escalation email
+      try {
+        await apiFetch('/api/admin-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            severity: 'warning',
+            title: 'Support Escalation',
+            message: `Driver ${user?.email || 'unknown'} requested human support. Message: "${userText}"`,
+            source: 'chatbot-escalation',
+            userId: user?.id,
+          }),
+        })
+        setMessages(m => [...m, { role: 'assistant', content: `I've escalated your request to the admin team. They'll get back to you via email at **${user?.email || 'your registered email'}**.\n\nIn the meantime, can you tell me more about what you need help with? I might be able to assist.` }])
+        speak("I've sent your request to the admin team. They'll reach out to you soon.")
+        showToast('success', 'Escalated', 'Admin team notified')
+      } catch {
+        setMessages(m => [...m, { role: 'assistant', content: 'I had trouble sending that escalation. Please email **hello@qivori.com** directly for support.' }])
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── ACCOUNT MANAGEMENT — show IFTA / reports ──
+    if (/\b(show|view|open|pull\s*up)\s+(my\s*)?(ifta|csa|eld|compliance|dvir)\s*(report|score|data|status)?\b/i.test(lowerText)) {
+      const reportMatch = lowerText.match(/\b(ifta|csa|eld|compliance|dvir)\b/i)
+      const report = reportMatch ? reportMatch[1].toUpperCase() : ''
+      const pageMap = { IFTA: 'carrier-ifta', CSA: 'carrier-csa', ELD: 'carrier-eld', COMPLIANCE: 'carrier-dvir', DVIR: 'carrier-dvir' }
+      const page = pageMap[report] || 'carrier-dashboard'
+      setMessages(m => [...m, { role: 'assistant', content: `Opening your **${report} report**... Go to your carrier dashboard and navigate to the ${report} section to see the full details.\n\nIs there anything specific about your ${report} you'd like me to help with?` }])
+      speak(`Here's your ${report} report.`)
+      setLoading(false)
+      return
+    }
+
     // Sleep/tired/rest → auto-search rest areas
     if (/\b(sleep|tired|exhausted|rest\s*area|nap|drowsy|fatigue|pull\s*over|need\s*rest|need\s*sleep)\b/.test(lowerText)) {
       await executeAction({ type: 'search_nearby', query: 'rest area OR truck stop parking' })
@@ -1312,13 +1427,16 @@ function MobileAI() {
     { icon: DollarSign, label: 'Revenue', msg: "What's my revenue and profit this month?" },
   ]
 
-  // Suggested prompts for empty state
+  // Suggested prompts for empty state — includes account management
   const suggestions = [
+    'Upgrade my plan',
+    'Activate load finding',
+    'Help me with BOL',
+    'Show my IFTA report',
     'Nearest truck stop',
     'How many hours do I have left?',
     "What's my next stop?",
     "What's the weather on my route?",
-    'Add fuel expense $120 at Pilot in Memphis',
   ]
 
   return (

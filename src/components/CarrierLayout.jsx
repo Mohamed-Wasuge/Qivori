@@ -252,14 +252,14 @@ function OverviewTab({ onTabChange }) {
       <div style={{
         background:'linear-gradient(135deg, rgba(240,165,0,0.06) 0%, rgba(44,184,150,0.04) 50%, rgba(77,142,240,0.04) 100%)',
         border:'1px solid rgba(240,165,0,0.2)', borderRadius:10, padding:'14px 18px',
-        display:'flex', gap:14, alignItems:'flex-start', position:'relative', overflow:'hidden'
+        display:'flex', gap:14, alignItems:'flex-start', position:'relative', flexWrap:'wrap'
       }}>
         {/* Subtle scanline effect */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(240,165,0,0.015) 2px, rgba(240,165,0,0.015) 4px)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(240,165,0,0.015) 2px, rgba(240,165,0,0.015) 4px)', pointerEvents:'none', borderRadius:10 }} />
         <div style={{ width:36, height:36, borderRadius:10, background:'rgba(240,165,0,0.12)', border:'1px solid rgba(240,165,0,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
           <Ic icon={Bot} size={18} color="var(--accent)" />
         </div>
-        <div style={{ flex:1, position:'relative', zIndex:1 }}>
+        <div style={{ flex:1, position:'relative', zIndex:1, minWidth:200 }}>
           <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4, lineHeight:1.5 }}>
             {getGreeting()}! Here's your day:
           </div>

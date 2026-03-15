@@ -2,12 +2,34 @@ import { handleCors, corsHeaders } from './_lib/auth.js'
 
 export const config = { runtime: 'edge' }
 
-// No auth required — called during signup flow before user has a session
+// Rate limiting to prevent email spam
+const rateLimitMap = new Map()
+const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
+const RATE_LIMIT_MAX = 3 // max 3 welcome emails per minute per IP
+
+function isRateLimited(ip) {
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 })
+    return false
+  }
+  entry.count++
+  if (entry.count > RATE_LIMIT_MAX) return true
+  return false
+}
+
 export default async function handler(req) {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
     return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
+  }
+
+  // Rate limit
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+  if (isRateLimited(ip)) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: corsHeaders(req) })
   }
 
   const resendKey = process.env.RESEND_API_KEY
@@ -19,7 +41,13 @@ export default async function handler(req) {
     const { email, fullName, role } = await req.json()
     if (!email) return Response.json({ error: 'Email is required' }, { status: 400, headers: corsHeaders(req) })
 
-    const firstName = String(fullName || 'Driver').split(' ')[0].replace(/[<>"'&]/g, '')
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return Response.json({ error: 'Invalid email format' }, { status: 400, headers: corsHeaders(req) })
+    }
+
+    const firstName = String(fullName || 'Driver').split(' ')[0].replace(/[<>"'&]/g, '').substring(0, 50)
     const isCarrier = role === 'carrier'
 
     const html = `

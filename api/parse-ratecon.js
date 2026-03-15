@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -11,6 +12,11 @@ export default async function handler(req) {
 
   const authErr = await requireAuth(req)
   if (authErr) return authErr
+
+  // Rate limit: 10 document parses per minute per IP
+  const ip = getClientIP(req)
+  const { limited, resetMs } = rateLimit(`parse:${ip}`, 10, 60000)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
   try {
     const rawText = await req.text()

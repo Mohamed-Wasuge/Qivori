@@ -128,7 +128,7 @@ export default async function handler(req) {
 
     return Response.json({ received: true })
   } catch (err) {
-    console.error('Webhook error:', err)
+    // Webhook processing error
     return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 }
@@ -144,7 +144,7 @@ async function updateProfile(supabaseUrl, serviceKey, email, updates) {
     },
     body: JSON.stringify(updates),
   })
-  if (!res.ok) console.error('Profile update failed:', await res.text())
+  // Silent fail — Stripe will retry the webhook if we return non-200
 }
 
 async function updateProfileByCustomer(supabaseUrl, serviceKey, customerId, updates) {
@@ -158,5 +158,5 @@ async function updateProfileByCustomer(supabaseUrl, serviceKey, customerId, upda
     },
     body: JSON.stringify(updates),
   })
-  if (!res.ok) console.error('Profile update by customer failed:', await res.text())
+  // Silent fail — Stripe will retry
 }

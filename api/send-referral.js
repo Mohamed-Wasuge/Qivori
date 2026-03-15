@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -11,6 +12,11 @@ export default async function handler(req) {
 
   const authErr = await requireAuth(req)
   if (authErr) return authErr
+
+  // Rate limit: 5 referrals per minute per IP
+  const ip = getClientIP(req)
+  const { limited, resetMs } = rateLimit(`referral:${ip}`, 5, 60000)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {

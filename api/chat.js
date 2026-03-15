@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -12,6 +13,11 @@ export default async function handler(req) {
   // Require authenticated user
   const authErr = await requireAuth(req)
   if (authErr) return authErr
+
+  // Rate limit: 30 messages per minute per IP
+  const ip = getClientIP(req)
+  const { limited, resetMs } = rateLimit(`chat:${ip}`, 30, 60000)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
@@ -168,7 +174,7 @@ RULES:
 
     if (!res.ok) {
       const err = await res.text()
-      console.error('Claude API error:', res.status, err)
+      // Claude API error — try fallback model
       if (res.status === 404 || err.includes('model')) {
         const res2 = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -197,7 +203,7 @@ RULES:
 
     return Response.json({ reply }, { headers: corsHeaders(req) })
   } catch (err) {
-    console.error('Chat handler error:', err)
+    // Chat handler error
     return Response.json({ error: 'Something went wrong' }, { status: 500, headers: corsHeaders(req) })
   }
 }

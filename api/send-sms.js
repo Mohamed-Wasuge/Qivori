@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -11,6 +12,11 @@ export default async function handler(req) {
 
   const authErr = await requireAuth(req)
   if (authErr) return authErr
+
+  // Rate limit: 10 SMS per minute per IP
+  const ip = getClientIP(req)
+  const { limited, resetMs } = rateLimit(`sms:${ip}`, 10, 60000)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -43,7 +49,7 @@ export default async function handler(req) {
 
     if (!res.ok) {
       const err = await res.text()
-      console.error('Twilio error:', err)
+      // Twilio send failed
       return Response.json({ error: 'Failed to send SMS' }, { status: 502, headers: corsHeaders(req) })
     }
 

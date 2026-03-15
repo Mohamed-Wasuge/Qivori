@@ -90,7 +90,7 @@ export async function requireAuth(req) {
   const { user, error } = await verifyAuth(req)
   if (error) {
     return Response.json(
-      { error: 'Unauthorized: ' + error },
+      { error: 'Unauthorized' },
       { status: 401, headers: corsHeaders(req) }
     )
   }

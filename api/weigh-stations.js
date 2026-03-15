@@ -370,6 +370,6 @@ export default async function handler(req) {
 
     return Response.json({ stations: finalResults, count: finalResults.length, timestamp: now.toISOString() })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
+    return Response.json({ error: 'Server error' }, { status: 500 })
   }
 }

@@ -2706,7 +2706,7 @@ function LoadsPipeline({ onOpenDrawer }) {
       <HubTabBar tabs={PIPE_TABS} active={pipeTab} onChange={setPipeTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto', display:'flex', flexDirection:'column' }}>
         {pipeTab === 'pipeline' && (
-          <div style={{ display:'flex', gap:6, padding:'10px 10px', flex:1, minHeight:0, maxHeight:'100%', overflow:'hidden' }}>
+          <div style={{ display:'flex', gap:6, padding:'10px 10px', flex:1, minHeight:0, overflow:'auto' }}>
             {KANBAN_COLUMNS.map(col => {
               const colLoads = loads.filter(l => col.statuses.includes(l.status))
               const colTotal = colLoads.reduce((s,l) => s + (l.gross || l.gross_pay || 0), 0)

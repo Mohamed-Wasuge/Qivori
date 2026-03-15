@@ -211,21 +211,21 @@ const PAIN_SOLUTIONS = [
   { pain: 'Searching DAT for hours finding bad loads', fix: 'AI scores every load 0–100 — best loads surface instantly' },
   { pain: 'Switching between 6 different tools all day', fix: 'Everything in one platform — dispatch, fleet, accounting, compliance' },
   { pain: 'IFTA filing taking a full weekend every quarter', fix: 'Auto-calculated from your mileage — file in minutes' },
-  { pain: 'Chasing brokers for payment for weeks', fix: 'Broker risk scores + one-click factoring for same-day cash' },
+  { pain: 'Chasing brokers for payment for weeks', fix: 'Broker risk scores + factoring calculator to plan cash flow' },
   { pain: 'Losing money on bad lanes without knowing it', fix: 'Lane Intelligence shows exactly which lanes make money' },
-  { pain: 'Fuel costs eating your margin mile by mile', fix: 'Fuel optimizer routes you to cheapest stops on your path' },
+  { pain: 'Fuel costs eating your margin mile by mile', fix: 'Live diesel price tracking by region so you know where fuel is cheapest' },
 ]
 
 const FEATURES = [
-  { icon: Bot, label: 'AI Load Board', desc: 'DAT-connected · AI scores every load 0–100', color: '#f0a500' },
-  { icon: Map, label: 'Live Fleet Map', desc: 'Real-time truck positions & ETAs', color: '#00d4aa' },
+  { icon: Bot, label: 'AI Load Board', desc: 'DAT-ready · AI scores every load 0–100', color: '#f0a500' },
+  { icon: Map, label: 'Live Fleet Map', desc: 'Fleet status tracking & load progress', color: '#00d4aa' },
   { icon: TrendingUp, label: 'P&L Dashboard', desc: 'Live profit & loss by load, lane, driver', color: '#4d8ef0' },
-  { icon: Fuel, label: 'Fuel Optimizer', desc: 'Cut fuel spend $80–$140 per load', color: '#f06040' },
+  { icon: Fuel, label: 'Fuel Optimizer', desc: 'Live diesel prices by region', color: '#f06040' },
   { icon: BarChart2, label: 'IFTA Filing', desc: 'Auto-calculated quarterly returns', color: '#a78bfa' },
   { icon: FlaskConical, label: 'Pre-Employment', desc: 'Full FMCSA screening in one click', color: '#f0a500' },
   { icon: Landmark, label: 'Broker Risk Intel', desc: 'Know who pays before you book', color: '#00d4aa' },
-  { icon: CreditCard, label: 'Factoring', desc: 'Same-day cash at 2.5% flat', color: '#4d8ef0' },
-  { icon: ClipboardList, label: 'DVIR / ELD / HOS', desc: 'Full compliance in one place', color: '#f06040' },
+  { icon: CreditCard, label: 'Factoring', desc: 'Invoice factoring calculator', color: '#4d8ef0' },
+  { icon: ClipboardList, label: 'DVIR / ELD / HOS', desc: 'Compliance dashboard & alerts', color: '#f06040' },
   { icon: MapPin, label: 'Check Calls', desc: 'AI-assisted shipper check-in log', color: '#a78bfa' },
   { icon: Truck, label: 'Equipment Manager', desc: 'Trucks, trailers, VINs, expiry alerts', color: '#f0a500' },
   { icon: FileText, label: 'Carrier Package', desc: 'One-click broker contracting packet', color: '#00d4aa' },
@@ -234,7 +234,7 @@ const FEATURES = [
 const PLANS = [
   {
     name: 'Solo', sub: '1 truck · Owner-operator', price: '$99', annual: '$990/yr', color: 'var(--accent2)',
-    features: ['AI Load Board + DAT', 'Fleet Map', 'P&L Dashboard', 'IFTA Filing', 'Invoicing & Factoring', 'Carrier Package', 'Fuel Optimizer'],
+    features: ['AI Load Board (DAT-ready)', 'Fleet Map', 'P&L Dashboard', 'IFTA Filing', 'Invoicing & Factoring Calculator', 'Carrier Package', 'Fuel Optimizer'],
     cta: 'Start Free Trial', highlight: false, stripeId: 'solo',
   },
   {
@@ -244,7 +244,7 @@ const PLANS = [
   },
   {
     name: 'Enterprise', sub: '10+ trucks', price: '$599', annual: '$5,990/yr', color: 'var(--accent3)',
-    features: ['Everything in Fleet', 'Unlimited drivers', 'QuickBooks integration', 'DAT API live feed', 'Cash Flow Forecasting', 'Priority support', 'Custom reporting'],
+    features: ['Everything in Fleet', 'Unlimited drivers', 'QuickBooks Export', 'DAT API (when connected)', 'Cash Flow Forecasting', 'Priority support', 'PDF Reports'],
     cta: 'Start Free Trial', highlight: false, stripeId: 'growing',
   },
 ]
@@ -751,12 +751,12 @@ export default function LandingPage({ onGetStarted }) {
                 { feature: 'Rate Con OCR (Auto-Read)', legacy: false, enterprise: 'Add-on', qivori: true },
                 { feature: 'Receipt Scanning', legacy: false, enterprise: false, qivori: true },
                 { feature: 'Broker Risk Scores', legacy: false, enterprise: false, qivori: true },
-                { feature: 'Invoicing + Factoring', legacy: 'Add-on', enterprise: true, qivori: true },
-                { feature: 'Fleet GPS Tracking', legacy: '$20/truck extra', enterprise: true, qivori: true },
+                { feature: 'Invoicing + Factoring Calculator', legacy: 'Add-on', enterprise: true, qivori: true },
+                { feature: 'Fleet Status Tracking', legacy: '$20/truck extra', enterprise: true, qivori: true },
                 { feature: 'Driver Scorecards', legacy: false, enterprise: 'Add-on', qivori: true },
                 { feature: 'Mobile App for Drivers', legacy: 'Extra fee', enterprise: true, qivori: true },
                 { feature: 'Weigh Station Alerts', legacy: false, enterprise: false, qivori: true },
-                { feature: 'QuickBooks Integration', legacy: true, enterprise: true, qivori: true },
+                { feature: 'QuickBooks Export', legacy: true, enterprise: true, qivori: true },
                 { feature: 'Free Trial', legacy: false, enterprise: false, qivori: '14 days', qivoriHighlight: true },
               ].map((row, i) => {
                 const renderCell = (val, highlight) => {
@@ -866,7 +866,7 @@ export default function LandingPage({ onGetStarted }) {
           {[
             { q: 'Is there a setup fee?', a: 'No. Zero setup fees, zero onboarding costs, zero hidden charges. Sign up and start using Qivori immediately — your account is ready in under 60 seconds.' },
             { q: 'Can I cancel anytime?', a: 'Yes. All plans are month-to-month with no contracts. Cancel with one click from your account settings — no phone calls, no emails, no hassle.' },
-            { q: 'Do you integrate with ELD devices?', a: 'Yes. Qivori connects with major ELD providers to pull HOS data, driver logs, and vehicle diagnostics directly into your compliance dashboard.' },
+            { q: 'Do you integrate with ELD devices?', a: 'Qivori provides a compliance dashboard for tracking ELD, HOS, and DVIR status. Direct ELD device integration is on our roadmap.' },
             { q: 'Is there a free trial?', a: 'Yes — 14 days free on every plan, no credit card required. Use every feature with zero limitations. If you don\'t love it, you pay nothing.' },
           ].map((item, i) => (
             <FadeIn key={i} delay={i * 0.08}>

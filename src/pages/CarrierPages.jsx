@@ -8682,45 +8682,53 @@ export function CarrierPackage() {
 }
 
 // ─── EQUIPMENT MANAGER ────────────────────────────────────────────────────────
-const INIT_TRUCKS = [
-  { id:'t1', type:'truck', unit:'Unit 01', year:'', make:'', model:'', vin:'', plate:'', state:'', color:'#f0a500', driver:'', status:'Active', odometer:'0', nextService:'', regExpiry:'', insExpiry:'', notes:'Example truck — edit or add your own' },
-]
-const INIT_TRAILERS = [
-  { id:'tr1', type:'trailer', unit:'Trailer 01', year:'', make:'', model:'', vin:'', plate:'', state:'', color:'var(--muted)', driver:'', status:'Active', odometer:'', nextService:'', regExpiry:'', insExpiry:'', notes:'Example trailer — edit or add your own' },
-]
-
 const EQ_FIELDS_TRUCK = [
-  { key:'unit',        label:'Unit #',         ph:'Unit 04',           span:1 },
-  { key:'year',        label:'Year',           ph:'2023',              span:1 },
-  { key:'make',        label:'Make',           ph:'Kenworth',          span:1 },
-  { key:'model',       label:'Model',          ph:'T680',              span:1 },
-  { key:'vin',         label:'VIN',            ph:'1XKYD49X5MJ000000', span:2 },
-  { key:'plate',       label:'License Plate',  ph:'IL-TRK-5500',       span:1 },
-  { key:'state',       label:'Plate State',    ph:'IL',                span:1 },
-  { key:'odometer',    label:'Odometer',       ph:'0',                 span:1 },
-  { key:'nextService', label:'Next Service',   ph:'Jun 1, 2026',       span:1 },
-  { key:'regExpiry',   label:'Reg. Expiry',    ph:'Dec 31, 2026',      span:1 },
-  { key:'insExpiry',   label:'Ins. Expiry',    ph:'Nov 15, 2026',      span:1 },
-  { key:'notes',       label:'Notes',          ph:'Any notes...',      span:2 },
+  { key:'unit_number',         label:'Unit #',         ph:'Unit 04',           span:1 },
+  { key:'year',                label:'Year',           ph:'2023',              span:1 },
+  { key:'make',                label:'Make',           ph:'Kenworth',          span:1 },
+  { key:'model',               label:'Model',          ph:'T680',              span:1 },
+  { key:'vin',                 label:'VIN',            ph:'1XKYD49X5MJ000000', span:2 },
+  { key:'license_plate',       label:'License Plate',  ph:'IL-TRK-5500',       span:1 },
+  { key:'license_state',       label:'Plate State',    ph:'IL',                span:1 },
+  { key:'current_miles',       label:'Odometer',       ph:'0',                 span:1 },
+  { key:'next_service_miles',  label:'Next Service',   ph:'50000',             span:1 },
+  { key:'registration_expiry', label:'Reg. Expiry',    ph:'Dec 31, 2026',      span:1 },
+  { key:'insurance_expiry',    label:'Ins. Expiry',    ph:'Nov 15, 2026',      span:1 },
+  { key:'notes',               label:'Notes',          ph:'Any notes...',      span:2 },
 ]
 const EQ_FIELDS_TRAILER = [
-  { key:'unit',        label:'Unit #',         ph:'Trailer 03',        span:1 },
-  { key:'year',        label:'Year',           ph:'2022',              span:1 },
-  { key:'make',        label:'Make',           ph:'Wabash',            span:1 },
-  { key:'model',       label:'Model / Length', ph:'DuraPlate 53ft',    span:1 },
-  { key:'vin',         label:'VIN',            ph:'1JJV532W5LF000000', span:2 },
-  { key:'plate',       label:'License Plate',  ph:'IL-TRL-0056',       span:1 },
-  { key:'state',       label:'Plate State',    ph:'IL',                span:1 },
-  { key:'nextService', label:'Next Service',   ph:'Jun 1, 2026',       span:1 },
-  { key:'regExpiry',   label:'Reg. Expiry',    ph:'Dec 31, 2026',      span:1 },
-  { key:'insExpiry',   label:'Ins. Expiry',    ph:'Nov 15, 2026',      span:1 },
-  { key:'notes',       label:'Notes',          ph:'53ft dry van...',   span:2 },
+  { key:'unit_number',         label:'Unit #',         ph:'Trailer 03',        span:1 },
+  { key:'year',                label:'Year',           ph:'2022',              span:1 },
+  { key:'make',                label:'Make',           ph:'Wabash',            span:1 },
+  { key:'model',               label:'Model / Length', ph:'DuraPlate 53ft',    span:1 },
+  { key:'vin',                 label:'VIN',            ph:'1JJV532W5LF000000', span:2 },
+  { key:'license_plate',       label:'License Plate',  ph:'IL-TRL-0056',       span:1 },
+  { key:'license_state',       label:'Plate State',    ph:'IL',                span:1 },
+  { key:'next_service_miles',  label:'Next Service Mi',ph:'50000',             span:1 },
+  { key:'registration_expiry', label:'Reg. Expiry',    ph:'Dec 31, 2026',      span:1 },
+  { key:'insurance_expiry',    label:'Ins. Expiry',    ph:'Nov 15, 2026',      span:1 },
+  { key:'notes',               label:'Notes',          ph:'53ft dry van...',   span:2 },
 ]
 
 export function EquipmentManager() {
   const { showToast } = useApp()
-  const [equipment, setEquipment] = useState([...INIT_TRUCKS, ...INIT_TRAILERS])
-  const [selected, setSelected] = useState('t1')
+  const { vehicles, addVehicle, editVehicle, removeVehicle } = useCarrier()
+
+  // Map Supabase vehicles to equipment display format
+  const equipment = (vehicles || []).map(v => ({
+    ...v,
+    type: (v.type || 'Truck').toLowerCase(),
+    unit: v.unit_number || '',
+    plate: v.license_plate || '',
+    state: v.license_state || '',
+    odometer: v.current_miles || '',
+    nextService: v.next_service_miles || '',
+    regExpiry: v.registration_expiry || '',
+    insExpiry: v.insurance_expiry || '',
+    color: (v.type || 'Truck').toLowerCase() === 'truck' ? '#f0a500' : 'var(--muted)',
+  }))
+
+  const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('all')
   const [showAdd, setShowAdd] = useState(false)
   const [addType, setAddType] = useState('truck')
@@ -8733,20 +8741,69 @@ export function EquipmentManager() {
 
   const statusColor = s => s === 'Active' ? 'var(--success)' : s === 'Shop' ? 'var(--warning)' : 'var(--muted)'
 
-  const addEquipment = () => {
-    if (!form.unit) return
-    const id = (addType === 'truck' ? 't' : 'tr') + Date.now()
-    setEquipment(eq => [...eq, { ...form, id, type: addType, color: addType === 'truck' ? 'var(--accent3)' : 'var(--muted)', status:'Active', driver:'' }])
-    setSelected(id)
-    setShowAdd(false)
-    setForm({})
-    showToast('', addType === 'truck' ? 'Truck Added' : 'Trailer Added', form.unit)
+  const addEquipment = async () => {
+    if (!form.unit_number) return
+    try {
+      await addVehicle({
+        unit_number: form.unit_number,
+        type: addType === 'truck' ? 'Truck' : 'Trailer',
+        year: form.year ? parseInt(form.year) : null,
+        make: form.make || null,
+        model: form.model || null,
+        vin: form.vin || null,
+        license_plate: form.license_plate || null,
+        license_state: form.license_state || null,
+        current_miles: form.current_miles ? parseInt(form.current_miles) : null,
+        next_service_miles: form.next_service_miles ? parseInt(form.next_service_miles) : null,
+        registration_expiry: form.registration_expiry || null,
+        insurance_expiry: form.insurance_expiry || null,
+        notes: form.notes || null,
+        status: 'Active',
+      })
+      setShowAdd(false)
+      setForm({})
+      showToast('', addType === 'truck' ? 'Truck Added' : 'Trailer Added', form.unit_number)
+    } catch (err) {
+      showToast('', 'Error', err.message || 'Failed to add equipment')
+    }
   }
 
-  const saveEdit = () => {
-    setEquipment(eq => eq.map(e => e.id === sel.id ? { ...e, ...editForm } : e))
-    setEditing(false)
-    showToast('', 'Saved', sel.unit)
+  const saveEdit = async () => {
+    if (!sel) return
+    try {
+      await editVehicle(sel.id, {
+        unit_number: editForm.unit_number,
+        year: editForm.year ? parseInt(editForm.year) : null,
+        make: editForm.make || null,
+        model: editForm.model || null,
+        vin: editForm.vin || null,
+        license_plate: editForm.license_plate || null,
+        license_state: editForm.license_state || null,
+        current_miles: editForm.current_miles ? parseInt(editForm.current_miles) : null,
+        next_service_miles: editForm.next_service_miles ? parseInt(editForm.next_service_miles) : null,
+        registration_expiry: editForm.registration_expiry || null,
+        insurance_expiry: editForm.insurance_expiry || null,
+        notes: editForm.notes || null,
+        status: editForm.status || 'Active',
+      })
+      setEditing(false)
+      showToast('', 'Saved', editForm.unit_number || sel.unit)
+    } catch (err) {
+      showToast('', 'Error', err.message || 'Failed to save')
+    }
+  }
+
+  const handleDelete = async (id) => {
+    const eq = equipment.find(e => e.id === id)
+    if (!eq) return
+    if (!window.confirm(`Delete ${eq.unit || 'this equipment'}? This cannot be undone.`)) return
+    try {
+      await removeVehicle(id)
+      if (selected === id) setSelected(null)
+      showToast('', 'Deleted', eq.unit || 'Equipment removed')
+    } catch (err) {
+      showToast('', 'Error', err.message || 'Failed to delete')
+    }
   }
 
   const inp = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', width:'100%', boxSizing:'border-box' }
@@ -8793,7 +8850,7 @@ export function EquipmentManager() {
               ))}
             </div>
             <div style={{ display:'flex', gap:10 }}>
-              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={addEquipment} disabled={!form.unit}>+ Add {addType === 'truck' ? 'Truck' : 'Trailer'}</button>
+              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={addEquipment} disabled={!form.unit_number}>+ Add {addType === 'truck' ? 'Truck' : 'Trailer'}</button>
               <button className="btn btn-ghost" style={{ flex:1, padding:'12px 0' }} onClick={() => setShowAdd(false)}>Cancel</button>
             </div>
           </div>
@@ -8876,7 +8933,8 @@ export function EquipmentManager() {
                     <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setEditing(false)}>Cancel</button>
                   </>
                 : <>
-                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { setEditing(true); setEditForm({ ...sel }) }}><Ic icon={PencilIcon} /> Edit</button>
+                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { setEditing(true); setEditForm({ unit_number: sel.unit_number || sel.unit || '', year: sel.year || '', make: sel.make || '', model: sel.model || '', vin: sel.vin || '', license_plate: sel.license_plate || sel.plate || '', license_state: sel.license_state || sel.state || '', current_miles: sel.current_miles || sel.odometer || '', next_service_miles: sel.next_service_miles || sel.nextService || '', registration_expiry: sel.registration_expiry || sel.regExpiry || '', insurance_expiry: sel.insurance_expiry || sel.insExpiry || '', notes: sel.notes || '', status: sel.status || 'Active' }) }}><Ic icon={PencilIcon} /> Edit</button>
+                    <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--error, #ef4444)' }} onClick={() => handleDelete(sel.id)}><Ic icon={Trash2} /> Delete</button>
                     <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Report','Generating equipment report...')}><Ic icon={FileText} /> Report</button>
                   </>
               }
@@ -8942,7 +9000,7 @@ export function EquipmentManager() {
                 <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Zap} /> Quick Actions</div></div>
                 <div style={{ padding:'14px 18px', display:'flex', gap:10, flexWrap:'wrap' }}>
                   {['Active','Shop','Inactive'].map(s => (
-                    <button key={s} onClick={() => { setEquipment(eq => eq.map(e => e.id === sel.id ? { ...e, status:s } : e)); showToast('','Status Updated', sel.unit + ' → ' + s) }}
+                    <button key={s} onClick={async () => { try { await editVehicle(sel.id, { status: s }); showToast('','Status Updated', (sel.unit || sel.unit_number) + ' → ' + s) } catch(err) { showToast('','Error', err.message || 'Failed to update status') } }}
                       style={{ padding:'8px 18px', fontSize:12, fontWeight:700, borderRadius:8, border:`1px solid ${statusColor(s)}40`, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
                         background: sel.status === s ? `${statusColor(s)}18` : 'var(--surface2)', color: sel.status === s ? statusColor(s) : 'var(--muted)' }}>
                       {s === 'Active' ? <Check size={13} /> : s === 'Shop' ? <Wrench size={13} /> : '⏸'} {s}

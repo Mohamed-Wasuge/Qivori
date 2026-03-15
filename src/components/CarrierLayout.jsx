@@ -133,7 +133,7 @@ function getGreeting() {
 
 function OverviewTab({ onTabChange }) {
   const { showToast } = useApp()
-  const { loads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles } = useCarrier()
+  const { loads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles, removeLoad } = useCarrier()
   const [dismissed, setDismissed] = useState([])
 
   // Animated KPI values
@@ -141,20 +141,36 @@ function OverviewTab({ onTabChange }) {
   const animProfit = useAnimatedNumber(totalRevenue - totalExpenses)
   const animActiveLoads = useAnimatedNumber(activeLoads.length)
 
-  // Fleet utilization capped at 100%
-  const fleetRows = drivers.map((d, idx) => {
+  // Build fleet rows from formal drivers + any load-assigned drivers not in the list
+  const fleetRows = []
+  const seenDrivers = new Set()
+  drivers.forEach((d, idx) => {
     const driver = d.name || d.full_name || d.driver_name || 'Driver'
+    seenDrivers.add(driver)
     const unit = d.unit || d.unit_number || `Unit ${String(idx+1).padStart(2,'0')}`
     const load = activeLoads.find(l => l.driver === driver)
     if (load) {
       const oc = load.origin?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
       const dc = load.dest?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
-      return { unit, driver, status: load.status, statusC: STATUS_DOT[load.status] || 'var(--accent)', load: load.loadId, route: `${oc}→${dc}`, active: true }
+      fleetRows.push({ unit, driver, status: load.status, statusC: STATUS_DOT[load.status] || 'var(--accent)', load: load.loadId, route: `${oc}→${dc}`, active: true })
+    } else {
+      fleetRows.push({ unit, driver, status: 'Available', statusC: 'var(--muted)', load: '—', route: '—', active: false })
     }
-    return { unit, driver, status: 'Available', statusC: 'var(--muted)', load: '—', route: '—', active: false }
+  })
+  // Also show drivers from active loads who aren't formally added
+  activeLoads.forEach(l => {
+    const driver = l.driver || l.driver_name || ''
+    if (driver && !seenDrivers.has(driver)) {
+      seenDrivers.add(driver)
+      const oc = l.origin?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
+      const dc = l.dest?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
+      fleetRows.push({ unit: '—', driver, status: l.status, statusC: STATUS_DOT[l.status] || 'var(--accent)', load: l.loadId, route: `${oc}→${dc}`, active: true })
+    }
   })
 
-  const utilPct = fleetRows.length > 0 ? Math.min(Math.round((fleetRows.filter(f => f.active).length / fleetRows.length) * 100), 100) : 0
+  // Fleet utilization: active trucks / total fleet size, capped at 100%
+  const fleetSize = Math.max(fleetRows.length, vehicles.length, 1)
+  const utilPct = Math.min(Math.round((fleetRows.filter(f => f.active).length / fleetSize) * 100), 100)
   const animUtil = useAnimatedNumber(utilPct)
 
   const avgRPM = activeLoads.length
@@ -288,7 +304,7 @@ function OverviewTab({ onTabChange }) {
           { label:'REVENUE MTD', value: fmtMoney(animRevenue), raw: totalRevenue, color:'var(--accent)', icon: DollarSign, click:() => onTabChange('financials') },
           { label:'NET PROFIT', value: fmtMoney(animProfit), raw: totalRevenue - totalExpenses, color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, click:() => onTabChange('financials') },
           { label:'ACTIVE LOADS', value: String(animActiveLoads), raw: activeLoads.length, color:'var(--accent2)', icon: Package, sub: inTransitCount > 0 ? `${inTransitCount} in transit` : 'None moving', click:() => onTabChange('loads') },
-          { label:'FLEET UTIL', value: `${animUtil}%`, raw: utilPct, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : 'var(--muted)', icon: Truck, sub: `${fleetRows.filter(f=>f.active).length}/${fleetRows.length} trucks`, click:() => onTabChange('fleet') },
+          { label:'FLEET UTIL', value: `${animUtil}%`, raw: utilPct, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : utilPct > 0 ? 'var(--warning)' : 'var(--muted)', icon: Truck, sub: `${fleetRows.filter(f=>f.active).length}/${fleetSize} active`, click:() => onTabChange('fleet') },
           { label:'AVG RPM', value: `$${avgRPM}`, raw: parseFloat(avgRPM), color:'var(--accent3)', icon: BarChart2, sub: 'Per mile rate', click:() => onTabChange('financials') },
         ].map(k => (
           <div key={k.label} onClick={k.click}
@@ -374,6 +390,11 @@ function OverviewTab({ onTabChange }) {
                   <div style={{ fontSize:9, color:'var(--muted)' }}>${load.rate || '—'}/mi</div>
                 </div>
                 <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc+'18', color:sc, whiteSpace:'nowrap' }}>{load.status}</span>
+                <button onClick={(e) => { e.stopPropagation(); if(window.confirm(`Delete load ${load.loadId}?`)) removeLoad(load.loadId) }}
+                  style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:11, padding:2, lineHeight:1, opacity:0.5 }}
+                  onMouseOver={e => e.currentTarget.style.opacity='1'}
+                  onMouseOut={e => e.currentTarget.style.opacity='0.5'}
+                  title="Delete load">✕</button>
               </div>
             )
           })}

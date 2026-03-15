@@ -188,6 +188,17 @@ export function CarrierProvider({ children }) {
     return newLoad
   }, [useDb])
 
+  const removeLoad = useCallback(async (loadId) => {
+    const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
+    if (!load) return
+    if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
+      try { await db.deleteLoad(load.id) } catch (e) { console.error('Failed to delete load:', e) }
+    }
+    setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
+    // Also remove any linked invoices
+    setInvoices(invs => invs.filter(i => i.loadId !== loadId && i.load_number !== loadId))
+  }, [loads, useDb])
+
   const updateLoadStatus = useCallback(async (loadId, newStatus) => {
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
@@ -427,7 +438,7 @@ export function CarrierProvider({ children }) {
       loads, invoices, expenses, drivers, vehicles, company, checkCalls,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses,
-      updateLoadStatus, addLoad, advanceStop,
+      updateLoadStatus, addLoad, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense,
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,

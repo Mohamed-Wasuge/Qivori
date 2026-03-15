@@ -9082,10 +9082,10 @@ export function AnalyticsDashboard() {
     const recs = []
     if (fuelPctOfRev > 35) recs.push({ icon:Fuel, color:'#f59e0b', title:'Fuel spend is high', detail:`Fuel is ${fuelPctOfRev}% of revenue (industry avg: 25–30%). Consider fuel card programs or optimizing routes to save $${Math.round(fuelExp * 0.08).toLocaleString()}/mo.`, impact:'High', action:'Optimize' })
     if (margin < 25 && totalRevenue > 0) recs.push({ icon:TrendingDown, color:'#ef4444', title:'Margins below target', detail:`Net margin is ${margin}% — below the 30% industry benchmark. Review expense categories or negotiate higher rates on your top lanes.`, impact:'High', action:'Review' })
-    if (deadheadPct > 15) recs.push({ icon:Route, color:'#8b5cf6', title:'Reduce deadhead miles', detail:`${deadheadPct}% of your miles are empty. Look for backhaul loads on your top lanes to fill repositioning gaps.`, impact:'Medium', action:'Find Loads' })
+    if (deadheadPct > 15 && totalMiles > 0) recs.push({ icon:Route, color:'#8b5cf6', title:'Reduce deadhead miles', detail:`${deadheadPct}% of your miles are empty. Look for backhaul loads on your top lanes to fill repositioning gaps.`, impact:'Medium', action:'Find Loads' })
     if (unpaidTotal > 5000) recs.push({ icon:DollarSign, color:'#ef4444', title:`$${unpaidTotal.toLocaleString()} in unpaid invoices`, detail:`${invoices.filter(i=>i.status!=='Paid').length} invoices are outstanding. Follow up with brokers or consider factoring for immediate cash flow.`, impact:'High', action:'Collect' })
     if (utilization < 60 && truckCount > 0 && loads.length > 0) recs.push({ icon:Truck, color:'#4d8ef0', title:'Fleet underutilized', detail:`Only ${utilization}% of trucks are running loads. Book more loads or consider reducing fleet size to improve profitability.`, impact:'Medium', action:'Book Loads' })
-    if (Number(avgRPM) < 2.5) recs.push({ icon:TrendingUp, color:'#f0a500', title:'Rate per mile is low', detail:`Avg $${avgRPM}/mi is below the $2.80 national average. Focus on higher-paying lanes and avoid low-RPM loads.`, impact:'Medium', action:'Analyze' })
+    if (Number(avgRPM) < 2.5 && loads.length > 0) recs.push({ icon:TrendingUp, color:'#f0a500', title:'Rate per mile is low', detail:`Avg $${avgRPM}/mi is below the $2.80 national average. Focus on higher-paying lanes and avoid low-RPM loads.`, impact:'Medium', action:'Analyze' })
     if (topLanes.length > 0 && topLanes[0].loads >= 3) recs.push({ icon:Star, color:'#22c55e', title:`Strong lane: ${topLanes[0].lane}`, detail:`${topLanes[0].loads} loads at $${topLanes[0].miles > 0 ? (topLanes[0].revenue/topLanes[0].miles).toFixed(2) : '0.00'}/mi. Consider negotiating a dedicated lane contract with your top broker for consistent volume.`, impact:'Opportunity', action:'Negotiate' })
     if (recs.length === 0) recs.push({ icon:CheckCircle, color:'#22c55e', title:'Operations look healthy', detail:'No critical issues detected. Keep monitoring your margins and lane performance.', impact:'Info', action:'Continue' })
     return recs
@@ -9185,18 +9185,18 @@ export function AnalyticsDashboard() {
           </div>
           <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
             {aiRecs.map((r, i) => (
-              <div key={i} style={{ display:'flex', gap:14, padding:'14px 16px', background:'var(--surface2)', borderRadius:10, alignItems:'flex-start', border:'1px solid var(--border)' }}>
+              <div key={i} style={{ display:'flex', gap:14, padding:'14px 16px', background:'var(--surface2)', borderRadius:10, alignItems:'flex-start', border:'1px solid var(--border)', flexWrap:'wrap' }}>
                 <div style={{ width:38, height:38, borderRadius:10, background:`${r.color}15`, border:`1px solid ${r.color}30`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <Ic icon={r.icon} size={18} color={r.color} />
                 </div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
                     <span style={{ fontSize:13, fontWeight:700 }}>{r.title}</span>
                     <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4, background:`${IMPACT_COLORS[r.impact]}15`, color:IMPACT_COLORS[r.impact] }}>{r.impact}</span>
                   </div>
                   <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>{r.detail}</div>
                 </div>
-                <button className="btn btn-ghost" style={{ fontSize:11, flexShrink:0 }} onClick={() => showToast('','AI Action',r.title)}>{r.action} →</button>
+                <button className="btn btn-ghost" style={{ fontSize:11, flexShrink:0, whiteSpace:'nowrap' }} onClick={() => showToast('','AI Action',r.title)}>{r.action} →</button>
               </div>
             ))}
           </div>

@@ -79,52 +79,36 @@ export default async function handler(req) {
 }
 
 async function fetchEIAPrices(apiKey) {
-  // Build facets query string for all regions
-  const duoareaFacets = REGIONS.map(r => `facets[duoarea][]=${r.duoarea}`).join('&')
+  // Fetch each region individually to avoid bracket encoding issues
+  const fetches = REGIONS.map(async ({ region, duoarea }) => {
+    try {
+      // Try EPD2D first (No. 2 Diesel, all types)
+      let url = `https://api.eia.gov/v2/petroleum/pri/gnd/data/?api_key=${encodeURIComponent(apiKey)}&frequency=weekly&data[0]=value&facets[product][]=EPD2D&facets[duoarea][]=${duoarea}&sort[0][column]=period&sort[0][direction]=desc&length=2`
+      let res = await fetch(url)
 
-  // EIA API v2: petroleum > pri > gnd > data
-  // product=EPD2D = No. 2 Diesel (on-highway, all types)
-  const url = `https://api.eia.gov/v2/petroleum/pri/gnd/data/?api_key=${apiKey}&frequency=weekly&data[0]=value&facets[product][]=EPD2D&${duoareaFacets}&sort[0][column]=period&sort[0][direction]=desc&length=12`
+      if (!res.ok) {
+        // Fallback: EPD2DXL0 (Ultra Low Sulfur)
+        url = `https://api.eia.gov/v2/petroleum/pri/gnd/data/?api_key=${encodeURIComponent(apiKey)}&frequency=weekly&data[0]=value&facets[product][]=EPD2DXL0&facets[duoarea][]=${duoarea}&sort[0][column]=period&sort[0][direction]=desc&length=2`
+        res = await fetch(url)
+        if (!res.ok) return null
+      }
 
-  const res = await fetch(url)
-  if (!res.ok) {
-    // Try alternative: EPD2DXL0 = Ultra Low Sulfur Diesel
-    const url2 = `https://api.eia.gov/v2/petroleum/pri/gnd/data/?api_key=${apiKey}&frequency=weekly&data[0]=value&facets[product][]=EPD2DXL0&${duoareaFacets}&sort[0][column]=period&sort[0][direction]=desc&length=12`
-    const res2 = await fetch(url2)
-    if (!res2.ok) return []
-    return parseEIAResponse(await res2.json())
-  }
+      const data = await res.json()
+      const rows = data?.response?.data
+      if (!rows || rows.length === 0) return null
 
-  return parseEIAResponse(await res.json())
-}
+      const current = parseFloat(rows[0].value)
+      const previous = rows.length > 1 ? parseFloat(rows[1].value) : current
+      const change = +(current - previous).toFixed(3)
 
-function parseEIAResponse(data) {
-  const rows = data?.response?.data
-  if (!rows || rows.length === 0) return []
+      return { region, price: current, previous, change, period: rows[0].period }
+    } catch {
+      return null
+    }
+  })
 
-  const prices = []
-
-  for (const { region, duoarea } of REGIONS) {
-    const regionRows = rows
-      .filter(r => r.duoarea === duoarea && r.value != null)
-      .sort((a, b) => b.period.localeCompare(a.period))
-
-    if (regionRows.length === 0) continue
-
-    const current = parseFloat(regionRows[0].value)
-    const previous = regionRows.length > 1 ? parseFloat(regionRows[1].value) : current
-    const change = +(current - previous).toFixed(3)
-
-    prices.push({
-      region,
-      price: current,
-      previous,
-      change,
-      period: regionRows[0].period,
-    })
-  }
-
-  return prices
+  const results = await Promise.all(fetches)
+  return results.filter(Boolean)
 }
 
 async function getCachedPrices(supabaseUrl, serviceKey, allowStale = false) {

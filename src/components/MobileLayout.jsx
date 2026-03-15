@@ -1199,12 +1199,13 @@ function MobileAI() {
     }
 
     // ── ACCOUNT MANAGEMENT — upgrade/downgrade plan ──
-    if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(solo|fleet|enterprise|autopilot|growing)\b/.test(lowerText)) {
+    if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(basic|pro|autopilot|autopilot\s*ai|solo|fleet|enterprise|growing)\b/.test(lowerText)) {
       // Detect which plan they want
       let targetPlan = null
-      if (/solo/i.test(lowerText)) targetPlan = { id: 'solo', name: 'Solo', price: '$99/mo' }
-      else if (/fleet/i.test(lowerText)) targetPlan = { id: 'fleet', name: 'Fleet', price: '$299/mo' }
-      else if (/enterprise|growing/i.test(lowerText)) targetPlan = { id: 'growing', name: 'Enterprise', price: '$599/mo' }
+      if (/\bbasic\b/i.test(lowerText) || /\bsolo\b/i.test(lowerText)) targetPlan = { id: 'basic', name: 'Basic', price: '$49/mo' }
+      else if (/\bpro\b/i.test(lowerText) || /\bfleet\b/i.test(lowerText)) targetPlan = { id: 'pro', name: 'Pro', price: '$149/mo' }
+      else if (/autopilot\s*ai/i.test(lowerText)) targetPlan = { id: 'autopilot_ai', name: 'Autopilot AI', price: '$799/mo (founder)' }
+      else if (/autopilot/i.test(lowerText) || /enterprise|growing/i.test(lowerText)) targetPlan = { id: 'autopilot', name: 'Autopilot', price: '$299/mo' }
 
       if (targetPlan) {
         // Generate Stripe checkout link
@@ -1227,8 +1228,8 @@ function MobileAI() {
         }
       } else {
         // No specific plan mentioned — show options
-        setMessages(m => [...m, { role: 'assistant', content: `**Available Plans:**\n\n**Solo** — $99/mo\nPerfect for owner-operators. AI dispatch, load scoring, compliance.\n\n**Fleet** — $299/mo\nFor small fleets. Everything in Solo + fleet management, driver scorecards.\n\n**Enterprise** — $599/mo\nFull platform. Everything in Fleet + Autopilot AI, priority support.\n\nSay **"upgrade to Solo"**, **"upgrade to Fleet"**, or **"upgrade to Enterprise"** to get started.` }])
-        speak('I have three plans available. Solo at 99, Fleet at 299, and Enterprise at 599 per month. Which would you like?')
+        setMessages(m => [...m, { role: 'assistant', content: `**Available Plans:**\n\n**Basic** — $49/mo\nGetting started. AI load board, IFTA, invoicing, fuel optimizer.\n\n**Pro** — $149/mo\nOwner-operators. Everything in Basic + dispatch, driver scorecards, broker risk.\n\n**Autopilot** — $299/mo\nFleets. Everything in Pro + Smart Dispatch AI, DAT API, cash flow.\n\n**Autopilot AI** — $799/mo (founder pricing)\nFull AI platform. Proactive load finding, revenue optimization, unlimited.\n\nSay **"upgrade to Basic"**, **"upgrade to Pro"**, **"upgrade to Autopilot"**, or **"upgrade to Autopilot AI"**.` }])
+        speak('I have four plans. Basic at 49, Pro at 149, Autopilot at 299, and Autopilot AI at 799 per month. Which would you like?')
       }
       setLoading(false)
       return
@@ -1325,7 +1326,7 @@ function MobileAI() {
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { solo: '$99/mo', fleet: '$299/mo', growing: '$599/mo', enterprise: '$599/mo' }
+      const planPrices = { basic: '$49/mo', pro: '$149/mo', autopilot: '$299/mo', autopilot_ai: '$799/mo', solo: '$49/mo', fleet: '$149/mo', growing: '$299/mo', enterprise: '$299/mo' }
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`

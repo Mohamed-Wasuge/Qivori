@@ -66,7 +66,7 @@ export function CarrierDashboard() {
   const unpaidInvoices = ctx.unpaidInvoices || []
 
   const totalMiles = loads.reduce((s, l) => s + (Number(l.miles) || 0), 0)
-  const fleetUtil = Math.round((activeLoads.length / (vehicles.length || 1)) * 100)
+  const fleetUtil = Math.min(Math.round((activeLoads.length / (vehicles.length || 1)) * 100), 100)
   const netProfit = totalRevenue - totalExpenses
 
   const fmtCurrency = (v) => {
@@ -201,14 +201,7 @@ export function CarrierDashboard() {
 // DAT-normalized load shape — swap normalizeDATLoad() when API keys are ready
 // Sample load board data — replaced by DAT API when connected
 const MARKET_LOADS = [
-  { id:'DAT-8821', from:'ATL', fromFull:'Atlanta, GA',    to:'CHI', toFull:'Chicago, IL',      miles:674,  gross:3840, rpm:2.94, weight:'42,000', commodity:'Auto Parts',   broker:'Echo Global',      brokerScore:98, brokerPay:'< 24hr',  pickup:'Today 2PM',    delivery:'Mar 9 · 10AM',  equipment:'Dry Van', deadhead:22, aiScore:96, mktLow:2.55, mktAvg:2.80, mktHigh:3.10, tags:['AI TOP PICK','FAST PAY'], source:'dat' },
-  { id:'DAT-4440', from:'MEM', fromFull:'Memphis, TN',    to:'NYC', toFull:'New York, NY',      miles:1100, gross:5100, rpm:3.10, weight:'39,800', commodity:'Electronics',  broker:'Coyote Logistics', brokerScore:92, brokerPay:'< 48hr',  pickup:'Tomorrow 8AM', delivery:'Mar 12 · 6PM',  equipment:'Dry Van', deadhead:8,  aiScore:91, mktLow:2.80, mktAvg:3.05, mktHigh:3.35, tags:['HIGH VALUE'], source:'dat' },
-  { id:'DAT-4460', from:'DAL', fromFull:'Dallas, TX',     to:'MIA', toFull:'Miami, FL',         miles:1491, gross:5600, rpm:3.22, weight:'38,500', commodity:'Food & Bev',   broker:'Echo Global',      brokerScore:98, brokerPay:'< 24hr',  pickup:'Mar 11 7AM',   delivery:'Mar 13 · 5PM',  equipment:'Reefer',  deadhead:12, aiScore:88, mktLow:3.00, mktAvg:3.18, mktHigh:3.45, tags:['FAST PAY'], source:'dat' },
-  { id:'DAT-4445', from:'DEN', fromFull:'Denver, CO',     to:'HOU', toFull:'Houston, TX',       miles:1020, gross:3400, rpm:2.61, weight:'41,200', commodity:'Machinery',    broker:'Transplace',       brokerScore:74, brokerPay:'< 7 days', pickup:'Mar 10 6AM',   delivery:'Mar 12 · 4PM',  equipment:'Flatbed', deadhead:45, aiScore:68, mktLow:2.55, mktAvg:2.75, mktHigh:3.00, tags:['SLOW PAYER'], source:'dat' },
-  { id:'DAT-4412', from:'PHX', fromFull:'Phoenix, AZ',    to:'LAX', toFull:'Los Angeles, CA',   miles:372,  gross:1850, rpm:2.41, weight:'45,000', commodity:'Retail',       broker:'Worldwide Express', brokerScore:81, brokerPay:'< 3 days', pickup:'Today 5PM',    delivery:'Mar 8 · 9AM',   equipment:'Dry Van', deadhead:65, aiScore:58, mktLow:2.20, mktAvg:2.45, mktHigh:2.70, tags:['HIGH DEADHEAD'], source:'dat' },
-  { id:'DAT-5102', from:'CHI', fromFull:'Chicago, IL',    to:'ATL', toFull:'Atlanta, GA',       miles:716,  gross:2900, rpm:2.72, weight:'40,000', commodity:'Auto Parts',   broker:'CH Robinson',      brokerScore:88, brokerPay:'< 3 days', pickup:'Mar 12 6AM',   delivery:'Mar 13 · 8PM',  equipment:'Dry Van', deadhead:5,  aiScore:82, mktLow:2.50, mktAvg:2.70, mktHigh:2.95, tags:[], source:'dat' },
-  { id:'DAT-5210', from:'LAX', fromFull:'Los Angeles, CA',to:'SEA', toFull:'Seattle, WA',       miles:1135, gross:4200, rpm:3.70, weight:'36,000', commodity:'Consumer Goods',broker:'MoLo Solutions',   brokerScore:85, brokerPay:'< 48hr',  pickup:'Mar 11 9AM',   delivery:'Mar 13 · 3PM',  equipment:'Dry Van', deadhead:18, aiScore:93, mktLow:3.40, mktAvg:3.65, mktHigh:4.00, tags:['AI TOP PICK','FAST PAY'], source:'dat' },
-  { id:'DAT-5318', from:'HOU', fromFull:'Houston, TX',    to:'CHI', toFull:'Chicago, IL',       miles:1090, gross:3800, rpm:2.86, weight:'43,000', commodity:'Chemicals',    broker:'Uber Freight',     brokerScore:90, brokerPay:'< 24hr',  pickup:'Mar 12 7AM',   delivery:'Mar 14 · 6PM',  equipment:'Tanker',  deadhead:30, aiScore:76, mktLow:2.65, mktAvg:2.85, mktHigh:3.10, tags:['FAST PAY'], source:'dat' },
+  { id:'DAT-8821', from:'ATL', fromFull:'Atlanta, GA', to:'CHI', toFull:'Chicago, IL', miles:674, gross:3840, rpm:2.94, weight:'42,000', commodity:'Auto Parts', broker:'Echo Global', brokerScore:98, brokerPay:'< 24hr', pickup:'Today 2PM', delivery:'Mar 9 · 10AM', equipment:'Dry Van', deadhead:22, aiScore:96, mktLow:2.55, mktAvg:2.80, mktHigh:3.10, tags:['AI TOP PICK','FAST PAY'], source:'dat' },
 ]
 
 const DISPATCH_DRIVERS = []
@@ -2407,13 +2400,13 @@ const DVIR_ITEMS_DEFAULT = [
 const COMPLIANCE_DRIVERS = []
 
 const BASIC_SCORES = [
-  { basic:'Unsafe Driving',       score:12, threshold:65, icon: Truck,         tip:'Speeding, reckless driving · 4pt improvement this quarter' },
-  { basic:'HOS Compliance',       score:8,  threshold:65, icon: Clock,         tip:'Log falsification, ELD violations · 0 issues this year' },
-  { basic:'Vehicle Maintenance',  score:22, threshold:80, icon: Wrench,        tip:'OOS violations, equipment defects · 1 resolved defect' },
-  { basic:'Driver Fitness',       score:0,  threshold:80, icon: User,          tip:'Unlicensed driver, CDL violations · All CDLs current' },
-  { basic:'Controlled Substances',score:0,  threshold:50, icon: FlaskConical,  tip:'Positive drug/alcohol tests · All clearinghouse checks passed' },
-  { basic:'Crash Indicator',      score:5,  threshold:65, icon: AlertTriangle, tip:'DOT-reportable crashes · Zero crashes all time' },
-  { basic:'Hazmat Compliance',    score:0,  threshold:50, icon: Shield,        tip:'Hazmat violations · N/A — non-hazmat carrier' },
+  { basic:'Unsafe Driving',       score:0, threshold:65, icon: Truck,         tip:'No violations recorded yet' },
+  { basic:'HOS Compliance',       score:0, threshold:65, icon: Clock,         tip:'No violations recorded yet' },
+  { basic:'Vehicle Maintenance',  score:0, threshold:80, icon: Wrench,        tip:'No violations recorded yet' },
+  { basic:'Driver Fitness',       score:0, threshold:80, icon: User,          tip:'No violations recorded yet' },
+  { basic:'Controlled Substances',score:0, threshold:50, icon: FlaskConical,  tip:'No violations recorded yet' },
+  { basic:'Crash Indicator',      score:0, threshold:65, icon: AlertTriangle, tip:'No violations recorded yet' },
+  { basic:'Hazmat Compliance',    score:0, threshold:50, icon: Shield,        tip:'No violations recorded yet' },
 ]
 
 function ComplianceScoreRing({ score, size = 160 }) {
@@ -2463,9 +2456,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const [chType, setChType] = useState('Pre-Employment')
   const [chConsent, setChConsent] = useState(false)
   const [chOrders, setChOrders] = useState([
-    { id:'CH-001', driver:'James Tucker', cdl:'MN-223344', type:'Annual',         date:'Jan 15, 2026', status:'Complete', result:'Clear', cost:1.25 },
-    { id:'CH-002', driver:'Marcus Lee',   cdl:'IL-445566', type:'Pre-Employment', date:'Nov 02, 2025', status:'Complete', result:'Clear', cost:1.25 },
-    { id:'CH-003', driver:'Priya Patel',  cdl:'CO-667788', type:'Pre-Employment', date:'Oct 18, 2025', status:'Complete', result:'Clear', cost:1.25 },
+    { id:'CH-001', driver:'Example Driver', cdl:'XX-000000', type:'Pre-Employment', date:'Jan 15, 2026', status:'Complete', result:'Clear', cost:1.25 },
   ])
 
   const submitCH = () => {
@@ -2561,10 +2552,8 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                     {[
-                      { text:'All 3 drivers HOS compliant — 0 violations in 30 days', color:'var(--success)', icon: CheckCircle },
-                      { text:'Vehicle Maintenance BASIC at 22% — monitor brake inspections on Unit 03', color:'var(--warning)', icon: AlertTriangle },
-                      { text:'Priya Patel clearinghouse annual query due Apr 2026 — schedule now', color:'var(--accent2)', icon: Calendar },
-                      { text:'CSA trending down 4pts this quarter — on track for premium freight rates', color:'var(--success)', icon: TrendingDown },
+                      { text:'No compliance issues detected', color:'var(--success)', icon: CheckCircle },
+                      { text:'Add drivers and vehicles to begin tracking compliance', color:'var(--muted)', icon: AlertTriangle },
                     ].map((r, i) => (
                       <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12, color:'var(--muted)' }}>
                         <r.icon size={14} color={r.color} style={{ marginTop:1, flexShrink:0 }} />
@@ -2591,9 +2580,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   </tr></thead>
                   <tbody>
                     {[
-                      { name:'James Tucker', unit:'Unit 01', cdl:'MN-223344', eld:'Synced', hos:'8h 22m', dvir:'Clear', csa:'12%', ch:'Clear', med:'Sep 2025', medWarn:true },
-                      { name:'Marcus Lee',   unit:'Unit 02', cdl:'IL-445566', eld:'Synced', hos:'11h 0m', dvir:'Clear', csa:'8%',  ch:'Clear', med:'Nov 2025', medWarn:false },
-                      { name:'Priya Patel',  unit:'Unit 03', cdl:'CO-667788', eld:'Synced', hos:'Restart', dvir:'Clear', csa:'0%',  ch:'Clear', med:'Oct 2026', medWarn:false },
+                      { name:'Example Driver', unit:'Unit 01', cdl:'XX-000000', eld:'—', hos:'—', dvir:'—', csa:'—', ch:'—', med:'—', medWarn:false },
                     ].map(d => (
                       <tr key={d.name} style={{ borderBottom:'1px solid var(--border)' }}>
                         <td style={{ padding:'11px 12px', fontSize:13, fontWeight:700, whiteSpace:'nowrap' }}>{d.name}</td>
@@ -2621,11 +2608,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               </div>
               <div style={{ padding:14, display:'flex', flexDirection:'column', gap:6 }}>
                 {[
-                  { date:'Mar 15, 2026', item:'Unit 01 DVIR due', type:'DVIR',    color:'var(--accent)',  days:4 },
-                  { date:'Apr 2026',     item:'Priya Patel — clearinghouse annual', type:'Query', color:'var(--accent2)', days:21 },
-                  { date:'Apr 30, 2026', item:'IFTA Q1 2026 filing deadline', type:'IFTA',    color:'var(--warning)', days:50 },
-                  { date:'Aug 2026',     item:'James Tucker CDL renewal',    type:'CDL',     color:'var(--accent)',  days:142 },
-                  { date:'Sep 2025',     item:'James Tucker med card expired', type:'URGENT', color:'var(--danger)',  days:-163 },
+                  { date:'Apr 30, 2026', item:'IFTA Q1 2026 filing deadline', type:'IFTA', color:'var(--warning)', days:50 },
                 ].map((d, i) => (
                   <div key={i} style={{ display:'flex', gap:10, alignItems:'center', padding:'10px 14px', background: d.days < 0 ? 'rgba(239,68,68,0.05)' : 'var(--surface2)', borderRadius:10, border:`1px solid ${d.days < 0 ? 'rgba(239,68,68,0.2)' : 'var(--border)'}` }}>
                     <span style={S.tag(d.color)}>{d.type}</span>
@@ -2647,17 +2630,17 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
               <Bot size={20} color="var(--success)" />
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>All 3 drivers HOS compliant — 0 violations in 30 days</div>
-                <div style={{ fontSize:12, color:'var(--muted)' }}>James Tucker 8h 22m remaining · Marcus Lee resets midnight · Priya 34hr restart</div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>No HOS data yet</div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>Add drivers and connect ELD to begin tracking</div>
               </div>
             </div>
 
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               {[
-                { label:'Units Online',   value:'3/3',     sub:'All synced',       color:'var(--success)' },
-                { label:'HOS Violations',  value:'0',       sub:'Clean 30 days',    color:'var(--success)' },
-                { label:'Avg HOS Left',    value:'9h 47m',  sub:'Across fleet',     color:'var(--accent2)' },
-                { label:'ELD Provider',    value:'Samsara', sub:'CM32 · Connected', color:'var(--accent)' },
+                { label:'Units Online',   value:'0/0',  sub:'No devices',     color:'var(--muted)' },
+                { label:'HOS Violations',  value:'0',    sub:'No data yet',    color:'var(--muted)' },
+                { label:'Avg HOS Left',    value:'—',    sub:'No drivers yet', color:'var(--muted)' },
+                { label:'ELD Provider',    value:'—',    sub:'Not connected',  color:'var(--muted)' },
               ].map(s => (
                 <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
                   <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
@@ -2673,9 +2656,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','ELD Sync','All devices synced')}><Ic icon={RefreshCw} /> Sync All</button>
               </div>
               {[
-                { driver:'James Tucker', unit:'Unit 01', status:'Driving',  hosLeft:'8h 22m', driveToday:'5h 38m', shiftLeft:'9h 22m', cycleLeft:'52h', statusColor:'var(--success)', load:'FM-4421', rec:'1 more short load today' },
-                { driver:'Marcus Lee',   unit:'Unit 02', status:'On Duty',  hosLeft:'9h 45m', driveToday:'4h 15m', shiftLeft:'10h 45m',cycleLeft:'58h', statusColor:'var(--accent)',  load:'—', rec:'Full day available — 2 loads possible' },
-                { driver:'Priya Patel',  unit:'Unit 03', status:'Off Duty', hosLeft:'11h 0m', driveToday:'0h',     shiftLeft:'14h',    cycleLeft:'70h', statusColor:'var(--muted)',   load:'—', rec:'34hr restart — available tomorrow 6AM', restart:true },
+                { driver:'Example Driver', unit:'Unit 01', status:'Off Duty', hosLeft:'11h 0m', driveToday:'0h', shiftLeft:'14h', cycleLeft:'70h', statusColor:'var(--muted)', load:'—', rec:'Add your drivers and connect ELD to see live data' },
               ].map(d => (
                 <div key={d.driver} style={{ padding:'16px 18px', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10, flexWrap:'wrap' }}>
@@ -2729,10 +2710,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={S.panel}>
               <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Recent HOS Events</div></div>
               {[
-                { date:'Mar 6',  driver:'Marcus Lee',   event:'34hr restart completed',   type:'Info',   color:'var(--accent2)' },
-                { date:'Mar 4',  driver:'James Tucker',  event:'Pre-trip inspection done',  type:'DVIR',   color:'var(--success)' },
-                { date:'Mar 2',  driver:'Priya Patel',   event:'Sleeper berth 8h split',   type:'HOS',    color:'var(--accent)' },
-                { date:'Feb 28', driver:'James Tucker',  event:'ELD auto-synchronized',    type:'System', color:'var(--muted)' },
+                { date:'—',  driver:'Example Driver', event:'No events recorded yet', type:'Info', color:'var(--muted)' },
               ].map((e, i) => (
                 <div key={i} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
                   <span style={{ fontSize:11, color:'var(--muted)', minWidth:42 }}>{e.date}</span>
@@ -2805,10 +2783,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   </tr></thead>
                   <tbody>
                     {[
-                      { date:'Mar 8, 2026',  unit:'Unit 01', driver:'James Tucker',  result:'No Defects', color:'var(--success)' },
-                      { date:'Mar 8, 2026',  unit:'Unit 02', driver:'Marcus Lee',    result:'No Defects', color:'var(--success)' },
-                      { date:'Mar 7, 2026',  unit:'Unit 03', driver:'Priya Patel',   result:'1 Defect — Resolved', color:'var(--warning)' },
-                      { date:'Mar 7, 2026',  unit:'Unit 01', driver:'James Tucker',  result:'No Defects', color:'var(--success)' },
+                      { date:'—', unit:'Unit 01', driver:'Example Driver', result:'No inspections yet', color:'var(--muted)' },
                     ].map((r,i) => (
                       <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
                         <td style={{ padding:'10px 14px', fontSize:12, color:'var(--muted)' }}>{r.date}</td>
@@ -3570,7 +3545,7 @@ export function ExpenseTracker() {
               { key:'date',   label:'Date',      type:'text', ph:'Mar 12' },
               { key:'amount', label:'Amount ($)', type:'number', ph:'250' },
               { key:'load',   label:'Load ID',   type:'text', ph:'FM-4421 (optional)' },
-              { key:'driver', label:'Driver',    type:'text', ph:'James Tucker (optional)' },
+              { key:'driver', label:'Driver',    type:'text', ph:'Driver name (optional)' },
               { key:'notes',  label:'Notes',     type:'text', ph:'Description' },
             ].map(f => (
               <div key={f.key}>
@@ -4180,7 +4155,7 @@ export function FleetManager() {
                 { key:'plate',        label:'License Plate',     ph:'MN-94821' },
                 { key:'gvw',          label:'GVW',               ph:'80,000 lbs',   note: vinResult && !vinResult.error ? 'from VIN' : '' },
                 { key:'odometer',     label:'Current Odometer',  ph:'125000' },
-                { key:'driver',       label:'Assigned Driver',   ph:'James Tucker' },
+                { key:'driver',       label:'Assigned Driver',   ph:'Driver name' },
                 { key:'regExpiry',    label:'Registration Expiry',ph:'Dec 2026' },
                 { key:'insExpiry',    label:'Insurance Expiry',   ph:'Jun 2026' },
                 { key:'dotInspection',label:'DOT Inspection',     ph:'Dec 2025' },
@@ -4791,7 +4766,7 @@ export function DriverOnboarding() {
             <div style={{ fontSize:11, color:'var(--muted)', marginBottom:20 }}>Enter driver info to start pre-employment screening</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
               {[
-                { key:'name',   label:'Full Legal Name',  ph:'James Tucker',      span:2 },
+                { key:'name',   label:'Full Legal Name',  ph:'Full name',         span:2 },
                 { key:'phone',  label:'Phone',            ph:'(612) 555-0198' },
                 { key:'email',  label:'Email',            ph:'driver@email.com' },
                 { key:'dob',    label:'Date of Birth',    ph:'Apr 12, 1988' },
@@ -5090,12 +5065,7 @@ export function DriverOnboarding() {
 // ─── LANE INTELLIGENCE ────────────────────────────────────────────────────────
 // Reference lane data — replaced by live lane analytics when connected
 const LANES = [
-  { id:'l1', from:'ATL', to:'CHI', fromFull:'Atlanta, GA',   toFull:'Chicago, IL',    miles:674,  loads:12, avgRpm:2.94, topRpm:3.20, avgGross:1981, trend:+8,  rating:'hot', ratingLabel:'HOT',    color:'var(--success)',  brokers:['Echo Global','Coyote Logistics','XPO'], backhaul:88, deadhead:22, equipment:'Dry Van' },
-  { id:'l2', from:'DAL', to:'MIA', fromFull:'Dallas, TX',    toFull:'Miami, FL',      miles:1491, loads:8,  avgRpm:3.22, topRpm:3.45, avgGross:4802, trend:+12, rating:'hot', ratingLabel:'HOT',    color:'var(--success)',  brokers:['Echo Global','Transplace'],             backhaul:72, deadhead:15, equipment:'Dry Van/Reefer' },
-  { id:'l3', from:'MEM', to:'NYC', fromFull:'Memphis, TN',   toFull:'New York, NY',   miles:1100, loads:6,  avgRpm:3.10, topRpm:3.55, avgGross:3410, trend:+5,  rating:'up', ratingLabel:'RISING', color:'var(--accent2)',  brokers:['Coyote Logistics','CH Robinson'],        backhaul:65, deadhead:8,  equipment:'Dry Van' },
-  { id:'l4', from:'DEN', to:'HOU', fromFull:'Denver, CO',    toFull:'Houston, TX',    miles:1020, loads:5,  avgRpm:2.61, topRpm:2.90, avgGross:2662, trend:-3,  rating:'soft', ratingLabel:'SOFT',   color:'var(--warning)',  brokers:['Transplace','Worldwide Express'],        backhaul:42, deadhead:45, equipment:'Flatbed' },
-  { id:'l5', from:'PHX', to:'LAX', fromFull:'Phoenix, AZ',   toFull:'Los Angeles, CA',miles:372,  loads:9,  avgRpm:2.41, topRpm:2.75, avgGross:897,  trend:+2,  rating:'steady', ratingLabel:'STEADY', color:'var(--muted)',    brokers:['Worldwide Express','Coyote Logistics'],  backhaul:55, deadhead:62, equipment:'Dry Van' },
-  { id:'l6', from:'CHI', to:'ATL', fromFull:'Chicago, IL',   toFull:'Atlanta, GA',    miles:674,  loads:4,  avgRpm:2.72, topRpm:3.00, avgGross:1833, trend:-8,  rating:'down', ratingLabel:'WEAK',   color:'var(--danger)',   brokers:['CH Robinson'],                           backhaul:35, deadhead:30, equipment:'Dry Van' },
+  { id:'l1', from:'ATL', to:'CHI', fromFull:'Atlanta, GA', toFull:'Chicago, IL', miles:674, loads:0, avgRpm:2.94, topRpm:3.20, avgGross:0, trend:0, rating:'steady', ratingLabel:'EXAMPLE', color:'var(--muted)', brokers:['Echo Global'], backhaul:50, deadhead:0, equipment:'Dry Van' },
 ]
 
 export function LaneIntel() {
@@ -5368,7 +5338,7 @@ export function CommandCenter() {
   const [selDriver, setSelDriver] = useState(null)
   const [filterStatus, setFilterStatus] = useState('All')
 
-  const drivers = ['James Tucker', 'Marcus Lee', 'Priya Patel']
+  const drivers = ['Example Driver']
 
   // Build enriched truck data
   const trucks = drivers.map(driver => {
@@ -5780,72 +5750,19 @@ export function CommandCenter() {
 }
 
 // ─── AI LOAD BOARD ────────────────────────────────────────────────────────────
+// Broker risk reference — add your brokers here
 const LB_BROKER = {
-  'Echo Global':      { risk:'LOW',     score:98, pay:'< 24hr',   color:'var(--success)'  },
-  'Coyote Logistics': { risk:'LOW',     score:92, pay:'< 48hr',   color:'var(--success)'  },
-  'CH Robinson':      { risk:'LOW',     score:87, pay:'< 3 days', color:'var(--success)'  },
-  'XPO':              { risk:'LOW',     score:89, pay:'< 48hr',   color:'var(--success)'  },
-  'Amazon Freight':   { risk:'LOW',     score:95, pay:'< 24hr',   color:'var(--success)'  },
-  'Transplace':       { risk:'MEDIUM',  score:74, pay:'< 7 days', color:'var(--warning)'  },
-  'Worldwide Express':{ risk:'MEDIUM',  score:81, pay:'< 3 days', color:'var(--warning)'  },
-  'TQL':              { risk:'HIGH',    score:58, pay:'15+ days', color:'var(--danger)'   },
+  'Echo Global': { risk:'LOW', score:98, pay:'< 24hr', color:'var(--success)' },
 }
 
+// Lane market rates — populated by DAT feed when connected
 const LB_LANE = {
-  'CHI→ATL': { avgRpm:2.72, trend:-8,  backhaul:35 },
-  'CHI→MIA': { avgRpm:2.85, trend:+4,  backhaul:60 },
-  'CHI→DAL': { avgRpm:2.45, trend:-2,  backhaul:58 },
-  'CHI→NYC': { avgRpm:2.98, trend:+6,  backhaul:70 },
-  'ATL→CHI': { avgRpm:2.94, trend:+8,  backhaul:88 },
-  'ATL→MIA': { avgRpm:3.10, trend:+5,  backhaul:72 },
-  'ATL→NYC': { avgRpm:2.88, trend:+3,  backhaul:65 },
-  'DAL→MIA': { avgRpm:3.22, trend:+12, backhaul:72 },
-  'DAL→HOU': { avgRpm:2.10, trend:-5,  backhaul:30 },
-  'DAL→LAX': { avgRpm:2.88, trend:+7,  backhaul:55 },
-  'MEM→NYC': { avgRpm:3.10, trend:+5,  backhaul:65 },
-  'MEM→CHI': { avgRpm:2.65, trend:+2,  backhaul:62 },
-  'PHX→LAX': { avgRpm:2.41, trend:+2,  backhaul:55 },
-  'PHX→DEN': { avgRpm:2.55, trend:+1,  backhaul:48 },
-  'DEN→HOU': { avgRpm:2.61, trend:-3,  backhaul:42 },
-  'DEN→CHI': { avgRpm:2.70, trend:+4,  backhaul:60 },
-  'HOU→ATL': { avgRpm:2.90, trend:+6,  backhaul:68 },
-  'HOU→NYC': { avgRpm:3.25, trend:+10, backhaul:70 },
+  'CHI→ATL': { avgRpm:2.72, trend:0, backhaul:50 },
 }
 
 // Sample load board — replaced by live DAT feed when connected
 const BOARD_LOADS = [
-  { id:'LD-001', broker:'Echo Global',       origin:'Chicago, IL',    dest:'Atlanta, GA',      miles:674,  rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM',  deadhead:0,   refNum:'EC-89100', laneKey:'CHI→ATL' },
-  { id:'LD-002', broker:'Coyote Logistics',  origin:'Chicago, IL',    dest:'Miami, FL',         miles:1377, rate:3.15, gross:4338, weight:'38,500', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 7:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:0,   refNum:'CL-23001', laneKey:'CHI→MIA' },
-  { id:'LD-003', broker:'Transplace',        origin:'Chicago, IL',    dest:'Dallas, TX',        miles:921,  rate:2.48, gross:2284, weight:'41,000', commodity:'Machinery',     equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 13 · 2:00 PM',  deadhead:0,   refNum:'TP-19300', laneKey:'CHI→DAL' },
-  { id:'LD-004', broker:'XPO',               origin:'Chicago, IL',    dest:'New York, NY',      miles:790,  rate:3.08, gross:2433, weight:'39,000', commodity:'Retail',        equipment:'Dry Van',  pickup:'Mar 10 · 9:00 AM', delivery:'Mar 12 · 8:00 AM',  deadhead:0,   refNum:'XP-44210', laneKey:'CHI→NYC' },
-  { id:'LD-005', broker:'Echo Global',       origin:'Atlanta, GA',    dest:'Chicago, IL',       miles:674,  rate:3.12, gross:2103, weight:'40,500', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 11 · 7:00 AM', delivery:'Mar 12 · 5:00 PM',  deadhead:8,   refNum:'EC-89120', laneKey:'ATL→CHI' },
-  { id:'LD-006', broker:'CH Robinson',       origin:'Atlanta, GA',    dest:'Miami, FL',         miles:660,  rate:3.22, gross:2125, weight:'37,200', commodity:'Food & Bev',    equipment:'Reefer',   pickup:'Mar 10 · 6:00 AM', delivery:'Mar 11 · 8:00 PM',  deadhead:8,   refNum:'CHR-77301', laneKey:'ATL→MIA' },
-  { id:'LD-007', broker:'Amazon Freight',    origin:'Atlanta, GA',    dest:'New York, NY',      miles:874,  rate:2.90, gross:2535, weight:'43,000', commodity:'Consumer Goods', equipment:'Dry Van', pickup:'Mar 11 · 8:00 AM', delivery:'Mar 13 · 6:00 AM',  deadhead:8,   refNum:'AMZ-50021', laneKey:'ATL→NYC' },
-  { id:'LD-008', broker:'Echo Global',       origin:'Dallas, TX',     dest:'Miami, FL',         miles:1491, rate:3.22, gross:4801, weight:'38,500', commodity:'Food & Bev',    equipment:'Dry Van',  pickup:'Mar 11 · 7:00 AM', delivery:'Mar 13 · 5:00 PM',  deadhead:42,  refNum:'EC-89130', laneKey:'DAL→MIA' },
-  { id:'LD-009', broker:'TQL',               origin:'Dallas, TX',     dest:'Houston, TX',       miles:239,  rate:2.10, gross:502,  weight:'44,000', commodity:'Industrial',    equipment:'Flatbed',  pickup:'Mar 10 · 10:00 AM', delivery:'Mar 10 · 6:00 PM', deadhead:42,  refNum:'TQ-11002', laneKey:'DAL→HOU' },
-  { id:'LD-010', broker:'Coyote Logistics',  origin:'Dallas, TX',     dest:'Los Angeles, CA',   miles:1435, rate:2.92, gross:4190, weight:'40,000', commodity:'Automotive',    equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 14 · 2:00 PM',  deadhead:42,  refNum:'CL-23020', laneKey:'DAL→LAX' },
-  { id:'LD-011', broker:'Coyote Logistics',  origin:'Memphis, TN',    dest:'New York, NY',      miles:1100, rate:3.18, gross:3498, weight:'39,800', commodity:'Electronics',   equipment:'Dry Van',  pickup:'Mar 10 · 8:00 AM', delivery:'Mar 12 · 6:00 PM',  deadhead:25,  refNum:'CL-23010', laneKey:'MEM→NYC' },
-  { id:'LD-012', broker:'CH Robinson',       origin:'Memphis, TN',    dest:'Chicago, IL',       miles:530,  rate:2.68, gross:1420, weight:'41,500', commodity:'Food & Bev',    equipment:'Reefer',   pickup:'Mar 11 · 5:00 AM', delivery:'Mar 12 · 10:00 AM', deadhead:25,  refNum:'CHR-77310', laneKey:'MEM→CHI' },
-  { id:'LD-013', broker:'Worldwide Express', origin:'Phoenix, AZ',    dest:'Los Angeles, CA',   miles:372,  rate:2.41, gross:897,  weight:'45,000', commodity:'Retail',        equipment:'Dry Van',  pickup:'Mar 10 · 5:00 PM', delivery:'Mar 11 · 9:00 AM',  deadhead:110, refNum:'WE-55200', laneKey:'PHX→LAX' },
-  { id:'LD-014', broker:'Amazon Freight',    origin:'Phoenix, AZ',    dest:'Denver, CO',        miles:602,  rate:2.58, gross:1553, weight:'38,000', commodity:'Consumer Goods', equipment:'Dry Van', pickup:'Mar 11 · 7:00 AM', delivery:'Mar 13 · 3:00 PM',  deadhead:110, refNum:'AMZ-50030', laneKey:'PHX→DEN' },
-  { id:'LD-015', broker:'Transplace',        origin:'Denver, CO',     dest:'Houston, TX',       miles:1020, rate:2.61, gross:2662, weight:'41,200', commodity:'Machinery',     equipment:'Flatbed',  pickup:'Mar 10 · 6:00 AM', delivery:'Mar 12 · 4:00 PM',  deadhead:68,  refNum:'TP-19310', laneKey:'DEN→HOU' },
-  { id:'LD-016', broker:'XPO',               origin:'Denver, CO',     dest:'Chicago, IL',       miles:1003, rate:2.75, gross:2758, weight:'40,000', commodity:'Auto Parts',    equipment:'Dry Van',  pickup:'Mar 11 · 8:00 AM', delivery:'Mar 13 · 6:00 PM',  deadhead:68,  refNum:'XP-44220', laneKey:'DEN→CHI' },
-  { id:'LD-017', broker:'TQL',               origin:'Houston, TX',    dest:'Atlanta, GA',       miles:792,  rate:2.88, gross:2281, weight:'37,500', commodity:'Chemicals',     equipment:'Dry Van',  pickup:'Mar 11 · 6:00 AM', delivery:'Mar 13 · 4:00 PM',  deadhead:85,  refNum:'TQ-11010', laneKey:'HOU→ATL' },
-  { id:'LD-018', broker:'Echo Global',       origin:'Houston, TX',    dest:'New York, NY',      miles:1636, rate:3.28, gross:5366, weight:'38,000', commodity:'Petrochemicals', equipment:'Dry Van', pickup:'Mar 11 · 5:00 AM', delivery:'Mar 15 · 8:00 AM',  deadhead:85,  refNum:'EC-89140', laneKey:'HOU→NYC' },
-  // ── Multi-stop loads ──────────────────────────────────────────────────────────
-  { id:'LD-019', broker:'Coyote Logistics',  origin:'Atlanta, GA',    dest:'Chicago, IL',       miles:920,  rate:0,    gross:4200, weight:'44,000', commodity:'Auto Parts',     equipment:'Dry Van', pickup:'Mar 11 · 6:00 AM', delivery:'Mar 13 · 2:00 PM',  deadhead:8,   refNum:'CL-23040', laneKey:'ATL→CHI',
-    stops:[
-      { seq:1, type:'pickup',  city:'Atlanta, GA',      addr:'1200 Northside Dr NW',    time:'Mar 11 · 6:00 AM',  notes:'Dock 4, call 30min ahead' },
-      { seq:2, type:'pickup',  city:'Nashville, TN',    addr:'550 Cowan St',             time:'Mar 11 · 12:00 PM', notes:'2nd pickup — forklift on site' },
-      { seq:3, type:'dropoff', city:'Chicago, IL',      addr:'4800 S Cicero Ave',        time:'Mar 13 · 2:00 PM',  notes:'Final delivery' },
-    ]},
-  { id:'LD-020', broker:'XPO',               origin:'Dallas, TX',     dest:'Denver, CO',        miles:1118, rate:0,    gross:5800, weight:'41,500', commodity:'Industrial Equip', equipment:'Flatbed', pickup:'Mar 12 · 7:00 AM', delivery:'Mar 15 · 5:00 PM',  deadhead:42,  refNum:'XP-44230', laneKey:'DAL→CHI',
-    stops:[
-      { seq:1, type:'pickup',  city:'Dallas, TX',       addr:'3300 Fort Worth Ave',      time:'Mar 12 · 7:00 AM',  notes:'Oversized load — permit attached' },
-      { seq:2, type:'dropoff', city:'Amarillo, TX',     addr:'4100 W 45th Ave',          time:'Mar 12 · 2:00 PM',  notes:'Partial unload — 40% of freight' },
-      { seq:3, type:'dropoff', city:'Pueblo, CO',       addr:'900 S Prairie Ave',        time:'Mar 14 · 10:00 AM', notes:'Partial unload — 30%' },
-      { seq:4, type:'dropoff', city:'Denver, CO',       addr:'6100 E 56th Ave',          time:'Mar 15 · 5:00 PM',  notes:'Final delivery — remaining freight' },
-    ]},
+  { id:'LD-001', broker:'Echo Global', origin:'Chicago, IL', dest:'Atlanta, GA', miles:674, rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts', equipment:'Dry Van', pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM', deadhead:0, refNum:'EC-89100', laneKey:'CHI→ATL' },
 ]
 
 function calcAiScore(load) {
@@ -6341,9 +6258,7 @@ export function AILoadBoard() {
                     <select value={assignDriver} onChange={e => setAssignDriver(e.target.value)}
                       style={{ ...selectStyle, flex:1, padding:'10px 12px', fontSize:13 }}>
                       <option value="">Assign Driver…</option>
-                      <option value="James Tucker">James Tucker (Unit 01)</option>
-                      <option value="Marcus Lee">Marcus Lee (Unit 02)</option>
-                      <option value="Priya Patel">Priya Patel (Unit 03)</option>
+                      <option value="Example Driver">Example Driver (Unit 01)</option>
                     </select>
                     <button className="btn btn-primary" onClick={handleBook}
                       style={{ padding:'10px 28px', fontSize:13, whiteSpace:'nowrap', opacity: assignDriver ? 1 : 0.5 }}>
@@ -8768,13 +8683,10 @@ export function CarrierPackage() {
 
 // ─── EQUIPMENT MANAGER ────────────────────────────────────────────────────────
 const INIT_TRUCKS = [
-  { id:'t1', type:'truck', unit:'Unit 01', year:'2021', make:'Kenworth', model:'T680', vin:'1XKYD49X5MJ123456', plate:'IL-TRK-4821', state:'IL', color:'#f0a500', driver:'James Tucker', status:'Active', odometer:'284,500', nextService:'Apr 15, 2026', regExpiry:'Dec 31, 2026', insExpiry:'Nov 15, 2026', notes:'Flagship unit — HazMat certified' },
-  { id:'t2', type:'truck', unit:'Unit 02', year:'2019', make:'Peterbilt', model:'579', vin:'1XPWD49X5KD234567', plate:'IL-TRK-3902', state:'IL', color:'#4d8ef0', driver:'Marcus Lee', status:'Active', odometer:'412,100', nextService:'Mar 22, 2026', regExpiry:'Dec 31, 2026', insExpiry:'Nov 15, 2026', notes:'Oil change overdue — schedule ASAP' },
-  { id:'t3', type:'truck', unit:'Unit 03', year:'2022', make:'Freightliner', model:'Cascadia', vin:'3AKJHHDR4NSNA3789', plate:'MN-TRK-7741', state:'MN', color:'#00d4aa', driver:'Priya Patel', status:'Active', odometer:'118,200', nextService:'Jul 1, 2026', regExpiry:'Jun 30, 2026', insExpiry:'Nov 15, 2026', notes:'' },
+  { id:'t1', type:'truck', unit:'Unit 01', year:'', make:'', model:'', vin:'', plate:'', state:'', color:'#f0a500', driver:'', status:'Active', odometer:'0', nextService:'', regExpiry:'', insExpiry:'', notes:'Example truck — edit or add your own' },
 ]
 const INIT_TRAILERS = [
-  { id:'tr1', type:'trailer', unit:'Trailer 01', year:'2020', make:'Wabash', model:'DuraPlate 53ft', vin:'1JJV532W5LF123789', plate:'IL-TRL-0012', state:'IL', color:'var(--muted)', driver:'', status:'Active', odometer:'', nextService:'Jun 1, 2026', regExpiry:'Dec 31, 2026', insExpiry:'Nov 15, 2026', notes:'53ft dry van · Swing doors' },
-  { id:'tr2', type:'trailer', unit:'Trailer 02', year:'2018', make:'Great Dane', model:'Champion 48ft', vin:'1GRAA0622JB234890', plate:'IL-TRL-0034', state:'IL', color:'var(--muted)', driver:'', status:'Shop', odometer:'', nextService:'Mar 15, 2026', regExpiry:'Dec 31, 2026', insExpiry:'Nov 15, 2026', notes:'In shop — brake issue · Est. return Mar 14' },
+  { id:'tr1', type:'trailer', unit:'Trailer 01', year:'', make:'', model:'', vin:'', plate:'', state:'', color:'var(--muted)', driver:'', status:'Active', odometer:'', nextService:'', regExpiry:'', insExpiry:'', notes:'Example trailer — edit or add your own' },
 ]
 
 const EQ_FIELDS_TRUCK = [

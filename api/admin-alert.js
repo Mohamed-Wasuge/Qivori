@@ -23,7 +23,7 @@ export default async function handler(req) {
   if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
   try {
-    const { type, title, message, severity } = await req.json()
+    const { type, title, message, severity, source, userId } = await req.json()
     if (!title || !message) {
       return Response.json({ error: 'title and message required' }, { status: 400, headers: corsHeaders(req) })
     }
@@ -44,10 +44,9 @@ export default async function handler(req) {
             'Prefer': 'return=minimal',
           },
           body: JSON.stringify({
-            type: type || 'system_alert',
             title,
-            message,
-            severity: severity || 'warning',
+            body: `[${severity || 'info'}] ${source ? `[${source}] ` : ''}${message}`,
+            user_id: userId || user?.id || 'system',
             read: false,
             created_at: new Date().toISOString(),
           }),

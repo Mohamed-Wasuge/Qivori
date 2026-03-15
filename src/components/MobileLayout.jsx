@@ -32,7 +32,7 @@ export default function MobileLayout() {
 
 // ── MAIN AI-DRIVEN MOBILE APP ─────────────────────────────
 function MobileAI() {
-  const { logout, showToast } = useApp()
+  const { logout, showToast, subscription, user } = useApp()
   const ctx = useCarrier() || {}
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
@@ -75,6 +75,12 @@ function MobileAI() {
   })
   const [showLoadDetail, setShowLoadDetail] = useState(false)
   const hosWarningShownRef = useRef(false)
+
+  // ── PROACTIVE LOAD FINDING AGENT state ──────────────────
+  const proactiveTriggeredRef = useRef(false) // prevent re-triggering within same delivery
+  const proactiveDismissedRef = useRef(null) // timestamp of last "no" response
+  const proactiveLoadsRef = useRef([]) // cached scored loads from last search
+  const [proactiveLoadId, setProactiveLoadId] = useState(null) // track which load triggered it
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -246,6 +252,160 @@ function MobileAI() {
     localStorage.removeItem('qivori_hos_start')
     hosWarningShownRef.current = false
   }, [])
+
+  // ── PROACTIVE LOAD FINDING AGENT ─────────────────────────────────────
+  // Trigger: driver within ~60min of delivery destination
+  // Requires Autopilot AI plan ($499) and connected load board
+  useEffect(() => {
+    if (!subscription?.plan || subscription.plan !== 'autopilot') return
+    if (!subscription?.isActive) return
+
+    const checkProximity = async () => {
+      // Find active load that's in transit with a delivery destination
+      const inTransitLoad = activeLoads.find(l => {
+        const s = (l.status || '').toLowerCase()
+        return ['in transit', 'intransit', 'loaded', 'en route'].some(x => s.includes(x.replace(' ', ''))) || s.includes('in transit')
+      })
+      if (!inTransitLoad) { proactiveTriggeredRef.current = false; return }
+
+      // Don't re-trigger for same load
+      const loadKey = inTransitLoad.id || inTransitLoad.load_id
+      if (proactiveTriggeredRef.current && proactiveLoadId === loadKey) return
+
+      // Respect 30-min cooldown after driver says "no"
+      if (proactiveDismissedRef.current && Date.now() - proactiveDismissedRef.current < 30 * 60 * 1000) return
+
+      // Get current GPS coords
+      const coords = await getGPSCoords()
+      if (!coords) return
+
+      // Geocode delivery destination to get coords
+      const dest = inTransitLoad.destination || inTransitLoad.destination_city || ''
+      if (!dest) return
+
+      try {
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(dest)}&count=1&language=en&format=json`)
+        const geoData = await geoRes.json()
+        if (!geoData.results?.[0]) return
+
+        const destLat = geoData.results[0].latitude
+        const destLng = geoData.results[0].longitude
+        const distMiles = haversine(coords.lat, coords.lng, destLat, destLng)
+
+        // Estimate ~60 mph average → 60 miles = ~1 hour
+        const estimatedMinutes = (distMiles / 55) * 60 // 55 mph average for trucks
+
+        if (estimatedMinutes > 75) return // not close enough yet (75 min buffer)
+
+        // TRIGGER: Driver is within ~60 min of delivery
+        proactiveTriggeredRef.current = true
+        setProactiveLoadId(loadKey)
+
+        // Search for loads from delivery city using driver's credentials
+        try {
+          const searchRes = await apiFetch(`/api/load-board?origin=${encodeURIComponent(dest)}&limit=10`)
+          const searchData = await searchRes.json()
+
+          if (searchData.error?.includes('Connect your load board')) {
+            // No load board connected — show fallback
+            setMessages(m => [...m, {
+              role: 'assistant',
+              content: `**Proactive Load Finder** — You're about ${Math.round(estimatedMinutes)} min from delivery in ${dest}.\n\nConnect your load board in **Settings → Load Boards** to enable automatic load finding from your delivery city.\n\nI'll find your next load before you even deliver this one.`,
+              isProactive: true,
+            }])
+            speak(`You're about ${Math.round(estimatedMinutes)} minutes from delivery. Connect your load board in settings to enable proactive load finding.`)
+            // Log to admin
+            logProactiveActivity('fallback', `Driver near ${dest} — no load board connected`)
+            return
+          }
+
+          const foundLoads = searchData.loads || []
+          if (foundLoads.length === 0) {
+            setMessages(m => [...m, {
+              role: 'assistant',
+              content: `**Proactive Load Finder** — You're ~${Math.round(estimatedMinutes)} min from ${dest}. I searched for loads but nothing available right now. I'll check again in 15 min.`,
+              isProactive: true,
+            }])
+            speak(`You're approaching delivery. No loads found from ${dest} right now, I'll check again soon.`)
+            // Retry in 15 min
+            proactiveTriggeredRef.current = false
+            logProactiveActivity('empty', `No loads found from ${dest}`)
+            return
+          }
+
+          // Score all found loads
+          const scored = foundLoads.map(l => {
+            const miles = l.miles || 1
+            const rpm = (l.rate || 0) / miles
+            const lane = { avgRpm: 2.70, trend: 4, backhaul: 55 }
+            const brokerScores = { 'Echo Global': 98, 'TQL': 92, 'CH Robinson': 95, 'Coyote': 88, 'XPO': 90 }
+            const brokerScore = brokerScores[l.broker_name || l.broker] || 70
+            const premium = (rpm - lane.avgRpm) / lane.avgRpm
+            const scoreA = Math.min(25, Math.max(0, 12 + premium * 40))
+            const scoreB = brokerScore / 100 * 25
+            const scoreC = 20
+            const scoreD = lane.trend > 8 ? 20 : lane.trend > 3 ? 16 : lane.trend > 0 ? 12 : lane.trend > -5 ? 7 : 3
+            const scoreE = lane.backhaul > 70 ? 10 : lane.backhaul > 50 ? 6 : 3
+            const score = Math.min(99, Math.max(30, Math.round(scoreA + scoreB + scoreC + scoreD + scoreE)))
+            return { ...l, _aiScore: score }
+          }).sort((a, b) => b._aiScore - a._aiScore)
+
+          proactiveLoadsRef.current = scored
+
+          // Present best load to driver
+          const best = scored[0]
+          const bestRpm = best.miles ? (best.rate / best.miles).toFixed(2) : '—'
+          const origin = best.origin_city || best.origin || dest
+          const destination = best.destination_city || best.dest || best.destination || '?'
+
+          const msg = [
+            `**Proactive Load Finder** — You're ~${Math.round(estimatedMinutes)} min from delivery!`,
+            ``,
+            `I found **${scored.length} loads** from ${dest}. Here's the best one:`,
+            ``,
+            `**${origin} → ${destination}**`,
+            `$${Number(best.rate || 0).toLocaleString()} · $${bestRpm}/mi · ${best.miles || '?'} mi`,
+            `${best.broker_name || best.broker || 'Unknown Broker'} · ${best.equipment_type || best.equipment || 'Dry Van'}`,
+            `AI Score: **${best._aiScore}/99**`,
+            ``,
+            `Say **"book it"** to auto-book, **"show me more"** for top 3, or **"no thanks"** to dismiss.`,
+          ].join('\n')
+
+          setMessages(m => [...m, { role: 'assistant', content: msg, isProactive: true }])
+          speak(`Heads up! You're ${Math.round(estimatedMinutes)} minutes from delivery. I found a ${best._aiScore} point load from ${origin} to ${destination} for $${Number(best.rate || 0).toLocaleString()}. Say book it to grab it, or show me more for options.`)
+
+          logProactiveActivity('found', `${scored.length} loads from ${dest}, best: ${origin}→${destination} $${best.rate} (${best._aiScore}/99)`)
+
+        } catch (err) {
+          console.warn('[ProactiveAgent] Load search error:', err)
+        }
+      } catch (err) {
+        console.warn('[ProactiveAgent] Geocode error:', err)
+      }
+    }
+
+    // Check every 5 minutes
+    checkProximity()
+    const interval = setInterval(checkProximity, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [activeLoads, subscription, proactiveLoadId])
+
+  // Log proactive agent activity for admin dashboard
+  const logProactiveActivity = useCallback(async (type, message) => {
+    try {
+      await apiFetch('/api/admin-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          severity: 'info',
+          title: `[Proactive Agent] ${type}`,
+          message,
+          source: 'proactive-load-finder',
+          userId: user?.id,
+        }),
+      })
+    } catch { /* silent */ }
+  }, [user])
 
   // ── Next stop helper ──────────────────────────────
   const getNextStop = useCallback(() => {
@@ -939,6 +1099,103 @@ function MobileAI() {
 
     // Smart intent detection
     const lowerText = userText.toLowerCase()
+
+    // ── PROACTIVE LOAD FINDING AGENT — driver response handling ──
+    if (proactiveLoadsRef.current.length > 0) {
+      // "book it" / "yes" → auto-book the best load
+      if (/\b(book\s*it|yes|accept|grab\s*it|take\s*it|let'?s?\s*go|book\s*that)\b/.test(lowerText)) {
+        const best = proactiveLoadsRef.current[0]
+        try {
+          await addLoad({
+            origin: best.origin_city || best.origin || '',
+            destination: best.destination_city || best.dest || best.destination || '',
+            miles: best.miles || 0,
+            rate: best.rate || 0,
+            rate_per_mile: best.miles ? (best.rate / best.miles).toFixed(2) : 0,
+            equipment: best.equipment_type || best.equipment || 'Dry Van',
+            broker_name: best.broker_name || best.broker || '',
+            weight: best.weight || '',
+            pickup_date: best.pickup_date || '',
+            delivery_date: best.delivery_date || '',
+            status: 'Booked',
+            load_type: 'FTL',
+          })
+          const dest = best.destination_city || best.dest || best.destination || '?'
+          setMessages(m => [...m, { role: 'assistant', content: `**Load Booked!** ${best.origin_city || best.origin} → ${dest}\n$${Number(best.rate || 0).toLocaleString()} · ${best.miles} mi · AI Score ${best._aiScore}/99\n\nYour next load is locked in before you even delivered this one.`, isProactive: true }])
+          speak(`Load booked! ${best.origin_city || best.origin} to ${dest} for $${Number(best.rate || 0).toLocaleString()}.`)
+          showToast('success', 'Load Booked!', `${best.origin_city || best.origin} → ${dest}`)
+          logProactiveActivity('booked', `Auto-booked: ${best.origin_city || best.origin}→${dest} $${best.rate} (${best._aiScore}/99)`)
+          proactiveLoadsRef.current = []
+        } catch (err) {
+          setMessages(m => [...m, { role: 'assistant', content: `Couldn't book that load: ${err.message}. Try again or say "show me more".` }])
+        }
+        setLoading(false)
+        return
+      }
+
+      // "show me more" / "more options" → show top 3
+      if (/\b(show\s*me\s*more|more\s*options|more\s*loads|other\s*loads|what\s*else|top\s*3)\b/.test(lowerText)) {
+        const top3 = proactiveLoadsRef.current.slice(0, 3)
+        const lines = top3.map((l, i) => {
+          const orig = l.origin_city || l.origin || '?'
+          const dest = l.destination_city || l.dest || l.destination || '?'
+          const rpm = l.miles ? (l.rate / l.miles).toFixed(2) : '—'
+          return `**${i + 1}. ${orig} → ${dest}**\n$${Number(l.rate || 0).toLocaleString()} · $${rpm}/mi · ${l.miles || '?'} mi · ${l.broker_name || l.broker || '?'} · Score: ${l._aiScore}/99`
+        })
+        setMessages(m => [...m, {
+          role: 'assistant',
+          content: `**Top ${top3.length} Loads from your delivery city:**\n\n${lines.join('\n\n')}\n\nSay **"book 1"**, **"book 2"**, or **"book 3"** to grab one.`,
+          isProactive: true,
+        }])
+        speak(`Here are your top ${top3.length} options.`)
+        setLoading(false)
+        return
+      }
+
+      // "book 1/2/3" → book specific load from top 3
+      const bookMatch = lowerText.match(/\bbook\s*(\d)\b/)
+      if (bookMatch) {
+        const idx = parseInt(bookMatch[1]) - 1
+        const load = proactiveLoadsRef.current[idx]
+        if (load) {
+          try {
+            await addLoad({
+              origin: load.origin_city || load.origin || '',
+              destination: load.destination_city || load.dest || load.destination || '',
+              miles: load.miles || 0,
+              rate: load.rate || 0,
+              rate_per_mile: load.miles ? (load.rate / load.miles).toFixed(2) : 0,
+              equipment: load.equipment_type || load.equipment || 'Dry Van',
+              broker_name: load.broker_name || load.broker || '',
+              status: 'Booked',
+              load_type: 'FTL',
+            })
+            const dest = load.destination_city || load.dest || load.destination
+            setMessages(m => [...m, { role: 'assistant', content: `**Booked load #${idx + 1}!** ${load.origin_city || load.origin} → ${dest} · $${Number(load.rate || 0).toLocaleString()} · Score ${load._aiScore}/99`, isProactive: true }])
+            speak(`Load number ${idx + 1} booked!`)
+            showToast('success', 'Load Booked!', `${load.origin_city || load.origin} → ${dest}`)
+            logProactiveActivity('booked', `Booked option #${idx + 1}: ${load.origin_city || load.origin}→${dest} $${load.rate}`)
+            proactiveLoadsRef.current = []
+          } catch (err) {
+            setMessages(m => [...m, { role: 'assistant', content: `Couldn't book: ${err.message}` }])
+          }
+          setLoading(false)
+          return
+        }
+      }
+
+      // "no" / "dismiss" / "not now" → dismiss, retry in 30 min
+      if (/\b(no\s*thanks?|no|dismiss|not\s*now|skip|pass|later|nah)\b/.test(lowerText)) {
+        proactiveDismissedRef.current = Date.now()
+        proactiveTriggeredRef.current = false
+        proactiveLoadsRef.current = []
+        setMessages(m => [...m, { role: 'assistant', content: `Got it — I'll check again in 30 minutes for new loads.`, isProactive: true }])
+        speak('No problem. I\'ll check again in 30 minutes.')
+        logProactiveActivity('dismissed', 'Driver dismissed proactive suggestion')
+        setLoading(false)
+        return
+      }
+    }
 
     // Sleep/tired/rest → auto-search rest areas
     if (/\b(sleep|tired|exhausted|rest\s*area|nap|drowsy|fatigue|pull\s*over|need\s*rest|need\s*sleep)\b/.test(lowerText)) {

@@ -573,11 +573,44 @@ export function MasterAgent() {
   const prevHealthRef = useRef(null)
   const checkCountRef = useRef(0)
 
-  const addLog = useCallback((type, message) => {
-    setAgentLog(prev => [{ type, message, ts: new Date().toISOString() }, ...prev].slice(0, 50))
+  // ── Bot controls state ────────────────────────────────────
+  const [botStates, setBotStates] = useState(() => {
+    const saved = localStorage.getItem('qv_bot_states')
+    if (saved) try { return JSON.parse(saved) } catch {}
+    return {
+      chatbot: { enabled: true, paused: false, lastActive: null },
+      loadAgent: { enabled: true, paused: false, lastActive: null },
+      healthMonitor: { enabled: true, paused: false, lastActive: null },
+      contentCalendar: { enabled: true, paused: false, lastActive: null },
+    }
+  })
+
+  // Persist bot states
+  useEffect(() => {
+    localStorage.setItem('qv_bot_states', JSON.stringify(botStates))
+  }, [botStates])
+
+  const toggleBot = (botId) => setBotStates(s => ({ ...s, [botId]: { ...s[botId], enabled: !s[botId].enabled, paused: false } }))
+  const pauseBot = (botId) => setBotStates(s => ({ ...s, [botId]: { ...s[botId], paused: !s[botId].paused } }))
+  const touchBot = useCallback((botId) => setBotStates(s => ({ ...s, [botId]: { ...s[botId], lastActive: new Date().toISOString() } })), [])
+
+  // ── Bot stats (aggregated from logs) ──────────────────────
+  const botStats = useRef({ chatbot: { sessions: 0, messages: 0, voice: 0 }, loadAgent: { scored: 0, assigned: 0, proactive: 0 }, healthMonitor: { fixes: 0, alerts: 0 }, contentCalendar: { generated: 0, shared: 0 } })
+
+  const addLog = useCallback((type, message, botSource) => {
+    const entry = { type, message, ts: new Date().toISOString(), bot: botSource || 'system' }
+    setAgentLog(prev => [entry, ...prev].slice(0, 100))
+    // Update bot stats
+    if (botSource === 'chatbot') { botStats.current.chatbot.messages++; if (message.includes('voice') || message.includes('Voice')) botStats.current.chatbot.voice++ }
+    if (botSource === 'loadAgent') { if (type === 'check' && message.includes('Scored')) botStats.current.loadAgent.scored++; if (message.includes('Auto-assigned') || message.includes('assigned')) botStats.current.loadAgent.assigned++ }
+    if (botSource === 'loadAgent' && message.includes('proactive')) botStats.current.loadAgent.proactive++
+    if (botSource === 'healthMonitor') { if (type === 'fix') botStats.current.healthMonitor.fixes++; if (type === 'alert') botStats.current.healthMonitor.alerts++ }
+    if (botSource === 'contentCalendar') { if (message.includes('Generated')) botStats.current.contentCalendar.generated += 7; if (message.includes('Shared') || message.includes('shared')) botStats.current.contentCalendar.shared++ }
   }, [])
 
   const fetchHealth = useCallback(async () => {
+    if (botStates.healthMonitor && !botStates.healthMonitor.enabled) return setLoading(false)
+    if (botStates.healthMonitor?.paused) return setLoading(false)
     try {
       const res = await apiFetch('/api/health-check')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -585,6 +618,7 @@ export function MasterAgent() {
       setHealth(data)
       setLastCheck(new Date())
       checkCountRef.current++
+      touchBot('healthMonitor')
 
       // Compare with previous — detect status changes
       if (prevHealthRef.current && data.checks) {
@@ -593,13 +627,13 @@ export function MasterAgent() {
           if (prev && prev.status !== check.status) {
             const name = FEATURE_NAMES[key]?.label || key
             if (check.status === 'red' && prev.status !== 'red') {
-              addLog('error', `${name} went DOWN: ${check.message}`)
+              addLog('error', `${name} went DOWN: ${check.message}`, 'healthMonitor')
               // Auto-alert on critical failures
               sendAlert('critical', `${name} is DOWN`, `${name} changed from ${prev.status} to red. Details: ${check.message}`)
             } else if (check.status === 'green' && prev.status !== 'green') {
-              addLog('recovery', `${name} RECOVERED: ${check.message}`)
+              addLog('recovery', `${name} RECOVERED: ${check.message}`, 'healthMonitor')
             } else if (check.status === 'yellow') {
-              addLog('warning', `${name} degraded: ${check.message}`)
+              addLog('warning', `${name} degraded: ${check.message}`, 'healthMonitor')
             }
           }
         }
@@ -615,13 +649,13 @@ export function MasterAgent() {
         }
       }
 
-      addLog('check', `Health check #${checkCountRef.current} — ${data.status.toUpperCase()} (${data.totalLatency}ms)`)
+      addLog('check', `Health check #${checkCountRef.current} — ${data.status.toUpperCase()} (${data.totalLatency}ms)`, 'healthMonitor')
     } catch (err) {
-      addLog('error', `Health check failed: ${err.message}`)
+      addLog('error', `Health check failed: ${err.message}`, 'healthMonitor')
     } finally {
       setLoading(false)
     }
-  }, [addLog])
+  }, [addLog, botStates.healthMonitor, touchBot])
 
   const attemptAutoFix = async (key, check) => {
     const name = FEATURE_NAMES[key]?.label || key
@@ -630,29 +664,28 @@ export function MasterAgent() {
     if (key === 'dieselCache' && check.message?.includes('h old')) {
       const age = parseFloat(check.message)
       if (age > 12) {
-        addLog('fix', `Auto-fix: Refreshing diesel price cache (${age.toFixed(1)}h stale)...`)
+        addLog('fix', `Auto-fix: Refreshing diesel price cache (${age.toFixed(1)}h stale)...`, 'healthMonitor')
         try {
           const res = await fetch('/api/diesel-prices')
           if (res.ok) {
-            addLog('recovery', 'Auto-fix SUCCESS: Diesel prices refreshed')
+            addLog('recovery', 'Auto-fix SUCCESS: Diesel prices refreshed', 'healthMonitor')
           } else {
-            addLog('error', `Auto-fix FAILED: Diesel refresh returned ${res.status}`)
+            addLog('error', `Auto-fix FAILED: Diesel refresh returned ${res.status}`, 'healthMonitor')
           }
         } catch {
-          addLog('error', 'Auto-fix FAILED: Could not reach diesel-prices endpoint')
+          addLog('error', 'Auto-fix FAILED: Could not reach diesel-prices endpoint', 'healthMonitor')
         }
       }
     }
 
     // Auto-fix: Database timeout → retry once
     if (key === 'database' && check.latency > 4000) {
-      addLog('fix', `Auto-fix: Database slow (${check.latency}ms). Retrying...`)
-      // The next health check will re-test
+      addLog('fix', `Auto-fix: Database slow (${check.latency}ms). Retrying...`, 'healthMonitor')
     }
 
     // Can't auto-fix missing API keys — alert admin
     if (check.message?.includes('missing') || check.message?.includes('Not configured')) {
-      addLog('alert', `Cannot auto-fix ${name}: ${check.message}. Admin action required.`)
+      addLog('alert', `Cannot auto-fix ${name}: ${check.message}. Admin action required.`, 'healthMonitor')
     }
   }
 
@@ -664,10 +697,10 @@ export function MasterAgent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'health_alert', severity, title, message }),
       })
-      addLog('alert', `Alert sent: ${title}`)
+      addLog('alert', `Alert sent: ${title}`, 'healthMonitor')
       showToast('success', 'Alert Sent', title)
     } catch {
-      addLog('error', 'Failed to send alert')
+      addLog('error', 'Failed to send alert', 'healthMonitor')
     }
     setAlerting(false)
   }
@@ -689,6 +722,56 @@ export function MasterAgent() {
 
   const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }
 
+  // ── Bot definitions for status cards ────────────────────
+  const BOT_DEFS = [
+    {
+      id: 'chatbot', label: 'AI Driver Chatbot', icon: MessageSquare, color: '#3b82f6', gradient: 'linear-gradient(135deg, rgba(59,130,246,0.12), rgba(59,130,246,0.04))',
+      stats: () => [
+        { label: 'Active Sessions', value: botStats.current.chatbot.sessions || '—' },
+        { label: 'Messages Today', value: botStats.current.chatbot.messages },
+        { label: 'Voice Activations', value: botStats.current.chatbot.voice },
+      ],
+    },
+    {
+      id: 'loadAgent', label: 'AI Load Finding Agent', icon: Package, color: '#22c55e', gradient: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))',
+      stats: () => [
+        { label: 'Loads Scored', value: botStats.current.loadAgent.scored },
+        { label: 'Auto-Assigned', value: botStats.current.loadAgent.assigned },
+        { label: 'Proactive Triggers', value: botStats.current.loadAgent.proactive },
+      ],
+    },
+    {
+      id: 'healthMonitor', label: 'Master Admin AI Agent', icon: Shield, color: '#f0a500', gradient: 'linear-gradient(135deg, rgba(240,165,0,0.12), rgba(240,165,0,0.04))',
+      stats: () => [
+        { label: 'Last Health Check', value: lastCheck ? lastCheck.toLocaleTimeString() : '—' },
+        { label: 'Issues Fixed', value: botStats.current.healthMonitor.fixes },
+        { label: 'Alerts Sent', value: botStats.current.healthMonitor.alerts },
+      ],
+    },
+    {
+      id: 'contentCalendar', label: 'Content Calendar Bot', icon: Calendar, color: '#8b5cf6', gradient: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(139,92,246,0.04))',
+      stats: () => [
+        { label: 'Posts Generated', value: botStats.current.contentCalendar.generated },
+        { label: 'Shared This Week', value: botStats.current.contentCalendar.shared },
+        { label: 'Templates', value: 21 },
+      ],
+    },
+  ]
+
+  // ── Color map for unified activity feed ───────────────────
+  const LOG_COLORS = {
+    chatbot: '#3b82f6',       // blue
+    loadAgent: '#22c55e',     // green
+    healthMonitor: '#f0a500', // yellow
+    contentCalendar: '#8b5cf6', // purple
+    system: '#6b7590',
+  }
+  const LOG_TYPE_COLORS = {
+    check: '#3b82f6', error: '#ef4444', warning: '#f0a500',
+    recovery: '#22c55e', fix: '#8b5cf6', alert: '#ef4444',
+    proactive: '#f97316',
+  }
+
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>
       {/* Header */}
@@ -702,29 +785,84 @@ export function MasterAgent() {
               MASTER <span style={{ color: 'var(--accent)' }}>AI AGENT</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-              App Monitor · Auto-Fix · Alerts
+              4 Bots · Live Monitor · Auto-Fix · Alerts
             </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Auto-refresh toggle */}
           <button onClick={() => setAutoRefresh(a => !a)}
             style={{ height: 32, borderRadius: 8, padding: '0 10px', background: autoRefresh ? 'rgba(34,197,94,0.1)' : 'var(--surface2)', border: '1px solid ' + (autoRefresh ? 'rgba(34,197,94,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: autoRefresh ? '#22c55e' : 'var(--muted)', fontFamily: "'DM Sans',sans-serif" }}>
             <Ic icon={autoRefresh ? Wifi : WifiOff} size={12} />
             {autoRefresh ? 'LIVE' : 'PAUSED'}
           </button>
-          {/* Manual refresh */}
           <button onClick={() => { setLoading(true); fetchHealth() }}
             style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Ic icon={RefreshCw} size={14} color="var(--muted)" style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
           </button>
-          {/* Test alert */}
           <button onClick={() => sendAlert('warning', 'Test Alert', 'This is a test alert from the Master AI Agent.')} disabled={alerting}
             style={{ height: 32, borderRadius: 8, padding: '0 10px', background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Sans',sans-serif" }}>
             <Ic icon={Bell} size={12} />
             TEST ALERT
           </button>
         </div>
+      </div>
+
+      {/* ═══════════════ 1. BOT STATUS OVERVIEW — 4 cards ═══════════════ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14, marginBottom: 20 }}>
+        {BOT_DEFS.map(bot => {
+          const bs = botStates[bot.id]
+          const isActive = bs?.enabled && !bs?.paused
+          const statusColor = !bs?.enabled ? '#ef4444' : bs?.paused ? '#f0a500' : '#22c55e'
+          const statusLabel = !bs?.enabled ? 'OFF' : bs?.paused ? 'PAUSED' : 'RUNNING'
+          return (
+            <div key={bot.id} style={{ ...cardStyle, background: bot.gradient, borderLeft: `3px solid ${bot.color}`, position: 'relative', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${bot.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ic icon={bot.icon} size={18} color={bot.color} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>{bot.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor, animation: isActive ? 'botPulse 2s ease-in-out infinite' : 'none' }} />
+                    <span style={{ fontSize: 9, fontWeight: 800, color: statusColor, letterSpacing: 0.5 }}>{statusLabel}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {bot.stats().map((s, i) => (
+                  <div key={i} style={{ flex: 1, padding: '6px 0', textAlign: 'center', background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: bot.color, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{s.value}</div>
+                    <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600, letterSpacing: 0.3 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => toggleBot(bot.id)}
+                  style={{ flex: 1, height: 28, borderRadius: 6, background: bs?.enabled ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${bs?.enabled ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, cursor: 'pointer', fontSize: 9, fontWeight: 800, color: bs?.enabled ? '#22c55e' : '#ef4444', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <Ic icon={bs?.enabled ? Wifi : WifiOff} size={10} />
+                  {bs?.enabled ? 'ON' : 'OFF'}
+                </button>
+                <button onClick={() => pauseBot(bot.id)} disabled={!bs?.enabled}
+                  style={{ flex: 1, height: 28, borderRadius: 6, background: bs?.paused ? 'rgba(240,165,0,0.1)' : 'var(--surface2)', border: `1px solid ${bs?.paused ? 'rgba(240,165,0,0.3)' : 'var(--border)'}`, cursor: bs?.enabled ? 'pointer' : 'default', opacity: bs?.enabled ? 1 : 0.4, fontSize: 9, fontWeight: 800, color: bs?.paused ? '#f0a500' : 'var(--muted)', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <Ic icon={Clock} size={10} />
+                  {bs?.paused ? 'RESUME' : 'PAUSE'}
+                </button>
+              </div>
+
+              {/* Last active */}
+              {bs?.lastActive && (
+                <div style={{ fontSize: 8, color: 'var(--muted)', textAlign: 'center', marginTop: 6, fontFamily: "'JetBrains Mono',monospace" }}>
+                  Last active: {new Date(bs.lastActive).toLocaleTimeString()}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Overall status banner */}
@@ -777,32 +915,61 @@ export function MasterAgent() {
         })}
       </div>
 
-      {/* Agent activity log */}
+      {/* ═══════════════ 2. LIVE ACTIVITY FEED — unified, color-coded ═══════════════ */}
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Ic icon={Activity} size={16} color="var(--accent)" />
-            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 1 }}>Agent Activity Log</span>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 1 }}>Live Activity Feed</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '2px 6px', borderRadius: 4 }}>REAL-TIME</span>
           </div>
-          <button onClick={() => setAgentLog([])} style={{ fontSize: 10, color: 'var(--muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-            Clear
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Legend */}
+            {[
+              { color: '#3b82f6', label: 'Chatbot' },
+              { color: '#22c55e', label: 'Load Agent' },
+              { color: '#ef4444', label: 'Error' },
+              { color: '#f0a500', label: 'Warning' },
+              { color: '#8b5cf6', label: 'Auto-Fix' },
+              { color: '#f97316', label: 'Proactive' },
+            ].map(l => (
+              <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 8, color: 'var(--muted)' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: l.color }} />
+                {l.label}
+              </div>
+            ))}
+            <div style={{ width: 1, height: 12, background: 'var(--border)', margin: '0 4px' }} />
+            <button onClick={() => setAgentLog([])} style={{ fontSize: 10, color: 'var(--muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              Clear
+            </button>
+          </div>
         </div>
-        <div style={{ maxHeight: 350, overflowY: 'auto' }}>
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
           {agentLog.length === 0 && (
             <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>
-              Agent is monitoring... Logs will appear here.
+              All 4 bots are monitoring... Activity will appear here in real time.
             </div>
           )}
           {agentLog.map((log, i) => {
-            const colors = { check: 'var(--accent3)', error: '#ef4444', warning: '#f0a500', recovery: '#22c55e', fix: '#8b5cf6', alert: '#ec4899' }
-            const icons = { check: CheckCircle, error: AlertTriangle, warning: Eye, recovery: CheckCircle, fix: RefreshCw, alert: Bell }
-            const LogIcon = icons[log.type] || Zap
+            // Determine color: by type first (error/warning override bot color), then by bot source
+            const dotColor = log.type === 'error' ? '#ef4444'
+              : log.type === 'warning' ? '#f0a500'
+              : log.type === 'fix' ? '#8b5cf6'
+              : log.type === 'alert' ? '#ef4444'
+              : log.type === 'proactive' ? '#f97316'
+              : LOG_COLORS[log.bot] || '#6b7590'
+            const typeIcons = { check: CheckCircle, error: AlertTriangle, warning: Eye, recovery: CheckCircle, fix: RefreshCw, alert: Bell, proactive: Zap }
+            const LogIcon = typeIcons[log.type] || Zap
+            const botLabel = { chatbot: 'CHATBOT', loadAgent: 'LOAD AGENT', healthMonitor: 'HEALTH', contentCalendar: 'CALENDAR', system: 'SYSTEM' }[log.bot] || ''
             return (
-              <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: i < agentLog.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'flex-start' }}>
-                <Ic icon={LogIcon} size={14} color={colors[log.type] || 'var(--muted)'} style={{ marginTop: 2, flexShrink: 0 }} />
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: i < agentLog.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'flex-start' }}>
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: dotColor, marginTop: 7, flexShrink: 0 }} />
+                <Ic icon={LogIcon} size={13} color={dotColor} style={{ marginTop: 2, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>{log.message}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
+                    {botLabel && <span style={{ fontSize: 8, fontWeight: 800, color: LOG_COLORS[log.bot] || 'var(--muted)', background: `${LOG_COLORS[log.bot] || '#6b7590'}15`, padding: '1px 5px', borderRadius: 3, marginRight: 6, letterSpacing: 0.5 }}>{botLabel}</span>}
+                    {log.message}
+                  </div>
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--muted)', whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono',monospace" }}>
                   {new Date(log.ts).toLocaleTimeString()}
@@ -814,13 +981,19 @@ export function MasterAgent() {
       </div>
 
       {/* ─── LOAD MANAGEMENT AGENT ─────────────────────────────────────── */}
-      <LoadManagementAgent addLog={addLog} sendAlert={sendAlert} cardStyle={cardStyle} />
+      <LoadManagementAgent addLog={addLog} sendAlert={sendAlert} cardStyle={cardStyle} botStates={botStates} touchBot={touchBot} />
 
       {/* ─── CONTENT CALENDAR ─────────────────────────────────────────── */}
-      <ContentCalendar addLog={addLog} cardStyle={cardStyle} />
+      <ContentCalendar addLog={addLog} cardStyle={cardStyle} botStates={botStates} touchBot={touchBot} />
 
-      {/* Spin animation */}
-      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+      {/* ─── PROACTIVE LOAD FINDING AGENT ──────────────────────────────── */}
+      <ProactiveAgentPanel addLog={addLog} cardStyle={cardStyle} />
+
+      {/* Animations */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+        @keyframes botPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+      `}</style>
     </div>
   )
 }
@@ -869,7 +1042,7 @@ function toPipelineStage(status) {
   return 'incoming'
 }
 
-function LoadManagementAgent({ addLog, sendAlert, cardStyle }) {
+function LoadManagementAgent({ addLog, sendAlert, cardStyle, botStates, touchBot }) {
   const { showToast } = useApp()
   const [loads, setLoads] = useState([])
   const [drivers, setDrivers] = useState([])
@@ -907,7 +1080,7 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle }) {
     const simId = 'SIM-' + Date.now().toString(36).toUpperCase()
     const log = (step, msg, status) => {
       setSimLog(prev => [...prev, { step, msg, status, ts: Date.now() }])
-      addLog(status === 'pass' ? 'check' : status === 'alert' ? 'alert' : 'fix', msg)
+      addLog(status === 'pass' ? 'check' : status === 'alert' ? 'alert' : 'fix', msg, 'loadAgent')
     }
 
     // Step 1: Create test load (designed to score ~88)
@@ -1032,7 +1205,7 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle }) {
         // Update score in DB (fire and forget)
         supabase.from('loads').update({ ai_score: score }).eq('id', load.id).then(() => {})
 
-        addLog('check', `Scored load ${load.load_id || load.id}: ${score}/100 (${load.origin} → ${load.destination})`)
+        addLog('check', `Scored load ${load.load_id || load.id}: ${score}/100 (${load.origin} → ${load.destination})`, 'loadAgent')
 
         // Auto-assign if score ≥ 80
         if (score >= 80 && !load.carrier_name && !processedRef.current.has(load.id + '_assigned')) {
@@ -1052,7 +1225,7 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle }) {
             // Update driver status
             supabase.from('drivers').update({ status: 'dispatched' }).eq('id', driver.id).then(() => {})
 
-            addLog('fix', `Auto-assigned load ${load.load_id || load.id} (score: ${score}) → ${driver.full_name}`)
+            addLog('fix', `Auto-assigned load ${load.load_id || load.id} (score: ${score}) → ${driver.full_name}`, 'loadAgent')
 
             // Push notification (fire and forget)
             apiFetch('/api/send-push', {
@@ -1069,7 +1242,7 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle }) {
             if (!processedRef.current.has(load.id + '_alerted')) {
               processedRef.current.add(load.id + '_alerted')
               statsRef.current.alerts++
-              addLog('alert', `HIGH-SCORE LOAD ${load.load_id || load.id} (${score}/100) — NO DRIVERS AVAILABLE`)
+              addLog('alert', `HIGH-SCORE LOAD ${load.load_id || load.id} (${score}/100) — NO DRIVERS AVAILABLE`, 'loadAgent')
               sendAlert(
                 'warning',
                 'High-Score Load Unassigned',
@@ -1093,17 +1266,21 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle }) {
   // Poll every 30s when active
   useEffect(() => {
     if (!loadAgentActive) return
+    if (botStates?.loadAgent && (!botStates.loadAgent.enabled || botStates.loadAgent.paused)) return
     let mounted = true
 
     const run = async () => {
       const { loads: l, drivers: d } = await fetchData()
-      if (mounted) await processLoads(l, d)
+      if (mounted) {
+        await processLoads(l, d)
+        if (touchBot) touchBot('loadAgent')
+      }
     }
 
     run()
     const interval = setInterval(run, 30000)
     return () => { mounted = false; clearInterval(interval) }
-  }, [loadAgentActive, fetchData, processLoads])
+  }, [loadAgentActive, fetchData, processLoads, botStates?.loadAgent, touchBot])
 
   const totalPipelineLoads = Object.values(pipelineLoads).reduce((a, b) => a + b.length, 0)
 
@@ -1449,7 +1626,7 @@ function generateWeekPosts(weekStart) {
   return posts
 }
 
-function ContentCalendar({ addLog, cardStyle }) {
+function ContentCalendar({ addLog, cardStyle, botStates, touchBot }) {
   const { showToast } = useApp()
   const [weekOffset, setWeekOffset] = useState(0)
   const [posts, setPosts] = useState(() => {
@@ -1496,7 +1673,8 @@ function ContentCalendar({ addLog, cardStyle }) {
       setGenerating(false)
       setSelectedDay(null)
       setEditingPost(null)
-      addLog('check', `[Calendar] Generated 7 marketing posts for week of ${ws.toLocaleDateString()}`)
+      addLog('check', `[Calendar] Generated 7 marketing posts for week of ${ws.toLocaleDateString()}`, 'contentCalendar')
+      if (touchBot) touchBot('contentCalendar')
       showToast('success', 'Posts Generated', '7 new marketing posts ready')
     }, 800)
   }, [weekOffset, addLog, showToast])
@@ -1504,7 +1682,7 @@ function ContentCalendar({ addLog, cardStyle }) {
   const handleCopy = (post) => {
     navigator.clipboard.writeText(post.body).then(() => {
       showToast('success', 'Copied!', `${post.dayName} post copied to clipboard`)
-      addLog('check', `[Calendar] Copied ${post.dayName} post: "${post.title}"`)
+      addLog('check', `[Calendar] Copied ${post.dayName} post: "${post.title}"`, 'contentCalendar')
     }).catch(() => {
       const ta = document.createElement('textarea')
       ta.value = post.body
@@ -1726,6 +1904,109 @@ function ContentCalendar({ addLog, cardStyle }) {
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f0a500' }} /> Pending
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROACTIVE LOAD FINDING AGENT — Admin visibility panel
+   Shows real-time activity from the proactive load finder running on driver devices
+   ═══════════════════════════════════════════════════════════════════════════ */
+function ProactiveAgentPanel({ addLog, cardStyle }) {
+  const [events, setEvents] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .like('body', '%proactive-load-finder%')
+        .order('created_at', { ascending: false })
+        .limit(30)
+      if (!error && data) setEvents(data)
+    } catch {
+      setEvents([])
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchEvents()
+    const interval = setInterval(fetchEvents, 60000)
+    return () => clearInterval(interval)
+  }, [fetchEvents])
+
+  const typeColors = { found: '#3b82f6', booked: '#22c55e', dismissed: '#f0a500', fallback: '#6b7590', empty: '#8b5cf6' }
+  const typeIcons = { found: Search, booked: CheckCircle, dismissed: X, fallback: AlertTriangle, empty: Package }
+
+  const stats = {
+    found: events.filter(e => e.body?.includes('found') || e.title?.includes('found')).length,
+    booked: events.filter(e => e.body?.includes('booked') || e.title?.includes('booked')).length,
+    dismissed: events.filter(e => e.body?.includes('dismissed') || e.title?.includes('dismissed')).length,
+  }
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Ic icon={Zap} size={16} color="#3b82f6" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>Proactive Load Finder</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Autopilot AI $499 — auto-finds loads before delivery</div>
+          </div>
+        </div>
+        <button onClick={fetchEvents} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Ic icon={RefreshCw} size={10} /> Refresh
+        </button>
+      </div>
+
+      {/* Stats bar */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        {[
+          { label: 'Loads Found', value: stats.found, color: '#3b82f6' },
+          { label: 'Auto-Booked', value: stats.booked, color: '#22c55e' },
+          { label: 'Dismissed', value: stats.dismissed, color: '#f0a500' },
+        ].map(s => (
+          <div key={s.label} style={{ flex: 1, padding: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Activity feed */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>ACTIVITY FEED</div>
+      <div style={{ maxHeight: 250, overflowY: 'auto' }}>
+        {loading && <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, padding: 20 }}>Loading...</div>}
+        {!loading && events.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 20, color: 'var(--muted)', fontSize: 12 }}>
+            No proactive agent activity yet. Events appear when Autopilot AI drivers approach delivery destinations.
+          </div>
+        )}
+        {events.map((ev, i) => {
+          const evBody = ev.body || ''
+          const type = evBody.includes('booked') ? 'booked' : evBody.includes('found') ? 'found' : evBody.includes('dismissed') ? 'dismissed' : evBody.includes('no load board') ? 'fallback' : evBody.includes('No loads') ? 'empty' : 'found'
+          const color = typeColors[type] || '#6b7590'
+          const Icon = typeIcons[type] || Zap
+          // Extract the message part after source tag
+          const displayMsg = evBody.replace(/^\[.*?\]\s*(\[.*?\]\s*)?/, '')
+          return (
+            <div key={ev.id || i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: i < events.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'flex-start' }}>
+              <Ic icon={Icon} size={14} color={color} style={{ marginTop: 2, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>{displayMsg || ev.title}</div>
+                {ev.user_id && ev.user_id !== 'system' && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Driver: {ev.user_id.slice(0, 8)}...</div>}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--muted)', whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono',monospace" }}>
+                {ev.created_at ? new Date(ev.created_at).toLocaleString() : ''}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

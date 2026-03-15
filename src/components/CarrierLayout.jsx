@@ -231,7 +231,7 @@ function OverviewTab({ onTabChange }) {
   const fmtMoney = (v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${v}`
 
   // Panel style
-  const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }
+  const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10 }
   const panHead = (label, icon, right) => (
     <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
       <div style={{ fontWeight:700, fontSize:12, display:'flex', alignItems:'center', gap:6, letterSpacing:0.5 }}><Ic icon={icon} size={13} />{label}</div>

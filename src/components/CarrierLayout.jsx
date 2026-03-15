@@ -105,11 +105,12 @@ function FuelTicker() {
     let cancelled = false
     async function fetchDiesel() {
       try {
-        const res = await apiFetch('/api/diesel-prices')
+        const res = await fetch('/api/diesel-prices')
         if (!res.ok) return
         const data = await res.json()
         if (!cancelled && data.prices?.length > 0) {
-          setPrices(data.prices.filter(p => p.price > 0))
+          const valid = data.prices.filter(p => p.price > 0)
+          if (valid.length > 0) setPrices(valid)
         }
       } catch { /* silent */ }
     }
@@ -130,8 +131,8 @@ function FuelTicker() {
       <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', minWidth:150 }}>
         <Ic icon={Fuel} size={14} color="var(--accent)" />
         <div>
-          <div style={{ fontSize:9, color:'var(--muted)', fontWeight:700, letterSpacing:1 }}>DIESEL PRICES</div>
-          <div style={{ fontSize:11, color:'var(--muted)' }}>Loading...</div>
+          <div style={{ fontSize:9, color:'var(--muted)', fontWeight:700, letterSpacing:1 }}>US AVG DIESEL</div>
+          <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:14, fontWeight:700, color:'var(--muted)' }}>—</div>
         </div>
       </div>
     )

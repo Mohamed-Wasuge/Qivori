@@ -20,9 +20,7 @@ export default async function handler(req) {
     return Response.json({ error: 'GET only' }, { status: 405, headers: corsHeaders(req) })
   }
 
-  const authErr = await requireAuth(req)
-  if (authErr) return authErr
-
+  // No auth required — diesel prices are public data
   const ip = getClientIP(req)
   const { limited, resetMs } = rateLimit(`diesel:${ip}`, 30, 60000)
   if (limited) return rateLimitResponse(req, corsHeaders, resetMs)

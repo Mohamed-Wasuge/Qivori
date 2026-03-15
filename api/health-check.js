@@ -21,7 +21,8 @@ export default async function handler(req) {
   // Verify admin (optional — allow unauthenticated for uptime monitors)
   const { user } = await verifyAuth(req)
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
+  const supabaseUrl = rawUrl.startsWith('http') ? rawUrl : null
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY
   const checks = {}
   const startAll = Date.now()

@@ -75,6 +75,7 @@ function MobileAI() {
   })
   const [showLoadDetail, setShowLoadDetail] = useState(false)
   const hosWarningShownRef = useRef(false)
+  const escalateAttemptRef = useRef(0) // track failed AI attempts for auto-escalation
 
   // ── PROACTIVE LOAD FINDING AGENT state ──────────────────
   const proactiveTriggeredRef = useRef(false) // prevent re-triggering within same delivery
@@ -1300,6 +1301,159 @@ function MobileAI() {
       return
     }
 
+    // ── VOICE MODE TOGGLE ──
+    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText)) {
+      setHandsFree(true)
+      setSpeakerOn(true)
+      setMessages(m => [...m, { role: 'assistant', content: '**Hands-free mode activated.** I\'ll listen continuously and speak all responses. Say **"turn off hands-free"** to stop.' }])
+      speak('Hands-free mode is now on. I\'m listening.')
+      setTimeout(() => startListening(), 500)
+      setLoading(false)
+      return
+    }
+    if (/\b(turn\s*off|disable|stop|deactivate)\s*(voice\s*mode|hands[\s-]*free|voice)\b/i.test(lowerText)) {
+      setHandsFree(false)
+      setMessages(m => [...m, { role: 'assistant', content: '**Hands-free mode off.** I\'ll stop listening automatically. You can still tap the mic to speak.' }])
+      speak('Hands-free mode turned off.')
+      setLoading(false)
+      return
+    }
+
+    // ── SHOW MY SUBSCRIPTION ──
+    if (/\b(show|what'?s?|view|check)\s*(my\s*)?(subscription|plan|current\s*plan|account\s*status|billing\s*status)\b/i.test(lowerText) && !/upgrade|downgrade|change|cancel/i.test(lowerText)) {
+      const plan = subscription?.plan || 'Free'
+      const status = subscription?.status || 'inactive'
+      const trial = subscription?.isTrial
+      const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
+      const planPrices = { solo: '$99/mo', fleet: '$299/mo', growing: '$599/mo', enterprise: '$599/mo' }
+      const price = planPrices[plan] || 'Free'
+      let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
+      if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`
+      msg += `\n\nSay **"upgrade my plan"** to change plans or **"update payment method"** to manage billing.`
+      setMessages(m => [...m, { role: 'assistant', content: msg }])
+      speak(`You're on the ${plan} plan, status ${status}.`)
+      setLoading(false)
+      return
+    }
+
+    // ── WHEN DOES MY TRIAL END ──
+    if (/\b(when|how\s*long).*(trial|free\s*period)\s*(end|expire|left|over|finish)\b/i.test(lowerText) || /\btrial\s*(end|expir)\b/i.test(lowerText)) {
+      if (subscription?.isTrial && subscription?.trialEndsAt) {
+        const endDate = new Date(subscription.trialEndsAt)
+        const daysLeft = Math.max(0, Math.ceil((endDate - Date.now()) / 86400000))
+        const formatted = endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        setMessages(m => [...m, { role: 'assistant', content: `**Your trial ends ${formatted}** (${daysLeft} day${daysLeft !== 1 ? 's' : ''} left).\n\nAfter your trial, you'll be charged automatically. Say **"upgrade my plan"** to see plan options or **"cancel my subscription"** to cancel before the trial ends.` }])
+        speak(`Your trial ends in ${daysLeft} days, on ${formatted}.`)
+      } else if (subscription?.isActive) {
+        setMessages(m => [...m, { role: 'assistant', content: `You're not on a trial — you have an **active subscription**. Say **"show my subscription"** for details.` }])
+        speak("You're not on a trial. You have an active subscription.")
+      } else {
+        setMessages(m => [...m, { role: 'assistant', content: `You don't have an active trial. Say **"upgrade my plan"** to get started with a 14-day free trial.` }])
+        speak("You don't have an active trial. Say upgrade my plan to start one.")
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── CANCEL SUBSCRIPTION ──
+    if (/\b(cancel)\s*(my\s*)?(subscription|plan|account|membership)\b/i.test(lowerText)) {
+      if (subscription?.customerId) {
+        setMessages(m => [...m, { role: 'assistant', content: `**Are you sure you want to cancel?**\n\nYou'll lose access to premium features at the end of your billing period. I'm opening the billing portal where you can manage or cancel your subscription.\n\nIf you're having issues, say **"report a problem"** and we'll help resolve it.` }])
+        speak("I'm opening the billing portal for you.")
+        try {
+          const res = await apiFetch('/api/create-portal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerId: subscription.customerId }),
+          })
+          const data = await res.json()
+          if (data.url) setTimeout(() => window.open(data.url, '_blank'), 1500)
+        } catch {}
+      } else {
+        setMessages(m => [...m, { role: 'assistant', content: `You don't have an active subscription to cancel. Say **"upgrade my plan"** to see available plans.` }])
+        speak("You don't have an active subscription to cancel.")
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── UPDATE PAYMENT METHOD ──
+    if (/\b(update|change|edit|manage)\s*(my\s*)?(payment|card|billing|credit\s*card|payment\s*method)\b/i.test(lowerText)) {
+      if (subscription?.customerId) {
+        setMessages(m => [...m, { role: 'assistant', content: `Opening the **billing portal** where you can update your payment method, view invoices, and manage your subscription.` }])
+        speak("Opening your billing portal now.")
+        try {
+          const res = await apiFetch('/api/create-portal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerId: subscription.customerId }),
+          })
+          const data = await res.json()
+          if (data.url) setTimeout(() => window.open(data.url, '_blank'), 1500)
+        } catch {
+          setMessages(m => [...m, { role: 'assistant', content: 'Had trouble opening the portal. Please try again or email **hello@qivori.com**.' }])
+        }
+      } else {
+        setMessages(m => [...m, { role: 'assistant', content: `You need an active subscription first. Say **"upgrade my plan"** to get started.` }])
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── SHOW MY INVOICES ──
+    if (/\b(show|view|list|see|pull\s*up)\s*(my\s*)?(invoices?|bills?|receipts?|billing\s*history|payment\s*history)\b/i.test(lowerText)) {
+      if (invoices && invoices.length > 0) {
+        const recent = invoices.slice(0, 5)
+        const lines = recent.map((inv, i) => {
+          const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'
+          const status = inv.status || 'draft'
+          const statusIcon = status === 'paid' ? '✅' : status === 'sent' ? '📤' : '📝'
+          return `${i + 1}. **${inv.invoice_number || `INV-${i + 1}`}** — $${Number(inv.total || 0).toLocaleString()} · ${date} ${statusIcon} ${status}`
+        })
+        setMessages(m => [...m, { role: 'assistant', content: `**Your Recent Invoices:**\n\n${lines.join('\n')}\n\n${invoices.length > 5 ? `Showing 5 of ${invoices.length}. ` : ''}Say **"update payment method"** to manage billing.` }])
+        speak(`You have ${invoices.length} invoices. The most recent is for $${Number(recent[0]?.total || 0).toLocaleString()}.`)
+      } else {
+        setMessages(m => [...m, { role: 'assistant', content: `No invoices found yet. Invoices are generated when you complete loads and submit for billing.\n\nSay **"show my subscription"** to check your plan status.` }])
+        speak("No invoices found yet.")
+      }
+      setLoading(false)
+      return
+    }
+
+    // ── CONNECT LOAD BOARD (DAT, 123LoadBoard, Truckstop) ──
+    if (/\b(connect|link|set\s*up|configure|add)\s*(my\s*)?(dat|load\s*board|123\s*load|truckstop|broker)\s*(account|credentials?|api|key)?\b/i.test(lowerText)) {
+      setMessages(m => [...m, { role: 'assistant', content: `**Connect Your Load Board**\n\nTo connect your load board accounts (DAT, 123Loadboard, Truckstop), go to:\n\n**Settings → Load Board Connections**\n\nYou'll need your API credentials from each provider. Once connected, I can automatically search for loads and help you book them.\n\nSay **"activate load finding"** after connecting to enable the Proactive Load Agent.` }])
+      speak("Go to Settings, then Load Board Connections to add your API credentials.")
+      setLoading(false)
+      return
+    }
+
+    // ── REPORT A PROBLEM / BUG ──
+    if (/\b(report\s*(a\s*)?(problem|bug|issue|error)|something'?s?\s*(wrong|broken|not\s*work)|file\s*(a\s*)?(complaint|ticket)|i\s*have\s*(a\s*)?(problem|issue|bug))\b/i.test(lowerText)) {
+      // Log to admin with full context
+      const problemDesc = userText.replace(/^(report\s*a?\s*(problem|bug|issue)|something'?s?\s*(wrong|broken))\s*/i, '').trim() || userText
+      try {
+        await apiFetch('/api/admin-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            severity: 'warning',
+            title: 'Bug Report from Driver',
+            message: `User: ${user?.email || 'unknown'}\nPlan: ${subscription?.plan || 'none'}\nDescription: ${problemDesc}\nTimestamp: ${new Date().toISOString()}`,
+            source: 'chatbot-bug-report',
+            userId: user?.id,
+          }),
+        })
+        setMessages(m => [...m, { role: 'assistant', content: `**Problem reported.** Mohamed will review it shortly.\n\nHere's what I logged:\n- **User:** ${user?.email || 'your account'}\n- **Issue:** ${problemDesc}\n- **Time:** ${new Date().toLocaleString()}\n\nYou'll receive an update via email. Is there anything else I can help with in the meantime?` }])
+        speak("Your problem has been reported. Mohamed will review it shortly.")
+        showToast('success', 'Problem Reported', 'Admin notified')
+      } catch {
+        setMessages(m => [...m, { role: 'assistant', content: 'Had trouble submitting the report. Please email **hello@qivori.com** directly.' }])
+      }
+      setLoading(false)
+      return
+    }
+
     // ── ACCOUNT MANAGEMENT — show IFTA / reports ──
     if (/\b(show|view|open|pull\s*up)\s+(my\s*)?(ifta|csa|eld|compliance|dvir)\s*(report|score|data|status)?\b/i.test(lowerText)) {
       const reportMatch = lowerText.match(/\b(ifta|csa|eld|compliance|dvir)\b/i)
@@ -1395,6 +1549,8 @@ function MobileAI() {
       }
 
       const replyText = displayText || rawReply
+      // Reset escalation counter on successful AI response
+      escalateAttemptRef.current = 0
       setMessages(m => [...m, {
         role: 'assistant',
         content: replyText,
@@ -1408,7 +1564,27 @@ function MobileAI() {
       })
     } catch (err) {
       console.error('Chat error:', err)
-      setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'check your internet.') }])
+      escalateAttemptRef.current += 1
+      if (escalateAttemptRef.current >= 2) {
+        // Auto-escalate after 2 failed attempts
+        escalateAttemptRef.current = 0
+        const recentChat = newMessages.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n')
+        apiFetch('/api/admin-alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            severity: 'warning',
+            title: 'Auto-Escalation: AI Failed 2x',
+            message: `User: ${user?.email || 'unknown'}\nPlan: ${subscription?.plan || 'none'}\nError: ${err.message}\n\nConversation:\n${recentChat}`,
+            source: 'chatbot-auto-escalation',
+            userId: user?.id,
+          }),
+        }).catch(() => {})
+        setMessages(m => [...m, { role: 'assistant', content: `I'm having trouble answering that. I've **automatically escalated** this to Mohamed — he'll review the conversation and get back to you via email at **${user?.email || 'your registered email'}**.\n\nYou can also email **hello@qivori.com** directly.` }])
+        speak("I've escalated this to the admin team. They'll follow up with you.")
+      } else {
+        setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'check your internet.') + '\n\nTry again — if it fails once more, I\'ll escalate to the admin team.' }])
+      }
     } finally {
       setLoading(false)
     }
@@ -1430,13 +1606,13 @@ function MobileAI() {
   // Suggested prompts for empty state — includes account management
   const suggestions = [
     'Upgrade my plan',
+    'Show my subscription',
     'Activate load finding',
     'Help me with BOL',
-    'Show my IFTA report',
+    'Report a problem',
     'Nearest truck stop',
     'How many hours do I have left?',
     "What's my next stop?",
-    "What's the weather on my route?",
   ]
 
   return (

@@ -19,8 +19,8 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// ─── Load board data populated from context ───────────
-const BOARD_LOADS = []
+// ─── Load board data — populated from API, falls back to empty ───────────
+let BOARD_LOADS = []
 
 export default function MobileLayout() {
   return (
@@ -58,6 +58,7 @@ function MobileAI() {
   const [voiceText, setVoiceText] = useState('')
   const [speakerOn, setSpeakerOn] = useState(true)
   const [speaking, setSpeaking] = useState(false)
+  const [handsFree, setHandsFree] = useState(false)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -67,6 +68,13 @@ function MobileAI() {
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  const contextMemoryRef = useRef([]) // stores last 5 messages from previous conversations
+  const [hosStartTime, setHosStartTime] = useState(() => {
+    const saved = localStorage.getItem('qivori_hos_start')
+    return saved ? parseInt(saved) : null
+  })
+  const [showLoadDetail, setShowLoadDetail] = useState(false)
+  const hosWarningShownRef = useRef(false)
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -74,6 +82,24 @@ function MobileAI() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, loading])
+
+  // Fetch live load board data for AI context
+  useEffect(() => {
+    let cancelled = false
+    async function fetchBoard() {
+      try {
+        const res = await apiFetch('/api/load-board')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data.loads?.length > 0) {
+          BOARD_LOADS = data.loads
+        }
+      } catch { /* silent */ }
+    }
+    fetchBoard()
+    const interval = setInterval(fetchBoard, 15 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
 
   // PWA install prompt
   useEffect(() => {
@@ -176,6 +202,117 @@ function MobileAI() {
     ).join('\n') || 'No loads available yet.'
   }, [loads])
 
+  // ── HOS 11-hour driving clock ──────────────────────
+  const getHosRemaining = useCallback(() => {
+    if (!hosStartTime) return null
+    const elapsed = (Date.now() - hosStartTime) / 3600000 // hours
+    const remaining = Math.max(0, 11 - elapsed)
+    return { elapsed: +elapsed.toFixed(1), remaining: +remaining.toFixed(1) }
+  }, [hosStartTime])
+
+  // Start HOS clock when driver departs (status changes to In Transit)
+  useEffect(() => {
+    const inTransit = activeLoads.find(l => l.status === 'In Transit' || l.status === 'Loaded')
+    if (inTransit && !hosStartTime) {
+      const now = Date.now()
+      setHosStartTime(now)
+      localStorage.setItem('qivori_hos_start', String(now))
+    }
+  }, [activeLoads, hosStartTime])
+
+  // HOS proactive warning — check every 5 min
+  useEffect(() => {
+    if (!hosStartTime) return
+    const check = () => {
+      const hos = getHosRemaining()
+      if (hos && hos.remaining <= 2 && hos.remaining > 0 && !hosWarningShownRef.current) {
+        hosWarningShownRef.current = true
+        const hrs = hos.remaining < 1 ? `${Math.round(hos.remaining * 60)} minutes` : `${hos.remaining} hours`
+        setMessages(m => [...m, {
+          role: 'assistant',
+          content: `**HOS Warning** — You have ${hrs} left on your 11-hour driving clock. Start looking for a safe place to stop.`,
+        }])
+        speak(`Warning. You have ${hrs} left on your 11-hour driving clock. Start looking for a safe place to stop.`)
+      }
+    }
+    check()
+    const interval = setInterval(check, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [hosStartTime, getHosRemaining])
+
+  // Reset HOS when all loads delivered or driver manually resets
+  const resetHOS = useCallback(() => {
+    setHosStartTime(null)
+    localStorage.removeItem('qivori_hos_start')
+    hosWarningShownRef.current = false
+  }, [])
+
+  // ── Next stop helper ──────────────────────────────
+  const getNextStop = useCallback(() => {
+    const load = activeLoads[0]
+    if (!load) return null
+    const status = (load.status || '').toLowerCase()
+    const isBeforePickup = ['booked', 'dispatched', 'assigned'].some(s => status.includes(s))
+    const isAtOrAfterPickup = ['pickup', 'loaded', 'in transit', 'at delivery'].some(s => status.includes(s))
+    if (isBeforePickup) {
+      return {
+        type: 'Pickup',
+        location: load.origin || load.origin_city || 'Unknown',
+        address: load.pickup_address || load.origin_address || load.origin || '',
+        date: load.pickup_date || 'Not set',
+        loadId: load.load_id || load.id,
+      }
+    }
+    return {
+      type: 'Delivery',
+      location: load.destination || load.destination_city || 'Unknown',
+      address: load.delivery_address || load.destination_address || load.destination || '',
+      date: load.delivery_date || 'Not set',
+      loadId: load.load_id || load.id,
+    }
+  }, [activeLoads])
+
+  // ── Weather fetch ──────────────────────────────────
+  const fetchWeather = useCallback(async () => {
+    try {
+      const loc = await getGPSCoords()
+      if (!loc) return { error: 'Could not get GPS location.' }
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&current=temperature_2m,weathercode,windspeed_10m,precipitation&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=auto`)
+      if (!res.ok) return { error: 'Weather service unavailable.' }
+      const data = await res.json()
+      const c = data.current
+      const weatherCodes = { 0:'Clear skies', 1:'Mostly clear', 2:'Partly cloudy', 3:'Overcast', 45:'Foggy', 48:'Icy fog', 51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle', 61:'Light rain', 63:'Rain', 65:'Heavy rain', 71:'Light snow', 73:'Snow', 75:'Heavy snow', 77:'Snow grains', 80:'Light showers', 81:'Showers', 82:'Heavy showers', 85:'Light snow showers', 86:'Heavy snow showers', 95:'Thunderstorm', 96:'Thunderstorm + hail', 99:'Severe thunderstorm + hail' }
+      const condition = weatherCodes[c.weathercode] || 'Unknown'
+      const temp = Math.round(c.temperature_2m)
+      const wind = Math.round(c.windspeed_10m)
+      const precip = c.precipitation
+      // Get destination weather if active load
+      let destWeather = null
+      const load = activeLoads[0]
+      if (load) {
+        const dest = load.destination || load.destination_city || ''
+        if (dest) {
+          try {
+            const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(dest)}&count=1&language=en&format=json`)
+            const geoData = await geoRes.json()
+            if (geoData.results?.[0]) {
+              const { latitude, longitude } = geoData.results[0]
+              const dRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,precipitation&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=inch&timezone=auto`)
+              if (dRes.ok) {
+                const dData = await dRes.json()
+                const dc = dData.current
+                destWeather = { location: dest, temp: Math.round(dc.temperature_2m), condition: weatherCodes[dc.weathercode] || 'Unknown', wind: Math.round(dc.windspeed_10m), precip: dc.precipitation }
+              }
+            }
+          } catch {}
+        }
+      }
+      return { current: { temp, condition, wind, precip }, dest: destWeather }
+    } catch {
+      return { error: 'Could not fetch weather data.' }
+    }
+  }, [activeLoads])
+
   // Parse action blocks from AI response
   const parseActions = (text) => {
     const actionRegex = /```action\s*\n?([\s\S]*?)```/g
@@ -273,23 +410,23 @@ function MobileAI() {
           if ((action.query || '').toLowerCase().match(/weigh|scale|coop/)) {
             return executeAction({ type: 'check_weigh_station', state: action.state, highway: action.highway, radius: action.radius })
           }
-          // Get GPS and open maps directly — fastest experience
+          // Force truck-stop-specific query so Maps shows real truck stops, not gas stations
+          const rawQuery = (action.query || '').toLowerCase()
+          const query = (!rawQuery || /fuel|gas|stop|truck\s*stop|diesel|refuel/.test(rawQuery))
+            ? "Pilot Flying J OR Love's Travel Stop OR Petro truck stop"
+            : action.query
+          // Get GPS — required for useful results
           const loc = await getGPSCoords()
-          const query = action.query || 'truck stop'
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-          if (loc) {
-            const url = isIOS
-              ? `maps://maps.apple.com/?q=${encodeURIComponent(query)}&sll=${loc.lat},${loc.lng}&z=12`
-              : `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${loc.lat},${loc.lng},13z`
-            window.open(url, '_blank')
-          } else {
-            // No GPS — just search without location
-            const url = isIOS
-              ? `maps://maps.apple.com/?q=${encodeURIComponent(query)}`
-              : `https://www.google.com/maps/search/${encodeURIComponent(query)}`
-            window.open(url, '_blank')
+          if (!loc) {
+            setMessages(m => [...m, { role: 'assistant', content: 'Could not get your location. Please enable GPS and try again.' }])
+            return true
           }
-          showToast('success', 'Maps Opened', `Searching: ${query}`)
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+          const url = isIOS
+            ? `maps://maps.apple.com/?q=${encodeURIComponent(query)}&sll=${loc.lat},${loc.lng}&z=12`
+            : `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${loc.lat},${loc.lng},13z`
+          window.open(url, '_blank')
+          showToast('success', 'Maps Opened', `Searching nearby truck stops`)
           return true
         }
         case 'check_weigh_station': {
@@ -337,6 +474,67 @@ function MobileAI() {
             ? `maps://maps.apple.com/?q=${q}&sll=${action.lat || ''},${action.lng || ''}`
             : `https://www.google.com/maps/search/${q}/@${action.lat || ''},${action.lng || ''},14z`
           window.open(url, '_blank')
+          return true
+        }
+        case 'next_stop': {
+          const stop = getNextStop()
+          if (!stop) {
+            setMessages(m => [...m, { role: 'assistant', content: 'No active load right now. Book a load first and I\'ll track your stops.' }])
+          } else {
+            let etaText = ''
+            const loc = await getGPSCoords()
+            if (loc && stop.address) {
+              const miles = Number(activeLoads[0]?.miles || 0)
+              if (miles > 0) {
+                const etaHours = (miles / 55).toFixed(1) // ~55 mph avg for trucks
+                etaText = `\nETA: ~${etaHours} hrs (${miles} mi at 55 mph avg)`
+              }
+            }
+            setMessages(m => [...m, { role: 'assistant', content: `**Next Stop: ${stop.type}**\n📍 ${stop.location}\n${stop.address !== stop.location ? `📫 ${stop.address}\n` : ''}📅 ${stop.date}\n🔖 Load ${stop.loadId}${etaText}` }])
+          }
+          return true
+        }
+        case 'hos_check': {
+          const hos = getHosRemaining()
+          if (!hos) {
+            setMessages(m => [...m, { role: 'assistant', content: 'HOS clock not started yet. It starts automatically when a load goes In Transit. Want me to start it now?' }])
+          } else {
+            const hrs = hos.remaining < 1 ? `${Math.round(hos.remaining * 60)} minutes` : `${hos.remaining} hours`
+            const driven = hos.elapsed < 1 ? `${Math.round(hos.elapsed * 60)} min` : `${hos.elapsed} hrs`
+            const urgency = hos.remaining <= 2 ? '🔴' : hos.remaining <= 4 ? '🟡' : '🟢'
+            setMessages(m => [...m, { role: 'assistant', content: `${urgency} **HOS Status**\n⏱ Driven: ${driven}\n⏳ Remaining: ${hrs}\n${hos.remaining <= 2 ? '\n⚠️ **Start looking for a safe place to stop!**' : ''}` }])
+          }
+          return true
+        }
+        case 'start_hos': {
+          const now = Date.now()
+          setHosStartTime(now)
+          localStorage.setItem('qivori_hos_start', String(now))
+          hosWarningShownRef.current = false
+          setMessages(m => [...m, { role: 'assistant', content: '🟢 **HOS clock started.** You have 11 hours of driving time. I\'ll warn you when 2 hours remain.' }])
+          return true
+        }
+        case 'reset_hos': {
+          resetHOS()
+          setMessages(m => [...m, { role: 'assistant', content: '🔄 **HOS clock reset.** Your 11-hour driving clock is cleared. It will restart when your next load goes In Transit.' }])
+          return true
+        }
+        case 'weather_check': {
+          setMessages(m => [...m, { role: 'assistant', content: '🌤 Checking weather conditions...' }])
+          const weather = await fetchWeather()
+          if (weather.error) {
+            setMessages(m => { const updated = [...m]; updated[updated.length - 1] = { role: 'assistant', content: weather.error }; return updated })
+          } else {
+            let msg = `**Weather at Your Location**\n🌡 ${weather.current.temp}°F — ${weather.current.condition}\n💨 Wind: ${weather.current.wind} mph\n🌧 Precipitation: ${weather.current.precip}"`
+            if (weather.dest) {
+              msg += `\n\n**Weather at Destination (${weather.dest.location})**\n🌡 ${weather.dest.temp}°F — ${weather.dest.condition}\n💨 Wind: ${weather.dest.wind} mph\n🌧 Precipitation: ${weather.dest.precip}"`
+            }
+            const dangerous = [65, 75, 77, 82, 85, 86, 95, 96, 99]
+            const currentDangerous = dangerous.includes(weather.current?.weathercode)
+            const destDangerous = weather.dest && dangerous.includes(weather.dest?.weathercode)
+            if (currentDangerous || destDangerous) msg += '\n\n⚠️ **Severe conditions detected. Drive cautiously and consider stopping if visibility is poor.**'
+            setMessages(m => { const updated = [...m]; updated[updated.length - 1] = { role: 'assistant', content: msg }; return updated })
+          }
           return true
         }
         case 'send_invoice': {
@@ -410,22 +608,25 @@ function MobileAI() {
     ttsUnlockedRef.current = true
   }, [])
 
-  const speak = useCallback((text) => {
-    if (!speakerOn || !text || !window.speechSynthesis) return
+  const speak = useCallback((text, onDone) => {
+    if (!speakerOn || !text || !window.speechSynthesis) { onDone?.(); return }
     // Cancel any current speech
     window.speechSynthesis.cancel()
-    // Clean text — remove markdown bold/links, keep it natural
+    // Clean text — remove markdown, URLs, coordinates, brackets, code blocks
     const clean = text
-      .replace(/\*\*/g, '')
-      .replace(/\[.*?\]\(.*?\)/g, '')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/[#*_~`]/g, '')
+      .replace(/```[\s\S]*?```/g, '')          // code blocks
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // markdown links → keep label
+      .replace(/https?:\/\/\S+/g, '')          // URLs
+      .replace(/-?\d+\.\d{4,},\s*-?\d+\.\d{4,}/g, '') // lat,lng coordinates
+      .replace(/\[.*?\]/g, '')                 // anything in brackets
+      .replace(/\*\*/g, '')                    // bold
+      .replace(/[#*_~`]/g, '')                 // other markdown
       .replace(/\n{2,}/g, '. ')
       .replace(/\n/g, '. ')
+      .replace(/\s{2,}/g, ' ')
       .trim()
-    if (!clean) return
+    if (!clean) { onDone?.(); return }
     // iOS workaround: split long text into chunks under 200 chars
-    // (iOS Safari cuts off speech after ~200-300 chars)
     const chunks = []
     let remaining = clean
     while (remaining.length > 0) {
@@ -433,7 +634,6 @@ function MobileAI() {
         chunks.push(remaining)
         break
       }
-      // Find a good split point (sentence end or comma)
       let splitAt = remaining.lastIndexOf('. ', 180)
       if (splitAt < 50) splitAt = remaining.lastIndexOf(', ', 180)
       if (splitAt < 50) splitAt = remaining.lastIndexOf(' ', 180)
@@ -442,11 +642,10 @@ function MobileAI() {
       remaining = remaining.slice(splitAt + 1).trim()
     }
 
-    // iOS workaround: resume speechSynthesis every 10s to prevent auto-pause
     let resumeInterval = null
     chunks.forEach((chunk, i) => {
       const utterance = new SpeechSynthesisUtterance(chunk)
-      utterance.rate = 1.05
+      utterance.rate = 1.1
       utterance.pitch = 1.0
       utterance.volume = 1.0
       utterance.lang = 'en-US'
@@ -458,8 +657,8 @@ function MobileAI() {
         }, 10000)
       }
       if (i === chunks.length - 1) {
-        utterance.onend = () => { setSpeaking(false); clearInterval(resumeInterval) }
-        utterance.onerror = () => { setSpeaking(false); clearInterval(resumeInterval) }
+        utterance.onend = () => { setSpeaking(false); clearInterval(resumeInterval); onDone?.() }
+        utterance.onerror = () => { setSpeaking(false); clearInterval(resumeInterval); onDone?.() }
       }
       window.speechSynthesis.speak(utterance)
     })
@@ -469,6 +668,11 @@ function MobileAI() {
   useEffect(() => {
     if (!speakerOn) window.speechSynthesis?.cancel()
   }, [speakerOn])
+
+  // When hands-free is enabled, ensure speaker is on
+  useEffect(() => {
+    if (handsFree) setSpeakerOn(true)
+  }, [handsFree])
 
   // ── WEIGH STATION REPORT ──────────────────────
   const reportWeighStation = async (ws, reportStatus) => {
@@ -517,25 +721,26 @@ function MobileAI() {
 
   // ── VOICE RECOGNITION ──────────────────────────
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
-  const startListening = () => {
+  const hasSpeechRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+
+  const startListening = useCallback(() => {
     // Unlock TTS on any user gesture (needed for iOS)
     unlockTTS()
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
+    if (!hasSpeechRecognition) {
       if (isIOS) {
-        showToast('info', 'Voice Input', 'Voice input isn\'t supported on iOS Safari. Type your message instead!')
+        showToast('info', 'Voice on iPhone', 'For voice input, use the mic button on your keyboard.')
       } else {
-        showToast('error', 'Not Supported', 'Voice input not available on this browser')
+        showToast('error', 'Not Supported', 'Voice not supported on this browser. Please type your message.')
       }
       return
     }
 
     if (listening) {
-      // Stop listening
       recognitionRef.current?.stop()
       return
     }
 
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     const recognition = new SpeechRecognition()
     recognition.lang = 'en-US'
     recognition.interimResults = true
@@ -570,6 +775,8 @@ function MobileAI() {
       setListening(false)
       if (event.error === 'not-allowed') {
         showToast('error', 'Mic Blocked', 'Allow microphone access in browser settings')
+      } else if (event.error === 'no-speech') {
+        // Silently end — user just didn't speak
       }
     }
 
@@ -578,7 +785,7 @@ function MobileAI() {
     }
 
     recognition.start()
-  }
+  }, [listening, unlockTTS, hasSpeechRecognition, isIOS, showToast])
 
   // Handle document photo upload
   const handleDocUpload = async (file) => {
@@ -730,12 +937,67 @@ function MobileAI() {
     setInput('')
     setLoading(true)
 
+    // Smart intent detection
+    const lowerText = userText.toLowerCase()
+
+    // Sleep/tired/rest → auto-search rest areas
+    if (/\b(sleep|tired|exhausted|rest\s*area|nap|drowsy|fatigue|pull\s*over|need\s*rest|need\s*sleep)\b/.test(lowerText)) {
+      await executeAction({ type: 'search_nearby', query: 'rest area OR truck stop parking' })
+    }
+
+    // Nearest truck stop / fuel / gas → instant maps open (no AI delay)
+    if (/\b(nearest|closest|find\s*(me\s*)?(a\s*)?)(truck\s*stop|fuel|gas\s*station|love'?s|pilot|petro|ta\b|flying\s*j)\b/.test(lowerText) || /\bnear(by|est)?\s*truck\s*stop\b/.test(lowerText)) {
+      await executeAction({ type: 'search_nearby', query: 'truck stop' })
+      setLoading(false)
+      return
+    }
+
+    // Next stop / where am I going → show next stop
+    if (/\b(next\s*stop|where.*(go|head|deliver|pick\s*up)|my\s*next|next\s*(pickup|delivery))\b/.test(lowerText)) {
+      await executeAction({ type: 'next_stop' })
+      setLoading(false)
+      return // handled locally, no need to call AI
+    }
+
+    // HOS / hours / driving clock → check HOS
+    if (/\b(hos\b|hours?\s*(of\s*service|left|remaining|do\s*i\s*have)|driving\s*clock|how\s*(long|many\s*hours)|11.hour|fourteen.hour|break\s*time)\b/.test(lowerText)) {
+      await executeAction({ type: 'hos_check' })
+      setLoading(false)
+      return
+    }
+
+    // Weather / road conditions → fetch weather
+    if (/\b(weather|forecast|rain|snow|storm|ice|fog|road\s*condition|temperature|wind\s*chill)\b/.test(lowerText)) {
+      await executeAction({ type: 'weather_check' })
+      setLoading(false)
+      return
+    }
+
+    // Start/reset HOS commands
+    if (/\b(start|begin)\s*(my\s*)?(hos|clock|driving)\b/.test(lowerText)) {
+      await executeAction({ type: 'start_hos' })
+      setLoading(false)
+      return
+    }
+    if (/\b(reset|clear|restart)\s*(my\s*)?(hos|clock|driving)\b/.test(lowerText)) {
+      await executeAction({ type: 'reset_hos' })
+      setLoading(false)
+      return
+    }
+
     try {
+      // Build messages with context memory from previous conversations
+      const memoryContext = contextMemoryRef.current.length > 0
+        ? [{ role: 'user', content: '[Previous conversation context for follow-ups]\n' + contextMemoryRef.current.map(m => `${m.role}: ${m.content}`).join('\n') },
+           { role: 'assistant', content: 'Got it, I have context from our previous conversation. How can I help?' }]
+        : []
+      const fullMessages = [...memoryContext, ...newMessages].slice(-20)
+
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages.slice(-20),
+          messages: fullMessages,
           context: buildContext(),
           loadBoard: buildLoadBoard(),
         }),
@@ -766,8 +1028,12 @@ function MobileAI() {
         content: replyText,
         actions,
       }])
-      // AI speaks the response
-      speak(replyText)
+      // AI speaks the response — in hands-free mode, restart mic when done
+      speak(replyText, () => {
+        if (handsFree && hasSpeechRecognition) {
+          setTimeout(() => startListening(), 400)
+        }
+      })
     } catch (err) {
       console.error('Chat error:', err)
       setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'check your internet.') }])
@@ -791,10 +1057,10 @@ function MobileAI() {
 
   // Suggested prompts for empty state
   const suggestions = [
-    'Find me loads from Dallas, dry van',
-    'What are the best paying loads right now?',
-    "I'm at the pickup — need to upload BOL",
-    'Just delivered, upload signed BOL',
+    'Nearest truck stop',
+    'How many hours do I have left?',
+    "What's my next stop?",
+    "What's the weather on my route?",
     'Add fuel expense $120 at Pilot in Memphis',
   ]
 
@@ -824,15 +1090,16 @@ function MobileAI() {
           <MiniStat label="Loads" value={activeLoads.length} color="var(--accent2)" />
         </div>
 
-        {/* Speaker toggle */}
-        <button onClick={() => { unlockTTS(); setSpeakerOn(s => !s) }}
-          style={{ width: 32, height: 32, borderRadius: 8, background: speakerOn ? 'rgba(0,212,170,0.1)' : 'var(--surface2)', border: '1px solid ' + (speakerOn ? 'rgba(0,212,170,0.2)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-          <Ic icon={speakerOn ? Volume2 : VolumeX} size={14} color={speakerOn ? 'var(--success)' : 'var(--muted)'} />
+        {/* Hands-Free toggle */}
+        <button onClick={() => { unlockTTS(); setHandsFree(h => { const next = !h; if (next) { setSpeakerOn(true) }; return next }) }}
+          style={{ height: 32, borderRadius: 8, padding: '0 8px', background: handsFree ? 'rgba(0,212,170,0.15)' : 'var(--surface2)', border: '1px solid ' + (handsFree ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <Ic icon={handsFree ? Volume2 : VolumeX} size={12} color={handsFree ? 'var(--success)' : 'var(--muted)'} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: handsFree ? 'var(--success)' : 'var(--muted)', letterSpacing: 0.5 }}>{handsFree ? 'HANDS-FREE' : 'MANUAL'}</span>
         </button>
 
         {/* New Chat / Home button — only show when in conversation */}
         {messages.length > 0 && (
-          <button onClick={() => { setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true); window.speechSynthesis?.cancel() }}
+          <button onClick={() => { if (messages.length > 0) contextMemoryRef.current = messages.slice(-5); setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true); window.speechSynthesis?.cancel() }}
             style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
             <Ic icon={Plus} size={16} color="var(--text)" />
           </button>
@@ -885,20 +1152,64 @@ function MobileAI() {
         </div>
       )}
 
-      {/* ── ACTIVE LOAD BANNER ──────────────────────── */}
-      {activeLoads.length > 0 && showQuickActions && (
-        <div style={{ margin: '12px 16px 0', padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
-          onClick={() => sendMessage(`Tell me about load ${activeLoads[0].load_id}`)}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Ic icon={Truck} size={16} color="var(--accent)" />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {activeLoads[0].origin} → {activeLoads[0].destination}
+      {/* ── ACTIVE LOAD STATUS BAR ────────────────────── */}
+      {activeLoads.length > 0 && (
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ margin: '8px 16px 0', padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: showLoadDetail ? '10px 10px 0 0' : 10, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+            onClick={() => setShowLoadDetail(d => !d)}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ic icon={Truck} size={16} color="var(--accent)" />
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{activeLoads[0].load_id} · ${Number(activeLoads[0].rate || 0).toLocaleString()}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeLoads[0].origin} → {activeLoads[0].destination}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span>{activeLoads[0].load_id}</span>
+                <span>·</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{activeLoads[0].status}</span>
+                {activeLoads[0].delivery_date && <>
+                  <span>·</span>
+                  <span>Due {activeLoads[0].delivery_date}</span>
+                </>}
+                {activeLoads[0].miles && <>
+                  <span>·</span>
+                  <span>{activeLoads[0].miles} mi</span>
+                </>}
+              </div>
+            </div>
+            <ChevronRight size={14} color="var(--muted)" style={{ transform: showLoadDetail ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
           </div>
-          <ChevronRight size={14} color="var(--muted)" />
+          {showLoadDetail && (
+            <div style={{ margin: '0 16px', padding: '10px 14px', background: 'var(--surface)', border: '1px solid rgba(240,165,0,0.15)', borderTop: 'none', borderRadius: '0 0 10px 10px' }}>
+              {[
+                ['Rate', `$${Number(activeLoads[0].rate || 0).toLocaleString()}`],
+                ['RPM', activeLoads[0].miles ? `$${(Number(activeLoads[0].rate || 0) / Number(activeLoads[0].miles)).toFixed(2)}/mi` : '—'],
+                ['Equipment', activeLoads[0].equipment || activeLoads[0].equipment_type || '—'],
+                ['Broker', activeLoads[0].broker_name || '—'],
+                ['Pickup', activeLoads[0].pickup_date || '—'],
+                ['Delivery', activeLoads[0].delivery_date || '—'],
+                ['Weight', activeLoads[0].weight ? `${activeLoads[0].weight} lbs` : '—'],
+                ['Ref #', activeLoads[0].reference_number || '—'],
+              ].map(([label, value]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}>
+                  <span style={{ color: 'var(--muted)' }}>{label}</span>
+                  <span style={{ fontWeight: 600 }}>{value}</span>
+                </div>
+              ))}
+              {(() => {
+                const hos = getHosRemaining()
+                if (!hos) return null
+                const urgency = hos.remaining <= 2 ? 'var(--danger)' : hos.remaining <= 4 ? 'var(--accent)' : 'var(--success)'
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 8 }}>
+                    <span style={{ color: 'var(--muted)' }}>HOS Remaining</span>
+                    <span style={{ fontWeight: 700, color: urgency }}>{hos.remaining < 1 ? `${Math.round(hos.remaining * 60)} min` : `${hos.remaining} hrs`}</span>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
         </div>
       )}
 
@@ -953,6 +1264,11 @@ function MobileAI() {
                   <Ic icon={Zap} size={10} color="var(--accent)" />
                 </div>
                 <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>Qivori AI</span>
+                <button onClick={(e) => { e.stopPropagation(); speak(m.content) }}
+                  style={{ width: 20, height: 20, borderRadius: '50%', background: speaking ? 'rgba(0,212,170,0.2)' : 'transparent', border: '1px solid rgba(0,212,170,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, marginLeft: 2 }}
+                  title="Replay">
+                  <Ic icon={Volume2} size={9} color="var(--success)" />
+                </button>
               </div>
             )}
             <div style={{

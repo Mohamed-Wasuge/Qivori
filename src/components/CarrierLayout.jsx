@@ -98,15 +98,46 @@ function LiveClock() {
 
 // ── Fuel ticker ───────────────────────────────────────────────────────────────
 function FuelTicker() {
-  const prices = [
-    { region:'US AVG', price:3.42, change:-0.02 },
-    { region:'MIDWEST', price:3.28, change:-0.03 },
-    { region:'SOUTH', price:3.19, change:+0.01 },
-    { region:'WEST', price:3.89, change:-0.01 },
-  ]
+  const [prices, setPrices] = useState([])
   const [idx, setIdx] = useState(0)
-  useEffect(() => { const t = setInterval(() => setIdx(i => (i+1) % prices.length), 4000); return () => clearInterval(t) }, [])
-  const p = prices[idx]
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchDiesel() {
+      try {
+        const res = await apiFetch('/api/diesel-prices')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data.prices?.length > 0) {
+          setPrices(data.prices.filter(p => p.price > 0))
+        }
+      } catch { /* silent */ }
+    }
+    fetchDiesel()
+    // Re-fetch every 2 hours
+    const interval = setInterval(fetchDiesel, 2 * 60 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
+
+  useEffect(() => {
+    if (prices.length === 0) return
+    const t = setInterval(() => setIdx(i => (i+1) % prices.length), 4000)
+    return () => clearInterval(t)
+  }, [prices.length])
+
+  if (prices.length === 0) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', minWidth:150 }}>
+        <Ic icon={Fuel} size={14} color="var(--accent)" />
+        <div>
+          <div style={{ fontSize:9, color:'var(--muted)', fontWeight:700, letterSpacing:1 }}>DIESEL PRICES</div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>Loading...</div>
+        </div>
+      </div>
+    )
+  }
+
+  const p = prices[idx % prices.length]
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', minWidth:150 }}>
       <Ic icon={Fuel} size={14} color="var(--accent)" />
@@ -114,10 +145,13 @@ function FuelTicker() {
         <div style={{ fontSize:9, color:'var(--muted)', fontWeight:700, letterSpacing:1 }}>{p.region} DIESEL</div>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
           <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:14, fontWeight:700, color:'var(--text)' }}>${p.price.toFixed(2)}</span>
-          <span style={{ fontSize:10, fontWeight:700, color: p.change < 0 ? 'var(--success)' : 'var(--danger)', display:'flex', alignItems:'center', gap:1 }}>
-            <Ic icon={p.change < 0 ? ArrowDownRight : ArrowUpRight} size={10} />{Math.abs(p.change).toFixed(2)}
-          </span>
+          {p.change !== 0 && (
+            <span style={{ fontSize:10, fontWeight:700, color: p.change < 0 ? 'var(--success)' : 'var(--danger)', display:'flex', alignItems:'center', gap:1 }}>
+              <Ic icon={p.change < 0 ? ArrowDownRight : ArrowUpRight} size={10} />{Math.abs(p.change).toFixed(3)}
+            </span>
+          )}
         </div>
+        {p.period && <div style={{ fontSize:8, color:'var(--muted)', marginTop:1 }}>Week of {p.period}</div>}
       </div>
     </div>
   )

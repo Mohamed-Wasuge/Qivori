@@ -2059,6 +2059,22 @@ export function FuelOptimizer() {
 export function BrokerRiskIntel() {
   const { showToast } = useApp()
   const { loads, invoices } = useCarrier()
+  const [fmcsaLookup, setFmcsaLookup] = useState({}) // { brokerName: { loading, data, error } }
+
+  const lookupBrokerFMCSA = async (brokerName) => {
+    setFmcsaLookup(prev => ({ ...prev, [brokerName]: { loading: true } }))
+    try {
+      const res = await apiFetch(`/api/fmcsa-lookup?q=${encodeURIComponent(brokerName)}`)
+      if (!res.ok) throw new Error('Lookup failed')
+      const data = await res.json()
+      const match = data.results?.[0] || null
+      setFmcsaLookup(prev => ({ ...prev, [brokerName]: { loading: false, data: match, error: match ? null : 'Not found' } }))
+      if (match) showToast('', 'FMCSA Found', `${match.legalName} · DOT ${match.dotNumber}`)
+      else showToast('', 'Not Found', `No FMCSA match for "${brokerName}"`)
+    } catch (err) {
+      setFmcsaLookup(prev => ({ ...prev, [brokerName]: { loading: false, error: err.message } }))
+    }
+  }
 
   const brokerNames = [...new Set(loads.map(l => l.broker).filter(Boolean))]
 
@@ -2132,10 +2148,18 @@ export function BrokerRiskIntel() {
                   {b.unpaid > 0 && <span style={{color:'var(--warning)'}}> · {b.unpaid} unpaid</span>}
                 </div>
               </div>
-              <button className="btn btn-ghost" style={{ fontSize:11 }}
-                onClick={() => showToast('', b.name, `Score ${b.score} · ${b.loads} loads · ${b.paid} paid / ${b.unpaid} unpaid invoices`)}>
-                Details
-              </button>
+              <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
+                {fmcsaLookup[b.name]?.data && (
+                  <span style={{ fontSize:10, color:'var(--success)', fontWeight:600 }}>
+                    DOT {fmcsaLookup[b.name].data.dotNumber} · {fmcsaLookup[b.name].data.allowedToOperate ? 'Active' : 'Inactive'}
+                  </span>
+                )}
+                {fmcsaLookup[b.name]?.error && <span style={{ fontSize:10, color:'var(--muted)' }}>{fmcsaLookup[b.name].error}</span>}
+                <button className="btn btn-ghost" style={{ fontSize:11 }}
+                  onClick={() => lookupBrokerFMCSA(b.name)} disabled={fmcsaLookup[b.name]?.loading}>
+                  {fmcsaLookup[b.name]?.loading ? '...' : fmcsaLookup[b.name]?.data ? 'Refresh' : 'Verify FMCSA'}
+                </button>
+              </div>
             </div>
           ))}
           {brokers.length === 0 && (
@@ -2509,6 +2533,61 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const [selectedUnit, setSelectedUnit] = useState('Unit 01')
   const defects = items.filter(i => i.status === 'Defect').length
 
+  // FMCSA real data state
+  const [fmcsaDot, setFmcsaDot] = useState(() => localStorage.getItem('qivori_dot_number') || '')
+  const [fmcsaCarrier, setFmcsaCarrier] = useState(null)
+  const [fmcsaBasics, setFmcsaBasics] = useState([])
+  const [fmcsaInspections, setFmcsaInspections] = useState(null)
+  const [fmcsaLoading, setFmcsaLoading] = useState(false)
+  const [fmcsaError, setFmcsaError] = useState('')
+
+  // Fetch FMCSA data when DOT number is set
+  const fetchFMCSA = useCallback(async (dot) => {
+    if (!dot) return
+    setFmcsaLoading(true)
+    setFmcsaError('')
+    try {
+      const res = await apiFetch(`/api/fmcsa-lookup?dot=${encodeURIComponent(dot)}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Lookup failed' }))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      const data = await res.json()
+      setFmcsaCarrier(data.carrier)
+      setFmcsaBasics(data.basics || [])
+      setFmcsaInspections(data.inspections || null)
+      localStorage.setItem('qivori_dot_number', dot)
+      showToast('', 'FMCSA Data Loaded', data.carrier?.legalName || dot)
+    } catch (err) {
+      setFmcsaError(err.message)
+      showToast('', 'FMCSA Error', err.message)
+    } finally {
+      setFmcsaLoading(false)
+    }
+  }, [showToast])
+
+  // Auto-fetch on mount if DOT saved
+  useEffect(() => {
+    if (fmcsaDot && !fmcsaCarrier && !fmcsaLoading) fetchFMCSA(fmcsaDot)
+  }, []) // eslint-disable-line
+
+  // Map FMCSA BASIC data to display format
+  const liveBasicScores = useMemo(() => {
+    if (fmcsaBasics.length === 0) return BASIC_SCORES
+    const iconMap = {
+      'Unsafe Driving': Truck, 'HOS Compliance': Clock, 'Vehicle Maintenance': Wrench,
+      'Driver Fitness': User, 'Controlled Substances': FlaskConical, 'Crash Indicator': AlertTriangle,
+      'Hazmat Compliance': Shield,
+    }
+    return BASIC_SCORES.map(b => {
+      const live = fmcsaBasics.find(fb => fb.name.toLowerCase().includes(b.basic.split(' ')[0].toLowerCase()))
+      if (live) {
+        return { ...b, score: Math.round(live.score), tip: `${live.totalViolations} violations in ${live.totalInspections} inspections${live.serious ? ' (serious violation flagged)' : ''}`, icon: iconMap[b.basic] || b.icon }
+      }
+      return b
+    })
+  }, [fmcsaBasics])
+
   // Clearinghouse state
   const [chDriver, setChDriver] = useState('')
   const [chType, setChType] = useState('Pre-Employment')
@@ -2861,19 +2940,51 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
         {/* ── CSA SCORES ── */}
         {compTab === 'csa' && (
           <>
-            <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
-              <Bot size={20} color="var(--success)" />
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>All 7 BASIC scores below intervention threshold</div>
-                <div style={{ fontSize:12, color:'var(--muted)' }}>Unsafe Driving improved 4pts this quarter · Clean crash record qualifies for premium freight</div>
-              </div>
+            {/* DOT Number Input */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'14px 18px', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+              <Ic icon={Search} size={16} />
+              <input value={fmcsaDot} onChange={e => setFmcsaDot(e.target.value.replace(/[^0-9]/g, ''))} placeholder="Enter your DOT number"
+                style={{ flex:1, minWidth:140, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'var(--text)', outline:'none' }}
+                onKeyDown={e => e.key === 'Enter' && fetchFMCSA(fmcsaDot)} />
+              <button onClick={() => fetchFMCSA(fmcsaDot)} disabled={fmcsaLoading || !fmcsaDot}
+                style={{ padding:'8px 16px', borderRadius:8, background:fmcsaLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:12, fontWeight:700, cursor:fmcsaLoading ? 'wait' : 'pointer' }}>
+                {fmcsaLoading ? 'Loading...' : 'Lookup FMCSA'}
+              </button>
             </div>
+            {fmcsaError && <div style={{ fontSize:12, color:'var(--danger)', padding:'8px 12px', background:'rgba(239,68,68,0.08)', borderRadius:8 }}>{fmcsaError}</div>}
+
+            {/* Carrier Info Banner */}
+            {fmcsaCarrier && (
+              <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
+                <Bot size={20} color={fmcsaCarrier.allowedToOperate ? 'var(--success)' : 'var(--danger)'} />
+                <div style={{ flex:1, minWidth:200 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:2 }}>{fmcsaCarrier.legalName}{fmcsaCarrier.dbaName ? ` (DBA: ${fmcsaCarrier.dbaName})` : ''}</div>
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>
+                    DOT: {fmcsaCarrier.dotNumber} · MC: {fmcsaCarrier.mcNumber || '—'} · {fmcsaCarrier.phyCity}, {fmcsaCarrier.phyState} · {fmcsaCarrier.totalPowerUnits} units · {fmcsaCarrier.totalDrivers} drivers
+                  </div>
+                </div>
+                <span style={{ padding:'4px 10px', borderRadius:6, fontSize:11, fontWeight:700, background: fmcsaCarrier.allowedToOperate ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: fmcsaCarrier.allowedToOperate ? 'var(--success)' : 'var(--danger)' }}>
+                  {fmcsaCarrier.allowedToOperate ? 'AUTHORIZED' : 'NOT AUTHORIZED'}
+                </span>
+              </div>
+            )}
+            {!fmcsaCarrier && !fmcsaLoading && !fmcsaError && (
+              <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
+                <Bot size={20} color="var(--success)" />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>Enter your DOT number to pull live FMCSA data</div>
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>CSA scores, safety rating, inspections, and violations — pulled directly from FMCSA SAFER</div>
+                </div>
+              </div>
+            )}
+
+            {/* Stats Cards — real data if available */}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               {[
-                { label:'Safety Rating',  value:'Satisfactory', color:'var(--success)', sub:'FMCSA Status' },
-                { label:'Inspections',     value:'24',           color:'var(--accent)',  sub:'Last 24 months' },
-                { label:'Violations',      value:'2',            color:'var(--warning)', sub:'Minor only' },
-                { label:'Crashes',         value:'0',            color:'var(--success)', sub:'Clean record' },
+                { label:'Safety Rating', value: fmcsaCarrier?.safetyRating || 'Not Rated', color: fmcsaCarrier?.safetyRating === 'Satisfactory' ? 'var(--success)' : fmcsaCarrier?.safetyRating === 'Conditional' ? 'var(--warning)' : 'var(--muted)', sub:'FMCSA Status' },
+                { label:'Inspections', value: fmcsaInspections?.total?.toString() || '0', color:'var(--accent)', sub:'Last 24 months' },
+                { label:'OOS Rate (Veh)', value: fmcsaInspections?.oosRates?.vehicle ? fmcsaInspections.oosRates.vehicle.toFixed(1) + '%' : '0%', color: (fmcsaInspections?.oosRates?.vehicle || 0) > 20.72 ? 'var(--danger)' : 'var(--success)', sub: `Nat. avg: 20.72%` },
+                { label:'Crashes', value: fmcsaInspections?.crashes?.total?.toString() || '0', color: (fmcsaInspections?.crashes?.total || 0) > 0 ? 'var(--warning)' : 'var(--success)', sub: fmcsaInspections?.crashes?.fatal ? `${fmcsaInspections.crashes.fatal} fatal` : 'Clean record' },
               ].map(s => (
                 <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
                   <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
@@ -2883,13 +2994,16 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               ))}
             </div>
 
+            {/* BASIC Score Breakdown — live data */}
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}><Ic icon={Shield} /> BASIC Score Breakdown</div>
-                <span style={{ fontSize:11, color:'var(--success)', fontWeight:700 }}>All Below Threshold</span>
+                <span style={{ fontSize:11, color: liveBasicScores.every(b => b.score < b.threshold) ? 'var(--success)' : 'var(--danger)', fontWeight:700 }}>
+                  {liveBasicScores.every(b => b.score < b.threshold) ? 'All Below Threshold' : 'Intervention Alert'}
+                </span>
               </div>
               <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
-                {BASIC_SCORES.map(b => {
+                {liveBasicScores.map(b => {
                   const pct = (b.score / b.threshold) * 100
                   const scoreColor = pct > 75 ? 'var(--danger)' : pct > 50 ? 'var(--warning)' : 'var(--success)'
                   return (
@@ -2913,6 +3027,30 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 })}
               </div>
             </div>
+
+            {/* Insurance Info */}
+            {fmcsaCarrier && (
+              <div style={S.panel}>
+                <div style={S.panelHead}>
+                  <div style={S.panelTitle}><Ic icon={Shield} /> Insurance on File</div>
+                </div>
+                <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:10 }}>
+                  {[
+                    { label: 'BIPD Insurance', value: fmcsaCarrier.bipdInsuranceOnFile, required: fmcsaCarrier.bipdInsuranceRequired },
+                    { label: 'Cargo Insurance', value: fmcsaCarrier.cargoInsuranceOnFile },
+                    { label: 'Bond Insurance', value: fmcsaCarrier.bondInsuranceOnFile },
+                  ].filter(i => i.value > 0 || i.required > 0).map(ins => (
+                    <div key={ins.label} style={{ background:'var(--surface2)', borderRadius:10, padding:'12px 16px' }}>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{ins.label}</div>
+                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color: ins.value >= (ins.required || 0) ? 'var(--success)' : 'var(--danger)' }}>
+                        ${(ins.value / 1000).toFixed(0)}K
+                      </div>
+                      {ins.required > 0 && <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>Required: ${(ins.required / 1000).toFixed(0)}K</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

@@ -143,6 +143,9 @@ export const TEMPLATES = {
           <strong>Autopilot AI</strong> — $799/mo · Full AI platform, unlimited
         </p>
       </div>
+      <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autopilot AI replaces your dispatcher — save $1,036/month vs traditional dispatcher costs</p>
+      </div>
       <p style="color:#ef4444;font-size:13px;">After your trial ends, you'll lose access to all features and data.</p>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Upgrade Now →</a>
@@ -159,6 +162,9 @@ export const TEMPLATES = {
       <div style="background:#1e1e2a;border:1px solid #2a2a35;border-radius:12px;padding:16px;margin:16px 0;text-align:center;">
         <p style="color:#f0a500;font-size:16px;font-weight:700;margin:0;">Plans start at just $49/mo</p>
         <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;">That's less than one load's broker fee.</p>
+      </div>
+      <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autopilot AI ($799/mo) replaces your dispatcher — save $1,036/month vs traditional dispatcher costs</p>
       </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Upgrade & Keep Your Data →</a>
@@ -187,31 +193,54 @@ export const TEMPLATES = {
     `),
   }),
 
-  upgrade_congrats: (firstName, plan) => ({
-    subject: `🎉 Welcome to ${plan}!`,
-    html: wrap(`
-      <h2 style="color:#f0a500;font-size:20px;margin:0 0 12px;">Welcome to ${plan}!</h2>
-      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, you've been upgraded to the <strong style="color:#f0a500;">${plan}</strong> plan. All features are now unlocked.</p>
-      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Here's what's new for you:</p>
-      <ul style="color:#c8c8d0;font-size:13px;line-height:1.8;padding-left:20px;">
-        <li>All premium features unlocked</li>
-        <li>Priority support enabled</li>
-        <li>AI assistant fully activated</li>
-      </ul>
-      <div style="text-align:center;margin-top:24px;">
-        <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Open Qivori →</a>
-      </div>
-    `),
-  }),
+  upgrade_congrats: (firstName, plan) => {
+    const isAutopilotAI = plan.toLowerCase().includes('autopilot ai')
+    const planFeatures = isAutopilotAI
+      ? `<ul style="color:#c8c8d0;font-size:13px;line-height:1.8;padding-left:20px;">
+          <li>Full AI-powered dispatching — replaces your dispatcher entirely</li>
+          <li>Unlimited loads, drivers, and AI queries</li>
+          <li>Priority support & dedicated account manager</li>
+          <li>All Pro + Autopilot features included</li>
+        </ul>
+        <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;text-align:center;">
+          <p style="color:#22c55e;font-size:16px;font-weight:800;margin:0;">Replaces your dispatcher — save $1,036/month vs traditional dispatcher costs</p>
+        </div>`
+      : `<ul style="color:#c8c8d0;font-size:13px;line-height:1.8;padding-left:20px;">
+          <li>All premium features unlocked</li>
+          <li>Priority support enabled</li>
+          <li>AI assistant fully activated</li>
+        </ul>`
+    return {
+      subject: `🎉 Welcome to ${plan}!`,
+      html: wrap(`
+        <h2 style="color:#f0a500;font-size:20px;margin:0 0 12px;">Welcome to ${plan}!</h2>
+        <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, you've been upgraded to the <strong style="color:#f0a500;">${plan}</strong> plan. All features are now unlocked.</p>
+        <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Here's what's new for you:</p>
+        ${planFeatures}
+        <div style="text-align:center;margin-top:24px;">
+          <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Open Qivori →</a>
+        </div>
+      `),
+    }
+  },
 
   win_back_day3: (firstName) => ({
     subject: `We miss you, ${firstName} — here's 20% off`,
     html: wrap(`
       <h2 style="color:#fff;font-size:20px;margin:0 0 12px;">We Miss You, ${firstName}</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">We noticed you cancelled your Qivori subscription. We'd love to have you back.</p>
-      <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;text-align:center;">
-        <p style="color:#22c55e;font-size:18px;font-weight:800;margin:0;">20% OFF for 3 months</p>
-        <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;">Use code <strong style="color:#fff;">COMEBACK20</strong> at checkout</p>
+      <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;">
+        <p style="color:#22c55e;font-size:18px;font-weight:800;margin:0 0 12px;text-align:center;">20% OFF for 3 months</p>
+        <p style="color:#c8c8d0;font-size:13px;margin:0;line-height:1.8;">
+          <strong>Basic</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$49</span> <strong style="color:#22c55e;">$39/mo</strong><br>
+          <strong>Pro</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$149</span> <strong style="color:#22c55e;">$119/mo</strong><br>
+          <strong>Autopilot</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$299</span> <strong style="color:#22c55e;">$239/mo</strong><br>
+          <strong>Autopilot AI</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$799</span> <strong style="color:#22c55e;">$639/mo</strong>
+        </p>
+        <p style="color:#8a8a9a;font-size:11px;margin:8px 0 0;text-align:center;">Use code <strong style="color:#fff;">COMEBACK20</strong> at checkout</p>
+      </div>
+      <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autopilot AI replaces your dispatcher — save $1,036/month vs traditional dispatcher costs</p>
       </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#22c55e;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Come Back →</a>
@@ -250,6 +279,9 @@ export const TEMPLATES = {
       <h2 style="color:#fff;font-size:20px;margin:0 0 12px;">We Miss You!</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, it's been a week since your last login. Everything okay?</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">While you were away, Qivori has been tracking new loads on your lanes. Come back and see what's available.</p>
+      <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:16px 0;text-align:center;">
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Did you know? Autopilot AI replaces your dispatcher — save $1,036/month vs traditional dispatcher costs</p>
+      </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Check New Loads →</a>
       </div>
@@ -262,6 +294,9 @@ export const TEMPLATES = {
       <h2 style="color:#fff;font-size:20px;margin:0 0 12px;">Need Help Finding Loads?</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, we noticed you haven't searched for loads in a few days.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Just open Qivori and say <strong style="color:#f0a500;">"Find me the best loads right now"</strong> — the AI will do the rest.</p>
+      <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:16px 0;text-align:center;">
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Upgrade to Autopilot AI — replaces your dispatcher & saves $1,036/month vs traditional dispatcher costs</p>
+      </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Find Loads →</a>
       </div>
@@ -287,6 +322,7 @@ export const TEMPLATES = {
       <h2 style="color:#fff;font-size:20px;margin:0 0 12px;">Hey ${firstName},</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">This is Mohamed, the founder of Qivori. I noticed you might not be getting the most out of the platform.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">I built Qivori specifically for owner-operators like you, and I want to make sure it's working for you. Can I help with anything?</p>
+      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">If dispatching is your biggest pain point, our <strong style="color:#f0a500;">Autopilot AI</strong> plan replaces your dispatcher entirely — saving you $1,036/month vs traditional dispatcher costs.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Just reply to this email — I read and respond to every single one.</p>
       <p style="color:#f0a500;font-size:14px;font-weight:700;margin-top:24px;">— Mohamed Wasuge, Founder</p>
     `),
@@ -297,8 +333,11 @@ export const TEMPLATES = {
     html: wrap(`
       <h2 style="color:#f0a500;font-size:20px;margin:0 0 12px;">Free Month Earned!</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, someone you referred just paid their first invoice!</p>
-      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Your reward: <strong style="color:#22c55e;">1 month free</strong> on your current plan. It'll be applied to your next billing cycle automatically.</p>
+      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Your reward: <strong style="color:#22c55e;">1 month free</strong> on your current plan (up to $799 value on Autopilot AI). It'll be applied to your next billing cycle automatically.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Keep sharing your referral link to earn more free months!</p>
+      <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:16px 0;text-align:center;">
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autopilot AI replaces your dispatcher — save $1,036/month vs traditional dispatcher costs</p>
+      </div>
     `),
   }),
 }

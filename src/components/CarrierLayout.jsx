@@ -21,6 +21,7 @@ import {
   AnalyticsDashboard, ReferralProgram, SMSSettings, RateNegotiation, RateBadge,
 } from '../pages/CarrierPages'
 import { apiFetch } from '../lib/api'
+import { useTranslation, LanguageToggle } from '../lib/i18n'
 
 const Ic = ({ icon: Icon, size = 16, color, style, ...props }) => <Icon size={size} color={color} style={style} {...props} />
 
@@ -2969,6 +2970,7 @@ const SUGGESTED_QUESTIONS = [
 ]
 
 function AIChatbox() {
+  const { language: currentLang } = useTranslation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -3002,7 +3004,7 @@ function AIChatbox() {
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, context: buildContext() }),
+        body: JSON.stringify({ messages: newMessages, context: buildContext(), language: currentLang }),
       })
       if (!res.ok) {
         const errText = await res.text()
@@ -3151,17 +3153,17 @@ export default function CarrierLayout() {
 
 // ── CRM Sidebar nav (flat, no nesting) ──────────────────────────────────────
 const NAV = [
-  { id:'dashboard',   icon: Monitor,      label:'Dashboard'    },
-  { id:'loads',        icon: Package,      label:'Loads'        },
-  { id:'drivers',      icon: Users,        label:'Drivers'      },
-  { id:'fleet',        icon: Truck,        label:'Fleet'        },
-  { id:'financials',   icon: DollarSign,   label:'Financials'   },
-  { id:'compliance',   icon: Shield,       label:'Compliance'   },
-  { id:'settings',     icon: SettingsIcon, label:'Settings'     },
+  { id:'dashboard',   icon: Monitor,      label:'Dashboard',      i18nKey:'nav.dashboard'    },
+  { id:'loads',        icon: Package,      label:'Loads',          i18nKey:'nav.loads'        },
+  { id:'drivers',      icon: Users,        label:'Drivers',        i18nKey:'nav.drivers'      },
+  { id:'fleet',        icon: Truck,        label:'Fleet',          i18nKey:'nav.fleet'        },
+  { id:'financials',   icon: DollarSign,   label:'Financials',     i18nKey:'nav.financials'   },
+  { id:'compliance',   icon: Shield,       label:'Compliance',     i18nKey:'nav.compliance'   },
+  { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
   { id:'_divider' },
-  { id:'analytics',    icon: BarChart2,    label:'Analytics'    },
-  { id:'load-board',   icon: Zap,          label:'AI Load Board' },
-  { id:'referrals',    icon: UserPlus,     label:'Referrals'    },
+  { id:'analytics',    icon: BarChart2,    label:'Analytics',      i18nKey:'nav.analytics'    },
+  { id:'load-board',   icon: Zap,          label:'AI Load Board',  i18nKey:'nav.aiLoadBoard'  },
+  { id:'referrals',    icon: UserPlus,     label:'Referrals',      i18nKey:'nav.referrals'    },
 ]
 
 // ── Hub sub-tab wrapper ─────────────────────────────────────────────────────
@@ -3708,6 +3710,7 @@ function OnboardingWizard({ onComplete }) {
 function CarrierLayoutInner() {
   const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
+  const { t } = useTranslation()
 
   // Check if user needs onboarding
   const isNewUser = !localStorage.getItem('qv_onboarded') && !company?.name && loads.length === 0
@@ -3902,18 +3905,21 @@ function CarrierLayoutInner() {
                   <span style={{ width:20, display:'flex', justifyContent:'center', alignItems:'center', flexShrink:0 }}>
                     {React.createElement(item.icon, { size:15, color: isActive ? 'var(--accent)' : undefined })}
                   </span>
-                  <span style={{ fontSize:12, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text)', flex:1 }}>{item.label}</span>
+                  <span style={{ fontSize:12, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text)', flex:1 }}>{item.i18nKey ? t(item.i18nKey) : item.label}</span>
                 </div>
               )
             })}
           </div>
 
-          {/* Bottom: Log Out */}
-          <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+          {/* Bottom: Language toggle + Log Out */}
+          <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border)', flexShrink:0, display:'flex', flexDirection:'column', gap:6 }}>
+            <div style={{ display:'flex', justifyContent:'center' }}>
+              <LanguageToggle />
+            </div>
             <button onClick={logout} style={{ width:'100%', padding:'7px', background:'transparent', border:'1px solid var(--border)', borderRadius:8, color:'var(--muted)', fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
               onMouseOver={e => { e.currentTarget.style.borderColor='var(--danger)'; e.currentTarget.style.color='var(--danger)' }}
               onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--muted)' }}>
-              Log Out
+              {t('nav.logout')}
             </button>
           </div>
         </div>

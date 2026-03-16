@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, Component } from 'react'
 import * as Sentry from '@sentry/react'
 import { AppProvider, useApp } from './context/AppContext'
+import { LanguageProvider } from './lib/i18n'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import PublicLoadBoard from './pages/PublicLoadBoard'
@@ -206,9 +207,11 @@ class AppErrorBoundary extends Component {
 export default function App() {
   return (
     <AppErrorBoundary>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
+      <LanguageProvider>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </LanguageProvider>
     </AppErrorBoundary>
   )
 }

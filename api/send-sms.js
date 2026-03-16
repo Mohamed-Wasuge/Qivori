@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { sendSMS } from './_lib/sms.js'
 import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
@@ -18,43 +19,22 @@ export default async function handler(req) {
   const { limited, resetMs } = rateLimit(`sms:${ip}`, 10, 60000)
   if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER
-
-  if (!accountSid || !authToken || !fromNumber) {
-    return Response.json({ error: 'Twilio not configured' }, { status: 500, headers: corsHeaders(req) })
-  }
-
   try {
     const { to, message } = await req.json()
     if (!to || !message) {
       return Response.json({ error: 'to and message are required' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    const cleanTo = to.replace(/[^\d+]/g, '')
+    const result = await sendSMS(to, message)
 
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        To: cleanTo,
-        From: fromNumber,
-        Body: message,
-      }).toString(),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      // Twilio send failed
-      return Response.json({ error: 'Failed to send SMS' }, { status: 502, headers: corsHeaders(req) })
+    if (!result.ok) {
+      return Response.json(
+        { error: result.error || 'Failed to send SMS', errorCode: result.errorCode },
+        { status: 502, headers: corsHeaders(req) }
+      )
     }
 
-    const data = await res.json()
-    return Response.json({ success: true, sid: data.sid }, { headers: corsHeaders(req) })
+    return Response.json({ ok: true, messageId: result.messageId }, { headers: corsHeaders(req) })
   } catch (err) {
     return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }

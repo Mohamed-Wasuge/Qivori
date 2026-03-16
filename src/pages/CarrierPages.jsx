@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF, generateSettlementPDF, generateIFTAPDF } from '../utils/generatePDF'
 import { apiFetch } from '../lib/api'
+import { useTranslation } from '../lib/i18n'
 
 const Ic = ({ icon: Icon, size = 14, ...p }) => <Icon size={size} {...p} />
 
@@ -215,6 +216,7 @@ const COPILOT_SUGGESTIONS = (load) => [
 
 export function SmartDispatch() {
   const { showToast } = useApp()
+  const { language: currentLang } = useTranslation()
   const { loads: ctxLoads, addLoad, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
   const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
     name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
@@ -485,7 +487,7 @@ export function SmartDispatch() {
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, context }),
+        body: JSON.stringify({ messages: next, context, language: currentLang }),
       })
       const data = await res.json()
       setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content: data.reply || data.error }] }))

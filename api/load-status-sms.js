@@ -58,19 +58,19 @@ export default async function handler(req) {
     // SMS to broker
     if (NOTIFY_BROKER.includes(newStatus) && info.brokerPhone) {
       const result = await sendSMS(info.brokerPhone, `QIVORI: ${message}`)
-      if (result.success) sent.push({ to: 'broker', type: 'sms' })
+      if (result.ok) sent.push({ to: 'broker', type: 'sms' })
     }
 
     // SMS to carrier
     if (NOTIFY_CARRIER.includes(newStatus) && info.carrierPhone) {
       const result = await sendSMS(info.carrierPhone, `QIVORI: ${message}`)
-      if (result.success) sent.push({ to: 'carrier', type: 'sms' })
+      if (result.ok) sent.push({ to: 'carrier', type: 'sms' })
     }
 
     // SMS to driver
     if (NOTIFY_DRIVER.includes(newStatus) && info.driverPhone) {
       const result = await sendSMS(info.driverPhone, `QIVORI: ${message}`)
-      if (result.success) sent.push({ to: 'driver', type: 'sms' })
+      if (result.ok) sent.push({ to: 'driver', type: 'sms' })
     }
 
     // Email to broker on delivery

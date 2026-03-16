@@ -7,8 +7,16 @@ import {
   CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell
 } from 'lucide-react'
 import { apiFetch } from '../lib/api'
+import { useTranslation } from '../lib/i18n'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
+
+// Haptic feedback for mobile interactions
+const haptic = (pattern = 'light') => {
+  if (!navigator.vibrate) return
+  const patterns = { light: 10, medium: 25, heavy: 50, success: [10, 50, 10], error: [50, 30, 50, 30, 50] }
+  navigator.vibrate(patterns[pattern] || 10)
+}
 
 // Haversine distance in miles
 function haversine(lat1, lon1, lat2, lon2) {
@@ -33,6 +41,7 @@ export default function MobileLayout() {
 // ── MAIN AI-DRIVEN MOBILE APP ─────────────────────────────
 function MobileAI() {
   const { logout, showToast, subscription, user, profile } = useApp()
+  const { language: currentLang } = useTranslation()
   const ctx = useCarrier() || {}
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
@@ -1300,6 +1309,7 @@ function MobileAI() {
             load_type: 'FTL',
           })
           const dest = best.destination_city || best.dest || best.destination || '?'
+          haptic('success')
           setMessages(m => [...m, { role: 'assistant', content: `**Load Booked!** ${best.origin_city || best.origin} → ${dest}\n$${Number(best.rate || 0).toLocaleString()} · ${best.miles} mi · AI Score ${best._aiScore}/99\n\nYour next load is locked in before you even delivered this one.`, isProactive: true }])
           speak(`Load booked! ${best.origin_city || best.origin} to ${dest} for $${Number(best.rate || 0).toLocaleString()}.`)
           showToast('success', 'Load Booked!', `${best.origin_city || best.origin} → ${dest}`)
@@ -1350,6 +1360,7 @@ function MobileAI() {
               load_type: 'FTL',
             })
             const dest = load.destination_city || load.dest || load.destination
+            haptic('success')
             setMessages(m => [...m, { role: 'assistant', content: `**Booked load #${idx + 1}!** ${load.origin_city || load.origin} → ${dest} · $${Number(load.rate || 0).toLocaleString()} · Score ${load._aiScore}/99`, isProactive: true }])
             speak(`Load number ${idx + 1} booked!`)
             showToast('success', 'Load Booked!', `${load.origin_city || load.origin} → ${dest}`)
@@ -1723,6 +1734,7 @@ function MobileAI() {
           messages: fullMessages,
           context: buildContext(),
           loadBoard: buildLoadBoard(),
+          language: currentLang,
         }),
       })
       if (!res.ok) {
@@ -1799,6 +1811,10 @@ function MobileAI() {
     { icon: Package, label: 'My Loads', msg: 'Show me my active loads' },
     { icon: DollarSign, label: 'Revenue', msg: "What's my revenue and profit this month?" },
     { icon: DollarSign, label: 'Rate Check', msg: 'Is this rate good for my current load?' },
+    { icon: MapPin, label: 'My Location', msg: 'Where am I right now? Share my current GPS location.' },
+    { icon: Navigation, label: 'Next Stop', msg: "What's my next stop or delivery?" },
+    { icon: Clock, label: 'Weather', msg: "What's the weather on my route?" },
+    { icon: Clock, label: 'HOS Status', msg: 'How many driving hours do I have left today?' },
   ]
 
   // Suggested prompts for empty state — includes account management
@@ -1859,9 +1875,8 @@ function MobileAI() {
 
       {/* ── OFFLINE INDICATOR ────────────────────────── */}
       {isOffline && (
-        <div style={{ flexShrink: 0, padding: '6px 16px', background: 'rgba(239,68,68,0.12)', borderBottom: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)' }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>Offline — actions will sync when connected</span>
+        <div style={{ flexShrink: 0, background: '#ef4444', color: '#fff', textAlign: 'center', padding: '8px', fontSize: '13px', fontWeight: 600 }}>
+          You're offline — messages will sync when reconnected
         </div>
       )}
 
@@ -2170,7 +2185,7 @@ function MobileAI() {
       {/* ── QUICK ACTION CHIPS ──────────────────────── */}
       <div style={{ flexShrink: 0, padding: '6px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {quickActions.map(a => (
-          <button key={a.label} onClick={() => { if (a.msg === '__snap_ratecon__') { if (rateConInputRef.current) rateConInputRef.current.click() } else { sendMessage(a.msg) } }}
+          <button key={a.label} onClick={() => { haptic('light'); if (a.msg === '__snap_ratecon__') { if (rateConInputRef.current) rateConInputRef.current.click() } else { sendMessage(a.msg) } }}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif", flexShrink: 0 }}>
             <Ic icon={a.icon} size={13} color={a.label === 'Check In' ? 'var(--success)' : 'var(--accent)'} />
             {a.label}
@@ -2218,7 +2233,7 @@ function MobileAI() {
 
         {/* Mic / Send button — mic when empty, send when has text */}
         {input.trim() ? (
-          <button onClick={() => sendMessage()} disabled={loading}
+          <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
             style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
             <Ic icon={Send} size={16} color="#000" />
           </button>

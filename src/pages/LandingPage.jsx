@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { trackDemoRequest, trackDemoEnter, trackBeginCheckout } from '../lib/analytics'
+import { trackDemoRequest, trackDemoEnter, trackCheckout } from '../lib/analytics'
+import { useTranslation, LanguageToggle } from '../lib/i18n'
 import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -29,6 +30,7 @@ function FadeIn({ children, delay = 0, style = {} }) {
 }
 
 function WaitlistSection() {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState('idle') // idle | submitting | success | error
   const [count, setCount] = useState(200)
@@ -64,19 +66,19 @@ function WaitlistSection() {
           <Ic icon={Users} size={16} color="var(--accent)" />
           <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 2, color: 'var(--accent)' }}>{count}+</span>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Join {count}+ carriers on the waitlist</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>Get early access and lock in launch pricing</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{t('landing.waitlistJoin', { count })}</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>{t('landing.waitlistEarlyAccess')}</div>
 
         {status === 'success' ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 20px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12 }}>
             <Ic icon={Check} size={16} color="var(--success)" />
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>You're on the list! We'll be in touch.</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>{t('landing.waitlistSuccess')}</span>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, maxWidth: 420, margin: '0 auto' }}>
             <input
               type="email"
-              placeholder="Enter your email"
+              placeholder={t('landing.waitlistPlaceholder')}
               value={email}
               onChange={e => setEmail(e.target.value)}
               style={{ flex: 1, padding: '10px 14px', fontSize: 13, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', outline: 'none' }}
@@ -86,12 +88,12 @@ function WaitlistSection() {
               disabled={status === 'submitting'}
               style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap', opacity: status === 'submitting' ? 0.6 : 1 }}
             >
-              {status === 'submitting' ? 'Joining...' : 'Get Early Access'}
+              {status === 'submitting' ? t('landing.waitlistJoining') : t('landing.waitlistButton')}
             </button>
           </form>
         )}
         {status === 'error' && (
-          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 8 }}>Something went wrong. Try again.</div>
+          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 8 }}>{t('landing.waitlistError')}</div>
         )}
       </div>
     </section>
@@ -248,9 +250,10 @@ const PLANS = [
 ]
 
 const TESTIMONIALS = [
-  { name: 'James T.', role: 'Owner-Operator', truck: 'Freightliner Cascadia', text: 'I used to spend 2 hours a day on DAT just finding decent loads. Now I ask Qivori and it finds me the best ones in seconds. Saved $2,400 last month just on better load picks.', rating: 5 },
-  { name: 'Kevin L.', role: 'Fleet Owner, 4 trucks', truck: 'Peterbilt 579s', text: 'IFTA used to take me a whole weekend every quarter. Qivori auto-calculates everything from my loads. Filed in 5 minutes last quarter. My accountant couldn\'t believe it.', rating: 5 },
-  { name: 'Maria S.', role: 'Owner-Operator', truck: 'Kenworth T680', text: 'The voice AI is a game changer. I just talk to my phone while driving — book loads, submit check calls, send invoices. No more pulling over to use 5 different apps. Saved me 40 hours a week easy.', rating: 5 },
+  { name: 'Marcus T.', role: 'Owner-Operator, Atlanta GA', truck: 'Owner-Operator', text: 'Qivori replaced my dispatcher and saved me $800/month. The AI finds better loads than any human.', rating: 5 },
+  { name: 'Rosa M.', role: 'Fleet Owner, 5 Trucks, Dallas TX', truck: '5 Trucks', text: 'I was skeptical about AI dispatch but Qivori books loads while I sleep. My revenue is up 23%.', rating: 5 },
+  { name: 'James K.', role: 'Owner-Operator, Chicago IL', truck: 'Owner-Operator', text: 'The IFTA calculator alone saves me hours every quarter. And the rate negotiation AI got me $400 more on my last load.', rating: 5 },
+  { name: 'Darrell W.', role: 'Fleet Owner, Houston TX, 3 Trucks', truck: '3 Trucks', text: 'Finally a TMS that doesn\'t need a PhD to use. I run everything from my phone now.', rating: 5 },
 ]
 
 const HOW_IT_WORKS = [
@@ -268,13 +271,24 @@ const STATS = [
 
 export default function LandingPage({ onGetStarted }) {
   const { goToLogin, enterDemo, user } = useApp()
+  const { t, language } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(null)
   const [founderCount, setFounderCount] = useState(0)
   const [demoModal, setDemoModal] = useState(false)
+  const [videoModal, setVideoModal] = useState(false)
   const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '' })
   const [demoLoading, setDemoLoading] = useState(false)
   const [demoSent, setDemoSent] = useState(false)
+
+  // Close video modal on Escape key
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') setVideoModal(false) }
+    if (videoModal) {
+      window.addEventListener('keydown', handleEsc)
+      return () => window.removeEventListener('keydown', handleEsc)
+    }
+  }, [videoModal])
 
   // Check URL for ?demo=true (from email link)
   useEffect(() => {
@@ -336,7 +350,7 @@ export default function LandingPage({ onGetStarted }) {
   const handleTry = () => goToLogin()
 
   const handleCheckout = async (planId) => {
-    trackBeginCheckout(planId)
+    trackCheckout(planId)
     setCheckoutLoading(planId)
     try {
       const res = await fetch('/api/create-checkout', {
@@ -398,7 +412,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-compare-stats { grid-template-columns: 1fr !important; }
           .lp-ai-grid { grid-template-columns: 1fr !important; }
           .lp-how-grid { grid-template-columns: 1fr !important; }
-          .lp-testimonials-grid { grid-template-columns: 1fr !important; }
+          .lp-testimonials-grid { grid-template-columns: 1fr 1fr !important; }
           .lp-section-heading { font-size: 32px !important; }
           .lp-cta-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
@@ -409,6 +423,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-features-grid { grid-template-columns: 1fr !important; }
           .lp-stats-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
           .lp-pricing-grid { grid-template-columns: 1fr !important; }
+          .lp-testimonials-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -425,37 +440,47 @@ export default function LandingPage({ onGetStarted }) {
         </button>
 
         <div className="lp-nav-links">
-          {['Features', 'How It Works', 'Pricing'].map(item => (
-            <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`} className="lp-nav-link"
+          {[
+            { key: 'landing.navFeatures', href: '#features' },
+            { key: 'landing.navHowItWorks', href: '#how-it-works' },
+            { key: 'landing.navPricing', href: '#pricing' },
+          ].map(item => (
+            <a key={item.key} href={item.href} className="lp-nav-link"
               style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none', fontWeight: 500, transition: 'color 0.2s' }}
               onMouseOver={e => e.target.style.color = 'var(--text)'}
               onMouseOut={e => e.target.style.color = 'var(--muted)'}>
-              {item}
+              {t(item.key)}
             </a>
           ))}
           <a href="#/loads" className="lp-nav-link"
             style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600, transition: 'color 0.2s' }}>
-            Browse Loads
+            {t('landing.browseLoads')}
           </a>
+          <LanguageToggle variant="text" />
           <button onClick={onGetStarted}
             style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 18px', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, transition: 'all 0.2s' }}>
-            Sign In
+            {t('landing.signIn')}
           </button>
           <button onClick={handleTry}
             style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 10, padding: '9px 22px', color: '#000', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 700, boxShadow: '0 4px 16px rgba(240,165,0,0.3)' }}>
-            Get Started Free
+            {t('landing.getStartedFree')}
           </button>
         </div>
 
         {menuOpen && (
           <div className="lp-mob-menu">
-            {['Features', 'How It Works', 'Pricing'].map(item => (
-              <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`} onClick={() => setMenuOpen(false)}>{item}</a>
+            {[
+              { key: 'landing.navFeatures', href: '#features' },
+              { key: 'landing.navHowItWorks', href: '#how-it-works' },
+              { key: 'landing.navPricing', href: '#pricing' },
+            ].map(item => (
+              <a key={item.key} href={item.href} onClick={() => setMenuOpen(false)}>{t(item.key)}</a>
             ))}
-            <a href="#/loads" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent) !important', fontWeight: 600 }}>Browse Loads</a>
+            <a href="#/loads" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent) !important', fontWeight: 600 }}>{t('landing.browseLoads')}</a>
+            <div style={{ padding: '8px 0', display: 'flex', justifyContent: 'center' }}><LanguageToggle /></div>
             <div className="lp-mob-btns">
-              <button onClick={onGetStarted} style={{ padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Sign In</button>
-              <button onClick={handleTry} style={{ padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Get Started Free</button>
+              <button onClick={onGetStarted} style={{ padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{t('landing.signIn')}</button>
+              <button onClick={handleTry} style={{ padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{t('landing.getStartedFree')}</button>
             </div>
           </div>
         )}
@@ -470,20 +495,20 @@ export default function LandingPage({ onGetStarted }) {
         <FadeIn>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 24, padding: '6px 18px', marginBottom: 32 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 8px var(--success)' }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: 0.5 }}>AI-Powered Trucking Platform — Now Live</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: 0.5 }}>{t('landing.badge')}</span>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.1}>
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 76, letterSpacing: 4, lineHeight: 0.95, marginBottom: 28, color: 'var(--text)', position: 'relative' }}>
-            THE OPERATING SYSTEM<br />
-            FOR <span style={{ color: 'var(--accent)', textShadow: '0 0 60px rgba(240,165,0,0.3)' }}>MODERN CARRIERS</span>
+            {t('landing.heroLine1')}<br />
+            {t('landing.heroLine2')} <span style={{ color: 'var(--accent)', textShadow: '0 0 60px rgba(240,165,0,0.3)' }}>{t('landing.heroHighlight')}</span>
           </h1>
         </FadeIn>
 
         <FadeIn delay={0.2}>
           <p style={{ fontSize: 19, color: 'var(--muted)', lineHeight: 1.7, maxWidth: 620, margin: '0 auto 44px', fontWeight: 400 }}>
-            AI load matching, voice-first dispatch, auto-invoicing, IFTA, compliance — everything an owner-operator needs, in one platform.
+            {t('landing.heroParagraph')}
           </p>
         </FadeIn>
 
@@ -491,21 +516,21 @@ export default function LandingPage({ onGetStarted }) {
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={handleTry}
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '16px 40px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.3)', display: 'inline-flex', alignItems: 'center', gap: 10, transition: 'all 0.2s' }}>
-              <Ic icon={Zap} size={18} /> Start Free — 14 Day Trial
+              <Ic icon={Zap} size={18} /> {t('landing.startFreeTrial')}
             </button>
             <button onClick={() => setDemoModal(true)}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: '16px 36px', color: 'var(--accent)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <Ic icon={Monitor} size={16} /> Try Demo
+              <Ic icon={Monitor} size={16} /> {t('landing.tryDemo')}
             </button>
             <button onClick={onGetStarted}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '16px 36px', color: 'var(--text)', fontSize: 16, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              Sign In <Ic icon={ArrowRight} size={16} />
+              {t('landing.signIn')} <Ic icon={ArrowRight} size={16} />
             </button>
           </div>
           <div style={{ marginTop: 18, fontSize: 13, color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Shield} size={13} color="var(--success)" /> No credit card</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Clock} size={13} color="var(--accent)" /> Setup in 60 seconds</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CheckCircle} size={13} color="var(--accent2)" /> Cancel anytime</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Shield} size={13} color="var(--success)" /> {t('landing.noCreditCard')}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Clock} size={13} color="var(--accent)" /> {t('landing.setupIn60s')}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CheckCircle} size={13} color="var(--accent2)" /> {t('landing.cancelAnytime')}</span>
           </div>
         </FadeIn>
 
@@ -535,12 +560,12 @@ export default function LandingPage({ onGetStarted }) {
       <section className="lp-section" style={{ padding: '80px 40px', maxWidth: 900, margin: '0 auto' }}>
         <FadeIn>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>THE PROBLEM</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.theProblem')}</div>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-              OWNER-OPERATORS ARE<br />DROWNING IN TOOLS
+              {t('landing.drowningInToolsLine1')}<br />{t('landing.drowningInToolsLine2')}
             </h2>
             <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>
-              DAT for loads. A different TMS. QuickBooks. ELD app. Spreadsheet for IFTA. Another for invoices.<br />Qivori replaces all of it.
+              {t('landing.drowningInToolsDesc')}<br />{t('landing.drowningInToolsReplace')}
             </p>
           </div>
         </FadeIn>
@@ -572,14 +597,31 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
+      {/* ── TRUST BAR ──────────────────────────────────────────────────── */}
+      <section style={{ padding: '32px 40px', background: 'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(240,165,0,0.01))', borderTop: '1px solid rgba(240,165,0,0.1)', borderBottom: '1px solid rgba(240,165,0,0.1)' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
+          {[
+            { value: '500+', label: 'Loads Managed' },
+            { value: '99.9%', label: 'Uptime' },
+            { value: '$2M+', label: 'Revenue Tracked' },
+            { value: '4.9\u2605', label: 'Rating' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)', lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: 0.5 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── FEATURES ──────────────────────────────────────────────────── */}
       <section id="features" className="lp-section" style={{ padding: '80px 40px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>PLATFORM</div>
-              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>12 MODULES. ONE PLATFORM.</h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)' }}>Everything you need to run your trucking business — zero spreadsheets required.</p>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.platform')}</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>{t('landing.12Modules')}</h2>
+              <p style={{ fontSize: 15, color: 'var(--muted)' }}>{t('landing.12ModulesDesc')}</p>
             </div>
           </FadeIn>
           <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
@@ -602,9 +644,9 @@ export default function LandingPage({ onGetStarted }) {
       <section id="how-it-works" className="lp-section" style={{ padding: '80px 40px', maxWidth: 900, margin: '0 auto' }}>
         <FadeIn>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>HOW IT WORKS</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.howItWorks')}</div>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-              UP AND RUNNING IN MINUTES
+              {t('landing.upAndRunning')}
             </h2>
           </div>
         </FadeIn>
@@ -629,12 +671,12 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>AI-FIRST MOBILE</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.aiFirstMobile')}</div>
               <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-                YOUR AI COPILOT ON THE ROAD
+                {t('landing.aiCopilot')}
               </h2>
               <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>
-                No menus. No forms. Just talk to your AI and it handles everything — hands-free while you drive.
+                {t('landing.aiCopilotDesc')}
               </p>
             </div>
           </FadeIn>
@@ -727,28 +769,27 @@ export default function LandingPage({ onGetStarted }) {
       <section className="lp-section" style={{ padding: '80px 40px', maxWidth: 960, margin: '0 auto' }}>
         <FadeIn>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>TESTIMONIALS</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.testimonials')}</div>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-              DRIVERS LOVE QIVORI
+              TRUSTED BY OWNER-OPERATORS NATIONWIDE
             </h2>
           </div>
         </FadeIn>
-        <div className="lp-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-          {TESTIMONIALS.map((t, i) => (
+        <div className="lp-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16 }}>
+          {TESTIMONIALS.map((tm, i) => (
             <FadeIn key={i} delay={i * 0.1}>
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ background: '#16161e', border: '1px solid #2a2a35', borderRadius: 16, padding: '24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
-                  {Array.from({ length: t.rating }).map((_, j) => <Ic key={j} icon={Star} size={14} color="var(--accent)" style={{ fill: 'var(--accent)' }} />)}
+                  {Array.from({ length: tm.rating }).map((_, j) => <Ic key={j} icon={Star} size={14} color="#f0a500" style={{ fill: '#f0a500' }} />)}
                 </div>
-                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.65, flex: 1, margin: 0 }}>"{t.text}"</p>
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.65, flex: 1, margin: 0 }}>"{tm.text}"</p>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #2a2a35', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--accent)' }}>
-                    {t.name.split(' ').map(n => n[0]).join('')}
+                    {tm.name.split(' ').map(n => n[0]).join('')}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{t.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t.role}</div>
-                    <div style={{ fontSize: 10, color: 'var(--accent2)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}><Ic icon={Truck} size={10} /> {t.truck}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{tm.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tm.role}</div>
                   </div>
                 </div>
               </div>
@@ -762,16 +803,16 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>SEE IT IN ACTION</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.seeItInAction')}</div>
               <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-                WATCH THE DEMO
+                {t('landing.watchTheDemo')}
               </h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto' }}>See how Qivori helps owner-operators find better loads, dispatch smarter, and get paid faster — all from one platform.</p>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto' }}>{t('landing.watchDemoDesc')}</p>
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
             <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', border: '2px solid rgba(240,165,0,0.2)', background: 'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(0,212,170,0.02))', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}
-              onClick={() => { /* TODO: open video modal */ }}>
+              onClick={() => setVideoModal(true)}>
               <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at center, rgba(240,165,0,0.08) 0%, transparent 60%)' }} />
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, position: 'relative', zIndex: 1 }}>
                 <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, #f0a500, #e09000)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 32px rgba(240,165,0,0.4)', transition: 'transform 0.2s' }}
@@ -779,7 +820,7 @@ export default function LandingPage({ onGetStarted }) {
                   onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
                   <Ic icon={Play} size={32} color="#000" style={{ marginLeft: 4 }} />
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Watch Demo — 2 min</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>{t('landing.watchDemo2min')}</span>
               </div>
               <div className="lp-video-tags" style={{ position: 'absolute', bottom: 20, left: 20, display: 'flex', gap: 8 }}>
                 {['AI Load Board', 'Voice Dispatch', 'Auto-Invoice'].map(tag => (
@@ -796,9 +837,9 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>WHY SWITCH</div>
-              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>TRADITIONAL TMS vs QIVORI</h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>Most TMS platforms were built for mega-carriers with 500+ trucks. You're paying enterprise prices for features you'll never use.</p>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.whySwitch')}</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>{t('landing.traditionalVsQivori')}</h2>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>{t('landing.traditionalVsQivoriDesc')}</p>
             </div>
           </FadeIn>
 
@@ -874,9 +915,9 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>PRICING</div>
-              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>SIMPLE. FLAT. NO SURPRISES.</h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)' }}>One load booked better pays for the whole month.</p>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.pricing')}</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>{t('landing.simpleFlat')}</h2>
+              <p style={{ fontSize: 15, color: 'var(--muted)' }}>{t('landing.oneBetterLoad')}</p>
             </div>
           </FadeIn>
 
@@ -892,13 +933,13 @@ export default function LandingPage({ onGetStarted }) {
                   {plan.highlight && (
                     <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
                       background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', fontSize: 10, fontWeight: 800, padding: '4px 16px', borderRadius: 12, letterSpacing: 1, whiteSpace: 'nowrap' }}>
-                      MOST POPULAR
+                      {t('landing.mostPopular')}
                     </div>
                   )}
                   {plan.founder && (
                     <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
                       background: isFounder ? 'linear-gradient(135deg, #f0a500, #e09000)' : 'var(--border)', color: isFounder ? '#000' : 'var(--muted)', fontSize: 10, fontWeight: 800, padding: '4px 16px', borderRadius: 12, letterSpacing: 1, whiteSpace: 'nowrap' }}>
-                      {isFounder ? `FOUNDER PRICING · ${spotsLeft} SPOTS LEFT` : 'FOUNDER SPOTS FILLED'}
+                      {isFounder ? `${t('landing.founderPricing')} · ${t('landing.spotsLeft', { count: spotsLeft })}` : t('landing.founderSpotsFilled')}
                     </div>
                   )}
                   <div style={{ fontSize: 11, fontWeight: 800, color: plan.color, letterSpacing: 1.5, marginBottom: 6 }}>{plan.name.toUpperCase()}</div>
@@ -938,9 +979,9 @@ export default function LandingPage({ onGetStarted }) {
             )})}
           </div>
           <div style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'var(--muted)', display: 'flex', justifyContent: 'center', gap: 20 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Shield} size={13} color="var(--success)" /> 14-day free trial</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CreditCard} size={13} color="var(--accent)" /> No card required</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CheckCircle} size={13} color="var(--accent2)" /> Cancel anytime</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Shield} size={13} color="var(--success)" /> {t('landing.14dayFreeTrial')}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CreditCard} size={13} color="var(--accent)" /> {t('landing.noCardRequired')}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CheckCircle} size={13} color="var(--accent2)" /> {t('landing.cancelAnytime')}</span>
           </div>
         </div>
 
@@ -948,9 +989,9 @@ export default function LandingPage({ onGetStarted }) {
         <FadeIn>
           <div style={{ maxWidth: 700, margin: '48px auto 0', textAlign: 'center' }}>
             <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, letterSpacing: 2, color: 'var(--text)', marginBottom: 8 }}>
-              ONE LOAD BOOKED BETTER PAYS FOR THE <span style={{ color: 'var(--accent)' }}>WHOLE MONTH</span>
+              {t('landing.oneBetterLoadLine1')} <span style={{ color: 'var(--accent)' }}>{t('landing.oneBetterLoadHighlight')}</span>
             </h3>
-            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 32 }}>Qivori AI works alongside your team — finding better loads, faster</p>
+            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 32 }}>{t('landing.savingsDesc')}</p>
             <div className="lp-savings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[
                 { icon: DollarSign, value: '$1,000+', label: 'saved per month on dispatching costs', color: '#22c55e' },
@@ -975,15 +1016,15 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>FAQ</div>
-              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2 }}>COMMON QUESTIONS</h2>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.faq')}</div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2 }}>{t('landing.commonQuestions')}</h2>
             </div>
           </FadeIn>
           {[
-            { q: 'Is there a setup fee?', a: 'No. Zero setup fees, zero onboarding costs, zero hidden charges. Sign up and start using Qivori immediately — your account is ready in under 60 seconds.' },
-            { q: 'Can I cancel anytime?', a: 'Yes. All plans are month-to-month with no contracts. Cancel with one click from your account settings — no phone calls, no emails, no hassle.' },
-            { q: 'Do you integrate with ELD devices?', a: 'Qivori provides a compliance dashboard for tracking ELD, HOS, and DVIR status. Direct ELD device integration is on our roadmap.' },
-            { q: 'Is there a free trial?', a: 'Yes — 14 days free on every plan, no credit card required. Use every feature with zero limitations. If you don\'t love it, you pay nothing.' },
+            { q: t('landing.faqQ1'), a: t('landing.faqA1') },
+            { q: t('landing.faqQ2'), a: t('landing.faqA2') },
+            { q: t('landing.faqQ3'), a: t('landing.faqA3') },
+            { q: t('landing.faqQ4'), a: t('landing.faqA4') },
           ].map((item, i) => (
             <FadeIn key={i} delay={i * 0.08}>
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 28px', marginBottom: 12 }}>
@@ -1003,20 +1044,20 @@ export default function LandingPage({ onGetStarted }) {
         <FadeIn>
           <div style={{ maxWidth: 640, margin: '0 auto', position: 'relative' }}>
             <h2 className="lp-cta-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, letterSpacing: 3, lineHeight: 1.05, marginBottom: 24 }}>
-              READY TO STOP LEAVING<br />
-              <span style={{ color: 'var(--accent)', textShadow: '0 0 40px rgba(240,165,0,0.2)' }}>MONEY ON THE TABLE?</span>
+              {t('landing.readyToStop')}<br />
+              <span style={{ color: 'var(--accent)', textShadow: '0 0 40px rgba(240,165,0,0.2)' }}>{t('landing.moneyOnTable')}</span>
             </h2>
             <p style={{ fontSize: 16, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 40 }}>
-              Join owner-operators and small fleets using Qivori to find better loads, run leaner, and get paid faster.
+              {t('landing.finalCtaDesc')}
             </p>
             <button onClick={handleTry}
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 14, padding: '18px 52px', color: '#000', fontSize: 17, fontWeight: 800, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", boxShadow: '0 8px 40px rgba(240,165,0,0.35)', marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <Ic icon={Zap} size={20} /> Start Free — No Card Needed
+              <Ic icon={Zap} size={20} /> {t('landing.startFreeNoCard')}
             </button>
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>14 days free · Then from $99/month · Cancel anytime</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>{t('landing.trialInfo')}</div>
             <a href="#/loads" style={{ display: 'inline-block', marginTop: 16, fontSize: 14, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600, transition: 'opacity 0.2s' }}
               onMouseOver={e => e.target.style.opacity = '0.8'} onMouseOut={e => e.target.style.opacity = '1'}>
-              Or search 2,000+ loads for free &rarr;
+              {t('landing.searchLoads')} &rarr;
             </a>
           </div>
         </FadeIn>
@@ -1031,41 +1072,53 @@ export default function LandingPage({ onGetStarted }) {
               <span style={{ fontSize: 10, color: 'var(--accent2)', letterSpacing: 1, fontFamily: "'DM Sans',sans-serif", fontWeight: 800, marginLeft: 6, padding: '2px 6px', background: 'rgba(0,212,170,0.1)', borderRadius: 4 }}>AI</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 280 }}>
-              The AI-powered operating system for owner-operators and small fleets. Built by people who understand trucking.
+              {t('landing.footerDesc')}
             </p>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>PLATFORM</div>
-            {['AI Load Board', 'Fleet Tracking', 'IFTA Filing', 'Invoicing', 'Compliance'].map(l => (
-              <a key={l} href="#features" style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
-                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{l}</a>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>{t('landing.footerPlatform')}</div>
+            {[
+              { key: 'landing.feat.aiLoadBoard' },
+              { key: 'landing.aiFleetTracking' },
+              { key: 'landing.iftaFiling' },
+              { key: 'landing.invoicing' },
+              { key: 'landing.compliance' },
+            ].map(l => (
+              <a key={l.key} href="#features" style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
+                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{t(l.key)}</a>
             ))}
             <a href="#/loads" style={{ display: 'block', fontSize: 13, color: 'var(--accent)', textDecoration: 'none', padding: '6px 0 4px', fontWeight: 600, transition: 'color 0.15s' }}
               onMouseOver={e => e.target.style.color = '#ffc340'} onMouseOut={e => e.target.style.color = 'var(--accent)'}>
-              Search 2,000+ Loads Free &rarr;
+              {t('landing.searchLoadsFooter')} &rarr;
             </a>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>COMPANY</div>
-            {['About', 'Pricing', 'Blog', 'Careers', 'Contact'].map(l => (
-              <a key={l} href={l === 'Pricing' ? '#pricing' : '#'} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
-                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{l}</a>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>{t('landing.footerCompany')}</div>
+            {[
+              { key: 'landing.about', href: '#' },
+              { key: 'landing.navPricing', href: '#pricing' },
+              { key: 'landing.blog', href: '#' },
+              { key: 'landing.careers', href: '#' },
+              { key: 'landing.contact', href: '#' },
+            ].map(l => (
+              <a key={l.key} href={l.href} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
+                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{t(l.key)}</a>
             ))}
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>LEGAL</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>{t('landing.footerLegal')}</div>
             {[
-              { label: 'Privacy Policy', href: '#/privacy' },
-              { label: 'Terms of Service', href: '#/terms' },
-              { label: 'Cookie Policy', href: '#' },
+              { key: 'landing.privacyPolicy', href: '#/privacy' },
+              { key: 'landing.termsOfService', href: '#/terms' },
+              { key: 'landing.cookiePolicy', href: '#' },
             ].map(l => (
-              <a key={l.label} href={l.href} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
-                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{l.label}</a>
+              <a key={l.key} href={l.href} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
+                onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{t(l.key)}</a>
             ))}
           </div>
         </div>
         <div style={{ maxWidth: 960, margin: '0 auto', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>© 2026 Qivori AI. All rights reserved.</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('landing.footerCopyright')}</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {[
               { icon: Twitter, label: 'Twitter' },
@@ -1085,6 +1138,32 @@ export default function LandingPage({ onGetStarted }) {
 
       {/* ── LIVE CHAT BUBBLE ───────────────────────────────────────── */}
       <ChatBubble />
+
+      {/* ── VIDEO MODAL ─────────────────────────────────────────────── */}
+      {videoModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setVideoModal(false) }}
+        >
+          <div style={{ position: 'relative', width: '100%', maxWidth: 900, aspectRatio: '16/9' }}>
+            <button
+              onClick={() => setVideoModal(false)}
+              style={{ position: 'absolute', top: -40, right: 0, background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 28, lineHeight: 1, padding: 4, zIndex: 1 }}
+              aria-label="Close video"
+            >
+              <Ic icon={X} size={28} color="#fff" />
+            </button>
+            {/* Replace VIDEO_ID with your actual YouTube video ID */}
+            <iframe
+              src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&rel=0"
+              title="Qivori AI Demo"
+              style={{ width: '100%', height: '100%', border: 'none', borderRadius: 16 }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── DEMO REQUEST MODAL ─────────────────────────────────────── */}
       {(demoModal || demoSent) && (

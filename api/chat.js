@@ -29,7 +29,7 @@ export default async function handler(req) {
     try { body = await req.json() } catch {
       return Response.json({ error: 'Request body must be valid JSON' }, { status: 400, headers: corsHeaders(req) })
     }
-    const { messages, context, loadBoard } = body
+    const { messages, context, loadBoard, language } = body
 
     const systemPrompt = `You are Qivori AI, the most advanced AI dispatcher in trucking. You help owner-operators and small fleet carriers manage their entire business from their phone — smarter than any human dispatcher.
 
@@ -232,7 +232,10 @@ RULES:
 - Calculate ROI comparisons: "You're spending $X/yr on dispatching — Qivori saves you $Y"
 - Be proactive: if you notice unpaid invoices > 30 days, mention it. If expenses are high relative to revenue, flag it.
 - If they ask general trucking questions (regulations, permits, CDL), answer confidently with accurate info
-- Always think like a business advisor, not just a dispatcher`
+- Always think like a business advisor, not just a dispatcher
+${language === 'es' ? `
+
+LANGUAGE: The user's language preference is Spanish. Respond in Spanish. You are fluent in both English and Spanish. Use natural, conversational Spanish appropriate for trucking industry professionals. Keep trucking-specific terms (like BOL, rate con, HOS, ELD, IFTA, DAT) in English as these are industry standard terms used by Spanish-speaking truckers in the US.` : ''}`
 
     const claudeMessages = (messages || []).map(m => ({
       role: m.role,

@@ -323,6 +323,30 @@ CREATE POLICY "waitlist_insert" ON waitlist FOR INSERT WITH CHECK (true);
 -- Allow count queries from landing page (only id exposed, not emails)
 CREATE POLICY "waitlist_select" ON waitlist FOR SELECT USING (true);
 
+-- ─── ANALYTICS EVENTS ──────────────────────────────────────────
+-- Server-side event tracking (used by /api/track-event)
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  event TEXT NOT NULL,
+  properties JSONB DEFAULT '{}'::jsonb,
+  ip TEXT,
+  user_agent TEXT,
+  timestamp TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_user ON analytics_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_event ON analytics_events(event);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_ts ON analytics_events(timestamp DESC);
+
+ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
+-- Only service role can insert (server-side endpoint)
+CREATE POLICY "analytics_events_insert_service" ON analytics_events FOR INSERT WITH CHECK (true);
+-- Admins can read all events
+CREATE POLICY "analytics_events_select_admin" ON analytics_events FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+);
+
 -- ═══════════════════════════════════════════════════════════════
 -- DONE! All tables created.
 -- ═══════════════════════════════════════════════════════════════

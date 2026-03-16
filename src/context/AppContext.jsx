@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
-import { trackSignup, trackLogin } from '../lib/analytics'
+import { trackSignup, trackLogin, trackSessionStart } from '../lib/analytics'
+import { recordStep } from '../lib/conversion-funnel'
 import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
@@ -136,6 +137,7 @@ export function AppProvider({ children }) {
         const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
         setCurrentPage(landingPage)
         setView('app')
+        trackSessionStart(role)
       }
       setAuthLoading(false)
     }).catch(e => {
@@ -228,7 +230,8 @@ export function AppProvider({ children }) {
       })
       if (profileError) console.error('Profile creation error:', profileError)
 
-      trackSignup('email')
+      trackSignup('email', role)
+      recordStep(data.user.id, 'signup')
 
       // Send welcome email (fire and forget)
       fetch('/api/welcome-email', {

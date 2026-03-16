@@ -29,6 +29,7 @@ export default async function handler(req) {
     const v1Sig = sig.split(',').find(s => s.startsWith('v1='))?.split('=')[1]
 
     if (!timestamp || !v1Sig) {
+      console.error('[stripe-webhook] Bad signature format:', sig)
       return Response.json({ error: 'Bad signature format' }, { status: 400 })
     }
 
@@ -44,10 +45,12 @@ export default async function handler(req) {
     const expectedSig = Array.from(new Uint8Array(signatureBytes)).map(b => b.toString(16).padStart(2, '0')).join('')
 
     if (expectedSig !== v1Sig) {
+      console.error('[stripe-webhook] Signature mismatch — expected:', expectedSig.slice(0, 12) + '...', 'got:', v1Sig.slice(0, 12) + '...')
       return Response.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
     const event = JSON.parse(body)
+    console.log(`[stripe-webhook] Received event: ${event.type} (${event.id})`)
 
     switch (event.type) {
       // ── CHECKOUT COMPLETED — new subscription ──
@@ -56,6 +59,7 @@ export default async function handler(req) {
         const customerEmail = session.customer_email || session.customer_details?.email
         const subscriptionId = session.subscription
         const customerId = session.customer
+        console.log(`[stripe-webhook] checkout.session.completed — email: ${customerEmail}, sub: ${subscriptionId}, customer: ${customerId}`)
 
         if (customerEmail && subscriptionId) {
           const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
@@ -106,6 +110,7 @@ export default async function handler(req) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object
         const customerId = subscription.customer
+        console.log(`[stripe-webhook] customer.subscription.updated — customer: ${customerId}, status: ${subscription.status}`)
         const planId = subscription.metadata?.plan_id || 'basic'
         const currentPeriodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null
         const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
@@ -158,6 +163,7 @@ export default async function handler(req) {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object
         const customerId = subscription.customer
+        console.log(`[stripe-webhook] customer.subscription.deleted — customer: ${customerId}`)
         const cancelReason = subscription.cancellation_details?.comment || subscription.cancellation_details?.reason || 'Not provided'
 
         await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
@@ -191,6 +197,27 @@ export default async function handler(req) {
         const invoice = event.data.object
         const customerId = invoice.customer
         const amount = invoice.amount_paid || 0
+        console.log(`[stripe-webhook] invoice.payment_succeeded — customer: ${customerId}, amount: $${(amount / 100).toFixed(2)}`)
+
+        // Extend subscription period — fetch the subscription to get updated period end
+        if (invoice.subscription) {
+          try {
+            const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${invoice.subscription}`, {
+              headers: { 'Authorization': `Bearer ${stripeKey}` },
+            })
+            const sub = await subRes.json()
+            if (sub && !sub.error && sub.current_period_end) {
+              await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
+                current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+                subscription_status: sub.status,
+                status: 'active',
+              })
+              console.log(`[stripe-webhook] Extended subscription period for customer ${customerId} to ${new Date(sub.current_period_end * 1000).toISOString()}`)
+            }
+          } catch (err) {
+            console.error(`[stripe-webhook] Failed to extend subscription period for ${customerId}:`, err?.message)
+          }
+        }
 
         if (amount > 0) {
           const profile = await getProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId)
@@ -218,10 +245,15 @@ export default async function handler(req) {
         const invoice = event.data.object
         const customerId = invoice.customer
         const attemptCount = invoice.attempt_count || 1
+        console.log(`[stripe-webhook] invoice.payment_failed — customer: ${customerId}, attempt: #${attemptCount}`)
 
+        // Set grace period: 7 days from now before access is revoked
+        const gracePeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
           subscription_status: 'past_due',
+          grace_period_end: gracePeriodEnd,
         })
+        console.log(`[stripe-webhook] Set grace period for customer ${customerId} until ${gracePeriodEnd}`)
 
         const profile = await getProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId)
         if (profile?.email) {
@@ -249,6 +281,7 @@ export default async function handler(req) {
       case 'customer.subscription.trial_will_end': {
         const subscription = event.data.object
         const customerId = subscription.customer
+        console.log(`[stripe-webhook] customer.subscription.trial_will_end — customer: ${customerId}`)
         const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
         const daysLeft = subscription.trial_end
           ? Math.max(0, Math.ceil((subscription.trial_end * 1000 - Date.now()) / 86400000))
@@ -276,37 +309,64 @@ export default async function handler(req) {
       }
     }
 
+    console.log(`[stripe-webhook] Successfully processed event: ${event.type} (${event.id})`)
     return Response.json({ received: true })
   } catch (err) {
-    return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
+    console.error(`[stripe-webhook] Error processing webhook:`, err?.message || err)
+    console.error(`[stripe-webhook] Stack:`, err?.stack || 'no stack')
+    return Response.json({ error: 'Webhook processing failed', detail: err?.message }, { status: 500 })
   }
 }
 
 // ── Helpers ──
 
 async function updateProfile(supabaseUrl, serviceKey, email, updates) {
-  await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}`, {
-    method: 'PATCH',
-    headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify(updates),
-  }).catch(() => {})
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}`, {
+      method: 'PATCH',
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(updates),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.error(`[stripe-webhook] updateProfile failed for ${email}: ${res.status} ${text}`)
+    }
+  } catch (err) {
+    console.error(`[stripe-webhook] updateProfile error for ${email}:`, err?.message)
+  }
 }
 
 async function updateProfileByCustomer(supabaseUrl, serviceKey, customerId, updates) {
-  await fetch(`${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`, {
-    method: 'PATCH',
-    headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify(updates),
-  }).catch(() => {})
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}`, {
+      method: 'PATCH',
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(updates),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.error(`[stripe-webhook] updateProfileByCustomer failed for ${customerId}: ${res.status} ${text}`)
+    }
+  } catch (err) {
+    console.error(`[stripe-webhook] updateProfileByCustomer error for ${customerId}:`, err?.message)
+  }
 }
 
 async function getProfileByCustomer(supabaseUrl, serviceKey, customerId) {
-  const res = await fetch(`${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id,email,full_name,subscription_plan&limit=1`, {
-    headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
-  })
-  if (!res.ok) return null
-  const data = await res.json()
-  return data?.[0] || null
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id,email,full_name,subscription_plan&limit=1`, {
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
+    })
+    if (!res.ok) {
+      console.error(`[stripe-webhook] getProfileByCustomer failed for ${customerId}: ${res.status}`)
+      return null
+    }
+    const data = await res.json()
+    return data?.[0] || null
+  } catch (err) {
+    console.error(`[stripe-webhook] getProfileByCustomer error for ${customerId}:`, err?.message)
+    return null
+  }
 }
 
 async function processReferralReward(supabaseUrl, serviceKey, referredEmail, stripeKey) {

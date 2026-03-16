@@ -3159,9 +3159,130 @@ function resolveView(viewId, navTo, onOpenDrawer) {
   }
 }
 
+// ── New User Onboarding Wizard ──────────────────────────────────────────────
+function OnboardingWizard({ onComplete }) {
+  const { showToast, profile } = useApp()
+  const { updateCompany, addVehicle } = useCarrier()
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({ companyName: '', mc: '', dot: '', phone: '', truckType: 'Dry Van', truckYear: '', truckMake: '' })
+  const firstName = (profile?.full_name || 'Driver').split(' ')[0]
+
+  const handleFinish = async () => {
+    // Save company info
+    if (form.companyName || form.mc || form.dot) {
+      await updateCompany({ name: form.companyName, mc: form.mc, dot: form.dot, phone: form.phone }).catch(() => {})
+    }
+    // Add first truck
+    if (form.truckMake || form.truckYear) {
+      await addVehicle({ type: form.truckType, year: form.truckYear, make: form.truckMake, status: 'Active' }).catch(() => {})
+    }
+    localStorage.setItem('qv_onboarded', 'true')
+    showToast('', 'Welcome!', 'Your account is ready')
+    onComplete()
+  }
+
+  return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:40 }}>
+      <div style={{ maxWidth:480, width:'100%' }}>
+        {/* Progress */}
+        <div style={{ display:'flex', gap:4, marginBottom:32 }}>
+          {[1,2,3].map(s => (
+            <div key={s} style={{ flex:1, height:4, borderRadius:2, background: step >= s ? 'var(--accent)' : 'var(--surface2)', transition:'all 0.3s' }} />
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div style={{ textAlign:'center' }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>👋</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, marginBottom:8 }}>
+              Welcome, {firstName}!
+            </div>
+            <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.7, marginBottom:32 }}>
+              Let's set up your carrier account in 2 minutes.<br/>
+              AI-powered dispatch, load matching, and compliance — all in one place.
+            </div>
+            <button className="btn btn-primary" style={{ padding:'14px 40px', fontSize:14 }} onClick={() => setStep(2)}>
+              Let's Go →
+            </button>
+            <div style={{ marginTop:16 }}>
+              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { localStorage.setItem('qv_onboarded', 'true'); onComplete() }}>
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>YOUR COMPANY</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Used on invoices, rate cons, and FMCSA lookups</div>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+              {[
+                { key:'companyName', label:'Company Name', ph:'Your Trucking LLC' },
+                { key:'mc', label:'MC Number', ph:'MC-1234567' },
+                { key:'dot', label:'DOT Number', ph:'1234567' },
+                { key:'phone', label:'Phone', ph:'(555) 123-4567' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                  <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button className="btn btn-ghost" onClick={() => setStep(1)}>Back</button>
+              <button className="btn btn-primary" style={{ flex:1 }} onClick={() => setStep(3)}>Continue →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>YOUR FIRST TRUCK</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Add your primary vehicle — you can add more later</div>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Equipment Type</label>
+                <select value={form.truckType} onChange={e => setForm(p => ({ ...p, truckType: e.target.value }))}
+                  style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }}>
+                  {['Dry Van','Reefer','Flatbed','Step Deck','Box Truck','Hotshot','Power Only'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                <div>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Year</label>
+                  <input value={form.truckYear} onChange={e => setForm(p => ({ ...p, truckYear: e.target.value }))} placeholder="2022"
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Make</label>
+                  <input value={form.truckMake} onChange={e => setForm(p => ({ ...p, truckMake: e.target.value }))} placeholder="Freightliner"
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                </div>
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button className="btn btn-ghost" onClick={() => setStep(2)}>Back</button>
+              <button className="btn btn-primary" style={{ flex:1 }} onClick={handleFinish}>Finish Setup →</button>
+            </div>
+            <div style={{ fontSize:11, color:'var(--muted)', marginTop:10, textAlign:'center' }}>
+              You can skip and add trucks later from Fleet → Equipment
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function CarrierLayoutInner() {
   const { logout, showToast, theme, setTheme, profile } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
+
+  // Check if user needs onboarding
+  const isNewUser = !localStorage.getItem('qv_onboarded') && !company?.name && loads.length === 0
+  const [showOnboarding, setShowOnboarding] = useState(isNewUser)
 
   const [activeView,    setActiveView]    = useState('dashboard')
   const [drawerLoadId,  setDrawerLoadId]  = useState(null)
@@ -3360,10 +3481,16 @@ function CarrierLayoutInner() {
 
         {/* MAIN CONTENT */}
         <div className="carrier-main">
-          <ViewErrorBoundary key={activeView}>
-            {resolveView(activeView, navTo, setDrawerLoadId)}
-          </ViewErrorBoundary>
-          {drawerLoadId && <LoadDetailDrawer loadId={drawerLoadId} onClose={() => setDrawerLoadId(null)} />}
+          {showOnboarding ? (
+            <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+          ) : (
+            <>
+              <ViewErrorBoundary key={activeView}>
+                {resolveView(activeView, navTo, setDrawerLoadId)}
+              </ViewErrorBoundary>
+              {drawerLoadId && <LoadDetailDrawer loadId={drawerLoadId} onClose={() => setDrawerLoadId(null)} />}
+            </>
+          )}
         </div>
       </div>
 

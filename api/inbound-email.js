@@ -178,19 +178,8 @@ RULES:
     const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`
     const replyHtml = formatReplyHtml(aiReply)
 
-    // Send the reply (from reply.qivori.com so replies loop back to bot)
-    const resendKey = process.env.RESEND_API_KEY
-    const sendResult = resendKey ? await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Qivori AI <hello@reply.qivori.com>',
-        reply_to: 'hello@reply.qivori.com',
-        to: [senderEmail],
-        subject: replySubject,
-        html: replyHtml,
-      }),
-    }).then(r => ({ ok: r.ok })).catch(() => ({ ok: false })) : { ok: false }
+    // Send the reply (from verified qivori.com, reply-to routes back to bot)
+    const sendResult = await sendEmail(senderEmail, replySubject, replyHtml)
 
     // Log to ai_email_threads table
     if (supabaseUrl && serviceKey) {

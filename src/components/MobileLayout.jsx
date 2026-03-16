@@ -1647,13 +1647,11 @@ function MobileAI() {
           <span style={{ fontSize: 9, fontWeight: 700, color: handsFree ? 'var(--success)' : 'var(--muted)', letterSpacing: 0.5 }}>{handsFree ? 'HANDS-FREE' : 'MANUAL'}</span>
         </button>
 
-        {/* New Chat / Home button — only show when in conversation */}
-        {messages.length > 0 && (
-          <button onClick={() => { if (messages.length > 0) contextMemoryRef.current = messages.slice(-5); setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true); window.speechSynthesis?.cancel() }}
-            style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-            <Ic icon={Plus} size={16} color="var(--text)" />
-          </button>
-        )}
+        {/* Home button — always visible, clears conversation and returns to home screen */}
+        <button onClick={() => { if (messages.length > 0) contextMemoryRef.current = messages.slice(-5); setMessages([]); setInput(''); setPendingUpload(null); setShowQuickActions(true); window.speechSynthesis?.cancel() }}
+          style={{ width: 32, height: 32, borderRadius: 8, background: messages.length > 0 ? 'rgba(240,165,0,0.1)' : 'var(--surface2)', border: '1px solid ' + (messages.length > 0 ? 'rgba(240,165,0,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+          <Ic icon={Home} size={16} color={messages.length > 0 ? 'var(--accent)' : 'var(--muted)'} />
+        </button>
 
         <button onClick={logout} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '5px 10px', color: 'var(--danger)', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
           Log Out

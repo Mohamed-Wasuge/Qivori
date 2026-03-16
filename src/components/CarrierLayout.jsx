@@ -819,31 +819,92 @@ function SubscriptionSettings() {
       {/* Available Plans */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Available Plans</div>
-        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
           {[
-            { id: 'starter', name: 'Starter', price: 'Free', desc: '14-day trial, 1 truck, basic features', color: '#8a8a9a' },
-            { id: 'autopilot', name: 'Pro', price: '$49/mo', desc: '5 trucks, invoicing, IFTA, load board', color: '#4d8ef0' },
-            { id: 'autopilot_ai', name: 'Autopilot', price: '$99/mo', desc: 'Unlimited trucks, AI dispatch, proactive loads', color: '#f0a500' },
-            { id: 'fleet', name: 'Fleet', price: '$799/mo', desc: 'API access, priority support, custom integrations', color: '#a78bfa' },
+            { id: 'starter', name: 'Starter', price: 'FREE', sub: '14-day trial', color: '#8a8a9a', features: [
+              { text: '1 truck', included: true },
+              { text: 'AI voice assistant', included: true },
+              { text: 'Load tracking & status', included: true },
+              { text: 'Basic expense tracking', included: true },
+              { text: 'Invoicing', included: false },
+              { text: 'IFTA auto-calc', included: false },
+              { text: 'Load board access', included: false },
+              { text: 'AI dispatch & load finding', included: false },
+              { text: 'Rate negotiation AI', included: false },
+            ]},
+            { id: 'autopilot', name: 'Pro', price: '$49', sub: '/mo per truck', color: '#4d8ef0', features: [
+              { text: 'Up to 5 trucks', included: true },
+              { text: 'Everything in Starter', included: true },
+              { text: 'One-tap invoicing to brokers', included: true },
+              { text: 'IFTA auto-calculation (all states)', included: true },
+              { text: 'Load board search & booking', included: true },
+              { text: 'Document OCR (snap rate con, BOL)', included: true },
+              { text: 'Expense tracking by category', included: true },
+              { text: 'Rate check (market comparison)', included: true },
+              { text: 'AI dispatch & proactive loads', included: false },
+              { text: 'SMS alerts', included: false },
+            ]},
+            { id: 'autopilot_ai', name: 'Autopilot', price: '$99', sub: '/mo per truck', color: '#f0a500', popular: true, features: [
+              { text: 'Unlimited trucks', included: true },
+              { text: 'Everything in Pro', included: true },
+              { text: 'AI dispatcher (replaces $4-8K/yr dispatcher)', included: true },
+              { text: 'Proactive load finding near delivery', included: true },
+              { text: 'Rate negotiation AI + counter scripts', included: true },
+              { text: 'SMS & push notifications', included: true },
+              { text: 'Weekly AI intelligence report', included: true },
+              { text: 'Driver scorecards & settlement', included: true },
+              { text: 'Cash flow forecasting', included: true },
+              { text: 'Compliance alerts (CDL, med card, ELD)', included: true },
+            ]},
+            { id: 'fleet', name: 'Fleet', price: '$799', sub: '/mo flat', color: '#a78bfa', features: [
+              { text: 'Unlimited trucks & drivers', included: true },
+              { text: 'Everything in Autopilot', included: true },
+              { text: 'API access for custom integrations', included: true },
+              { text: 'Priority support (< 1hr response)', included: true },
+              { text: 'Dedicated account manager', included: true },
+              { text: 'Custom reports & analytics', included: true },
+              { text: 'Multi-user team access', included: true },
+              { text: 'QuickBooks / accounting sync', included: true },
+              { text: 'White-label invoices', included: true },
+              { text: 'Onboarding & training', included: true },
+            ]},
           ].map(p => {
             const isCurrent = (subData?.plan === p.id) || (subData?.plan === 'pro' && p.id === 'autopilot')
             return (
               <div key={p.id} style={{
-                padding: 16, borderRadius: 10,
-                border: isCurrent ? `2px solid ${p.color}` : '1px solid var(--border)',
+                padding: 18, borderRadius: 12, display: 'flex', flexDirection: 'column',
+                border: isCurrent ? `2px solid ${p.color}` : p.popular ? `2px solid ${p.color}40` : '1px solid var(--border)',
                 background: isCurrent ? `${p.color}08` : 'var(--surface2)',
-                transition: 'all 0.15s',
+                position: 'relative', transition: 'all 0.15s',
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: p.color }}>{p.name}</div>
+                {p.popular && !isCurrent && (
+                  <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50)', fontSize: 9, fontWeight: 800, padding: '2px 12px', borderRadius: '0 0 6px 6px', background: p.color, color: '#000', letterSpacing: 1 }}>MOST POPULAR</div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: p.popular && !isCurrent ? 8 : 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: p.color }}>{p.name}</div>
                   {isCurrent && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: `${p.color}18`, color: p.color }}>CURRENT</span>}
                 </div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, marginBottom: 4 }}>{p.price}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>{p.desc}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginBottom: 14 }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: 'var(--text)' }}>{p.price}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.sub}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, marginBottom: 16 }}>
+                  {p.features.map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: f.included ? 'var(--text)' : 'var(--muted)' }}>
+                      <span style={{ fontSize: 12, flexShrink: 0, width: 16, textAlign: 'center' }}>
+                        {f.included ? '\u2713' : '\u2717'}
+                      </span>
+                      <span style={{ textDecoration: f.included ? 'none' : 'line-through', opacity: f.included ? 1 : 0.5 }}>{f.text}</span>
+                    </div>
+                  ))}
+                </div>
                 {!isCurrent && p.id !== 'starter' && (
-                  <button onClick={() => p.id === 'fleet' ? window.open('mailto:support@qivori.com?subject=Fleet Plan', '_blank') : handleUpgrade(p.id)}
+                  <button onClick={() => p.id === 'fleet' ? window.open('mailto:hello@qivori.com?subject=Fleet Plan Inquiry', '_blank') : handleUpgrade(p.id)}
                     disabled={upgradeLoading}
-                    style={{ width: '100%', padding: '8px 12px', fontSize: 11, fontWeight: 700, border: `1px solid ${p.color}40`, borderRadius: 8, background: 'transparent', color: p.color, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                    style={{ width: '100%', padding: '10px 12px', fontSize: 12, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
+                      border: p.popular ? 'none' : `1px solid ${p.color}40`,
+                      background: p.popular ? p.color : 'transparent',
+                      color: p.popular ? '#000' : p.color }}>
                     {p.id === 'fleet' ? 'Contact Sales' : (PLAN_INFO[subData?.plan]?.tier || 0) > (PLAN_INFO[p.id]?.tier || 0) ? 'Downgrade' : 'Upgrade'}
                   </button>
                 )}

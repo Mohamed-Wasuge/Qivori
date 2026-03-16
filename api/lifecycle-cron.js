@@ -174,6 +174,18 @@ export default async function handler(req) {
       }
     }
 
+    // ── 4. TRIGGER BOT AGENTS ──
+    // Health Monitor Bot
+    const botUrl = (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://www.qivori.com')
+    const botHeaders = cronSecret ? { 'Authorization': `Bearer ${cronSecret}` } : {}
+
+    const healthBot = await fetch(`${botUrl}/api/bot-health-monitor`, { headers: botHeaders }).then(r => r.json()).catch(() => ({ status: 'error' }))
+    results.healthBot = healthBot.status || 'ran'
+
+    // Load Finding Bot
+    const loadBot = await fetch(`${botUrl}/api/bot-load-finder`, { headers: botHeaders }).then(r => r.json()).catch(() => ({ status: 'error' }))
+    results.loadBot = { loadsScanned: loadBot.loadsScanned || 0, notificationsSent: loadBot.notificationsSent || 0 }
+
     return Response.json({ success: true, processed: users.length, results, timestamp: new Date().toISOString() })
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 })

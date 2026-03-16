@@ -475,6 +475,7 @@ export default function LandingPage({ onGetStarted }) {
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CheckCircle} size={13} color="var(--accent2)" /> Cancel anytime</span>
           </div>
         </FadeIn>
+
       </section>
 
       {/* ── WAITLIST ────────────────────────────────────────────────── */}

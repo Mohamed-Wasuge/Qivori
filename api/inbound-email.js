@@ -466,6 +466,7 @@ function isSpamOrMarketing(email, subject, body) {
     'shopify.com', 'wix.com', 'godaddy.com', 'namecheap.com',
     'indeed.com', 'glassdoor.com', 'yelp.com', 'nextdoor.com',
     'doordash.com', 'uber.com', 'lyft.com', 'grubhub.com',
+    '123loadboard.com', 'dat.com', 'truckstop.com', 'calendly.com',
   ]
 
   // Sender prefix blacklist

@@ -3175,7 +3175,8 @@ function OnboardingWizard({ onComplete }) {
     setLookupLoading(true)
     try {
       const param = type === 'mc' ? `mc=${clean}` : `dot=${clean}`
-      const res = await apiFetch(`/api/fmcsa-lookup?${param}`)
+      const resp = await apiFetch(`/api/fmcsa-lookup?${param}`)
+      const res = await resp.json()
       if (res.carrier) {
         const c = res.carrier
         setForm(p => ({

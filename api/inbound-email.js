@@ -1,19 +1,10 @@
-import { sendEmail, logEmail } from './_lib/emails.js'
+import { sendEmail, logEmail, sendAdminEmail } from './_lib/emails.js'
 
 export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
-  // Only accept POST from Resend webhook
   if (req.method !== 'POST') {
     return Response.json({ error: 'POST only' }, { status: 405 })
-  }
-
-  // Verify webhook secret (set RESEND_WEBHOOK_SECRET in Vercel env)
-  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET
-  if (webhookSecret) {
-    const sig = req.headers.get('resend-signature') || req.headers.get('svix-signature') || ''
-    // For now, basic secret header check — upgrade to HMAC verification later
-    // Resend uses svix for webhook signatures
   }
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY
@@ -27,185 +18,61 @@ export default async function handler(req) {
   try {
     const payload = await req.json()
 
-    // Resend inbound webhook payload — handle both top-level and nested data formats
+    // Parse Resend webhook payload
     const d = payload.data || payload
     const fromEmail = d.from || payload.from || ''
-    const toEmail = Array.isArray(d.to) ? d.to[0] : (d.to || '')
     const subject = d.subject || payload.subject || '(no subject)'
     const textBody = d.text || d.body || payload.text || payload.body || ''
     const htmlBody = d.html || payload.html || ''
     const emailId = d.email_id || d.id || payload.email_id || ''
 
-    // Extract clean email address
     const senderEmail = extractEmail(fromEmail)
-    if (!senderEmail) {
-      return Response.json({ error: 'No sender email' }, { status: 400 })
+    if (!senderEmail) return Response.json({ error: 'No sender email' }, { status: 400 })
+
+    // ── SMART SPAM FILTER ──
+    if (isSpamOrMarketing(senderEmail, subject, textBody || stripHtml(htmlBody))) {
+      return Response.json({ skipped: true, reason: 'spam/marketing' })
     }
 
-    // Don't reply to noreply, marketing, bulk, or own domain emails
-    const skipSenderPatterns = [
-      'noreply@', 'no-reply@', 'mailer-daemon@', 'postmaster@', '@qivori.com',
-      'unsubscribe', 'newsletter', 'marketing@', 'promo@', 'bulk@', 'notify@',
-      'notification@', 'alerts@', 'info@', 'support@', 'billing@', 'account@',
-      'ccsend.com', 'mailchimp', 'constantcontact', 'sendgrid.net', 'amazonses',
-      'aliexpress', 'xfinity', 'comcast', 'usps.com', 'ups.com', 'fedex.com',
-      'teamsnap', 'optionstrat', 'mvpschools', 'mobyfund', 'taylorandmartin',
-      'informeddelivery', '.cub.com', 'facebook.com', 'twitter.com', 'linkedin.com',
-      'instagram.com', 'tiktok.com', 'youtube.com', 'google.com', 'apple.com',
-      'microsoft.com', 'amazon.com', 'paypal.com', 'stripe.com', 'squarespace.com',
-      'shopify.com', 'wix.com', 'godaddy.com', 'namecheap.com',
-    ]
-    if (skipSenderPatterns.some(p => senderEmail.toLowerCase().includes(p))) {
-      return Response.json({ skipped: true, reason: 'filtered sender' })
-    }
-
-    // Skip marketing/bulk emails by subject keywords
-    const skipSubjectPatterns = [
-      'unsubscribe', 'seasonal', 'sale', 'discount', 'promo', 'offer',
-      'just landed', 'new arrivals', 'daily digest', 'newsletter',
-      'your payment is overdue', 'register now', 'auction',
-    ]
-    const subjectLower = subject.toLowerCase()
-    if (skipSubjectPatterns.some(p => subjectLower.includes(p))) {
-      return Response.json({ skipped: true, reason: 'filtered subject' })
-    }
-
-    // Clean the email body — strip quoted replies, fall back to subject
+    // Clean email body
     const rawBody = textBody || stripHtml(htmlBody)
     const cleanBody = stripQuotedReplies(rawBody) || subject
     if (!cleanBody || cleanBody.trim().length < 2) {
       return Response.json({ skipped: true, reason: 'empty body' })
     }
 
-    // Look up sender in Supabase for context
-    let userContext = ''
-    let userId = null
-    if (supabaseUrl && serviceKey) {
-      try {
-        // Check profiles
-        const profileRes = await fetch(
-          `${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(senderEmail)}&select=id,full_name,company_name,role,plan,truck_count,mc_number,dot_number,created_at`,
-          { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
-        )
-        const profiles = await profileRes.json()
-        if (profiles?.[0]) {
-          const p = profiles[0]
-          userId = p.id
-          userContext += `\nUSER PROFILE: ${p.full_name || 'Unknown'}, Company: ${p.company_name || 'N/A'}, Role: ${p.role || 'carrier'}, Plan: ${p.plan || 'trial'}, Trucks: ${p.truck_count || 1}, MC#: ${p.mc_number || 'N/A'}, DOT#: ${p.dot_number || 'N/A'}, Joined: ${p.created_at?.split('T')[0] || 'N/A'}`
-        }
+    // ── DEEP CONTEXT GATHERING ──
+    const context = await gatherIntelligence(senderEmail, supabaseUrl, serviceKey)
 
-        // Check recent loads if user found
-        if (userId) {
-          const loadsRes = await fetch(
-            `${supabaseUrl}/rest/v1/loads?user_id=eq.${userId}&select=load_number,status,origin,destination,gross_pay,broker_name&order=created_at.desc&limit=5`,
-            { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
-          )
-          const loads = await loadsRes.json()
-          if (loads?.length > 0) {
-            userContext += `\nRECENT LOADS: ${loads.map(l => `${l.load_number}: ${l.origin}→${l.destination} ($${l.gross_pay || 0}) [${l.status}] via ${l.broker_name || 'N/A'}`).join(' | ')}`
-          }
-        }
+    // ── INTENT DETECTION (pre-AI) ──
+    const intent = detectIntent(subject, cleanBody)
 
-        // Get previous email thread for conversation continuity
-        const threadRes = await fetch(
-          `${supabaseUrl}/rest/v1/ai_email_threads?sender_email=eq.${encodeURIComponent(senderEmail)}&select=subject,sender_message,ai_reply,created_at&order=created_at.desc&limit=5`,
-          { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
-        )
-        const threads = await threadRes.json()
-        if (threads?.length > 0) {
-          userContext += `\nPREVIOUS EMAIL THREADS:\n${threads.map(t => `[${t.created_at?.split('T')[0]}] Subject: ${t.subject}\nThem: ${t.sender_message?.substring(0, 200)}\nYou: ${t.ai_reply?.substring(0, 200)}`).join('\n---\n')}`
-        }
-      } catch (e) { /* context lookup failed, continue without it */ }
-    }
+    // ── AI BRAIN ──
+    const systemPrompt = buildSuperSmartPrompt(context, intent)
 
-    // Generate AI reply using Claude
-    const systemPrompt = `You are Qivori AI's email assistant, responding on behalf of Qivori — an AI-powered TMS (Transportation Management System) for trucking owner-operators and small fleet carriers.
-
-You respond to inbound emails from customers, leads, and prospects. Your tone is professional, friendly, and helpful — like a knowledgeable support agent who understands trucking.
-
-ABOUT QIVORI:
-- AI-powered carrier operating system for owner-operators and small fleets (1-10 trucks)
-- Features: AI Load Board, Smart Dispatch, Fleet GPS, IFTA Calculator, P&L, Compliance, Driver Management, Invoicing
-- Plans: Autopilot ($99/mo + $49/truck) and Autopilot AI ($799/mo + $150/truck — replaces your dispatcher)
-- 14-day free trial, no credit card required
-- Website: www.qivori.com
-- Founded by Mohamed Wasuge
-
-${userContext ? `SENDER CONTEXT:${userContext}` : 'SENDER: Unknown — not found in our system. Likely a new lead or prospect.'}
-
-RULES:
-- Keep replies concise and helpful (2-4 paragraphs max)
-- If they're asking about pricing, features, or how to get started — be enthusiastic and informative
-- If they have a technical issue or bug report — acknowledge it, apologize, and say the team is looking into it
-- If they want to cancel — be empathetic, ask why, mention the 20% COMEBACK20 discount
-- If they're a lead from demo request — welcome them and guide them to sign up
-- If the email is spam or irrelevant — reply politely that this inbox is for Qivori customers
-- If they need something complex (refund, account deletion, legal) — say you're forwarding to a team member
-- NEVER make up information about their account you don't have
-- NEVER promise features that don't exist
-- Sign off as "Qivori AI Assistant" and mention they can reach a team member directly for urgent matters
-- If they ask if they're talking to a bot — be honest: "I'm Qivori's AI assistant. For anything I can't help with, I'll connect you with a team member directly."
-- Write in plain text style suitable for email — no markdown headers or bullets unless listing features`
-
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [
-          { role: 'user', content: `From: ${senderEmail}\nSubject: ${subject}\n\n${cleanBody}` }
-        ],
-      }),
-    })
-
-    if (!aiRes.ok) {
-      // Fallback model
-      const aiRes2 = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: [
-            { role: 'user', content: `From: ${senderEmail}\nSubject: ${subject}\n\n${cleanBody}` }
-          ],
-        }),
-      })
-      if (!aiRes2.ok) {
-        // Notify admin of failure
-        await notifyAdmin(supabaseUrl, serviceKey, senderEmail, subject, 'AI generation failed')
-        return Response.json({ error: 'AI unavailable' }, { status: 502 })
-      }
-      var aiData = await aiRes2.json()
-    } else {
-      var aiData = await aiRes.json()
-    }
-
-    const aiReply = aiData.content?.[0]?.text
+    const aiReply = await callClaude(anthropicKey, systemPrompt, senderEmail, subject, cleanBody)
     if (!aiReply) {
-      await notifyAdmin(supabaseUrl, serviceKey, senderEmail, subject, 'Empty AI response')
-      return Response.json({ error: 'Empty AI response' }, { status: 500 })
+      await notifyAdmin(supabaseUrl, serviceKey, senderEmail, subject, 'AI generation failed')
+      return Response.json({ error: 'AI unavailable' }, { status: 502 })
     }
 
-    // Format reply as branded HTML email
-    const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`
-    const replyHtml = formatReplyHtml(aiReply)
+    // ── POST-AI ACTIONS ──
+    // Auto-escalate if AI says so or intent requires it
+    const shouldEscalate = intent.escalate || aiReply.includes('[ESCALATE]')
+    const cleanReply = aiReply.replace('[ESCALATE]', '').trim()
 
-    // Send the reply (from verified qivori.com, reply-to routes back to bot)
+    // Detect sentiment from AI's analysis
+    const sentiment = aiReply.includes('[SENTIMENT:')
+      ? aiReply.match(/\[SENTIMENT:(\w+)\]/)?.[1] || 'neutral'
+      : 'neutral'
+    const finalReply = cleanReply.replace(/\[SENTIMENT:\w+\]/g, '').trim()
+
+    // Format and send reply
+    const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`
+    const replyHtml = formatReplyHtml(finalReply, intent.category)
     const sendResult = await sendEmail(senderEmail, replySubject, replyHtml)
 
-    // Log to ai_email_threads table
+    // ── SMART LOGGING ──
     if (supabaseUrl && serviceKey) {
       try {
         await fetch(`${supabaseUrl}/rest/v1/ai_email_threads`, {
@@ -218,54 +85,418 @@ RULES:
           },
           body: JSON.stringify({
             sender_email: senderEmail,
-            user_id: userId,
+            user_id: context.userId,
             subject,
             sender_message: cleanBody.substring(0, 5000),
-            ai_reply: aiReply.substring(0, 5000),
-            status: sendResult.ok ? 'sent' : 'failed',
+            ai_reply: finalReply.substring(0, 5000),
+            status: shouldEscalate ? 'escalated' : sendResult.ok ? 'sent' : 'failed',
+            escalated: shouldEscalate,
             inbound_email_id: emailId || null,
+            admin_notes: JSON.stringify({
+              intent: intent.category,
+              sentiment,
+              isCustomer: !!context.userId,
+              leadScore: context.leadScore,
+              autoActions: intent.actions,
+            }),
           }),
         })
-      } catch (e) { /* logging failed, non-critical */ }
+      } catch (e) { /* non-critical */ }
+
+      // ── AUTO-ESCALATION: notify admin for critical emails ──
+      if (shouldEscalate || sentiment === 'angry' || intent.category === 'legal') {
+        await notifyAdmin(supabaseUrl, serviceKey, senderEmail, subject,
+          `Auto-escalated: ${intent.category} | Sentiment: ${sentiment} | Customer: ${context.userId ? 'Yes' : 'No'}`)
+        // Send admin a direct email alert for urgent ones
+        if (intent.priority === 'urgent') {
+          await sendAdminEmail(
+            `🔴 Urgent Email: ${subject}`,
+            `<p style="color:#ef4444;font-weight:700;">Urgent email requires attention</p>
+            <p style="color:#c8c8d0;">From: ${senderEmail}</p>
+            <p style="color:#c8c8d0;">Subject: ${subject}</p>
+            <p style="color:#c8c8d0;">Intent: ${intent.category}</p>
+            <p style="color:#c8c8d0;">Message: ${cleanBody.substring(0, 500)}</p>
+            <p style="color:#c8c8d0;">AI Reply: ${finalReply.substring(0, 300)}</p>`
+          )
+        }
+      }
+
+      // ── AUTO-ACTIONS based on intent ──
+      if (intent.actions.includes('create_lead') && !context.userId) {
+        // Auto-create lead in demo_requests if new prospect
+        try {
+          await fetch(`${supabaseUrl}/rest/v1/demo_requests`, {
+            method: 'POST',
+            headers: {
+              'apikey': serviceKey,
+              'Authorization': `Bearer ${serviceKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({
+              email: senderEmail,
+              name: fromEmail.split('<')[0]?.trim() || senderEmail.split('@')[0],
+              source: 'email_inbound',
+              notes: `Auto-captured from email: "${subject}"`,
+            }),
+          })
+        } catch (e) { /* non-critical */ }
+      }
+
+      // Auto-log follow-up reminder for high-value leads
+      if (intent.actions.includes('follow_up') && context.leadScore >= 7) {
+        await notifyAdmin(supabaseUrl, serviceKey, senderEmail, subject,
+          `High-value lead (score: ${context.leadScore}/10) needs follow-up within 24hrs`)
+      }
     }
 
-    // Log to email_logs for general tracking
-    await logEmail(userId, senderEmail, 'ai_auto_reply', { subject: replySubject })
+    await logEmail(context.userId, senderEmail, 'ai_auto_reply', {
+      subject: replySubject, intent: intent.category, sentiment, leadScore: context.leadScore,
+    })
 
     return Response.json({
       success: true,
       from: senderEmail,
       subject: replySubject,
       replied: sendResult.ok,
+      intent: intent.category,
+      sentiment,
+      escalated: shouldEscalate,
+      leadScore: context.leadScore,
     })
   } catch (err) {
     return Response.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 }
 
-// ── Helpers ──
+// ═══════════════════════════════════════════════════════════════
+// INTELLIGENCE ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+function detectIntent(subject, body) {
+  const text = `${subject} ${body}`.toLowerCase()
+
+  const intents = {
+    // Sales & Leads
+    pricing:    { keywords: ['pricing', 'price', 'cost', 'how much', 'plans', 'subscription', 'rate', 'afford'], category: 'sales', priority: 'high', actions: ['create_lead', 'follow_up'] },
+    demo:       { keywords: ['demo', 'trial', 'try', 'test', 'sign up', 'get started', 'interested', 'learn more'], category: 'sales', priority: 'high', actions: ['create_lead', 'follow_up'] },
+    compare:    { keywords: ['vs', 'versus', 'compared to', 'better than', 'switch from', 'alternative'], category: 'sales', priority: 'high', actions: ['create_lead'] },
+
+    // Support
+    bug:        { keywords: ['bug', 'error', 'broken', 'not working', 'issue', 'problem', 'crash', 'glitch', "can't", 'unable'], category: 'support', priority: 'medium', actions: [] },
+    howto:      { keywords: ['how do i', 'how to', 'where is', 'can i', 'help me', 'tutorial', 'guide'], category: 'support', priority: 'low', actions: [] },
+    feature:    { keywords: ['feature request', 'wish', 'would be nice', 'suggestion', 'add', 'missing'], category: 'feedback', priority: 'low', actions: [] },
+
+    // Account & Billing
+    cancel:     { keywords: ['cancel', 'unsubscribe', 'stop', 'end subscription', 'close account', 'delete account'], category: 'churn', priority: 'urgent', actions: ['follow_up'], escalate: true },
+    refund:     { keywords: ['refund', 'money back', 'charge', 'overcharged', 'billing issue', 'dispute'], category: 'billing', priority: 'urgent', actions: ['follow_up'], escalate: true },
+    upgrade:    { keywords: ['upgrade', 'autopilot ai', 'enterprise', 'more trucks', 'scale', 'grow'], category: 'upsell', priority: 'high', actions: ['follow_up'] },
+
+    // Trucking-specific
+    loadboard:  { keywords: ['load board', 'dat', '123loadboard', 'truckstop', 'find loads', 'search loads'], category: 'product', priority: 'medium', actions: [] },
+    compliance: { keywords: ['eld', 'hos', 'fmcsa', 'dot', 'compliance', 'inspection', 'violation', 'csa', 'ifta'], category: 'product', priority: 'medium', actions: [] },
+    dispatch:   { keywords: ['dispatch', 'driver', 'fleet', 'truck', 'route', 'delivery', 'pickup'], category: 'product', priority: 'medium', actions: [] },
+    invoice:    { keywords: ['invoice', 'payment', 'factoring', 'quickbooks', 'receivable', 'broker pay'], category: 'product', priority: 'medium', actions: [] },
+
+    // Critical
+    legal:      { keywords: ['lawyer', 'attorney', 'sue', 'lawsuit', 'legal', 'subpoena', 'court'], category: 'legal', priority: 'urgent', actions: [], escalate: true },
+    partner:    { keywords: ['partnership', 'integrate', 'api access', 'reseller', 'white label', 'b2b'], category: 'partnership', priority: 'high', actions: ['create_lead', 'follow_up'], escalate: true },
+    media:      { keywords: ['press', 'journalist', 'interview', 'article', 'media', 'publication', 'podcast'], category: 'media', priority: 'high', actions: [], escalate: true },
+    investor:   { keywords: ['invest', 'funding', 'venture', 'capital', 'series', 'valuation', 'pitch'], category: 'investor', priority: 'urgent', actions: [], escalate: true },
+    human:      { keywords: ['speak to', 'talk to', 'real person', 'human', 'team member', 'manager', 'supervisor'], category: 'escalation', priority: 'urgent', actions: [], escalate: true },
+  }
+
+  for (const [key, intent] of Object.entries(intents)) {
+    if (intent.keywords.some(kw => text.includes(kw))) {
+      return { ...intent, detected: key }
+    }
+  }
+
+  return { category: 'general', priority: 'low', actions: [], detected: 'unknown', escalate: false }
+}
+
+async function gatherIntelligence(senderEmail, supabaseUrl, serviceKey) {
+  const ctx = { userId: null, profile: null, loads: [], invoices: [], threads: [], leadScore: 5, summary: '' }
+  if (!supabaseUrl || !serviceKey) return ctx
+
+  const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` }
+
+  try {
+    // Profile lookup
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(senderEmail)}&select=id,full_name,company_name,role,plan,truck_count,mc_number,dot_number,subscription_status,created_at,last_login`,
+      { headers }
+    )
+    const profiles = await profileRes.json()
+    if (profiles?.[0]) {
+      const p = profiles[0]
+      ctx.userId = p.id
+      ctx.profile = p
+      ctx.summary += `\n👤 CUSTOMER PROFILE:\n- Name: ${p.full_name || 'Unknown'}\n- Company: ${p.company_name || 'N/A'}\n- Role: ${p.role || 'carrier'}\n- Plan: ${p.plan || 'trial'} (${p.subscription_status || 'unknown'})\n- Fleet: ${p.truck_count || 1} truck(s)\n- MC#: ${p.mc_number || 'N/A'} | DOT#: ${p.dot_number || 'N/A'}\n- Member since: ${p.created_at?.split('T')[0] || 'N/A'}\n- Last login: ${p.last_login?.split('T')[0] || 'N/A'}`
+
+      // Lead scoring for existing customers
+      ctx.leadScore = 8
+      if (p.plan === 'autopilot_ai') ctx.leadScore = 10
+      else if (p.plan === 'autopilot') ctx.leadScore = 9
+      else if (p.subscription_status === 'trialing') ctx.leadScore = 7
+    }
+
+    // Loads — recent activity
+    if (ctx.userId) {
+      const [loadsRes, invoicesRes] = await Promise.all([
+        fetch(`${supabaseUrl}/rest/v1/loads?user_id=eq.${ctx.userId}&select=load_number,status,origin,destination,gross_pay,rate_per_mile,broker_name,pickup_date,delivery_date&order=created_at.desc&limit=10`, { headers }),
+        fetch(`${supabaseUrl}/rest/v1/invoices?user_id=eq.${ctx.userId}&select=invoice_number,status,amount,broker_name,due_date&order=created_at.desc&limit=5`, { headers }),
+      ])
+
+      const loads = await loadsRes.json()
+      if (loads?.length > 0) {
+        ctx.loads = loads
+        const activeLoads = loads.filter(l => !['Delivered', 'Invoiced', 'Paid'].includes(l.status))
+        const deliveredLoads = loads.filter(l => l.status === 'Delivered')
+        const totalRevenue = loads.reduce((sum, l) => sum + (l.gross_pay || 0), 0)
+        const avgRpm = loads.filter(l => l.rate_per_mile).reduce((sum, l, _, a) => sum + l.rate_per_mile / a.length, 0)
+
+        ctx.summary += `\n\n📦 LOAD ACTIVITY (last 10):\n- Active loads: ${activeLoads.length}\n- Delivered (pending invoice): ${deliveredLoads.length}\n- Total revenue: $${totalRevenue.toLocaleString()}\n- Avg RPM: $${avgRpm.toFixed(2)}/mi`
+        ctx.summary += `\n- Recent: ${loads.slice(0, 3).map(l => `${l.load_number}: ${l.origin}→${l.destination} $${l.gross_pay || 0} [${l.status}]`).join(' | ')}`
+      }
+
+      const invoices = await invoicesRes.json()
+      if (invoices?.length > 0) {
+        ctx.invoices = invoices
+        const unpaid = invoices.filter(i => i.status !== 'paid')
+        const totalUnpaid = unpaid.reduce((sum, i) => sum + (i.amount || 0), 0)
+        if (unpaid.length > 0) {
+          ctx.summary += `\n\n💰 OUTSTANDING INVOICES: ${unpaid.length} unpaid ($${totalUnpaid.toLocaleString()})`
+        }
+      }
+    }
+
+    // Previous email threads
+    const threadRes = await fetch(
+      `${supabaseUrl}/rest/v1/ai_email_threads?sender_email=eq.${encodeURIComponent(senderEmail)}&select=subject,sender_message,ai_reply,admin_notes,created_at&order=created_at.desc&limit=5`,
+      { headers }
+    )
+    const threads = await threadRes.json()
+    if (threads?.length > 0) {
+      ctx.threads = threads
+      ctx.summary += `\n\n📧 CONVERSATION HISTORY (${threads.length} previous):\n${threads.map(t => {
+        const notes = t.admin_notes ? JSON.parse(t.admin_notes) : {}
+        return `[${t.created_at?.split('T')[0]}] ${t.subject} (${notes.intent || 'general'})\nThem: ${t.sender_message?.substring(0, 150)}...\nUs: ${t.ai_reply?.substring(0, 150)}...`
+      }).join('\n---\n')}`
+    }
+
+    // Check demo_requests for lead info
+    if (!ctx.userId) {
+      const demoRes = await fetch(
+        `${supabaseUrl}/rest/v1/demo_requests?email=eq.${encodeURIComponent(senderEmail)}&select=name,company,phone,truck_count,created_at&limit=1`,
+        { headers }
+      )
+      const demos = await demoRes.json()
+      if (demos?.[0]) {
+        const dm = demos[0]
+        ctx.summary += `\n\n🎯 LEAD INFO (from demo request):\n- Name: ${dm.name || 'N/A'}\n- Company: ${dm.company || 'N/A'}\n- Trucks: ${dm.truck_count || 'N/A'}\n- Requested demo: ${dm.created_at?.split('T')[0]}`
+        ctx.leadScore = 8
+      } else {
+        ctx.summary += `\n\n❓ UNKNOWN SENDER — not in our system. Could be a new lead, cold outreach, or general inquiry.`
+        ctx.leadScore = 5
+      }
+    }
+  } catch (e) { /* context failed, continue */ }
+
+  return ctx
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPER-SMART PROMPT
+// ═══════════════════════════════════════════════════════════════
+
+function buildSuperSmartPrompt(context, intent) {
+  return `You are Qivori AI — the most advanced AI email assistant in the trucking industry. You don't just reply to emails — you understand trucking, you know the customer, and you take intelligent action.
+
+YOU ARE NOT A GENERIC CHATBOT. You are a trucking industry expert who happens to work at Qivori. You understand:
+- Owner-operator economics (RPM, deadhead, fuel costs, dispatcher fees)
+- FMCSA regulations (HOS, ELD, CSA scores, IFTA, drug & alcohol)
+- Load board dynamics (DAT, 123Loadboard, Truckstop)
+- Broker relationships, rate negotiations, factoring
+- Fleet management, maintenance schedules, DOT inspections
+- The daily struggle of running a small trucking business
+
+ABOUT QIVORI:
+- AI-powered carrier operating system — the "Tesla of trucking software"
+- Built specifically for owner-operators and small fleets (1-10 trucks)
+- Core features: AI Load Board (scores every load 0-99), Smart Dispatch (AI replaces your dispatcher), Fleet GPS, IFTA Auto-Calculator, P&L Dashboard, Compliance Center, Driver Management, Invoicing
+- Plans: Autopilot ($99/mo + $49/truck) — AI-assisted | Autopilot AI ($799/mo + $150/truck) — full AI autonomy, replaces your dispatcher entirely
+- Autopilot AI saves carriers $1,036/month vs traditional dispatcher costs
+- 14-day free trial, no credit card required
+- Website: www.qivori.com
+- The AI chat can book loads, submit check calls, find truck stops, check weigh stations, track HOS, generate invoices — all by voice/text while driving
+
+${context.summary || 'SENDER: Unknown — new contact, not in our system.'}
+
+EMAIL INTENT DETECTED: ${intent.category} (${intent.priority} priority)
+${intent.escalate ? '⚠️ THIS EMAIL REQUIRES ESCALATION — acknowledge and confirm a team member will follow up.' : ''}
+
+INTELLIGENCE RULES:
+
+1. PERSONALIZATION: If you have their data, USE IT. Reference their loads, their fleet size, their plan. Show them you know them. Example: "I see you delivered that Chicago→Dallas load last week for $3,200 — nice RPM on that lane!"
+
+2. PROACTIVE VALUE: Don't just answer the question — add value they didn't ask for.
+   - If they have delivered loads without invoices → mention it: "By the way, I noticed you have 2 delivered loads that haven't been invoiced yet"
+   - If they're on trial → weave in upgrade benefits naturally
+   - If they're a lead → paint a picture of how Qivori solves their specific pain
+
+3. TRUCKING EXPERTISE: Use industry knowledge naturally.
+   - Know current market conditions (spot rates are volatile, capacity is tight)
+   - Reference regulations when relevant (ELD mandate, IFTA quarterly deadlines)
+   - Understand pain points (broker payment delays, fuel costs, finding good loads)
+
+4. SALES INTELLIGENCE:
+   - For leads: Be consultative, not pushy. Ask about their fleet size, lanes, current pain points
+   - For trial users: Show them what they're missing, reference features they haven't tried
+   - For paying customers: Focus on retention, make them feel valued
+   - For enterprise/fleet inquiries: Emphasize scalability, mention custom pricing available
+
+5. EMOTIONAL INTELLIGENCE:
+   - Detect frustration → empathize first, solve second
+   - Detect excitement → match their energy, celebrate wins
+   - Detect confusion → simplify, use trucking analogies
+   - Detect urgency → be direct, skip the pleasantries
+   - Include [SENTIMENT:happy/neutral/frustrated/angry/excited] at the end of your reply (this tag is stripped before sending)
+
+6. ESCALATION: Include [ESCALATE] in your reply if:
+   - They explicitly ask for a human
+   - Legal, investor, or media inquiry
+   - Refund/cancellation (still reply helpfully, but flag it)
+   - Complex account issues you can't resolve
+   - Partnership or enterprise deals
+
+7. RESPONSE STYLE:
+   - Write like a knowledgeable friend in trucking, not a corporate bot
+   - Keep it 2-4 paragraphs — drivers are busy
+   - Use specific numbers and data when you have it
+   - End with a clear next step or question
+   - Sign as "Qivori AI" — be honest you're AI if asked
+   - For urgent matters, mention they can reply "speak to a team member" anytime
+
+8. NEVER:
+   - Make up account data you don't have
+   - Promise features that don't exist
+   - Give legal or medical advice
+   - Share other customers' information
+   - Be condescending about their business size`
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AI CALLING
+// ═══════════════════════════════════════════════════════════════
+
+async function callClaude(apiKey, systemPrompt, senderEmail, subject, body) {
+  const models = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022']
+
+  for (const model of models) {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages: [
+            { role: 'user', content: `From: ${senderEmail}\nSubject: ${subject}\n\n${body}` }
+          ],
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        return data.content?.[0]?.text || null
+      }
+    } catch (e) { continue }
+  }
+  return null
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SPAM DETECTION
+// ═══════════════════════════════════════════════════════════════
+
+function isSpamOrMarketing(email, subject, body) {
+  const e = email.toLowerCase()
+  const s = subject.toLowerCase()
+  const b = (body || '').toLowerCase()
+
+  // Sender domain blacklist
+  const spamDomains = [
+    'ccsend.com', 'mailchimp.com', 'constantcontact.com', 'sendgrid.net',
+    'amazonses.com', 'mailgun.net', 'sendinblue.com', 'hubspot.com',
+    'aliexpress', 'xfinity', 'comcast', 'usps.com', 'ups.com', 'fedex.com',
+    'teamsnap', 'optionstrat', 'mvpschools', 'mobyfund', 'taylorandmartin',
+    'informeddelivery', '.cub.com', 'facebook.com', 'facebookmail.com',
+    'twitter.com', 'linkedin.com', 'instagram.com', 'tiktok.com',
+    'youtube.com', 'google.com', 'apple.com', 'microsoft.com',
+    'amazon.com', 'paypal.com', 'stripe.com', 'squarespace.com',
+    'shopify.com', 'wix.com', 'godaddy.com', 'namecheap.com',
+    'indeed.com', 'glassdoor.com', 'yelp.com', 'nextdoor.com',
+    'doordash.com', 'uber.com', 'lyft.com', 'grubhub.com',
+  ]
+
+  // Sender prefix blacklist
+  const spamPrefixes = [
+    'noreply@', 'no-reply@', 'mailer-daemon@', 'postmaster@',
+    'newsletter@', 'marketing@', 'promo@', 'promotions@', 'bulk@',
+    'notify@', 'notification@', 'notifications@', 'alerts@',
+    'info@', 'support@', 'billing@', 'account@', 'updates@',
+    'news@', 'digest@', 'automated@', 'system@', 'donotreply@',
+  ]
+
+  // Subject spam signals
+  const spamSubjects = [
+    'unsubscribe', 'seasonal', 'sale', 'discount', 'promo', 'off today',
+    'just landed', 'new arrivals', 'daily digest', 'newsletter',
+    'your payment is overdue', 'register now', 'auction', 'limited time',
+    'act now', 'exclusive offer', 'free shipping', 'order confirmation',
+    'shipping notification', 'tracking number', 'delivery notification',
+    'verify your', 'confirm your', 'security alert', 'password reset',
+    'weekly report', 'monthly summary', 'your receipt', 'your statement',
+  ]
+
+  if (e.includes('@qivori.com')) return true
+  if (spamDomains.some(d => e.includes(d))) return true
+  if (spamPrefixes.some(p => e.startsWith(p))) return true
+  if (spamSubjects.some(p => s.includes(p))) return true
+
+  // Body spam signals — if body contains unsubscribe link, it's marketing
+  if (b.includes('unsubscribe') || b.includes('opt out') || b.includes('email preferences')) return true
+  if (b.includes('view in browser') || b.includes('view this email')) return true
+
+  return false
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
 
 function extractEmail(str) {
   if (!str) return null
-  // Handle "Name <email@example.com>" format
   const match = str.match(/<([^>]+)>/)
   if (match) return match[1].trim().toLowerCase()
-  // Handle plain email
   const emailMatch = str.match(/[\w.-]+@[\w.-]+\.\w+/)
   return emailMatch ? emailMatch[0].trim().toLowerCase() : null
 }
 
 function stripQuotedReplies(text) {
   if (!text) return ''
-  // Remove lines starting with > (quoted text)
-  // Remove "On [date], [person] wrote:" blocks
   const lines = text.split('\n')
   const cleanLines = []
   for (const line of lines) {
     if (line.startsWith('>')) continue
     if (/^On .+ wrote:$/i.test(line.trim())) break
-    if (/^-{3,}/.test(line.trim())) break // --- divider
-    if (/^_{3,}/.test(line.trim())) break // ___ divider
+    if (/^-{3,}/.test(line.trim())) break
+    if (/^_{3,}/.test(line.trim())) break
     if (/^From:.*@/.test(line.trim())) break
     if (/^Sent from my/.test(line.trim())) continue
     cleanLines.push(line)
@@ -288,11 +519,23 @@ function stripHtml(html) {
     .trim()
 }
 
-function formatReplyHtml(text) {
+function formatReplyHtml(text, intentCategory) {
   const paragraphs = text.split('\n\n').filter(Boolean)
   const bodyHtml = paragraphs
     .map(p => `<p style="color:#c8c8d0;font-size:14px;line-height:1.7;margin:0 0 12px;">${p.replace(/\n/g, '<br>')}</p>`)
     .join('')
+
+  // Dynamic CTA based on intent
+  let ctaHtml = ''
+  if (['sales', 'upsell'].includes(intentCategory)) {
+    ctaHtml = `<div style="text-align:center;margin:20px 0 8px;">
+      <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:13px;padding:12px 32px;border-radius:10px;text-decoration:none;">Start Free Trial &rarr;</a>
+    </div>`
+  } else if (intentCategory === 'churn') {
+    ctaHtml = `<div style="text-align:center;margin:20px 0 8px;">
+      <a href="https://qivori.com" style="display:inline-block;background:#22c55e;color:#000;font-weight:700;font-size:13px;padding:12px 32px;border-radius:10px;text-decoration:none;">Keep My Account &rarr;</a>
+    </div>`
+  }
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#0a0a0e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -303,10 +546,11 @@ function formatReplyHtml(text) {
 </div>
 <div style="background:#16161e;border:1px solid #2a2a35;border-radius:16px;padding:32px 24px;margin-bottom:24px;">
 ${bodyHtml}
+${ctaHtml}
 </div>
 <div style="text-align:center;padding-top:16px;">
-<p style="color:#555;font-size:11px;margin:0;">Qivori AI Assistant &mdash; AI-Powered TMS for Trucking</p>
-<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to a team member" &middot; hello@qivori.com</p>
+<p style="color:#555;font-size:11px;margin:0;">Powered by Qivori AI &mdash; The Operating System for Modern Carriers</p>
+<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Just reply "speak to a team member" &middot; hello@qivori.com</p>
 </div></div></body></html>`
 }
 
@@ -322,8 +566,8 @@ async function notifyAdmin(supabaseUrl, serviceKey, senderEmail, subject, reason
         'Prefer': 'return=minimal',
       },
       body: JSON.stringify({
-        title: 'Email Bot Failed',
-        body: `[warning] Failed to auto-reply to ${senderEmail} (${subject}): ${reason}`,
+        title: 'Email Bot Alert',
+        body: `[info] ${reason} — from ${senderEmail} (${subject})`,
         user_id: 'system',
         read: false,
       }),

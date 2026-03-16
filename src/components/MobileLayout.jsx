@@ -32,7 +32,7 @@ export default function MobileLayout() {
 
 // ── MAIN AI-DRIVEN MOBILE APP ─────────────────────────────
 function MobileAI() {
-  const { logout, showToast, subscription, user } = useApp()
+  const { logout, showToast, subscription, user, profile } = useApp()
   const ctx = useCarrier() || {}
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
@@ -1790,7 +1790,7 @@ function MobileAI() {
                 <Ic icon={listening ? Mic : Zap} size={32} color={listening ? '#fff' : 'var(--accent)'} />
               </button>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                {listening ? 'Listening...' : 'Hey, Driver'}
+                {listening ? 'Listening...' : `Hey, ${(profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]}`}
               </div>
               {listening ? (
                 <div style={{ fontSize: 14, color: 'var(--text)', minHeight: 20, fontWeight: 600 }}>

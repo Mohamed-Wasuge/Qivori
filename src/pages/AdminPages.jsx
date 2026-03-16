@@ -2437,7 +2437,7 @@ ${content}
   }
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
       {/* Stats */}
       <div className="stats-grid cols4 fade-in">
         {[
@@ -2454,122 +2454,146 @@ ${content}
       </div>
 
       {/* Tabs */}
-      <div className="panel fade-in">
-        <div className="panel-header">
-          <div style={{ display: 'flex', gap: 0 }}>
-            {[{ id: 'compose', label: 'Compose', icon: Edit3 }, { id: 'history', label: 'Sent History', icon: Inbox }].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{
-                  background: tab === t.id ? 'var(--surface2)' : 'transparent',
-                  border: 'none', color: tab === t.id ? 'var(--text)' : 'var(--muted)',
-                  padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
-                  fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                <Ic icon={t.icon} size={13} /> {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {[{ id: 'compose', label: 'Compose', icon: Edit3 }, { id: 'history', label: 'Sent History', icon: Inbox }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{
+              background: tab === t.id ? 'var(--accent)' : 'var(--surface)',
+              border: tab === t.id ? 'none' : '1px solid var(--border)',
+              color: tab === t.id ? '#000' : 'var(--muted)',
+              padding: '8px 18px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+            <Ic icon={t.icon} size={13} /> {t.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Compose Tab */}
-        {tab === 'compose' && (
-          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* To field */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">To</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select className="form-input" value={toGroup} onChange={e => setToGroup(e.target.value)}
-                  style={{ width: 200, height: 38, fontSize: 13 }}>
-                  {EMAIL_GROUPS.map(g => (
-                    <option key={g.value} value={g.value}>{g.label}</option>
-                  ))}
-                </select>
-                {toGroup !== 'custom' && groupCount !== null && (
-                  <span style={{
-                    background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.2)',
-                    borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700,
-                    color: 'var(--accent)',
-                  }}>
-                    {groupCount} recipient{groupCount !== 1 ? 's' : ''}
-                  </span>
+      {/* Compose Tab */}
+      {tab === 'compose' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {/* Left: Form */}
+          <div className="panel fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-header">
+              <div className="panel-title"><Ic icon={Edit3} size={14} /> New Email</div>
+            </div>
+            <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
+              {/* To */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>To</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select className="form-input" value={toGroup} onChange={e => setToGroup(e.target.value)}
+                    style={{ width: 180, height: 36, fontSize: 12 }}>
+                    {EMAIL_GROUPS.map(g => (
+                      <option key={g.value} value={g.value}>{g.label}</option>
+                    ))}
+                  </select>
+                  {toGroup !== 'custom' && groupCount !== null && (
+                    <span style={{ background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>
+                      {groupCount} recipient{groupCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                {toGroup === 'custom' && (
+                  <input className="form-input" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                    placeholder="email@example.com, another@example.com"
+                    style={{ marginTop: 6, fontSize: 12, height: 36 }} />
                 )}
               </div>
-              {toGroup === 'custom' && (
-                <input className="form-input" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                  placeholder="email@example.com, another@example.com"
-                  style={{ marginTop: 8, fontSize: 13 }} />
-              )}
-            </div>
 
-            {/* Subject */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Subject</label>
-              <input className="form-input" value={subject} onChange={e => setSubject(e.target.value)}
-                placeholder="Email subject line"
-                style={{ fontSize: 13 }} />
-            </div>
+              {/* Subject */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Subject</label>
+                <input className="form-input" value={subject} onChange={e => setSubject(e.target.value)}
+                  placeholder="Email subject line" style={{ fontSize: 12, height: 36 }} />
+              </div>
 
-            {/* Body */}
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Message</label>
-              <textarea className="form-input" value={body} onChange={e => setBody(e.target.value)}
-                placeholder="Write your message here (plain text — will be wrapped in Qivori branded template)..."
-                rows={10}
-                style={{ fontSize: 13, lineHeight: 1.6, resize: 'vertical', minHeight: 160 }} />
-            </div>
+              {/* Body */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Message</label>
+                <textarea className="form-input" value={body} onChange={e => setBody(e.target.value)}
+                  placeholder="Write your message here (plain text — auto-wrapped in Qivori branded template)..."
+                  style={{ fontSize: 12, lineHeight: 1.6, resize: 'vertical', minHeight: 180, flex: 1 }} />
+              </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setShowPreview(true)}
-                disabled={!body.trim()} style={{ fontSize: 12 }}>
-                <Ic icon={Eye} size={13} /> Preview
-              </button>
-              <button className="btn btn-primary" onClick={() => setShowConfirm(true)}
-                disabled={sending || !subject.trim() || !body.trim() || (toGroup === 'custom' && !customTo.trim())}
-                style={{ fontSize: 12, opacity: sending ? 0.7 : 1 }}>
-                <Ic icon={Send} size={13} /> {sending ? 'Sending...' : 'Send Email'}
-              </button>
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+                <button className="btn btn-ghost" onClick={() => setShowPreview(true)}
+                  disabled={!body.trim()} style={{ fontSize: 12, flex: 1, justifyContent: 'center', padding: '10px 0' }}>
+                  <Ic icon={Eye} size={13} /> Preview
+                </button>
+                <button className="btn btn-primary" onClick={() => setShowConfirm(true)}
+                  disabled={sending || !subject.trim() || !body.trim() || (toGroup === 'custom' && !customTo.trim())}
+                  style={{ fontSize: 12, flex: 1, justifyContent: 'center', padding: '10px 0', opacity: sending ? 0.7 : 1 }}>
+                  <Ic icon={Send} size={13} /> {sending ? 'Sending...' : 'Send Email'}
+                </button>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Sent History Tab */}
-        {tab === 'history' && (
-          <>
-            {logsLoading ? (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading sent history...</div>
-            ) : logs.length === 0 ? (
-              <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-                <Ic icon={Mail} size={28} style={{ marginBottom: 10, opacity: 0.3 }} /><br />
-                No emails sent yet. Use the Compose tab to send your first email.
-              </div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Recipient</th>
-                    <th>Subject</th>
-                    <th>Sent By</th>
-                    <th>Date</th>
+          {/* Right: Live Preview */}
+          <div className="panel fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-header">
+              <div className="panel-title"><Ic icon={Eye} size={14} /> Live Preview</div>
+              {subject && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{subject}</span>}
+            </div>
+            <div style={{ flex: 1, padding: 0, minHeight: 400 }}>
+              {body.trim() ? (
+                <iframe title="Email Preview" srcDoc={previewHtml()}
+                  style={{ width: '100%', height: '100%', minHeight: 400, border: 'none', borderRadius: '0 0 12px 12px' }} />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 400, color: 'var(--muted)', fontSize: 13, flexDirection: 'column', gap: 8 }}>
+                  <Ic icon={Mail} size={28} style={{ opacity: 0.3 }} />
+                  Start typing to see preview
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sent History Tab */}
+      {tab === 'history' && (
+        <div className="panel fade-in">
+          <div className="panel-header">
+            <div className="panel-title"><Ic icon={Inbox} size={14} /> Sent Emails</div>
+            <button className="btn btn-ghost" onClick={fetchLogs} style={{ fontSize: 11 }}>
+              <Ic icon={RefreshCw} size={12} /> Refresh
+            </button>
+          </div>
+          {logsLoading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading sent history...</div>
+          ) : logs.length === 0 ? (
+            <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+              <Ic icon={Mail} size={28} style={{ marginBottom: 10, opacity: 0.3 }} /><br />
+              No emails sent yet. Use the Compose tab to send your first email.
+            </div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Recipient</th>
+                  <th>Subject</th>
+                  <th>Sent By</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map(l => (
+                  <tr key={l.id}>
+                    <td style={{ fontSize: 12 }}>{l.email || '—'}</td>
+                    <td style={{ fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {l.metadata?.subject || '—'}
+                    </td>
+                    <td style={{ fontSize: 11, color: 'var(--muted)' }}>{l.metadata?.sent_by || '—'}</td>
+                    <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(l.created_at)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {logs.map(l => (
-                    <tr key={l.id}>
-                      <td style={{ fontSize: 12 }}>{l.email || '—'}</td>
-                      <td style={{ fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {l.metadata?.subject || '—'}
-                      </td>
-                      <td style={{ fontSize: 11, color: 'var(--muted)' }}>{l.metadata?.sent_by || '—'}</td>
-                      <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(l.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </>
-        )}
-      </div>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Preview Modal */}
       {showPreview && (
@@ -2588,11 +2612,8 @@ ${content}
                 <strong>Subject:</strong> {subject || '(no subject)'}
               </div>
               <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <iframe
-                  title="Email Preview"
-                  srcDoc={previewHtml()}
-                  style={{ width: '100%', height: 450, border: 'none', background: '#0a0a0e' }}
-                />
+                <iframe title="Email Preview" srcDoc={previewHtml()}
+                  style={{ width: '100%', height: 450, border: 'none', background: '#0a0a0e' }} />
               </div>
             </div>
           </div>
@@ -2603,24 +2624,25 @@ ${content}
       {showConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setShowConfirm(false)}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: 400, maxWidth: '90%' }}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: 420, maxWidth: '90%' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Confirm Send</div>
-            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 8px' }}>
-              You are about to send an email to <strong style={{ color: 'var(--text)' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Ic icon={Send} size={16} color="var(--accent)" /> Confirm Send
+            </div>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Sending to</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
                 {toGroup === 'custom'
                   ? getRecipients().length + ' recipient' + (getRecipients().length !== 1 ? 's' : '')
-                  : (groupCount || 0) + ' ' + EMAIL_GROUPS.find(g => g.value === toGroup)?.label
-                }
-              </strong>.
-            </p>
-            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 20px' }}>
-              <strong>Subject:</strong> {subject}
-            </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setShowConfirm(false)} style={{ fontSize: 12 }}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSend} style={{ fontSize: 12 }}>
-                <Ic icon={Send} size={13} /> Confirm & Send
+                  : (groupCount || 0) + ' ' + EMAIL_GROUPS.find(g => g.value === toGroup)?.label}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>Subject</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{subject}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" onClick={() => setShowConfirm(false)} style={{ fontSize: 12, flex: 1, justifyContent: 'center', padding: 10 }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSend} style={{ fontSize: 12, flex: 1, justifyContent: 'center', padding: 10 }}>
+                <Ic icon={Send} size={13} /> Send Now
               </button>
             </div>
           </div>

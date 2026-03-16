@@ -115,6 +115,16 @@ export default async function handler(req) {
       <span style="color:#8a8a9a;font-size:13px;"> — no credit card required to start</span>
     </div>
 
+    <div style="background:#16161e;border:1px solid #2a2a35;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <div style="font-size:12px;color:#f0a500;font-weight:700;letter-spacing:1px;margin-bottom:10px;">&#x1F381; REFER & EARN</div>
+      <p style="color:#c8c8d0;font-size:13px;line-height:1.6;margin:0 0 12px;">
+        Know other drivers? Share your referral link and you <strong style="color:#fff;">both get a free month</strong> when they sign up.
+      </p>
+      <div style="text-align:center;">
+        <a href="https://qivori.com" style="display:inline-block;background:#1e1e2a;color:#f0a500;font-weight:700;font-size:12px;padding:10px 24px;border-radius:8px;text-decoration:none;border:1px solid #f0a50030;">Find Your Referral Link in the App</a>
+      </div>
+    </div>
+
     <div style="text-align:center;padding-top:16px;">
       <p style="color:#555;font-size:11px;margin:0;">Qivori AI - AI-Powered TMS for Trucking</p>
       <p style="color:#555;font-size:11px;margin:4px 0 0;">Questions? Reply to this email or contact hello@qivori.com</p>

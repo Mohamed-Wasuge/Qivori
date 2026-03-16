@@ -64,6 +64,11 @@ const ONBOARDING_TEMPLATES = {
       <div style="text-align:center;margin-top:24px;">
         <a href="https://www.qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Open Qivori</a>
       </div>
+
+      <div style="margin-top:20px;padding:14px 16px;background:#1e1e2a;border:1px solid #2a2a35;border-radius:10px;text-align:center;">
+        <span style="color:#f0a500;font-size:12px;font-weight:700;">&#x1F381; REFER A DRIVER</span>
+        <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;line-height:1.5;">Share your referral link with fellow drivers — you both get a <strong style="color:#fff;">free month</strong> when they sign up.</p>
+      </div>
     `),
   }),
 
@@ -95,6 +100,11 @@ const ONBOARDING_TEMPLATES = {
 
       <div style="text-align:center;margin-top:24px;">
         <a href="https://www.qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Upgrade Now</a>
+      </div>
+
+      <div style="margin-top:20px;padding:14px 16px;background:#1e1e2a;border:1px solid #2a2a35;border-radius:10px;text-align:center;">
+        <span style="color:#f0a500;font-size:12px;font-weight:700;">&#x1F381; DON'T PAY — REFER INSTEAD</span>
+        <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;line-height:1.5;">Refer 1 driver and get a <strong style="color:#fff;">free month</strong>. Refer 6+ and get <strong style="color:#fff;">2 free months per referral</strong>. Your link is in the app.</p>
       </div>
     `),
   }),

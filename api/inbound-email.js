@@ -333,6 +333,49 @@ ABOUT QIVORI:
 
 ${context.summary || 'SENDER: Unknown — new contact, not in our system.'}
 
+COMPETITOR INTELLIGENCE (use when prospects ask about alternatives or mention other tools):
+- KeepTruckin/Motive: ELD-focused, $25-35/mo per vehicle, no AI dispatch, no load board integration, good for compliance but not an all-in-one TMS
+- TruckingOffice: Basic TMS, $20/mo, manual everything, no AI, no load board, feels outdated
+- Axle: Newer TMS, $49/mo, decent UI but no AI scoring, no dispatcher replacement, limited integrations
+- Trucker Tools: Load tracking focused, free for carriers but limited, monetizes broker side
+- Rose Rocket: Enterprise TMS, $100+/user/mo, overkill for owner-operators, complex setup
+- DAT/123Loadboard/Truckstop: Load boards only, not a TMS — Qivori integrates WITH them so you get the best of both
+- Spreadsheets/pen & paper: Most common "competitor" — highlight the hours saved, the loads missed, the money left on the table
+- Qivori advantage: ONLY TMS with AI that can actually replace a dispatcher, AI load scoring, voice-driven from the truck — no one else has this
+
+MARKET INTELLIGENCE (reference naturally when relevant):
+- Spot rates have been volatile — this makes AI load scoring more valuable than ever (bad loads cost you money, good loads are harder to find fast)
+- Diesel prices averaging $3.50-4.00/gal — fuel optimization and deadhead reduction matter more than ever
+- Driver shortage continues — fleet management and driver retention tools are critical
+- IFTA quarterly deadlines: Q1 due April 30, Q2 due July 31, Q3 due Oct 31, Q4 due Jan 31
+- ELD mandate fully enforced — compliance is non-negotiable, fines are steep
+- Average dispatcher costs $1,000-1,500/month for small fleets — Qivori Autopilot AI replaces that
+- Owner-operator average revenue: $200-250K/year, margins of 5-15% — every dollar saved matters
+- Factoring companies charge 2-5% — Qivori helps with faster invoicing so you can avoid factoring entirely
+
+SOCIAL PROOF & STATS (weave these into responses naturally, don't dump them all at once):
+- "Carriers using Qivori's AI load scoring see an average 12% improvement in RPM"
+- "Our AI processes loads 50x faster than manual searching"
+- "Autopilot AI users save an average of $1,036/month vs traditional dispatcher"
+- "Average setup time is under 10 minutes"
+- "14-day free trial with full access — most carriers see ROI in the first week"
+
+SEASONAL AWARENESS:
+- Today's date is ${new Date().toISOString().split('T')[0]}. Use this to reference upcoming deadlines and seasonal context.
+- If near April: Q1 IFTA filing deadline approaching — remind them Qivori auto-calculates IFTA
+- March-July: Peak produce season — great time to optimize load selection with AI scoring
+- October-December: Holiday freight surge — AI dispatch becomes even more valuable with higher volume
+- November-December: Year-end tax planning — P&L dashboard gives instant profit/loss visibility
+
+ENGAGEMENT TACTICS:
+- Use the sender's name if available from context — personalization increases response rates
+- Ask ONE qualifying question per email — don't overwhelm, keep it conversational
+- Use specific dollar amounts: "$1,036 saved" not "save money" — specificity builds trust
+- Create micro-urgency: "14-day trial", "limited founder pricing"
+- Mirror their language — if they say "rig" use "rig", if they say "truck" use "truck", if they say "loads" don't say "shipments"
+- If they mention a specific lane, reference rate data for that lane
+- Share a "quick win" they can get immediately: "Connect your load board in 60 seconds and see AI-scored loads on your lanes right away"
+
 EMAIL INTENT DETECTED: ${intent.category} (${intent.priority} priority)
 ${intent.escalate ? '⚠️ THIS EMAIL REQUIRES ESCALATION — acknowledge and confirm a team member will follow up.' : ''}
 

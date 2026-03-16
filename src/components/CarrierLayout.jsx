@@ -643,6 +643,8 @@ function SubscriptionSettings() {
   const [subData, setSubData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [upgradeLoading, setUpgradeLoading] = useState(false)
+  const [truckPicker, setTruckPicker] = useState(null) // null = hidden, or { planId, trucks: 1 }
+
 
   useEffect(() => {
     if (demoMode) {
@@ -687,7 +689,17 @@ function SubscriptionSettings() {
     inactive: { label: 'FREE TIER',  bg: 'rgba(44,184,150,0.1)',  color: 'var(--accent2)',   border: 'rgba(44,184,150,0.2)' },
   }
 
-  const handleUpgrade = async (planId) => {
+  const handleUpgrade = (planId) => {
+    if (planId === 'autopilot_ai') {
+      // Show truck picker for Autopilot AI
+      setTruckPicker({ planId, trucks: Math.max(subData?.truckCount || 1, 1) })
+    } else {
+      // Autopilot is 1 truck only — go straight to checkout
+      goToCheckout(planId, 1)
+    }
+  }
+
+  const goToCheckout = async (planId, trucks) => {
     setUpgradeLoading(true)
     try {
       const res = await apiFetch('/api/create-checkout', {
@@ -697,7 +709,7 @@ function SubscriptionSettings() {
           planId,
           email: user?.email || profile?.email,
           userId: user?.id,
-          truckCount: subData?.truckCount || 1,
+          truckCount: trucks,
         }),
       })
       const data = await res.json()
@@ -707,6 +719,7 @@ function SubscriptionSettings() {
       showToast('error', 'Error', 'Could not start checkout')
     } finally {
       setUpgradeLoading(false)
+      setTruckPicker(null)
     }
   }
 
@@ -897,6 +910,68 @@ function SubscriptionSettings() {
           14-day free trial on all plans · No credit card required · Cancel anytime
         </div>
       </div>
+
+      {/* Truck Picker Modal for Autopilot AI */}
+      {truckPicker && (
+        <>
+          <div onClick={() => setTruckPicker(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:9000 }} />
+          <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:420, maxWidth:'90vw',
+            background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, padding:28, zIndex:9001,
+            boxShadow:'0 24px 80px rgba(0,0,0,0.6)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>AUTOPILOT AI</div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>How many trucks do you operate?</div>
+              </div>
+              <button onClick={() => setTruckPicker(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:20 }}>✕</button>
+            </div>
+
+            {/* Truck counter */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:20, marginBottom:24 }}>
+              <button onClick={() => setTruckPicker(p => ({ ...p, trucks: Math.max(1, p.trucks - 1) }))}
+                style={{ width:44, height:44, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface2)',
+                  color:'var(--text)', fontSize:22, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
+              <div style={{ textAlign:'center', minWidth:80 }}>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:48, color:'var(--accent)', lineHeight:1 }}>{truckPicker.trucks}</div>
+                <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>truck{truckPicker.trucks !== 1 ? 's' : ''}</div>
+              </div>
+              <button onClick={() => setTruckPicker(p => ({ ...p, trucks: p.trucks + 1 }))}
+                style={{ width:44, height:44, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface2)',
+                  color:'var(--text)', fontSize:22, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+            </div>
+
+            {/* Price breakdown */}
+            <div style={{ background:'var(--surface2)', borderRadius:12, padding:16, marginBottom:20 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
+                <span style={{ color:'var(--muted)' }}>Base plan (Autopilot AI)</span>
+                <span style={{ fontWeight:700 }}>$799/mo</span>
+              </div>
+              {truckPicker.trucks > 1 && (
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13, borderTop:'1px solid var(--border)' }}>
+                  <span style={{ color:'var(--muted)' }}>Additional trucks ({truckPicker.trucks - 1} × $150)</span>
+                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 150).toLocaleString()}/mo</span>
+                </div>
+              )}
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
+                <span style={{ fontWeight:800 }}>Total</span>
+                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
+                  ${(799 + (truckPicker.trucks - 1) * 150).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                </span>
+              </div>
+            </div>
+
+            <button onClick={() => goToCheckout('autopilot_ai', truckPicker.trucks)} disabled={upgradeLoading}
+              style={{ width:'100%', padding:'14px', fontSize:14, fontWeight:700, border:'none', borderRadius:10,
+                background:'var(--accent)', color:'#000', cursor: upgradeLoading ? 'wait' : 'pointer',
+                fontFamily:"'DM Sans',sans-serif" }}>
+              {upgradeLoading ? 'Redirecting to Stripe...' : `Start Free Trial — ${truckPicker.trucks} Truck${truckPicker.trucks !== 1 ? 's' : ''}`}
+            </button>
+            <div style={{ textAlign:'center', fontSize:11, color:'var(--muted)', marginTop:10 }}>
+              14-day free trial · No charge until trial ends
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }

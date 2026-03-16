@@ -2703,6 +2703,17 @@ ${content}
                     }} style={{ fontSize: 11 }}>
                       <Ic icon={Send} size={12} /> Reply Manually
                     </button>
+                    <button className="btn btn-ghost" onClick={async () => {
+                      if (!confirm('Delete this conversation?')) return
+                      const { error } = await supabase.from('ai_email_threads').delete().eq('id', selectedThread.id)
+                      if (!error) {
+                        showToast('', 'Deleted', 'Conversation removed')
+                        setSelectedThread(null)
+                        fetchBotThreads()
+                      }
+                    }} style={{ fontSize: 11, color: '#ef4444' }}>
+                      <Ic icon={Trash2} size={12} /> Delete
+                    </button>
                   </div>
                 </div>
               </>

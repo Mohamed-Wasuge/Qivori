@@ -27,13 +27,14 @@ export default async function handler(req) {
   try {
     const payload = await req.json()
 
-    // Resend inbound webhook payload
-    const fromEmail = payload.from || payload.data?.from || ''
-    const toEmail = Array.isArray(payload.to) ? payload.to[0] : (payload.to || payload.data?.to?.[0] || '')
-    const subject = payload.subject || payload.data?.subject || '(no subject)'
-    const textBody = payload.text || payload.data?.text || ''
-    const htmlBody = payload.html || payload.data?.html || ''
-    const emailId = payload.email_id || payload.data?.email_id || ''
+    // Resend inbound webhook payload — handle both top-level and nested data formats
+    const d = payload.data || payload
+    const fromEmail = d.from || payload.from || ''
+    const toEmail = Array.isArray(d.to) ? d.to[0] : (d.to || '')
+    const subject = d.subject || payload.subject || '(no subject)'
+    const textBody = d.text || d.body || payload.text || payload.body || ''
+    const htmlBody = d.html || payload.html || ''
+    const emailId = d.email_id || d.id || payload.email_id || ''
 
     // Extract clean email address
     const senderEmail = extractEmail(fromEmail)
@@ -47,9 +48,10 @@ export default async function handler(req) {
       return Response.json({ skipped: true, reason: 'filtered sender' })
     }
 
-    // Clean the email body — strip quoted replies
-    const cleanBody = stripQuotedReplies(textBody || stripHtml(htmlBody))
-    if (!cleanBody || cleanBody.trim().length < 3) {
+    // Clean the email body — strip quoted replies, fall back to subject
+    const rawBody = textBody || stripHtml(htmlBody)
+    const cleanBody = stripQuotedReplies(rawBody) || subject
+    if (!cleanBody || cleanBody.trim().length < 2) {
       return Response.json({ skipped: true, reason: 'empty body' })
     }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
-import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X } from 'lucide-react'
+import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 const FILTERS = ['All', 'active', 'trial', 'pending', 'suspended']
@@ -19,6 +19,9 @@ export default function Carriers() {
   const [showAddUser, setShowAddUser] = useState(false)
   const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', company_name: '', role: 'carrier' })
   const [addingUser, setAddingUser] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [userLoads, setUserLoads] = useState([])
+  const [drawerLoading, setDrawerLoading] = useState(false)
 
   const fetchUsers = async () => {
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
@@ -72,6 +75,14 @@ export default function Carriers() {
       showToast('', 'Error', 'Failed to create user')
     }
     setAddingUser(false)
+  }
+
+  const openUserDrawer = async (user) => {
+    setSelectedUser(user)
+    setDrawerLoading(true)
+    const { data } = await supabase.from('loads').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20)
+    setUserLoads(data || [])
+    setDrawerLoading(false)
   }
 
   const filtered = users.filter(u => {
@@ -206,7 +217,7 @@ export default function Carriers() {
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No users match your filter.</div>
         ) : (
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Role</th><th>Plan</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
             <tbody>
               {filtered.map(u => (
                 <tr key={u.id}>
@@ -240,10 +251,15 @@ export default function Carriers() {
                       </span>
                     )}
                   </td>
+                  <td><span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', fontWeight: 700, textTransform: 'capitalize' }}>{(u.plan || 'trial').replace('_', ' ')}</span></td>
                   <td><span className={'pill ' + statusPill(u.status)}><span className="pill-dot" />{u.status}</span></td>
                   <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(u.created_at)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10 }}
+                        onClick={() => openUserDrawer(u)}>
+                        <Ic icon={Eye} size={12} /> View
+                      </button>
                       {u.status === 'pending' && (
                         <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: 10 }}
                           onClick={() => updateStatus(u.id, 'active', u.full_name || u.email)}>
@@ -270,6 +286,108 @@ export default function Carriers() {
           </table>
         )}
       </div>
+
+      {/* User Detail Drawer */}
+      {selectedUser && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} onClick={() => setSelectedUser(null)} />
+          <div style={{ position: 'relative', width: 480, maxWidth: '90vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                <div style={{ width: 52, height: 52, borderRadius: 14, background: roleColor(selectedUser.role) + '15', border: `1px solid ${roleColor(selectedUser.role)}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: roleColor(selectedUser.role) }}>
+                    {(selectedUser.full_name || selectedUser.email || '?')[0].toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedUser.full_name || 'No name'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{selectedUser.company_name || '—'}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: roleColor(selectedUser.role) + '15', color: roleColor(selectedUser.role), textTransform: 'uppercase' }}>{selectedUser.role}</span>
+                    <span className={'pill ' + statusPill(selectedUser.status)}><span className="pill-dot" />{selectedUser.status}</span>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setSelectedUser(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}><Ic icon={X} size={20} /></button>
+            </div>
+
+            {/* Contact Info */}
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Contact</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={Mail} size={13} color="var(--accent)" /> {selectedUser.email}</div>
+              {selectedUser.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={Phone} size={13} color="var(--accent2)" /> {selectedUser.phone}</div>}
+              {(selectedUser.city || selectedUser.state) && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={MapPin} size={13} color="var(--success)" /> {[selectedUser.city, selectedUser.state].filter(Boolean).join(', ')}</div>}
+            </div>
+
+            {/* Account Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+                { label: 'Plan', value: (selectedUser.plan || 'trial').replace('_', ' '), icon: CreditCard, color: 'var(--accent)' },
+                { label: 'Joined', value: formatDate(selectedUser.created_at), icon: Calendar, color: 'var(--accent2)' },
+                { label: 'MC Number', value: selectedUser.mc_number || '—', icon: Shield, color: 'var(--success)' },
+                { label: 'DOT Number', value: selectedUser.dot_number || '—', icon: Truck, color: 'var(--accent3)' },
+              ].map(d => (
+                <div key={d.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <Ic icon={d.icon} size={11} style={{ color: d.color }} /> {d.label}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: d.color, textTransform: 'capitalize' }}>{d.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Quick Actions */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {selectedUser.status === 'pending' && (
+                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 10, fontSize: 12 }}
+                  onClick={() => { updateStatus(selectedUser.id, 'active', selectedUser.full_name || selectedUser.email); setSelectedUser(s => ({ ...s, status: 'active' })) }}>
+                  <Ic icon={CheckCircle} size={14} /> Approve User
+                </button>
+              )}
+              {(selectedUser.status === 'active' || selectedUser.status === 'trial') && (
+                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: 10, fontSize: 12, color: 'var(--danger)' }}
+                  onClick={() => { updateStatus(selectedUser.id, 'suspended', selectedUser.full_name || selectedUser.email); setSelectedUser(s => ({ ...s, status: 'suspended' })) }}>
+                  <Ic icon={Ban} size={14} /> Suspend
+                </button>
+              )}
+              {selectedUser.status === 'suspended' && (
+                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: 10, fontSize: 12 }}
+                  onClick={() => { updateStatus(selectedUser.id, 'active', selectedUser.full_name || selectedUser.email); setSelectedUser(s => ({ ...s, status: 'active' })) }}>
+                  <Ic icon={CheckCircle} size={14} /> Reactivate
+                </button>
+              )}
+            </div>
+
+            {/* User's Loads */}
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Package} size={13} /> Loads</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{userLoads.length} total</span>
+              </div>
+              {drawerLoading ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Loading...</div>
+              ) : userLoads.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No loads yet</div>
+              ) : (
+                <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  {userLoads.map((l, i) => (
+                    <div key={l.id} style={{ padding: '10px 16px', borderBottom: i < userLoads.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Ic icon={Package} size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {l.load_id || '—'} — {l.origin || '?'} → {l.destination || '?'}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>${Number(l.rate || l.gross_pay || 0).toLocaleString()} · {l.status || '—'}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

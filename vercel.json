@@ -35,6 +35,7 @@
     { "source": "/((?!api/).*)", "destination": "/" }
   ],
   "crons": [
-    { "path": "/api/lifecycle-cron", "schedule": "0 8 * * *" }
+    { "path": "/api/lifecycle-cron", "schedule": "0 8 * * *" },
+    { "path": "/api/onboarding-emails", "schedule": "0 14 * * *" }
   ]
 }

@@ -287,7 +287,7 @@ export default function LandingPage({ onGetStarted }) {
   }, [enterDemo])
 
   const handleDemoSubmit = async () => {
-    if (!demoForm.email) return
+    if (!demoForm.name.trim() || !demoForm.email.trim() || !demoForm.phone.trim() || !demoForm.company.trim()) return
     setDemoLoading(true)
     try {
       await fetch('/api/demo-request', {
@@ -1115,10 +1115,10 @@ export default function LandingPage({ onGetStarted }) {
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                   {[
-                    { key:'name', label:'Full Name', ph:'John Smith', required: true },
-                    { key:'email', label:'Email', ph:'john@trucking.com', type:'email', required: true },
-                    { key:'phone', label:'Phone (optional)', ph:'(555) 123-4567', type:'tel' },
-                    { key:'company', label:'Company (optional)', ph:'Your Trucking LLC' },
+                    { key:'name', label:'Full Name *', ph:'John Smith', required: true },
+                    { key:'email', label:'Email *', ph:'john@trucking.com', type:'email', required: true },
+                    { key:'phone', label:'Phone *', ph:'(555) 123-4567', type:'tel', required: true },
+                    { key:'company', label:'Company *', ph:'Your Trucking LLC', required: true },
                   ].map(f => (
                     <div key={f.key}>
                       <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
@@ -1129,7 +1129,7 @@ export default function LandingPage({ onGetStarted }) {
                     </div>
                   ))}
                 </div>
-                <button onClick={handleDemoSubmit} disabled={demoLoading || !demoForm.email}
+                <button onClick={handleDemoSubmit} disabled={demoLoading || !demoForm.name.trim() || !demoForm.email.trim() || !demoForm.phone.trim() || !demoForm.company.trim()}
                   style={{ width:'100%', marginTop:20, padding:'14px', background: demoLoading ? 'var(--border)' : 'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:12, color:'#000', fontSize:15, fontWeight:800, cursor: demoLoading ? 'wait' : 'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                   {demoLoading ? 'Sending...' : <><Ic icon={Send} size={16} /> Get Demo Link</>}
                 </button>

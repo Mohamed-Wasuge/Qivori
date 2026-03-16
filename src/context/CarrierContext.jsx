@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import * as db from '../lib/database'
+import { apiFetch } from '../lib/api'
 
 const CarrierContext = createContext(null)
 
@@ -376,16 +377,29 @@ export function CarrierProvider({ children }) {
 
   // ─── Vehicle operations ─────────────────────────────────────────
   const addVehicle = useCallback(async (vehicle) => {
+    let result
     if (useDb) {
       try {
         const newVeh = await db.createVehicle(vehicle)
         setVehicles(vs => [newVeh, ...vs])
-        return newVeh
+        result = newVeh
       } catch (e) { console.error('Failed to create vehicle:', e) }
     }
-    const fake = { ...vehicle, id: 'local-veh-' + Date.now() }
-    setVehicles(vs => [fake, ...vs])
-    return fake
+    if (!result) {
+      result = { ...vehicle, id: 'local-veh-' + Date.now() }
+      setVehicles(vs => [result, ...vs])
+    }
+    // Update Stripe billing with new truck count
+    setVehicles(vs => {
+      const newCount = vs.length
+      apiFetch('/api/update-truck-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ truckCount: newCount }),
+      }).catch(e => console.warn('Truck billing update failed:', e))
+      return vs
+    })
+    return result
   }, [useDb])
 
   const editVehicle = useCallback(async (id, updates) => {
@@ -399,7 +413,17 @@ export function CarrierProvider({ children }) {
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteVehicle(id) } catch (e) { console.error('Failed to delete vehicle:', e) }
     }
-    setVehicles(vs => vs.filter(v => v.id !== id))
+    setVehicles(vs => {
+      const updated = vs.filter(v => v.id !== id)
+      // Update Stripe billing with new truck count
+      const newCount = Math.max(1, updated.length)
+      apiFetch('/api/update-truck-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ truckCount: newCount }),
+      }).catch(e => console.warn('Truck billing update failed:', e))
+      return updated
+    })
   }, [useDb])
 
   // ─── Company operations ───────────────────────────────────────

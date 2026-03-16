@@ -26,7 +26,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { planId, email, userId, founderCount } = await req.json()
+    const { planId, email, userId, founderCount, truckCount } = await req.json()
     const resolvedId = PLAN_ALIASES[planId] || planId
     const plan = PLANS[resolvedId]
     if (!plan) return Response.json({ error: 'Invalid plan' }, { status: 400, headers: corsHeaders(req) })
@@ -48,8 +48,22 @@ export default async function handler(req) {
     params.append('line_items[0][price_data][recurring][interval]', 'month')
     params.append('line_items[0][price_data][unit_amount]', priceCents.toString())
     params.append('line_items[0][quantity]', '1')
+
+    // Add extra truck line item if more than 1 truck
+    const trucks = Math.max(1, parseInt(truckCount) || 1)
+    if (trucks > 1) {
+      const truckPriceId = resolvedId === 'autopilot_ai'
+        ? process.env.STRIPE_PRICE_TRUCK_AUTOPILOT_AI
+        : process.env.STRIPE_PRICE_TRUCK_AUTOPILOT
+      if (truckPriceId) {
+        params.append('line_items[1][price]', truckPriceId)
+        params.append('line_items[1][quantity]', (trucks - 1).toString())
+      }
+    }
+
     params.append('subscription_data[trial_period_days]', plan.trial_days.toString())
     params.append('subscription_data[metadata][plan_id]', resolvedId)
+    params.append('subscription_data[metadata][truck_count]', trucks.toString())
     if (userId) params.append('subscription_data[metadata][user_id]', userId)
     if (email) {
       params.append('customer_email', email)

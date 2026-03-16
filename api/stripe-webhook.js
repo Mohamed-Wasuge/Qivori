@@ -67,6 +67,7 @@ export default async function handler(req) {
           const currentPeriodEnd = subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null
           const planName = PLAN_NAMES[planId] || planId
 
+          const truckCount = parseInt(subscription.metadata?.truck_count) || 1
           await updateProfile(supabaseUrl, supabaseServiceKey, customerEmail, {
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
@@ -75,6 +76,7 @@ export default async function handler(req) {
             trial_ends_at: trialEnd,
             current_period_end: currentPeriodEnd,
             status: 'active',
+            truck_count: truckCount,
           })
 
           // Log revenue event
@@ -109,12 +111,20 @@ export default async function handler(req) {
         const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
         const prevAttrs = event.data.previous_attributes || {}
 
+        // Sync truck count from subscription items
+        const truckItem = subscription.items?.data?.find(item =>
+          item.price?.id === process.env.STRIPE_PRICE_TRUCK_AUTOPILOT ||
+          item.price?.id === process.env.STRIPE_PRICE_TRUCK_AUTOPILOT_AI
+        )
+        const truckCount = truckItem ? truckItem.quantity + 1 : 1
+
         await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
           subscription_plan: planId,
           subscription_status: subscription.status,
           trial_ends_at: trialEnd,
           current_period_end: currentPeriodEnd,
           status: subscription.status === 'active' || subscription.status === 'trialing' ? 'active' : 'inactive',
+          truck_count: truckCount,
         })
 
         // Detect plan upgrade

@@ -2458,7 +2458,7 @@ ${content}
   }
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
+    <div style={{ padding: 20, overflowY: 'auto', height: '100vh', maxHeight: '100%', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 100 }}>
       {/* Stats */}
       <div className="stats-grid cols4 fade-in">
         {[

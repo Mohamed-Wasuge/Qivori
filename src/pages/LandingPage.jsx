@@ -235,12 +235,12 @@ const PLANS = [
   {
     name: 'Autopilot', sub: 'AI-assisted dispatching', price: '$99', color: 'var(--accent)',
     features: ['AI Load Board & Scoring', 'Smart Dispatch Suggestions', 'Fleet Map & GPS', 'P&L Dashboard', 'IFTA Auto-Filing', 'Invoicing & Factoring', 'Fuel Optimizer', 'Compliance Dashboard', 'Carrier Package'],
-    extra: '+$49/mo per additional truck',
+    extra: '1 truck only',
     cta: 'Start Free Trial', highlight: true, stripeId: 'autopilot',
   },
   {
     name: 'Autopilot AI', sub: 'Full AI autonomy', price: '$799', color: '#f0a500',
-    features: ['Everything in Autopilot', 'AI auto-dispatches for you', 'Proactive Load Finding Agent', 'AI Revenue Optimization', 'Auto-booking & broker calls', 'FMCSA Live Safety Data', 'Unlimited AI queries', 'Dedicated support', 'Custom integrations'],
+    features: ['Everything in Autopilot', 'AI auto-dispatches for you', 'Proactive Load Finding Agent', 'Voice AI Chatbot', 'Auto-booking & broker calls', 'HOS Tracking', 'Weather on Route', 'BOL Upload', 'Dedicated support'],
     extra: '+$150/mo per additional truck',
     cta: 'Claim Founder Pricing', highlight: false, stripeId: 'autopilot_ai', founder: true, fullPrice: '$1,200',
   },

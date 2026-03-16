@@ -361,6 +361,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-dat-grid { grid-template-columns: 1fr !important; padding: 28px 20px !important; }
           .lp-dat-heading { font-size: 30px !important; }
           .lp-pricing-grid { grid-template-columns: repeat(2, 1fr) !important; max-width: 100% !important; }
+          .lp-savings-grid { grid-template-columns: 1fr !important; max-width: 360px !important; margin: 0 auto !important; }
           .lp-compare-table > div { grid-template-columns: 1.5fr 1fr 1fr 1fr !important; }
           .lp-compare-table > div > div { padding: 10px 8px !important; font-size: 11px !important; }
           .lp-compare-stats { grid-template-columns: 1fr !important; }
@@ -902,6 +903,31 @@ export default function LandingPage({ onGetStarted }) {
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={CheckCircle} size={13} color="var(--accent2)" /> Cancel anytime</span>
           </div>
         </div>
+
+        {/* ── SAVINGS SECTION ── */}
+        <FadeIn>
+          <div style={{ maxWidth: 700, margin: '48px auto 0', textAlign: 'center' }}>
+            <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, letterSpacing: 2, color: 'var(--text)', marginBottom: 8 }}>
+              ONE LOAD BOOKED BETTER PAYS FOR THE <span style={{ color: 'var(--accent)' }}>WHOLE MONTH</span>
+            </h3>
+            <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 32 }}>Qivori AI works alongside your team — finding better loads, faster</p>
+            <div className="lp-savings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {[
+                { icon: DollarSign, value: '$1,000+', label: 'saved per month on dispatching costs', color: '#22c55e' },
+                { icon: Clock, value: '40+', label: 'hours saved per week', color: '#f0a500' },
+                { icon: Zap, value: '0–99', label: 'AI scores every load instantly', color: '#4d8ef0' },
+              ].map(s => (
+                <div key={s.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 16px' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: `${s.color}15`, border: `1px solid ${s.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                    <Ic icon={s.icon} size={18} color={s.color} />
+                  </div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, color: s.color, lineHeight: 1, marginBottom: 6 }}>{s.value}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ── FAQ ──────────────────────────────────────────────────────── */}

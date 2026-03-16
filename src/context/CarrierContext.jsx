@@ -1,8 +1,41 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import * as db from '../lib/database'
 import { apiFetch } from '../lib/api'
+import { useApp } from './AppContext'
 
 const CarrierContext = createContext(null)
+
+// ─── Demo sample data ────────────────────────────────────────
+const DEMO_LOADS = [
+  { id: 'd1', load_id: 'QV-8001', origin: 'Chicago, IL', destination: 'Detroit, MI', rate: 3200, miles: 282, weight: '42,000 lbs', equipment: 'Dry Van', status: 'In Transit', broker_name: 'TQL Logistics', carrier_name: 'Mike Johnson', pickup_date: '2026-03-14', delivery_date: '2026-03-15' },
+  { id: 'd2', load_id: 'QV-8002', origin: 'Dallas, TX', destination: 'Houston, TX', rate: 1850, miles: 239, weight: '38,000 lbs', equipment: 'Reefer', status: 'Delivered', broker_name: 'CH Robinson', carrier_name: 'Mike Johnson', pickup_date: '2026-03-12', delivery_date: '2026-03-13' },
+  { id: 'd3', load_id: 'QV-8003', origin: 'Atlanta, GA', destination: 'Nashville, TN', rate: 2400, miles: 249, weight: '35,000 lbs', equipment: 'Flatbed', status: 'Rate Con Received', broker_name: 'XPO Logistics', carrier_name: '', pickup_date: '2026-03-16', delivery_date: '2026-03-17' },
+  { id: 'd4', load_id: 'QV-8004', origin: 'Minneapolis, MN', destination: 'Milwaukee, WI', rate: 1600, miles: 337, weight: '44,000 lbs', equipment: 'Dry Van', status: 'Assigned to Driver', broker_name: 'Echo Global', carrier_name: 'Sarah Davis', pickup_date: '2026-03-15', delivery_date: '2026-03-16' },
+  { id: 'd5', load_id: 'QV-8005', origin: 'Los Angeles, CA', destination: 'Phoenix, AZ', rate: 2800, miles: 373, weight: '40,000 lbs', equipment: 'Reefer', status: 'Invoiced', broker_name: 'Coyote Logistics', carrier_name: 'Mike Johnson', pickup_date: '2026-03-10', delivery_date: '2026-03-11' },
+  { id: 'd6', load_id: 'QV-8006', origin: 'Denver, CO', destination: 'Kansas City, MO', rate: 2100, miles: 606, weight: '36,000 lbs', equipment: 'Dry Van', status: 'En Route to Pickup', broker_name: 'Landstar', carrier_name: 'James Wilson', pickup_date: '2026-03-15', delivery_date: '2026-03-16' },
+]
+const DEMO_INVOICES = [
+  { id: 'inv1', invoice_number: 'INV-1001', load_number: 'QV-8002', amount: 1850, status: 'Paid', invoice_date: '2026-03-13', due_date: '2026-03-27', driver_name: 'Mike Johnson' },
+  { id: 'inv2', invoice_number: 'INV-1002', load_number: 'QV-8005', amount: 2800, status: 'Pending', invoice_date: '2026-03-11', due_date: '2026-03-25', driver_name: 'Mike Johnson' },
+  { id: 'inv3', invoice_number: 'INV-1003', load_number: 'QV-8001', amount: 3200, status: 'Unpaid', invoice_date: '2026-03-15', due_date: '2026-03-29', driver_name: 'Mike Johnson' },
+]
+const DEMO_EXPENSES = [
+  { id: 'exp1', description: 'Diesel — Loves Travel Stop', category: 'Fuel', amount: 485, date: '2026-03-14', load_number: 'QV-8001', driver_name: 'Mike Johnson' },
+  { id: 'exp2', description: 'Oil change', category: 'Maintenance', amount: 280, date: '2026-03-12', load_number: '', driver_name: '' },
+  { id: 'exp3', description: 'Toll — Illinois Tollway', category: 'Tolls', amount: 32, date: '2026-03-14', load_number: 'QV-8001', driver_name: 'Mike Johnson' },
+  { id: 'exp4', description: 'Diesel — Pilot', category: 'Fuel', amount: 412, date: '2026-03-10', load_number: 'QV-8005', driver_name: 'Mike Johnson' },
+]
+const DEMO_DRIVERS = [
+  { id: 'drv1', name: 'Mike Johnson', phone: '(555) 111-2222', email: 'mike@demo.com', license_number: 'CDL-A 12345', status: 'Active', hire_date: '2024-06-15' },
+  { id: 'drv2', name: 'Sarah Davis', phone: '(555) 333-4444', email: 'sarah@demo.com', license_number: 'CDL-A 67890', status: 'Active', hire_date: '2025-01-10' },
+  { id: 'drv3', name: 'James Wilson', phone: '(555) 555-6666', email: 'james@demo.com', license_number: 'CDL-A 11223', status: 'Active', hire_date: '2025-08-01' },
+]
+const DEMO_VEHICLES = [
+  { id: 'veh1', type: 'Dry Van', year: '2022', make: 'Freightliner', model: 'Cascadia', vin: '1FUJGLDR5MLKJ2841', license_plate: 'MN-94821', status: 'Active', assigned_driver: 'Mike Johnson' },
+  { id: 'veh2', type: 'Reefer', year: '2023', make: 'Kenworth', model: 'T680', vin: '2XKYD49X3PM456789', license_plate: 'TX-38291', status: 'Active', assigned_driver: 'Sarah Davis' },
+  { id: 'veh3', type: 'Flatbed', year: '2021', make: 'Peterbilt', model: '579', vin: '1XPWD40X1PD987654', license_plate: 'GA-72104', status: 'Active', assigned_driver: 'James Wilson' },
+]
+const DEMO_COMPANY = { name: 'Demo Trucking LLC', mc: 'MC-123456', dot: '2823675', mc_number: 'MC-123456', dot_number: '2823675', phone: '(555) 999-0000' }
 
 // ─── Compatibility layer ─────────────────────────────────────
 // Actual DB loads table: id, load_id, origin, destination, rate, broker_id,
@@ -120,6 +153,7 @@ function normalizeCompany(c) {
 
 // ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
+  const { demoMode } = useApp() || {}
   const [loads, setLoads] = useState([])
   const [invoices, setInvoices] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -135,6 +169,19 @@ export function CarrierProvider({ children }) {
   useEffect(() => {
     if (initRef.current) return
     initRef.current = true
+
+    // Demo mode — use sample data, no Supabase calls
+    if (demoMode) {
+      setLoads(DEMO_LOADS.map(normalizeLoad))
+      setInvoices(DEMO_INVOICES.map(normalizeInvoice))
+      setExpenses(DEMO_EXPENSES.map(normalizeExpense))
+      setDrivers(DEMO_DRIVERS)
+      setVehicles(DEMO_VEHICLES)
+      setCompany(normalizeCompany(DEMO_COMPANY))
+      setUseDb(false)
+      setDataReady(true)
+      return
+    }
 
     async function init() {
       try {
@@ -167,7 +214,7 @@ export function CarrierProvider({ children }) {
     }
 
     init()
-  }, [])
+  }, [demoMode])
 
   // ─── Load operations ─────────────────────────────────────────
   const addLoad = useCallback(async (load) => {

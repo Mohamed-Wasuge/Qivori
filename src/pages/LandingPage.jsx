@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram } from 'lucide-react'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -266,7 +266,7 @@ const STATS = [
 ]
 
 export default function LandingPage({ onGetStarted }) {
-  const { goToLogin, user } = useApp()
+  const { goToLogin, enterDemo, user } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(null)
   const [founderCount, setFounderCount] = useState(0)
@@ -456,6 +456,10 @@ export default function LandingPage({ onGetStarted }) {
             <button onClick={handleTry}
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '16px 40px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.3)', display: 'inline-flex', alignItems: 'center', gap: 10, transition: 'all 0.2s' }}>
               <Ic icon={Zap} size={18} /> Start Free — 14 Day Trial
+            </button>
+            <button onClick={() => enterDemo('carrier')}
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: '16px 36px', color: 'var(--accent)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Ic icon={Monitor} size={16} /> Try Demo
             </button>
             <button onClick={onGetStarted}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '16px 36px', color: 'var(--text)', fontSize: 16, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>

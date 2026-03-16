@@ -92,6 +92,7 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [demoMode, setDemoMode] = useState(false)
   const toastTimer = useRef(null)
 
   // Apply theme class
@@ -255,14 +256,42 @@ export function AppProvider({ children }) {
 
   // Logout with Supabase
   const logout = useCallback(async () => {
+    if (demoMode) {
+      setDemoMode(false)
+      setUser(null)
+      setProfile(null)
+      setView('landing')
+      showToast('', 'Demo Ended', 'Sign up to get started!')
+      return
+    }
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
     setView('landing')
     showToast('', 'Signed Out', 'See you next time!')
-  }, [showToast])
+  }, [showToast, demoMode])
 
   const goToLogin = useCallback(() => setView('login'), [])
+
+  // Demo mode — lets prospects explore the app without signing up
+  const enterDemo = useCallback((role = 'carrier') => {
+    setDemoMode(true)
+    setUser({ id: 'demo-user', email: 'demo@qivori.com' })
+    setProfile({ id: 'demo-user', email: 'demo@qivori.com', full_name: 'Demo User', role, subscription_status: 'trialing', subscription_plan: 'autopilot' })
+    setCurrentRole(role)
+    setCurrentPage(role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard')
+    setView('app')
+    localStorage.setItem('qv_onboarded', 'true')
+    showToast('', 'Demo Mode', 'Explore Qivori with sample data — no account needed')
+  }, [showToast])
+
+  const exitDemo = useCallback(() => {
+    setDemoMode(false)
+    setUser(null)
+    setProfile(null)
+    setView('landing')
+    showToast('', 'Demo Ended', 'Sign up to get started!')
+  }, [showToast])
 
   const navigatePage = useCallback((pageId) => {
     setCurrentPage(pageId)
@@ -318,6 +347,7 @@ export function AppProvider({ children }) {
       view, currentRole, currentPage,
       sidebarOpen, toast,
       user, profile, authLoading,
+      demoMode, enterDemo, exitDemo,
       subscription, openBillingPortal,
       loginWithCredentials, signUp, resetPassword, logout, goToLogin, navigatePage,
       toggleSidebar, closeSidebar, showToast,

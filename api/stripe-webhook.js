@@ -2,7 +2,7 @@ import { sendEmail, sendAdminEmail, sendAdminSMS, logEmail, logRevenueEvent, TEM
 
 export const config = { runtime: 'edge' }
 
-const PLAN_NAMES = { basic: 'Basic', pro: 'Pro', autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', solo: 'Solo', fleet: 'Fleet', growing: 'Enterprise' }
+const PLAN_NAMES = { autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', basic: 'Autopilot', pro: 'Autopilot', solo: 'Autopilot', fleet: 'Autopilot', growing: 'Autopilot', enterprise: 'Autopilot AI' }
 
 export default async function handler(req) {
   if (req.method !== 'POST') {

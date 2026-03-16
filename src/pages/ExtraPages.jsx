@@ -341,10 +341,8 @@ export function Settings() {
           <div className="panel-header"><div className="panel-title"><Ic icon={CreditCard} size={14} /> Subscription Plans</div></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { name: 'Basic (Carrier)', price: '$49/mo', users: '28 users', color: 'var(--accent2)' },
-              { name: 'Pro (Carrier)', price: '$149/mo', users: '18 users', color: 'var(--accent)' },
-              { name: 'Autopilot (Carrier)', price: '$299/mo', users: '12 users', color: 'var(--accent3)' },
-              { name: 'Autopilot AI (Carrier)', price: '$799/mo', users: '6 users', color: '#f0a500' },
+              { name: 'Autopilot (Carrier)', price: '$99/mo + $49/truck', users: '40 users', color: 'var(--accent)' },
+              { name: 'Autopilot AI (Carrier)', price: '$799/mo + $150/truck', users: '24 users', color: '#f0a500' },
               { name: 'Standard (Broker)', price: '$75/mo', users: '6 users', color: 'var(--accent4)' },
             ].map(p => (
               <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--surface2)', borderRadius: 10 }}>

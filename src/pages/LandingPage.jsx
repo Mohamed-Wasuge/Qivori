@@ -117,7 +117,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori AI. Answer questions about pricing (Basic $49/mo, Pro $149/mo, Autopilot $299/mo, Autopilot AI $799/mo founder pricing — first 100 customers, then $1,200/mo), features, free trial (14 days, no credit card). Keep answers short and helpful. Direct them to sign up.',
+          context: 'This is a landing page visitor asking about Qivori AI. We have 2 plans: Autopilot $99/mo (AI-assisted, +$49/truck) and Autopilot AI $799/mo founder pricing (full AI autonomy, +$150/truck, first 100 customers then $1,200/mo). Both include AI. 14-day free trial, no credit card. Keep answers short and helpful. Direct them to sign up.',
         }),
       })
       const data = await res.json()
@@ -233,23 +233,15 @@ const FEATURES = [
 
 const PLANS = [
   {
-    name: 'Basic', sub: '1 truck · Getting started', price: '$49', annual: '$490/yr', color: 'var(--accent2)',
-    features: ['AI Load Board', 'Fleet Map', 'P&L Dashboard', 'IFTA Filing', 'Invoicing & Factoring Calculator', 'Carrier Package', 'Fuel Optimizer'],
-    cta: 'Start Free Trial', highlight: false, stripeId: 'basic',
+    name: 'Autopilot', sub: 'AI-assisted dispatching', price: '$99', color: 'var(--accent)',
+    features: ['AI Load Board & Scoring', 'Smart Dispatch Suggestions', 'Fleet Map & GPS', 'P&L Dashboard', 'IFTA Auto-Filing', 'Invoicing & Factoring', 'Fuel Optimizer', 'Compliance Dashboard', 'Carrier Package'],
+    extra: '+$49/mo per additional truck',
+    cta: 'Start Free Trial', highlight: true, stripeId: 'autopilot',
   },
   {
-    name: 'Pro', sub: '1–5 trucks · Owner-operator', price: '$149', annual: '$1,490/yr', color: 'var(--accent)',
-    features: ['Everything in Basic', 'Multi-driver dispatch', 'Pre-Employment Screening', 'Driver Scorecards', 'Broker Risk Intel', 'Check Call Center', 'Equipment Manager'],
-    cta: 'Start Free Trial', highlight: true, stripeId: 'pro',
-  },
-  {
-    name: 'Autopilot', sub: '5–20 trucks · Fleet', price: '$299', annual: '$2,990/yr', color: 'var(--accent3)',
-    features: ['Everything in Pro', 'Smart Dispatch AI', 'DAT API Integration', 'Cash Flow Forecasting', 'QuickBooks Export', 'Priority support', 'PDF Reports'],
-    cta: 'Start Free Trial', highlight: false, stripeId: 'autopilot',
-  },
-  {
-    name: 'Autopilot AI', sub: 'Unlimited · Full AI platform', price: '$799', annual: '$7,990/yr', color: '#f0a500',
-    features: ['Everything in Autopilot', 'Proactive Load Finding Agent', 'AI Revenue Optimization', 'Unlimited drivers & trucks', 'FMCSA Live Safety Data', 'Dedicated support', 'Custom integrations'],
+    name: 'Autopilot AI', sub: 'Full AI autonomy', price: '$799', color: '#f0a500',
+    features: ['Everything in Autopilot', 'AI auto-dispatches for you', 'Proactive Load Finding Agent', 'AI Revenue Optimization', 'Auto-booking & broker calls', 'FMCSA Live Safety Data', 'Unlimited AI queries', 'Dedicated support', 'Custom integrations'],
+    extra: '+$150/mo per additional truck',
     cta: 'Claim Founder Pricing', highlight: false, stripeId: 'autopilot_ai', founder: true, fullPrice: '$1,200',
   },
 ]
@@ -368,7 +360,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-features-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .lp-dat-grid { grid-template-columns: 1fr !important; padding: 28px 20px !important; }
           .lp-dat-heading { font-size: 30px !important; }
-          .lp-pricing-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .lp-pricing-grid { grid-template-columns: repeat(2, 1fr) !important; max-width: 100% !important; }
           .lp-compare-table > div { grid-template-columns: 1.5fr 1fr 1fr 1fr !important; }
           .lp-compare-table > div > div { padding: 10px 8px !important; font-size: 11px !important; }
           .lp-compare-stats { grid-template-columns: 1fr !important; }
@@ -782,7 +774,7 @@ export default function LandingPage({ onGetStarted }) {
 
               {/* Price Row */}
               {[
-                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: 'From $49/mo', qivoriHighlight: true },
+                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: 'From $99/mo', qivoriHighlight: true },
                 { feature: 'Setup / Onboarding Fee', legacy: '$500–1,500', enterprise: '$2,000–10,000', qivori: '$0', qivoriHighlight: true },
                 { feature: 'Contract Length', legacy: '12 months', enterprise: '24–36 months', qivori: 'Month-to-month', qivoriHighlight: true },
                 { feature: 'AI Load Scoring', legacy: false, enterprise: false, qivori: true },
@@ -847,7 +839,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
           </FadeIn>
 
-          <div className="lp-pricing-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+          <div className="lp-pricing-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 20, maxWidth: 700, margin: '0 auto' }}>
             {PLANS.map((plan, i) => {
               const isFounder = plan.founder && founderCount < 100
               const spotsLeft = Math.max(0, 100 - founderCount)
@@ -882,8 +874,8 @@ export default function LandingPage({ onGetStarted }) {
                         <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $401/mo</span>
                       </div>
                     )}
-                    {!plan.founder && (
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>or <span style={{ color: plan.color, fontWeight: 700 }}>{plan.annual}</span> <span style={{ fontSize: 10, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>Save 2 months</span></div>
+                    {plan.extra && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>{plan.extra}</div>
                     )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 28, flex: 1 }}>
@@ -955,7 +947,7 @@ export default function LandingPage({ onGetStarted }) {
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 14, padding: '18px 52px', color: '#000', fontSize: 17, fontWeight: 800, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", boxShadow: '0 8px 40px rgba(240,165,0,0.35)', marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               <Ic icon={Zap} size={20} /> Start Free — No Card Needed
             </button>
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>14 days free · Then from $49/month · Cancel anytime</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>14 days free · Then from $99/month · Cancel anytime</div>
           </div>
         </FadeIn>
       </section>

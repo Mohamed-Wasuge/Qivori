@@ -148,8 +148,8 @@ export function Payments() {
     })()
   }, [])
 
-  const planPrices = { solo: 99, fleet: 299, enterprise: 599, growing: 599 }
-  const planLabels = { solo: 'Solo ($99)', fleet: 'Fleet ($299)', enterprise: 'Enterprise ($599)', growing: 'Enterprise ($599)' }
+  const planPrices = { autopilot: 99, autopilot_ai: 799, solo: 99, fleet: 99, enterprise: 799, growing: 99, basic: 99, pro: 99 }
+  const planLabels = { autopilot: 'Autopilot ($99)', autopilot_ai: 'Autopilot AI ($799)', solo: 'Autopilot ($99)', fleet: 'Autopilot ($99)', enterprise: 'Autopilot AI ($799)', growing: 'Autopilot ($99)', basic: 'Autopilot ($99)', pro: 'Autopilot ($99)' }
   const activeUsers = profiles.filter(p => p.status === 'active')
   const trialUsers = profiles.filter(p => p.status === 'trial')
   const failedUsers = profiles.filter(p => p.status === 'failed')

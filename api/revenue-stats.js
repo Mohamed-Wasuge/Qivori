@@ -36,7 +36,7 @@ export default async function handler(req) {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
 
     // Plan prices in cents
-    const PLAN_PRICES = { basic: 4900, pro: 14900, autopilot: 29900, autopilot_ai: 79900, solo: 9900, fleet: 29900, growing: 59900 }
+    const PLAN_PRICES = { autopilot: 9900, autopilot_ai: 79900, basic: 9900, pro: 9900, solo: 9900, fleet: 9900, growing: 9900, enterprise: 79900 }
 
     // Active subscribers
     const active = profiles.filter(p => ['active', 'trialing'].includes(p.subscription_status))

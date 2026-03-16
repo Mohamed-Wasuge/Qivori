@@ -137,10 +137,8 @@ export const TEMPLATES = {
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;">
         <p style="color:#f0a500;font-size:14px;font-weight:700;margin:0 0 8px;">Lock in your plan now:</p>
         <p style="color:#c8c8d0;font-size:13px;margin:0;line-height:1.6;">
-          <strong>Basic</strong> — $49/mo · AI load board, IFTA, invoicing<br>
-          <strong>Pro</strong> — $149/mo · + dispatch, driver scorecards, broker risk<br>
-          <strong>Autopilot</strong> — $299/mo · + Smart Dispatch AI, DAT API<br>
-          <strong>Autopilot AI</strong> — $799/mo · Full AI platform, unlimited
+          <strong>Autopilot</strong> — $99/mo · AI-assisted dispatching, load scoring, IFTA, compliance (+$49/truck)<br>
+          <strong>Autopilot AI</strong> — $799/mo · Full AI autonomy, auto-dispatch, proactive load finding (+$150/truck)
         </p>
       </div>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
@@ -160,7 +158,7 @@ export const TEMPLATES = {
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, your 14-day free trial is over. Your account is now inactive.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">But your data is still here — upgrade anytime to pick up right where you left off.</p>
       <div style="background:#1e1e2a;border:1px solid #2a2a35;border-radius:12px;padding:16px;margin:16px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:16px;font-weight:700;margin:0;">Plans start at just $49/mo</p>
+        <p style="color:#f0a500;font-size:16px;font-weight:700;margin:0;">Plans start at just $99/mo</p>
         <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;">That's less than one load's broker fee.</p>
       </div>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
@@ -232,9 +230,7 @@ export const TEMPLATES = {
       <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;">
         <p style="color:#22c55e;font-size:18px;font-weight:800;margin:0 0 12px;text-align:center;">20% OFF for 3 months</p>
         <p style="color:#c8c8d0;font-size:13px;margin:0;line-height:1.8;">
-          <strong>Basic</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$49</span> <strong style="color:#22c55e;">$39/mo</strong><br>
-          <strong>Pro</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$149</span> <strong style="color:#22c55e;">$119/mo</strong><br>
-          <strong>Autopilot</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$299</span> <strong style="color:#22c55e;">$239/mo</strong><br>
+          <strong>Autopilot</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$99</span> <strong style="color:#22c55e;">$79/mo</strong><br>
           <strong>Autopilot AI</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$799</span> <strong style="color:#22c55e;">$639/mo</strong>
         </p>
         <p style="color:#8a8a9a;font-size:11px;margin:8px 0 0;text-align:center;">Use code <strong style="color:#fff;">COMEBACK20</strong> at checkout</p>

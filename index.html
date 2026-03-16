@@ -12,6 +12,8 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Qivori" />
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%2307090e'/%3E%3Ctext x='90' y='125' font-size='96' font-weight='bold' font-family='system-ui,sans-serif' fill='%23f0a500' text-anchor='middle'%3EQ%3C/text%3E%3C/svg%3E" />
 
     <!-- Open Graph / Social -->
     <meta property="og:type" content="website" />
@@ -45,19 +47,12 @@
     </div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Clear stale service workers and caches
-      try {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            for (var i = 0; i < regs.length; i++) regs[i].unregister()
-          }).catch(function(){})
-          if (typeof caches !== 'undefined') {
-            caches.keys().then(function(keys) {
-              for (var i = 0; i < keys.length; i++) caches.delete(keys[i])
-            }).catch(function(){})
-          }
-        }
-      } catch(e) {}
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function() {})
+        })
+      }
 
       // Safety net: if JS crashes completely, show error instead of black screen
       window.addEventListener('error', function(e) {

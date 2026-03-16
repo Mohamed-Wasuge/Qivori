@@ -1,5 +1,6 @@
 import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 import { sendEmail } from './_lib/emails.js'
+import { sendSMS } from './_lib/sms.js'
 
 export const config = { runtime: 'edge' }
 
@@ -33,7 +34,7 @@ export default async function handler(req) {
     const sbHeaders = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` }
 
     // Fetch all active carriers
-    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?role=eq.carrier&status=eq.active&select=id,email,full_name,company_name,city,state,equipment_type,csa_score,mc_number&limit=200`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?role=eq.carrier&status=eq.active&select=id,email,phone,full_name,company_name,city,state,equipment_type,csa_score,mc_number&limit=200`, {
       headers: sbHeaders,
     })
     const carriers = await res.json()
@@ -118,6 +119,14 @@ export default async function handler(req) {
       return sendEmail(carrier.email, subject, html).catch(() => {})
     })
     await Promise.allSettled(emailPromises)
+
+    // Also send SMS to carriers with phone numbers
+    const smsPromises = topMatches.map(carrier => {
+      if (!carrier.phone) return Promise.resolve()
+      const msg = `QIVORI: New load match! ${origin} → ${destination}. ${rpmDisplay}. ${equipment || 'Any equipment'}. Score: ${carrier.matchScore}/100. Log in to view: qivori.com`
+      return sendSMS(carrier.phone, msg).catch(() => {})
+    })
+    await Promise.allSettled(smsPromises)
 
     // Update load with match data
     await fetch(`${supabaseUrl}/rest/v1/loads?load_id=eq.${encodeURIComponent(loadId)}`, {

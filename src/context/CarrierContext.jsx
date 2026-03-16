@@ -207,6 +207,26 @@ export function CarrierProvider({ children }) {
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
       try {
         await db.updateLoad(load.id, { status: newStatus })
+        // Fire SMS/email notification (fire-and-forget)
+        apiFetch('/api/load-status-sms', {
+          method: 'POST',
+          body: JSON.stringify({
+            loadId: load.loadId || load.load_id || load.load_number,
+            newStatus,
+            loadInfo: {
+              origin: load.origin,
+              destination: load.dest || load.destination,
+              rate: load.gross || load.gross_pay || load.rate,
+              brokerName: load.broker || load.broker_name,
+              brokerPhone: load.broker_phone,
+              brokerEmail: load.broker_email,
+              carrierName: load.carrier || load.carrier_name,
+              carrierPhone: load.carrier_phone,
+              driverName: load.driver || load.driver_name,
+              driverPhone: load.driver_phone,
+            },
+          }),
+        }).catch(() => {})
       } catch (e) {
         console.error('Failed to update load:', e)
       }

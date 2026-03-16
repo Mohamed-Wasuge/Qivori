@@ -579,7 +579,11 @@ function MobileAI() {
           // Get GPS — required for useful results
           const loc = await getGPSCoords()
           if (!loc) {
-            setMessages(m => [...m, { role: 'assistant', content: 'Could not get your location. Please enable GPS and try again.' }])
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+            setMessages(m => [...m, { role: 'assistant', content: isIOS
+              ? '**GPS not available.** To fix:\n1. Open **Settings → Privacy → Location Services** → turn ON\n2. Scroll to **Safari** → set to **While Using**\n3. Come back and try again'
+              : '**GPS not available.** To fix:\n1. Tap the lock icon in your browser bar\n2. Allow **Location** permission\n3. Try again'
+            }])
             return true
           }
           const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -872,11 +876,23 @@ function MobileAI() {
 
   // ── GPS COORDS (returns promise with lat/lng) ──
   const getGPSCoords = () => new Promise((resolve) => {
-    if (!navigator.geolocation) { resolve(null); return }
+    if (!navigator.geolocation) {
+      showToast('error', 'GPS Unavailable', 'Your browser does not support GPS')
+      resolve(null)
+      return
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000 }
+      (err) => {
+        const msgs = {
+          1: 'Location permission denied. Go to Settings → Safari → Location and allow for qivori.com',
+          2: 'Could not determine your location. Make sure GPS is turned on.',
+          3: 'Location request timed out. Try again in an open area.',
+        }
+        showToast('error', 'Location Error', msgs[err.code] || 'Failed to get location')
+        resolve(null)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     )
   })
 

@@ -270,6 +270,33 @@ export default function LandingPage({ onGetStarted }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(null)
   const [founderCount, setFounderCount] = useState(0)
+  const [demoModal, setDemoModal] = useState(false)
+  const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '' })
+  const [demoLoading, setDemoLoading] = useState(false)
+
+  // Check URL for ?demo=true (from email link)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('demo') === 'true') {
+      enterDemo('carrier')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [enterDemo])
+
+  const handleDemoSubmit = async () => {
+    if (!demoForm.email) return
+    setDemoLoading(true)
+    try {
+      await fetch('/api/demo-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(demoForm),
+      })
+    } catch {}
+    setDemoLoading(false)
+    setDemoModal(false)
+    enterDemo('carrier')
+  }
 
   // Track referral code from URL (?ref=code or /ref/code)
   useEffect(() => {
@@ -457,7 +484,7 @@ export default function LandingPage({ onGetStarted }) {
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '16px 40px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.3)', display: 'inline-flex', alignItems: 'center', gap: 10, transition: 'all 0.2s' }}>
               <Ic icon={Zap} size={18} /> Start Free — 14 Day Trial
             </button>
-            <button onClick={() => enterDemo('carrier')}
+            <button onClick={() => setDemoModal(true)}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: '16px 36px', color: 'var(--accent)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <Ic icon={Monitor} size={16} /> Try Demo
             </button>
@@ -1041,6 +1068,45 @@ export default function LandingPage({ onGetStarted }) {
 
       {/* ── LIVE CHAT BUBBLE ───────────────────────────────────────── */}
       <ChatBubble />
+
+      {/* ── DEMO REQUEST MODAL ─────────────────────────────────────── */}
+      {demoModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDemoModal(false) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:20, padding:32, maxWidth:420, width:'100%', position:'relative' }}>
+            <button onClick={() => setDemoModal(false)} style={{ position:'absolute', top:16, right:16, background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:18 }}><Ic icon={X} size={18} /></button>
+            <div style={{ textAlign:'center', marginBottom:24 }}>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>
+                TRY QI<span style={{ color:'var(--accent)' }}>VORI</span> AI
+              </div>
+              <div style={{ fontSize:13, color:'var(--muted)' }}>Enter your info for instant demo access</div>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {[
+                { key:'name', label:'Full Name', ph:'John Smith', required: true },
+                { key:'email', label:'Email', ph:'john@trucking.com', type:'email', required: true },
+                { key:'phone', label:'Phone (optional)', ph:'(555) 123-4567', type:'tel' },
+                { key:'company', label:'Company (optional)', ph:'Your Trucking LLC' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                  <input value={demoForm[f.key]} onChange={e => setDemoForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    placeholder={f.ph} type={f.type || 'text'} required={f.required}
+                    onKeyDown={e => e.key === 'Enter' && handleDemoSubmit()}
+                    style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                </div>
+              ))}
+            </div>
+            <button onClick={handleDemoSubmit} disabled={demoLoading || !demoForm.email}
+              style={{ width:'100%', marginTop:20, padding:'14px', background: demoLoading ? 'var(--border)' : 'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:12, color:'#000', fontSize:15, fontWeight:800, cursor: demoLoading ? 'wait' : 'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              {demoLoading ? 'Loading...' : <><Ic icon={Zap} size={16} /> Launch Demo</>}
+            </button>
+            <div style={{ fontSize:11, color:'var(--muted)', textAlign:'center', marginTop:12 }}>
+              No credit card needed · Instant access · We'll also email you a link
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

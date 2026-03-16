@@ -3165,7 +3165,35 @@ function OnboardingWizard({ onComplete }) {
   const { updateCompany, addVehicle } = useCarrier()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ companyName: '', mc: '', dot: '', phone: '', truckType: 'Dry Van', truckYear: '', truckMake: '' })
+  const [lookupLoading, setLookupLoading] = useState(false)
   const firstName = (profile?.full_name || 'Driver').split(' ')[0]
+
+  // Auto-lookup FMCSA when MC or DOT is entered
+  const lookupFMCSA = async (type, value) => {
+    const clean = value.replace(/[^0-9]/g, '')
+    if (clean.length < 4) return
+    setLookupLoading(true)
+    try {
+      const param = type === 'mc' ? `mc=${clean}` : `dot=${clean}`
+      const res = await apiFetch(`/api/fmcsa-lookup?${param}`)
+      if (res.carrier) {
+        const c = res.carrier
+        setForm(p => ({
+          ...p,
+          companyName: c.legalName || p.companyName,
+          dot: c.dotNumber || p.dot,
+          mc: c.mcNumber || p.mc,
+          phone: c.phone || p.phone,
+        }))
+        showToast('', 'FMCSA Found', c.legalName || 'Company info loaded')
+      } else {
+        showToast('', 'Not Found', 'No FMCSA match — enter info manually')
+      }
+    } catch {
+      // Silent fail — user can still type manually
+    }
+    setLookupLoading(false)
+  }
 
   const handleFinish = async () => {
     // Save company info
@@ -3217,10 +3245,33 @@ function OnboardingWizard({ onComplete }) {
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>YOUR COMPANY</div>
             <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Used on invoices, rate cons, and FMCSA lookups</div>
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>MC Number</label>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input value={form.mc} onChange={e => setForm(p => ({ ...p, mc: e.target.value }))} placeholder="MC-1234567"
+                    onKeyDown={e => e.key === 'Enter' && lookupFMCSA('mc', form.mc)}
+                    style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                  <button onClick={() => lookupFMCSA('mc', form.mc)} disabled={lookupLoading || !form.mc}
+                    style={{ padding:'10px 14px', borderRadius:8, background: lookupLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:11, fontWeight:700, cursor: lookupLoading ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
+                    {lookupLoading ? '...' : 'Lookup'}
+                  </button>
+                </div>
+                <div style={{ fontSize:10, color:'var(--accent)', marginTop:4 }}>Enter MC and hit Lookup to auto-fill your company info from FMCSA</div>
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>DOT Number</label>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input value={form.dot} onChange={e => setForm(p => ({ ...p, dot: e.target.value }))} placeholder="1234567"
+                    onKeyDown={e => e.key === 'Enter' && lookupFMCSA('dot', form.dot)}
+                    style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                  <button onClick={() => lookupFMCSA('dot', form.dot)} disabled={lookupLoading || !form.dot}
+                    style={{ padding:'10px 14px', borderRadius:8, background: lookupLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:11, fontWeight:700, cursor: lookupLoading ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
+                    {lookupLoading ? '...' : 'Lookup'}
+                  </button>
+                </div>
+              </div>
               {[
                 { key:'companyName', label:'Company Name', ph:'Your Trucking LLC' },
-                { key:'mc', label:'MC Number', ph:'MC-1234567' },
-                { key:'dot', label:'DOT Number', ph:'1234567' },
                 { key:'phone', label:'Phone', ph:'(555) 123-4567' },
               ].map(f => (
                 <div key={f.key}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
-import { fetchLoads, createLoad, updateLoad, fetchInvoices, createInvoice, updateInvoice, fetchDrivers, fetchDocuments, createDocument } from '../lib/database'
+import { fetchLoads, createLoad, updateLoad, fetchInvoices, createInvoice, updateInvoice, fetchDrivers, fetchDocuments, createDocument, fetchMessages, sendMessage } from '../lib/database'
 import { apiFetch } from '../lib/api'
 import {
   Package, TrendingUp, Truck, DollarSign, Clock, CheckCircle, MapPin,
@@ -42,13 +42,18 @@ export function BrokerDashboard() {
   const [loads, setLoads] = useState([])
   const [loadingData, setLoadingData] = useState(true)
 
+  const loadData = async () => {
+    const data = await fetchLoads()
+    setLoads(data || [])
+    setLoadingData(false)
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  // Real-time polling every 15 seconds
   useEffect(() => {
-    const loadData = async () => {
-      const data = await fetchLoads()
-      setLoads(data || [])
-      setLoadingData(false)
-    }
-    loadData()
+    const interval = setInterval(loadData, 15000)
+    return () => clearInterval(interval)
   }, [])
 
   const activeLoads = loads.filter(l => ['open', 'in_transit', 'booked'].includes(l.status))
@@ -311,8 +316,19 @@ export function BrokerPostLoad() {
     }
     setPosting(false)
 
+    // Auto-match: score carriers and notify top 3
+    apiFetch('/api/auto-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loadId, origin, destination, rate, equipment, brokerName: user?.email?.split('@')[0] || 'Broker' }),
+    }).then(r => r.json()).then(data => {
+      if (data.matches?.length > 0) {
+        showToast('', 'AI Matched', `Notified ${data.matches.length} carriers — top score: ${data.matches[0].score}/100`)
+      }
+    }).catch(() => {})
+
     showToast('', 'Load Posted', `${loadId} — ${origin} to ${destination} is live`)
-    setTimeout(() => navigatePage('broker-loads'), 1000)
+    setTimeout(() => navigatePage('broker-loads'), 1500)
   }
 
   const LOAD_TYPES = [
@@ -479,7 +495,117 @@ export function BrokerPostLoad() {
 // ════════════════════════════════════════════════════════════════════════════
 // BROKER LOADS
 // ════════════════════════════════════════════════════════════════════════════
-const STATUS_DISPLAY = { open: 'Posted', booked: 'Booked', in_transit: 'In Transit', delivered: 'Delivered', cancelled: 'Cancelled' }
+const STATUS_DISPLAY = { open: 'Posted', booked: 'Booked', assigned: 'Assigned', en_route_pickup: 'En Route to Pickup', at_pickup: 'At Pickup', in_transit: 'In Transit', delivered: 'Delivered', cancelled: 'Cancelled' }
+
+// ── Load Status Tracker ──
+function LoadStatusTracker({ status }) {
+  const steps = [
+    { key: 'open', label: 'Posted' },
+    { key: 'booked', label: 'Booked' },
+    { key: 'assigned', label: 'Assigned' },
+    { key: 'en_route_pickup', label: 'En Route' },
+    { key: 'at_pickup', label: 'At Pickup' },
+    { key: 'in_transit', label: 'In Transit' },
+    { key: 'delivered', label: 'Delivered' },
+  ]
+  const currentIdx = steps.findIndex(s => s.key === status)
+  const activeIdx = currentIdx >= 0 ? currentIdx : 0
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0, margin: '16px 0' }}>
+      {steps.map((step, i) => {
+        const done = i <= activeIdx
+        const isCurrent = i === activeIdx
+        return (
+          <div key={step.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            {i > 0 && (
+              <div style={{ position: 'absolute', top: 10, right: '50%', width: '100%', height: 3,
+                background: done ? 'var(--success)' : 'var(--border)', zIndex: 0 }} />
+            )}
+            <div style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1,
+              background: done ? 'var(--success)' : 'var(--surface2)', border: `2px solid ${done ? 'var(--success)' : 'var(--border)'}`,
+              boxShadow: isCurrent ? '0 0 8px rgba(34,197,94,0.4)' : 'none' }}>
+              {done && <Ic icon={CheckCircle} size={12} style={{ color: '#fff' }} />}
+            </div>
+            <div style={{ fontSize: 9, color: done ? 'var(--success)' : 'var(--muted)', fontWeight: isCurrent ? 800 : 600, marginTop: 4, textAlign: 'center' }}>{step.label}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Message Thread ──
+function MessageThread({ loadId, user }) {
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+
+  const loadMessages = async () => {
+    const data = await fetchMessages(loadId)
+    setMessages(data)
+  }
+
+  useEffect(() => { loadMessages() }, [loadId])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // Poll for new messages every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(loadMessages, 10000)
+    return () => clearInterval(interval)
+  }, [loadId])
+
+  const handleSend = async () => {
+    if (!input.trim() || sending) return
+    setSending(true)
+    try {
+      await sendMessage(loadId, input.trim(), user?.email?.split('@')[0] || 'Broker', 'broker')
+      setInput('')
+      await loadMessages()
+    } catch (e) {
+      console.error('Send message failed:', e)
+    }
+    setSending(false)
+  }
+
+  return (
+    <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', marginTop: 16 }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
+        <Ic icon={MessageSquare} size={14} style={{ color: 'var(--accent)' }} /> Messages
+        {messages.length > 0 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>({messages.length})</span>}
+      </div>
+      <div style={{ maxHeight: 200, overflowY: 'auto', padding: '10px 14px' }}>
+        {messages.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '12px 0' }}>No messages yet — start a conversation with the carrier</div>
+        ) : messages.map(msg => (
+          <div key={msg.id} style={{ marginBottom: 10, display: 'flex', flexDirection: 'column',
+            alignItems: msg.sender_role === 'broker' ? 'flex-end' : 'flex-start' }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>
+              {msg.sender_name} · {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </div>
+            <div style={{ maxWidth: '75%', padding: '8px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.5,
+              background: msg.sender_role === 'broker' ? 'rgba(240,165,0,0.12)' : 'var(--surface2)',
+              color: 'var(--text)', border: `1px solid ${msg.sender_role === 'broker' ? 'rgba(240,165,0,0.25)' : 'var(--border)'}` }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+      <div style={{ padding: '8px 10px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+        <input value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          placeholder="Type a message..."
+          style={{ flex: 1, padding: '8px 12px', fontSize: 12, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', outline: 'none' }} />
+        <button onClick={handleSend} disabled={sending || !input.trim()}
+          style={{ padding: '8px 14px', background: 'var(--accent)', color: '#000', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: sending || !input.trim() ? 0.5 : 1 }}>
+          <Ic icon={Send} size={13} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export function BrokerLoads() {
   const { showToast, navigatePage, user } = useApp()
@@ -496,6 +622,12 @@ export function BrokerLoads() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  // Poll for real-time status updates every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(loadData, 15000)
+    return () => clearInterval(interval)
+  }, [])
 
   const getState = (loc) => {
     if (!loc) return ''
@@ -670,6 +802,12 @@ export function BrokerLoads() {
                             </div>
                           )}
                         </div>
+
+                        {/* ── Real-time Status Tracker ── */}
+                        <LoadStatusTracker status={load.status} />
+
+                        {/* ── Direct Messaging ── */}
+                        <MessageThread loadId={load.load_id} user={user} />
                       </div>
                     </td>
                   </tr>

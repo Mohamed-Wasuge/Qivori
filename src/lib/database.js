@@ -270,6 +270,21 @@ export async function deleteDocument(id) {
   if (error) throw error
 }
 
+// ─── MESSAGES ───────────────────────────────────────────────
+export async function fetchMessages(loadId) {
+  const { data } = await supabase.from('messages').select('*').eq('load_id', loadId).order('created_at', { ascending: true })
+  return data || []
+}
+
+export async function sendMessage(loadId, content, senderName, senderRole) {
+  const userId = await getUserId()
+  const { data, error } = await supabase.from('messages').insert({
+    load_id: loadId, sender_id: userId, sender_name: senderName, sender_role: senderRole, content,
+  }).select().single()
+  if (error) throw error
+  return data
+}
+
 // ─── LOAD STOPS ─────────────────────────────────────────────
 export async function updateLoadStop(id, updates) {
   const { data } = await safeMutate('updateLoadStop',

@@ -151,6 +151,8 @@ function AppContent() {
           .mob-menu-btn { display: flex !important; }
           .search-wrap { display: none !important; }
           .tb-btn-ghost { display: none !important; }
+          .sidebar { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; z-index: 250 !important; }
+          .tb-btn { font-size: 10px !important; padding: 5px 10px !important; }
         }
       `}</style>
     </div>

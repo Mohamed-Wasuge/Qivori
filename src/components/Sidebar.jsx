@@ -97,7 +97,7 @@ export default function Sidebar() {
             return (
               <button
                 key={item.id}
-                onClick={() => navigatePage(item.id)}
+                onClick={() => { navigatePage(item.id); closeSidebar() }}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 10px', borderRadius: 9, border: 'none', cursor: 'pointer',

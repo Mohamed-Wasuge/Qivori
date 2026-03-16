@@ -96,7 +96,7 @@ export default async function handler(req) {
         'Authorization': `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: 'Qivori AI <invoices@qivori.com>',
+        from: 'Qivori AI <hello@qivori.com>',
         to: [to],
         subject,
         html,

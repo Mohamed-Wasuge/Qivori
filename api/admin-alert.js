@@ -68,7 +68,7 @@ export default async function handler(req) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Qivori AI Agent <alerts@qivori.com>',
+            from: 'Qivori AI <hello@qivori.com>',
             to: adminEmail,
             subject: `${severityEmoji} Qivori Alert: ${title}`,
             html: `

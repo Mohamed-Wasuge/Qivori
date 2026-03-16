@@ -178,8 +178,19 @@ RULES:
     const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`
     const replyHtml = formatReplyHtml(aiReply)
 
-    // Send the reply
-    const sendResult = await sendEmail(senderEmail, replySubject, replyHtml)
+    // Send the reply (from reply.qivori.com so replies loop back to bot)
+    const resendKey = process.env.RESEND_API_KEY
+    const sendResult = resendKey ? await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Qivori AI <hello@reply.qivori.com>',
+        reply_to: 'hello@reply.qivori.com',
+        to: [senderEmail],
+        subject: replySubject,
+        html: replyHtml,
+      }),
+    }).then(r => ({ ok: r.ok })).catch(() => ({ ok: false })) : { ok: false }
 
     // Log to ai_email_threads table
     if (supabaseUrl && serviceKey) {
@@ -282,7 +293,7 @@ ${bodyHtml}
 </div>
 <div style="text-align:center;padding-top:16px;">
 <p style="color:#555;font-size:11px;margin:0;">Qivori AI Assistant &mdash; AI-Powered TMS for Trucking</p>
-<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to Mohamed" &middot; hello@qivori.com</p>
+<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to Mohamed" &middot; hello@reply.qivori.com</p>
 </div></div></body></html>`
 }
 

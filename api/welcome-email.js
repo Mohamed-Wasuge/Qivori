@@ -131,6 +131,7 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         from: 'Qivori AI <hello@qivori.com>',
+        reply_to: 'hello@reply.qivori.com',
         to: [email],
         subject: `Welcome to Qivori AI, ${firstName}!`,
         html,

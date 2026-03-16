@@ -10,7 +10,7 @@ export async function sendEmail(to, subject, html) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: 'Qivori AI <hello@qivori.com>', to: [to], subject, html }),
+    body: JSON.stringify({ from: 'Qivori AI <hello@qivori.com>', reply_to: 'hello@reply.qivori.com', to: [to], subject, html }),
   })
   return { ok: res.ok }
 }

@@ -80,6 +80,7 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         from: 'Qivori AI <hello@qivori.com>',
+        reply_to: 'hello@reply.qivori.com',
         to: [to],
         subject: 'A fellow driver invited you to Qivori AI — get a free month!',
         html,

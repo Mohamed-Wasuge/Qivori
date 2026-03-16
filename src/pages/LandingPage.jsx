@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor } from 'lucide-react'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -273,6 +273,7 @@ export default function LandingPage({ onGetStarted }) {
   const [demoModal, setDemoModal] = useState(false)
   const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '' })
   const [demoLoading, setDemoLoading] = useState(false)
+  const [demoSent, setDemoSent] = useState(false)
 
   // Check URL for ?demo=true (from email link)
   useEffect(() => {
@@ -294,8 +295,7 @@ export default function LandingPage({ onGetStarted }) {
       })
     } catch {}
     setDemoLoading(false)
-    setDemoModal(false)
-    enterDemo('carrier')
+    setDemoSent(true)
   }
 
   // Track referral code from URL (?ref=code or /ref/code)
@@ -1070,40 +1070,70 @@ export default function LandingPage({ onGetStarted }) {
       <ChatBubble />
 
       {/* ── DEMO REQUEST MODAL ─────────────────────────────────────── */}
-      {demoModal && (
+      {(demoModal || demoSent) && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
-          onClick={(e) => { if (e.target === e.currentTarget) setDemoModal(false) }}>
+          onClick={(e) => { if (e.target === e.currentTarget) { setDemoModal(false); setDemoSent(false) } }}>
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:20, padding:32, maxWidth:420, width:'100%', position:'relative' }}>
-            <button onClick={() => setDemoModal(false)} style={{ position:'absolute', top:16, right:16, background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:18 }}><Ic icon={X} size={18} /></button>
-            <div style={{ textAlign:'center', marginBottom:24 }}>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>
-                TRY QI<span style={{ color:'var(--accent)' }}>VORI</span> AI
-              </div>
-              <div style={{ fontSize:13, color:'var(--muted)' }}>Enter your info for instant demo access</div>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-              {[
-                { key:'name', label:'Full Name', ph:'John Smith', required: true },
-                { key:'email', label:'Email', ph:'john@trucking.com', type:'email', required: true },
-                { key:'phone', label:'Phone (optional)', ph:'(555) 123-4567', type:'tel' },
-                { key:'company', label:'Company (optional)', ph:'Your Trucking LLC' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
-                  <input value={demoForm[f.key]} onChange={e => setDemoForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    placeholder={f.ph} type={f.type || 'text'} required={f.required}
-                    onKeyDown={e => e.key === 'Enter' && handleDemoSubmit()}
-                    style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+            <button onClick={() => { setDemoModal(false); setDemoSent(false) }} style={{ position:'absolute', top:16, right:16, background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:18 }}><Ic icon={X} size={18} /></button>
+
+            {demoSent ? (
+              <div style={{ textAlign:'center', padding:'20px 0' }}>
+                <div style={{ fontSize:48, marginBottom:16 }}><Ic icon={Mail} size={48} color="var(--accent)" /></div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:8 }}>
+                  CHECK YOUR EMAIL
                 </div>
-              ))}
-            </div>
-            <button onClick={handleDemoSubmit} disabled={demoLoading || !demoForm.email}
-              style={{ width:'100%', marginTop:20, padding:'14px', background: demoLoading ? 'var(--border)' : 'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:12, color:'#000', fontSize:15, fontWeight:800, cursor: demoLoading ? 'wait' : 'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-              {demoLoading ? 'Loading...' : <><Ic icon={Zap} size={16} /> Launch Demo</>}
-            </button>
-            <div style={{ fontSize:11, color:'var(--muted)', textAlign:'center', marginTop:12 }}>
-              No credit card needed · Instant access · We'll also email you a link
-            </div>
+                <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.7, marginBottom:8 }}>
+                  We sent a demo access link to
+                </div>
+                <div style={{ fontSize:16, fontWeight:700, color:'var(--accent)', marginBottom:24 }}>
+                  {demoForm.email}
+                </div>
+                <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.7, marginBottom:24 }}>
+                  Click the link in your email to explore the full Qivori AI platform with sample data.
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  <button onClick={() => { setDemoSent(false); setDemoModal(false) }}
+                    style={{ width:'100%', padding:'14px', background:'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:12, color:'#000', fontSize:15, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    Got it
+                  </button>
+                  <div style={{ fontSize:11, color:'var(--muted)', textAlign:'center' }}>
+                    Didn't get it? Check your spam folder or <button onClick={() => { setDemoSent(false) }} style={{ background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontSize:11, fontWeight:700, fontFamily:"'DM Sans',sans-serif", padding:0 }}>try again</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ textAlign:'center', marginBottom:24 }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>
+                    TRY QI<span style={{ color:'var(--accent)' }}>VORI</span> AI
+                  </div>
+                  <div style={{ fontSize:13, color:'var(--muted)' }}>Enter your info to get demo access</div>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  {[
+                    { key:'name', label:'Full Name', ph:'John Smith', required: true },
+                    { key:'email', label:'Email', ph:'john@trucking.com', type:'email', required: true },
+                    { key:'phone', label:'Phone (optional)', ph:'(555) 123-4567', type:'tel' },
+                    { key:'company', label:'Company (optional)', ph:'Your Trucking LLC' },
+                  ].map(f => (
+                    <div key={f.key}>
+                      <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                      <input value={demoForm[f.key]} onChange={e => setDemoForm(p => ({ ...p, [f.key]: e.target.value }))}
+                        placeholder={f.ph} type={f.type || 'text'} required={f.required}
+                        onKeyDown={e => e.key === 'Enter' && handleDemoSubmit()}
+                        style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                    </div>
+                  ))}
+                </div>
+                <button onClick={handleDemoSubmit} disabled={demoLoading || !demoForm.email}
+                  style={{ width:'100%', marginTop:20, padding:'14px', background: demoLoading ? 'var(--border)' : 'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:12, color:'#000', fontSize:15, fontWeight:800, cursor: demoLoading ? 'wait' : 'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  {demoLoading ? 'Sending...' : <><Ic icon={Send} size={16} /> Get Demo Link</>}
+                </button>
+                <div style={{ fontSize:11, color:'var(--muted)', textAlign:'center', marginTop:12 }}>
+                  No credit card needed · We'll email you a demo link
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

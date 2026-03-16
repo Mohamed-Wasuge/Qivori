@@ -6,7 +6,7 @@ import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
   Fuel, Building2, ClipboardCheck, Radio, BarChart2, Star, Search,
-  CreditCard, Plus, Users, Shield, Activity, Monitor
+  CreditCard, Plus, Users, Shield, Activity, Monitor, Mail
 } from 'lucide-react'
 
 const AppContext = createContext(null)
@@ -24,6 +24,7 @@ export const ROLES = {
       { id: 'support', icon: FileText, label: 'Support' },
       { id: 'waitlist', icon: UserPlus, label: 'Waitlist' },
       { id: 'demo-requests', icon: Monitor, label: 'Demo Requests' },
+      { id: 'admin-email', icon: Mail, label: 'Email' },
       { id: 'analytics', icon: BarChart2, label: 'Analytics' },
       { id: 'ai-agent', icon: Bot, label: 'AI Agent', badge: 'LIVE', badgeClass: 'green' },
       { id: 'activity', icon: Shield, label: 'Security' },

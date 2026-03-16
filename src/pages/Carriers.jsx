@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
-import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock } from 'lucide-react'
+import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock, Send } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 const FILTERS = ['All', 'active', 'trial', 'pending', 'suspended']
@@ -315,7 +315,13 @@ export default function Carriers() {
             {/* Contact Info */}
             <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Contact</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={Mail} size={13} color="var(--accent)" /> {selectedUser.email}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <Ic icon={Mail} size={13} color="var(--accent)" /> {selectedUser.email}
+                <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 10, marginLeft: 'auto' }}
+                  onClick={() => { navigator.clipboard.writeText(selectedUser.email); showToast('', 'Email Copied', 'Go to Email tab to compose') }}>
+                  <Ic icon={Send} size={10} /> Send Email
+                </button>
+              </div>
               {selectedUser.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={Phone} size={13} color="var(--accent2)" /> {selectedUser.phone}</div>}
               {(selectedUser.city || selectedUser.state) && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={MapPin} size={13} color="var(--success)" /> {[selectedUser.city, selectedUser.state].filter(Boolean).join(', ')}</div>}
             </div>

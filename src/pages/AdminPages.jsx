@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
-import { Users, Mail, Download, Send, Search, CheckCircle, Trash2, BarChart2, Clock, TrendingUp, Shield, Eye, AlertTriangle, Zap, Package, Map, CreditCard, Truck, Activity, UserPlus, LogIn, Settings, X, Bot, RefreshCw, Bell, Wifi, WifiOff, Database, MessageSquare, Server, Fuel, DollarSign, Radio, ArrowRight, User, Hash, ChevronDown, ChevronUp, Calendar, Copy, Edit3, SkipForward, Facebook, Megaphone, Type, Calculator, Star, Monitor, Phone, Building2 } from 'lucide-react'
+import { Users, Mail, Download, Send, Search, CheckCircle, Trash2, BarChart2, Clock, TrendingUp, Shield, Eye, AlertTriangle, Zap, Package, Map, CreditCard, Truck, Activity, UserPlus, LogIn, Settings, X, Bot, RefreshCw, Bell, Wifi, WifiOff, Database, MessageSquare, Server, Fuel, DollarSign, Radio, ArrowRight, User, Hash, ChevronDown, ChevronUp, Calendar, Copy, Edit3, SkipForward, Facebook, Megaphone, Type, Calculator, Star, Monitor, Phone, Building2, Inbox } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -2290,6 +2290,342 @@ export function DemoRequests() {
           </table>
         )}
       </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN EMAIL
+   ═══════════════════════════════════════════════════════════════════════════ */
+const EMAIL_GROUPS = [
+  { value: 'custom', label: 'Custom Email' },
+  { value: 'all', label: 'All Users' },
+  { value: 'carriers', label: 'All Carriers' },
+  { value: 'brokers', label: 'All Brokers' },
+  { value: 'trial', label: 'Trial Users' },
+  { value: 'demo', label: 'Demo Leads' },
+]
+
+export function AdminEmail() {
+  const { showToast } = useApp()
+  const [tab, setTab] = useState('compose')
+  const [toGroup, setToGroup] = useState('custom')
+  const [customTo, setCustomTo] = useState('')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [groupCount, setGroupCount] = useState(null)
+  const [groupEmails, setGroupEmails] = useState([])
+  const [logs, setLogs] = useState([])
+  const [logsLoading, setLogsLoading] = useState(false)
+
+  // Fetch group count when group changes
+  useEffect(() => {
+    if (toGroup === 'custom') { setGroupCount(null); setGroupEmails([]); return }
+    let cancelled = false;
+    (async () => {
+      let query = supabase.from(toGroup === 'demo' ? 'demo_requests' : 'profiles').select('email')
+      if (toGroup === 'carriers') query = query.eq('role', 'carrier')
+      else if (toGroup === 'brokers') query = query.eq('role', 'broker')
+      else if (toGroup === 'trial') query = query.in('subscription_status', ['trialing', 'trial'])
+      // 'all' and 'demo' don't need extra filters
+      const { data } = await query
+      if (!cancelled) {
+        const emails = (data || []).map(d => d.email).filter(Boolean)
+        setGroupCount(emails.length)
+        setGroupEmails(emails)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [toGroup])
+
+  // Fetch sent history
+  const fetchLogs = useCallback(async () => {
+    setLogsLoading(true)
+    const { data } = await supabase
+      .from('email_logs')
+      .select('*')
+      .eq('template', 'admin_broadcast')
+      .order('created_at', { ascending: false })
+      .limit(100)
+    setLogs(data || [])
+    setLogsLoading(false)
+  }, [])
+
+  useEffect(() => { if (tab === 'history') fetchLogs() }, [tab, fetchLogs])
+
+  // Stats
+  const today = new Date().toDateString()
+  const todayCount = logs.filter(l => new Date(l.created_at).toDateString() === today).length
+  const weekAgo = new Date(Date.now() - 7 * 86400000)
+  const weekCount = logs.filter(l => new Date(l.created_at) > weekAgo).length
+
+  const getRecipients = () => {
+    if (toGroup === 'custom') {
+      return customTo.split(',').map(e => e.trim()).filter(e => e && e.includes('@'))
+    }
+    return groupEmails
+  }
+
+  const buildHtml = () => {
+    const paragraphs = body.split('\n\n').map(p => p.trim()).filter(Boolean)
+    return paragraphs.map(p =>
+      `<p style="color:#c8c8d0;font-size:14px;line-height:1.7;margin:0 0 14px;">${p.replace(/\n/g, '<br>')}</p>`
+    ).join('')
+  }
+
+  const previewHtml = () => {
+    const content = buildHtml()
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0a0a0e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px;">
+<div style="text-align:center;margin-bottom:32px;">
+<span style="font-size:32px;letter-spacing:4px;color:#fff;font-weight:800;">QI<span style="color:#f0a500;">VORI</span></span>
+<span style="font-size:12px;color:#4d8ef0;letter-spacing:2px;font-weight:700;margin-left:6px;">AI</span>
+</div>
+<div style="background:#16161e;border:1px solid #2a2a35;border-radius:16px;padding:32px 24px;margin-bottom:24px;">
+${content}
+</div>
+<div style="text-align:center;padding-top:16px;">
+<p style="color:#555;font-size:11px;margin:0;">Qivori AI - AI-Powered TMS for Trucking</p>
+<p style="color:#555;font-size:11px;margin:4px 0 0;">Questions? Reply to this email - hello@qivori.com</p>
+</div></div></body></html>`
+  }
+
+  const handleSend = async () => {
+    const recipients = getRecipients()
+    if (recipients.length === 0) { showToast('', 'Error', 'No recipients'); return }
+    if (!subject.trim()) { showToast('', 'Error', 'Subject is required'); return }
+    if (!body.trim()) { showToast('', 'Error', 'Message body is required'); return }
+
+    setShowConfirm(false)
+    setSending(true)
+    try {
+      const res = await apiFetch('/api/admin-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: recipients, subject: subject.trim(), html: buildHtml() }),
+      })
+      const data = await res.json()
+      if (data.sent > 0) {
+        showToast('', 'Emails Sent', `${data.sent} sent, ${data.failed} failed`)
+        setSubject('')
+        setBody('')
+        setCustomTo('')
+      } else if (data.error) {
+        showToast('', 'Error', data.error)
+      } else {
+        showToast('', 'Failed', 'No emails were sent')
+      }
+    } catch (e) {
+      showToast('', 'Error', 'Failed to send emails')
+    }
+    setSending(false)
+  }
+
+  const formatDate = (d) => {
+    if (!d) return '—'
+    const date = new Date(d)
+    const now = new Date()
+    const diff = now - date
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'min ago'
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'hr ago'
+    if (diff < 604800000) return Math.floor(diff / 86400000) + ' day(s) ago'
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  return (
+    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Stats */}
+      <div className="stats-grid cols4 fade-in">
+        {[
+          { label: 'Sent Today', value: todayCount, color: todayCount > 0 ? 'var(--accent)' : 'var(--muted)' },
+          { label: 'Sent This Week', value: weekCount, color: weekCount > 0 ? 'var(--success)' : 'var(--muted)' },
+          { label: 'Total Logged', value: logs.length, color: 'var(--accent2)' },
+          { label: 'Bounce Rate', value: '—', color: 'var(--muted)' },
+        ].map(s => (
+          <div key={s.label} className="stat-card">
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="panel fade-in">
+        <div className="panel-header">
+          <div style={{ display: 'flex', gap: 0 }}>
+            {[{ id: 'compose', label: 'Compose', icon: Edit3 }, { id: 'history', label: 'Sent History', icon: Inbox }].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                style={{
+                  background: tab === t.id ? 'var(--surface2)' : 'transparent',
+                  border: 'none', color: tab === t.id ? 'var(--text)' : 'var(--muted)',
+                  padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                <Ic icon={t.icon} size={13} /> {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Compose Tab */}
+        {tab === 'compose' && (
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* To field */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">To</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select className="form-input" value={toGroup} onChange={e => setToGroup(e.target.value)}
+                  style={{ width: 200, height: 38, fontSize: 13 }}>
+                  {EMAIL_GROUPS.map(g => (
+                    <option key={g.value} value={g.value}>{g.label}</option>
+                  ))}
+                </select>
+                {toGroup !== 'custom' && groupCount !== null && (
+                  <span style={{
+                    background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.2)',
+                    borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700,
+                    color: 'var(--accent)',
+                  }}>
+                    {groupCount} recipient{groupCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {toGroup === 'custom' && (
+                <input className="form-input" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                  placeholder="email@example.com, another@example.com"
+                  style={{ marginTop: 8, fontSize: 13 }} />
+              )}
+            </div>
+
+            {/* Subject */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Subject</label>
+              <input className="form-input" value={subject} onChange={e => setSubject(e.target.value)}
+                placeholder="Email subject line"
+                style={{ fontSize: 13 }} />
+            </div>
+
+            {/* Body */}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Message</label>
+              <textarea className="form-input" value={body} onChange={e => setBody(e.target.value)}
+                placeholder="Write your message here (plain text — will be wrapped in Qivori branded template)..."
+                rows={10}
+                style={{ fontSize: 13, lineHeight: 1.6, resize: 'vertical', minHeight: 160 }} />
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setShowPreview(true)}
+                disabled={!body.trim()} style={{ fontSize: 12 }}>
+                <Ic icon={Eye} size={13} /> Preview
+              </button>
+              <button className="btn btn-primary" onClick={() => setShowConfirm(true)}
+                disabled={sending || !subject.trim() || !body.trim() || (toGroup === 'custom' && !customTo.trim())}
+                style={{ fontSize: 12, opacity: sending ? 0.7 : 1 }}>
+                <Ic icon={Send} size={13} /> {sending ? 'Sending...' : 'Send Email'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Sent History Tab */}
+        {tab === 'history' && (
+          <>
+            {logsLoading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading sent history...</div>
+            ) : logs.length === 0 ? (
+              <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                <Ic icon={Mail} size={28} style={{ marginBottom: 10, opacity: 0.3 }} /><br />
+                No emails sent yet. Use the Compose tab to send your first email.
+              </div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Recipient</th>
+                    <th>Subject</th>
+                    <th>Sent By</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map(l => (
+                    <tr key={l.id}>
+                      <td style={{ fontSize: 12 }}>{l.email || '—'}</td>
+                      <td style={{ fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {l.metadata?.subject || '—'}
+                      </td>
+                      <td style={{ fontSize: 11, color: 'var(--muted)' }}>{l.metadata?.sent_by || '—'}</td>
+                      <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(l.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowPreview(false)}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, width: 640, maxWidth: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Email Preview</div>
+              <button onClick={() => setShowPreview(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
+                <Ic icon={X} size={18} />
+              </button>
+            </div>
+            <div style={{ padding: 16, flex: 1, overflowY: 'auto' }}>
+              <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--muted)' }}>
+                <strong>Subject:</strong> {subject || '(no subject)'}
+              </div>
+              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <iframe
+                  title="Email Preview"
+                  srcDoc={previewHtml()}
+                  style={{ width: '100%', height: 450, border: 'none', background: '#0a0a0e' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Send Modal */}
+      {showConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowConfirm(false)}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: 400, maxWidth: '90%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Confirm Send</div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 8px' }}>
+              You are about to send an email to <strong style={{ color: 'var(--text)' }}>
+                {toGroup === 'custom'
+                  ? getRecipients().length + ' recipient' + (getRecipients().length !== 1 ? 's' : '')
+                  : (groupCount || 0) + ' ' + EMAIL_GROUPS.find(g => g.value === toGroup)?.label
+                }
+              </strong>.
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, margin: '0 0 20px' }}>
+              <strong>Subject:</strong> {subject}
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setShowConfirm(false)} style={{ fontSize: 12 }}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSend} style={{ fontSize: 12 }}>
+                <Ic icon={Send} size={13} /> Confirm & Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

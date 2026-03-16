@@ -2693,7 +2693,7 @@ ${content}
                         fetchBotThreads()
                       }
                     }} style={{ fontSize: 11 }} disabled={selectedThread.escalated}>
-                      <Ic icon={AlertTriangle} size={12} /> {selectedThread.escalated ? 'Escalated' : 'Escalate to Mohamed'}
+                      <Ic icon={AlertTriangle} size={12} /> {selectedThread.escalated ? 'Escalated' : 'Escalate to Team'}
                     </button>
                     <button className="btn btn-ghost" onClick={() => {
                       setTab('compose')

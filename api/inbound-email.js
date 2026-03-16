@@ -118,11 +118,11 @@ RULES:
 - If they want to cancel — be empathetic, ask why, mention the 20% COMEBACK20 discount
 - If they're a lead from demo request — welcome them and guide them to sign up
 - If the email is spam or irrelevant — reply politely that this inbox is for Qivori customers
-- If they need something complex (refund, account deletion, legal) — say you're forwarding to Mohamed personally
+- If they need something complex (refund, account deletion, legal) — say you're forwarding to a team member
 - NEVER make up information about their account you don't have
 - NEVER promise features that don't exist
-- Sign off as "Qivori AI Assistant" and mention they can reach Mohamed directly for urgent matters
-- If they ask if they're talking to a bot — be honest: "I'm Qivori's AI assistant. For anything I can't help with, I'll connect you with Mohamed directly."
+- Sign off as "Qivori AI Assistant" and mention they can reach a team member directly for urgent matters
+- If they ask if they're talking to a bot — be honest: "I'm Qivori's AI assistant. For anything I can't help with, I'll connect you with a team member directly."
 - Write in plain text style suitable for email — no markdown headers or bullets unless listing features`
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -284,7 +284,7 @@ ${bodyHtml}
 </div>
 <div style="text-align:center;padding-top:16px;">
 <p style="color:#555;font-size:11px;margin:0;">Qivori AI Assistant &mdash; AI-Powered TMS for Trucking</p>
-<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to Mohamed" &middot; hello@qivori.com</p>
+<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to a team member" &middot; hello@qivori.com</p>
 </div></div></body></html>`
 }
 

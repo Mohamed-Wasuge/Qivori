@@ -42,10 +42,32 @@ export default async function handler(req) {
       return Response.json({ error: 'No sender email' }, { status: 400 })
     }
 
-    // Don't reply to noreply addresses, own domain, or bounces
-    const skipPatterns = ['noreply@', 'no-reply@', 'mailer-daemon@', 'postmaster@', '@qivori.com', 'unsubscribe']
-    if (skipPatterns.some(p => senderEmail.toLowerCase().includes(p))) {
+    // Don't reply to noreply, marketing, bulk, or own domain emails
+    const skipSenderPatterns = [
+      'noreply@', 'no-reply@', 'mailer-daemon@', 'postmaster@', '@qivori.com',
+      'unsubscribe', 'newsletter', 'marketing@', 'promo@', 'bulk@', 'notify@',
+      'notification@', 'alerts@', 'info@', 'support@', 'billing@', 'account@',
+      'ccsend.com', 'mailchimp', 'constantcontact', 'sendgrid.net', 'amazonses',
+      'aliexpress', 'xfinity', 'comcast', 'usps.com', 'ups.com', 'fedex.com',
+      'teamsnap', 'optionstrat', 'mvpschools', 'mobyfund', 'taylorandmartin',
+      'informeddelivery', '.cub.com', 'facebook.com', 'twitter.com', 'linkedin.com',
+      'instagram.com', 'tiktok.com', 'youtube.com', 'google.com', 'apple.com',
+      'microsoft.com', 'amazon.com', 'paypal.com', 'stripe.com', 'squarespace.com',
+      'shopify.com', 'wix.com', 'godaddy.com', 'namecheap.com',
+    ]
+    if (skipSenderPatterns.some(p => senderEmail.toLowerCase().includes(p))) {
       return Response.json({ skipped: true, reason: 'filtered sender' })
+    }
+
+    // Skip marketing/bulk emails by subject keywords
+    const skipSubjectPatterns = [
+      'unsubscribe', 'seasonal', 'sale', 'discount', 'promo', 'offer',
+      'just landed', 'new arrivals', 'daily digest', 'newsletter',
+      'your payment is overdue', 'register now', 'auction',
+    ]
+    const subjectLower = subject.toLowerCase()
+    if (skipSubjectPatterns.some(p => subjectLower.includes(p))) {
+      return Response.json({ skipped: true, reason: 'filtered subject' })
     }
 
     // Clean the email body — strip quoted replies, fall back to subject

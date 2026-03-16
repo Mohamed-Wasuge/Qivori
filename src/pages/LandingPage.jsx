@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { trackDemoRequest, trackDemoEnter, trackBeginCheckout } from '../lib/analytics'
 import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
@@ -279,6 +280,7 @@ export default function LandingPage({ onGetStarted }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('demo') === 'true') {
+      trackDemoEnter()
       enterDemo('carrier')
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -294,6 +296,7 @@ export default function LandingPage({ onGetStarted }) {
         body: JSON.stringify(demoForm),
       })
     } catch {}
+    trackDemoRequest(demoForm.email)
     setDemoLoading(false)
     setDemoSent(true)
   }
@@ -333,6 +336,7 @@ export default function LandingPage({ onGetStarted }) {
   const handleTry = () => goToLogin()
 
   const handleCheckout = async (planId) => {
+    trackBeginCheckout(planId)
     setCheckoutLoading(planId)
     try {
       const res = await fetch('/api/create-checkout', {

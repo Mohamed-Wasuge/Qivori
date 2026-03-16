@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
+import { trackSignup, trackLogin } from '../lib/analytics'
 import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
   Fuel, Building2, ClipboardCheck, Radio, BarChart2, Star, Search,
-  CreditCard, Plus, Users, Shield, Activity
+  CreditCard, Plus, Users, Shield, Activity, Monitor
 } from 'lucide-react'
 
 const AppContext = createContext(null)
@@ -22,6 +23,7 @@ export const ROLES = {
       { id: 'payments', icon: DollarSign, label: 'Revenue' },
       { id: 'support', icon: FileText, label: 'Support' },
       { id: 'waitlist', icon: UserPlus, label: 'Waitlist' },
+      { id: 'demo-requests', icon: Monitor, label: 'Demo Requests' },
       { id: 'analytics', icon: BarChart2, label: 'Analytics' },
       { id: 'ai-agent', icon: Bot, label: 'AI Agent', badge: 'LIVE', badgeClass: 'green' },
       { id: 'activity', icon: Shield, label: 'Security' },
@@ -183,6 +185,7 @@ export function AppProvider({ children }) {
       setView('app')
 
       const displayName = email.split('@')[0]
+      trackLogin('email')
       showToast('', 'Welcome, ' + displayName, 'Signing in...')
 
       // Fetch profile in background and update role if different
@@ -223,6 +226,8 @@ export function AppProvider({ children }) {
         referred_by: refCode || null,
       })
       if (profileError) console.error('Profile creation error:', profileError)
+
+      trackSignup('email')
 
       // Send welcome email (fire and forget)
       fetch('/api/welcome-email', {

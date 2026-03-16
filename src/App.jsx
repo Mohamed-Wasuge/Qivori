@@ -18,7 +18,7 @@ import LoadBoard from './pages/LoadBoard'
 import Carriers from './pages/Carriers'
 import { Shippers, Payments, Documents } from './pages/MorePages'
 import { Onboarding, AIEngine, Settings } from './pages/ExtraPages'
-import { WaitlistManager, Analytics, ActivityLog, MasterAgent, RevenueDashboard } from './pages/AdminPages'
+import { WaitlistManager, Analytics, ActivityLog, MasterAgent, RevenueDashboard, DemoRequests } from './pages/AdminPages'
 import { BrokerDashboard, BrokerPostLoad, BrokerLoads, BrokerCarriers, BrokerPayments } from './pages/BrokerPages'
 import {
   CarrierDashboard, SmartDispatch, RevenueIntel,
@@ -38,6 +38,7 @@ const PAGES = {
   support: Documents,      // Documents component now renders Support Tickets
   settings: Settings,
   waitlist: WaitlistManager,
+  'demo-requests': DemoRequests,
   analytics: Analytics,
   activity: ActivityLog,
   'ai-agent': MasterAgent,

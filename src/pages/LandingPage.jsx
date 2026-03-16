@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram } from 'lucide-react'
+import { trackDemoRequest, trackDemoEnter, trackBeginCheckout } from '../lib/analytics'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -274,10 +275,39 @@ const STATS = [
 ]
 
 export default function LandingPage({ onGetStarted }) {
-  const { goToLogin, user } = useApp()
+  const { goToLogin, enterDemo, user } = useApp()
   const [menuOpen, setMenuOpen] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(null)
   const [founderCount, setFounderCount] = useState(0)
+  const [demoModal, setDemoModal] = useState(false)
+  const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '' })
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoSent, setDemoSent] = useState(false)
+
+  // Check URL for ?demo=true (from email link)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('demo') === 'true') {
+      trackDemoEnter()
+      enterDemo('carrier')
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [enterDemo])
+
+  const handleDemoSubmit = async () => {
+    if (!demoForm.email) return
+    setDemoLoading(true)
+    try {
+      await fetch('/api/demo-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(demoForm),
+      })
+    } catch {}
+    trackDemoRequest(demoForm.email)
+    setDemoLoading(false)
+    setDemoSent(true)
+  }
 
   // Track referral code from URL (?ref=code or /ref/code)
   useEffect(() => {
@@ -314,6 +344,7 @@ export default function LandingPage({ onGetStarted }) {
   const handleTry = () => goToLogin()
 
   const handleCheckout = async (planId) => {
+    trackBeginCheckout(planId)
     setCheckoutLoading(planId)
     try {
       const res = await fetch('/api/create-checkout', {

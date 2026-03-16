@@ -2320,6 +2320,10 @@ export function AdminEmail() {
   const [groupEmails, setGroupEmails] = useState([])
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [botThreads, setBotThreads] = useState([])
+  const [botLoading, setBotLoading] = useState(false)
+  const [selectedThread, setSelectedThread] = useState(null)
+  const [botFilter, setBotFilter] = useState('all')
 
   // Fetch group count when group changes
   useEffect(() => {
@@ -2355,6 +2359,23 @@ export function AdminEmail() {
   }, [])
 
   useEffect(() => { if (tab === 'history') fetchLogs() }, [tab, fetchLogs])
+
+  // Fetch bot email threads
+  const fetchBotThreads = useCallback(async () => {
+    setBotLoading(true)
+    let query = supabase
+      .from('ai_email_threads')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200)
+    if (botFilter === 'escalated') query = query.eq('escalated', true)
+    else if (botFilter === 'failed') query = query.eq('status', 'failed')
+    const { data } = await query
+    setBotThreads(data || [])
+    setBotLoading(false)
+  }, [botFilter])
+
+  useEffect(() => { if (tab === 'bot-inbox') fetchBotThreads() }, [tab, fetchBotThreads])
 
   // Stats
   const today = new Date().toDateString()
@@ -2455,7 +2476,7 @@ ${content}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4 }}>
-        {[{ id: 'compose', label: 'Compose', icon: Edit3 }, { id: 'history', label: 'Sent History', icon: Inbox }].map(t => (
+        {[{ id: 'compose', label: 'Compose', icon: Edit3 }, { id: 'bot-inbox', label: 'Bot Inbox', icon: Bot }, { id: 'history', label: 'Sent History', icon: Inbox }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{
               background: tab === t.id ? 'var(--accent)' : 'var(--surface)',
@@ -2548,6 +2569,149 @@ ${content}
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bot Inbox Tab */}
+      {tab === 'bot-inbox' && (
+        <div style={{ display: 'flex', gap: 16 }}>
+          {/* Left: Thread List */}
+          <div className="panel fade-in" style={{ flex: 1, minWidth: 0 }}>
+            <div className="panel-header" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <div className="panel-title"><Ic icon={Bot} size={14} /> AI Email Conversations</div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {['all', 'escalated', 'failed'].map(f => (
+                  <button key={f} onClick={() => setBotFilter(f)}
+                    style={{
+                      background: botFilter === f ? 'var(--accent)' : 'transparent',
+                      border: botFilter === f ? 'none' : '1px solid var(--border)',
+                      color: botFilter === f ? '#000' : 'var(--muted)',
+                      padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                    }}>
+                    {f}
+                  </button>
+                ))}
+                <button className="btn btn-ghost" onClick={fetchBotThreads} style={{ fontSize: 11, padding: '4px 8px' }}>
+                  <Ic icon={RefreshCw} size={12} />
+                </button>
+              </div>
+            </div>
+            {botLoading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading bot conversations...</div>
+            ) : botThreads.length === 0 ? (
+              <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)', fontSize: 13, flexDirection: 'column', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Ic icon={Bot} size={28} style={{ opacity: 0.3 }} />
+                {botFilter === 'all' ? 'No AI email conversations yet. Set up Resend inbound webhooks to start.' : `No ${botFilter} conversations.`}
+              </div>
+            ) : (
+              <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+                {botThreads.map(t => (
+                  <div key={t.id} onClick={() => setSelectedThread(t)}
+                    style={{
+                      padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                      background: selectedThread?.id === t.id ? 'rgba(240,165,0,0.06)' : 'transparent',
+                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{t.sender_email}</span>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        {t.escalated && <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase' }}>Escalated</span>}
+                        <span style={{
+                          background: t.status === 'sent' ? 'rgba(34,197,94,0.15)' : t.status === 'failed' ? 'rgba(239,68,68,0.15)' : 'rgba(240,165,0,0.15)',
+                          color: t.status === 'sent' ? '#22c55e' : t.status === 'failed' ? '#ef4444' : '#f0a500',
+                          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
+                        }}>{t.status}</span>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{t.subject || '(no subject)'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text)', opacity: 0.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.sender_message?.substring(0, 80)}...
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{formatDate(t.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Thread Detail */}
+          <div className="panel fade-in" style={{ flex: 1, minWidth: 0 }}>
+            {selectedThread ? (
+              <>
+                <div className="panel-header">
+                  <div className="panel-title" style={{ fontSize: 12 }}>{selectedThread.subject || '(no subject)'}</div>
+                  <button className="btn btn-ghost" onClick={() => setSelectedThread(null)} style={{ fontSize: 11, padding: '4px 8px' }}>
+                    <Ic icon={X} size={14} />
+                  </button>
+                </div>
+                <div style={{ padding: 18, overflowY: 'auto', maxHeight: 500 }}>
+                  {/* Sender info */}
+                  <div style={{ marginBottom: 16, padding: 12, background: 'var(--surface2)', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{selectedThread.sender_email}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(selectedThread.created_at).toLocaleString()}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {selectedThread.escalated && <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>ESCALATED</span>}
+                        <span style={{
+                          background: selectedThread.status === 'sent' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                          color: selectedThread.status === 'sent' ? '#22c55e' : '#ef4444',
+                          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
+                        }}>{selectedThread.status}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inbound message */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                      <Ic icon={Mail} size={10} /> Customer Message
+                    </div>
+                    <div style={{ background: 'rgba(77,142,240,0.06)', border: '1px solid rgba(77,142,240,0.15)', borderRadius: 10, padding: 14, fontSize: 13, lineHeight: 1.6, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
+                      {selectedThread.sender_message}
+                    </div>
+                  </div>
+
+                  {/* AI Reply */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                      <Ic icon={Bot} size={10} /> AI Reply
+                    </div>
+                    <div style={{ background: 'rgba(240,165,0,0.04)', border: '1px solid rgba(240,165,0,0.12)', borderRadius: 10, padding: 14, fontSize: 13, lineHeight: 1.6, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
+                      {selectedThread.ai_reply}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 8, paddingTop: 8 }}>
+                    <button className="btn btn-ghost" onClick={async () => {
+                      const { error } = await supabase.from('ai_email_threads').update({ escalated: true, status: 'escalated' }).eq('id', selectedThread.id)
+                      if (!error) {
+                        showToast('', 'Escalated', 'Thread marked for human review')
+                        setSelectedThread({ ...selectedThread, escalated: true, status: 'escalated' })
+                        fetchBotThreads()
+                      }
+                    }} style={{ fontSize: 11 }} disabled={selectedThread.escalated}>
+                      <Ic icon={AlertTriangle} size={12} /> {selectedThread.escalated ? 'Escalated' : 'Escalate to Mohamed'}
+                    </button>
+                    <button className="btn btn-ghost" onClick={() => {
+                      setTab('compose')
+                      setToGroup('custom')
+                      setCustomTo(selectedThread.sender_email)
+                      setSubject(selectedThread.subject?.startsWith('Re:') ? selectedThread.subject : `Re: ${selectedThread.subject}`)
+                    }} style={{ fontSize: 11 }}>
+                      <Ic icon={Send} size={12} /> Reply Manually
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 400, color: 'var(--muted)', fontSize: 13, flexDirection: 'column', gap: 8 }}>
+                <Ic icon={MessageSquare} size={28} style={{ opacity: 0.3 }} />
+                Select a conversation to view details
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -282,7 +282,7 @@ ${bodyHtml}
 </div>
 <div style="text-align:center;padding-top:16px;">
 <p style="color:#555;font-size:11px;margin:0;">Qivori AI Assistant &mdash; AI-Powered TMS for Trucking</p>
-<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to Mohamed" &middot; hello@reply.qivori.com</p>
+<p style="color:#555;font-size:11px;margin:4px 0 0;">Need a human? Reply with "speak to Mohamed" &middot; hello@qivori.com</p>
 </div></div></body></html>`
 }
 

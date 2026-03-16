@@ -964,12 +964,96 @@ function MobileAI() {
     recognition.start()
   }, [listening, unlockTTS, hasSpeechRecognition, isIOS, showToast])
 
-  // Handle document photo upload
+  // Format parsed document data for chat display
+  const formatParsedDoc = (data) => {
+    if (!data || !data.type) return null
+    const lines = []
+    switch (data.type) {
+      case 'rate_con':
+        lines.push('**Rate Confirmation Parsed**')
+        if (data.origin && data.destination) lines.push(`${data.origin.city || ''}, ${data.origin.state || ''} \u2192 ${data.destination.city || ''}, ${data.destination.state || ''}`)
+        if (data.rate) lines.push(`Rate: $${Number(data.rate).toLocaleString()}`)
+        if (data.broker) lines.push(`Broker: ${data.broker}`)
+        if (data.equipment) lines.push(`Equipment: ${data.equipment}`)
+        if (data.weight) lines.push(`Weight: ${data.weight} lbs`)
+        if (data.pickup_date) lines.push(`Pickup: ${data.pickup_date}${data.pickup_time ? ' ' + data.pickup_time : ''}`)
+        if (data.delivery_date) lines.push(`Delivery: ${data.delivery_date}${data.delivery_time ? ' ' + data.delivery_time : ''}`)
+        if (data.reference) lines.push(`Ref: ${data.reference}`)
+        break
+      case 'bol':
+        lines.push('**Bill of Lading Parsed**')
+        if (data.bol_number) lines.push(`BOL #: ${data.bol_number}`)
+        if (data.shipper) lines.push(`Shipper: ${data.shipper}`)
+        if (data.consignee) lines.push(`Consignee: ${data.consignee}`)
+        if (data.pieces) lines.push(`Pieces: ${data.pieces}`)
+        if (data.weight) lines.push(`Weight: ${data.weight} lbs`)
+        if (data.commodity) lines.push(`Commodity: ${data.commodity}`)
+        if (data.hazmat) lines.push(`\u26a0\ufe0f HAZMAT: ${data.hazmat_class || 'Yes'}`)
+        if (data.seal_number) lines.push(`Seal: ${data.seal_number}`)
+        if (data.po_numbers?.length) lines.push(`PO #s: ${data.po_numbers.join(', ')}`)
+        break
+      case 'pod':
+        lines.push('**Proof of Delivery Parsed**')
+        if (data.receiver_name) lines.push(`Receiver: ${data.receiver_name}`)
+        lines.push(`Signature: ${data.signature ? 'Yes' : 'No'}`)
+        if (data.delivery_date) lines.push(`Delivered: ${data.delivery_date}${data.delivery_time ? ' ' + data.delivery_time : ''}`)
+        if (data.pieces_received) lines.push(`Pieces: ${data.pieces_received}`)
+        if (data.damage_noted) lines.push(`\u26a0\ufe0f Damage noted: ${data.damage_description || 'Yes'}`)
+        if (data.shortage_noted) lines.push(`\u26a0\ufe0f Shortage noted`)
+        if (data.notes) lines.push(`Notes: ${data.notes}`)
+        break
+      case 'fuel_receipt':
+        lines.push('**Fuel Receipt Parsed**')
+        if (data.station) lines.push(`Station: ${data.station}`)
+        if (data.location?.city) lines.push(`Location: ${data.location.city}, ${data.location.state || ''}`)
+        if (data.gallons) lines.push(`Gallons: ${data.gallons}`)
+        if (data.price_per_gallon) lines.push(`Price/gal: $${data.price_per_gallon}`)
+        if (data.total) lines.push(`Total: $${Number(data.total).toLocaleString()}`)
+        if (data.fuel_type) lines.push(`Fuel: ${data.fuel_type}`)
+        if (data.date) lines.push(`Date: ${data.date}`)
+        if (data.odometer) lines.push(`Odometer: ${data.odometer}`)
+        break
+      case 'scale_ticket':
+        lines.push('**Scale Ticket Parsed**')
+        if (data.ticket_number) lines.push(`Ticket #: ${data.ticket_number}`)
+        if (data.weight_gross) lines.push(`Gross: ${Number(data.weight_gross).toLocaleString()} lbs`)
+        if (data.weight_tare) lines.push(`Tare: ${Number(data.weight_tare).toLocaleString()} lbs`)
+        if (data.weight_net) lines.push(`Net: ${Number(data.weight_net).toLocaleString()} lbs`)
+        if (data.location) lines.push(`Location: ${data.location}`)
+        if (data.date) lines.push(`Date: ${data.date}`)
+        break
+      case 'insurance':
+        lines.push('**Insurance Certificate Parsed**')
+        if (data.carrier) lines.push(`Carrier: ${data.carrier}`)
+        if (data.insurer) lines.push(`Insurer: ${data.insurer}`)
+        if (data.policy_number) lines.push(`Policy: ${data.policy_number}`)
+        if (data.coverage_type) lines.push(`Coverage: ${data.coverage_type}`)
+        if (data.effective_date) lines.push(`Effective: ${data.effective_date}`)
+        if (data.expiration_date) lines.push(`Expires: ${data.expiration_date}`)
+        break
+      default:
+        return null
+    }
+    if (data._meta?.overall_confidence != null) {
+      lines.push(`\nConfidence: ${Math.round(data._meta.overall_confidence * 100)}%`)
+    }
+    if (data.warnings?.length) {
+      lines.push(`\n\u26a0\ufe0f ${data.warnings.join('; ')}`)
+    }
+    return lines.filter(Boolean).join('\n')
+  }
+
+  // Handle document photo upload — uploads to storage AND parses via OCR
   const handleDocUpload = async (file) => {
     if (!file || !pendingUpload) return
     const { doc_type, load_id } = pendingUpload
-    const docLabels = { bol: 'BOL', signed_bol: 'Signed BOL', rate_con: 'Rate Confirmation', pod: 'Proof of Delivery', lumper_receipt: 'Lumper Receipt', scale_ticket: 'Scale Ticket', other: 'Document' }
+    const docLabels = { bol: 'BOL', signed_bol: 'Signed BOL', rate_con: 'Rate Confirmation', pod: 'Proof of Delivery', lumper_receipt: 'Lumper Receipt', scale_ticket: 'Scale Ticket', fuel_receipt: 'Fuel Receipt', insurance: 'Insurance Certificate', other: 'Document' }
     const label = docLabels[doc_type] || 'Document'
+
+    // Map doc_type to parse-document types
+    const parseableTypes = ['rate_con', 'bol', 'pod', 'fuel_receipt', 'scale_ticket', 'insurance']
+    const shouldParse = parseableTypes.includes(doc_type) || doc_type === 'other' || doc_type === 'signed_bol' || doc_type === 'lumper_receipt'
+    const parseDocType = parseableTypes.includes(doc_type) ? doc_type : 'auto'
 
     try {
       // Upload to Supabase Storage
@@ -998,8 +1082,48 @@ function MobileAI() {
         ...m,
         { role: 'user', content: `[Uploaded ${label} photo: ${file.name}]`, isDoc: true },
       ])
-      // Tell AI the doc was uploaded
-      sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
+
+      // Parse the document via universal OCR endpoint if applicable
+      if (shouldParse) {
+        setLoading(true)
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result.split(',')[1])
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+          })
+
+          const mediaType = file.type || 'image/jpeg'
+          const res = await apiFetch('/api/parse-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: base64, mediaType, documentType: parseDocType }),
+          })
+          const result = await res.json()
+
+          if (result.success && result.data) {
+            const formatted = formatParsedDoc(result.data)
+            if (formatted) {
+              setMessages(m => [...m, { role: 'assistant', content: formatted }])
+            } else {
+              // Tell AI the doc was uploaded with extracted data
+              sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}. Here is the extracted data: ${JSON.stringify(result.data)}`)
+            }
+          } else {
+            // Parsing failed but upload succeeded — just notify
+            sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
+          }
+        } catch (parseErr) {
+          console.warn('Document OCR parsing failed:', parseErr.message)
+          sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
+        } finally {
+          setLoading(false)
+        }
+      } else {
+        // Not a parseable type, just tell AI
+        sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
+      }
     } catch (err) {
       console.warn('Doc upload failed, saving locally:', err.message)
       showToast('warning', 'Saved Locally', `${label} saved — will sync when online`)
@@ -2099,7 +2223,7 @@ function MiniStat({ label, value, color }) {
 
 // ── ACTION BADGE ────────────────────────────────────────
 function ActionBadge({ action }) {
-  const docLabels = { bol: 'BOL', signed_bol: 'Signed BOL', rate_con: 'Rate Con', pod: 'POD', lumper_receipt: 'Lumper', scale_ticket: 'Scale Ticket' }
+  const docLabels = { bol: 'BOL', signed_bol: 'Signed BOL', rate_con: 'Rate Con', pod: 'POD', lumper_receipt: 'Lumper', scale_ticket: 'Scale Ticket', fuel_receipt: 'Fuel Receipt', insurance: 'Insurance' }
   const icons = {
     add_expense: Receipt,
     check_call: MapPin,

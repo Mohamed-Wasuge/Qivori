@@ -37,6 +37,7 @@
   "crons": [
     { "path": "/api/lifecycle-cron", "schedule": "0 8 * * *" },
     { "path": "/api/onboarding-emails", "schedule": "0 14 * * *" },
-    { "path": "/api/email-followup", "schedule": "0 15 * * *" }
+    { "path": "/api/email-followup", "schedule": "0 15 * * *" },
+    { "path": "/api/weekly-summary", "schedule": "0 15 * * 0" }
   ]
 }

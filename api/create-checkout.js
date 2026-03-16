@@ -3,12 +3,14 @@ import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
 export const config = { runtime: 'edge' }
 
 const PLANS = {
+  pro:          { name: 'Pro',          price_cents: 4900,   trial_days: 14, extra_truck_cents: 4900, max_trucks: 5 },
   autopilot:    { name: 'Autopilot',    price_cents: 9900,   trial_days: 14, extra_truck_cents: 4900 },
   autopilot_ai: { name: 'Autopilot AI', price_cents: 79900,  trial_days: 14, founder: true, full_price_cents: 120000, extra_truck_cents: 15000 },
+  fleet:        { name: 'Fleet',        price_cents: 79900,  trial_days: 14, extra_truck_cents: 15000 },
 }
 
 // Legacy plan aliases (redirect old plans to new)
-const PLAN_ALIASES = { basic: 'autopilot', solo: 'autopilot', pro: 'autopilot', fleet: 'autopilot', growing: 'autopilot', enterprise: 'autopilot_ai' }
+const PLAN_ALIASES = { basic: 'autopilot', solo: 'autopilot', growing: 'autopilot', enterprise: 'autopilot_ai' }
 
 export default async function handler(req) {
   const corsResponse = handleCors(req)

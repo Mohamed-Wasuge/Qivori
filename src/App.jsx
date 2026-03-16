@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/react'
 import { AppProvider, useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import PublicLoadBoard from './pages/PublicLoadBoard'
 import NotFoundPage from './pages/NotFoundPage'
 import { TermsPage, PrivacyPage } from './pages/LegalPages'
 import Toast from './components/Toast'
@@ -96,13 +97,16 @@ function AppContent() {
   const [legalPage, setLegalPage] = useState(null) // 'terms' | 'privacy' | null
   const PageComponent = PAGES[currentPage] || Dashboard
 
-  // Handle hash-based routing for legal pages and 404
+  const [publicLoadBoard, setPublicLoadBoard] = useState(false)
+
+  // Handle hash-based routing for legal pages, public load board, and 404
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash
-      if (hash === '#/terms') setLegalPage('terms')
-      else if (hash === '#/privacy') setLegalPage('privacy')
-      else setLegalPage(null)
+      if (hash === '#/terms') { setLegalPage('terms'); setPublicLoadBoard(false) }
+      else if (hash === '#/privacy') { setLegalPage('privacy'); setPublicLoadBoard(false) }
+      else if (hash === '#/loads') { setPublicLoadBoard(true); setLegalPage(null) }
+      else { setLegalPage(null); setPublicLoadBoard(false) }
     }
     handleHash()
     window.addEventListener('hashchange', handleHash)
@@ -117,8 +121,18 @@ function AppContent() {
       {legalPage === 'terms' && <TermsPage onBack={closeLegal} />}
       {legalPage === 'privacy' && <PrivacyPage onBack={closeLegal} />}
 
+      {/* Public Load Board (no auth required) */}
+      {publicLoadBoard && !legalPage && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
+          <PublicLoadBoard
+            onSignUp={() => { window.location.hash = ''; goToLogin() }}
+            onLogin={() => { window.location.hash = ''; goToLogin() }}
+          />
+        </div>
+      )}
+
       {/* Landing Page */}
-      {view === 'landing' && <LandingPage onGetStarted={goToLogin} />}
+      {view === 'landing' && !publicLoadBoard && <LandingPage onGetStarted={goToLogin} />}
 
       {/* Login View */}
       {view === 'login' && <LoginPage />}

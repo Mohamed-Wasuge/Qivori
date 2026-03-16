@@ -541,29 +541,33 @@ function OverviewTab({ onTabChange }) {
 
 // ── Billing tab ────────────────────────────────────────────────────────────────
 function BillingTab() {
-  const { showToast } = useApp()
+  const { showToast, profile, subscription, openBillingPortal } = useApp()
   const { invoices, vehicles, unpaidInvoices, totalRevenue, totalExpenses } = useCarrier()
 
-  const truckCount = vehicles.length || 3
-  const perTruck = 49
-  const basePlan = 299
-  const totalMonthly = basePlan + (truckCount * perTruck)
+  const truckCount = vehicles.length || profile?.truck_count || 1
+  const planName = { autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', pro: 'Pro', fleet: 'Fleet', starter: 'Starter' }[subscription?.plan] || 'Starter'
+  const planPrice = { autopilot: 99, autopilot_ai: 799, pro: 49, fleet: 799, starter: 0 }[subscription?.plan] || 0
+  const perTruck = subscription?.plan === 'autopilot_ai' ? 150 : 49
+  const extraTrucks = Math.max(0, truckCount - 1)
+  const totalMonthly = planPrice + (extraTrucks * perTruck)
 
+  const statusLabel = subscription?.isTrial ? 'TRIAL' : subscription?.isActive ? 'ACTIVE' : subscription?.status === 'past_due' ? 'PAST DUE' : 'INACTIVE'
   const statusColor = { Unpaid:'var(--warning)', Paid:'var(--success)', Factored:'var(--accent2)', Overdue:'var(--danger)' }
+  const badgeColor = subscription?.isTrial ? 'var(--accent)' : subscription?.isActive ? 'var(--success)' : 'var(--danger)'
 
   return (
     <div style={{ padding: 20, paddingBottom: 60, overflowY: 'auto', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Plan summary */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>Current Plan</div>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}>● ACTIVE</span>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Current Plan — {planName}</div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: `${badgeColor}15`, color: badgeColor, border: `1px solid ${badgeColor}30` }}>{'\u25CF'} {statusLabel}</span>
         </div>
         <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 16 }}>
           {[
-            { label: 'Base Platform', price: `$${basePlan}/mo`, note: 'Unlimited users', color: 'var(--accent)' },
-            { label: 'Per Truck', price: `$${perTruck}/truck`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''} active = $${truckCount * perTruck}/mo`, color: 'var(--accent2)' },
-            { label: 'Total Monthly', price: `$${totalMonthly}/mo`, note: 'Next billing: Apr 1', color: 'var(--success)', bold: true },
+            { label: 'Base Plan', price: `$${planPrice}/mo`, note: planName, color: 'var(--accent)' },
+            { label: 'Per Truck', price: `$${perTruck}/truck`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''} (${extraTrucks} extra) = $${extraTrucks * perTruck}/mo`, color: 'var(--accent2)' },
+            { label: 'Total Monthly', price: `$${totalMonthly}/mo`, note: profile?.current_period_end ? `Next: ${new Date(profile.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '', color: 'var(--success)', bold: true },
           ].map(item => (
             <div key={item.label} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{item.label}</div>
@@ -572,6 +576,13 @@ function BillingTab() {
             </div>
           ))}
         </div>
+        {subscription?.customerId && (
+          <div style={{ padding: '0 20px 16px', display: 'flex', gap: 10 }}>
+            <button onClick={openBillingPortal} style={{ padding: '8px 16px', fontSize: 11, fontWeight: 700, border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              Manage Subscription
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Revenue stats */}
@@ -625,6 +636,225 @@ function BillingTab() {
 }
 
 
+// ── Subscription Settings (inside Settings tab) ────────────────────────────────
+function SubscriptionSettings() {
+  const { showToast, user, profile, subscription, openBillingPortal, demoMode } = useApp()
+  const [subData, setSubData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [upgradeLoading, setUpgradeLoading] = useState(false)
+
+  useEffect(() => {
+    if (demoMode) {
+      setSubData({
+        plan: 'autopilot', status: 'trialing', trialDaysLeft: 11,
+        trialEndsAt: new Date(Date.now() + 11 * 86400000).toISOString(),
+        currentPeriodEnd: new Date(Date.now() + 11 * 86400000).toISOString(),
+        amount: 9900, truckCount: 1,
+      })
+      setLoading(false)
+      return
+    }
+    apiFetch('/api/get-subscription', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(r => r.json())
+      .then(data => { setSubData(data); setLoading(false) })
+      .catch(() => {
+        setSubData({
+          plan: profile?.subscription_plan || 'starter',
+          status: profile?.subscription_status || 'inactive',
+          trialEndsAt: profile?.trial_ends_at,
+          currentPeriodEnd: profile?.current_period_end,
+          customerId: profile?.stripe_customer_id,
+          truckCount: profile?.truck_count || 1,
+        })
+        setLoading(false)
+      })
+  }, [demoMode, profile])
+
+  const PLAN_INFO = {
+    starter:      { name: 'Starter',      price: '$0',       color: '#8a8a9a', tier: 0 },
+    autopilot:    { name: 'Autopilot',    price: '$99/mo',   color: '#f0a500', tier: 1 },
+    pro:          { name: 'Pro',          price: '$49/mo',   color: '#4d8ef0', tier: 1 },
+    autopilot_ai: { name: 'Autopilot AI', price: '$799/mo', color: '#f0a500', tier: 2 },
+    fleet:        { name: 'Fleet',        price: '$799/mo',  color: '#a78bfa', tier: 3 },
+  }
+
+  const STATUS_BADGES = {
+    active:   { label: 'ACTIVE',    bg: 'rgba(34,197,94,0.1)',  color: 'var(--success)', border: 'rgba(34,197,94,0.2)' },
+    trialing: { label: 'TRIAL',     bg: 'rgba(240,165,0,0.1)',  color: 'var(--accent)',  border: 'rgba(240,165,0,0.2)' },
+    past_due: { label: 'PAST DUE',  bg: 'rgba(239,68,68,0.1)',  color: 'var(--danger)',  border: 'rgba(239,68,68,0.2)' },
+    canceled: { label: 'CANCELLED', bg: 'rgba(74,85,112,0.1)',  color: 'var(--muted)',   border: 'rgba(74,85,112,0.2)' },
+    inactive: { label: 'INACTIVE',  bg: 'rgba(74,85,112,0.1)',  color: 'var(--muted)',   border: 'rgba(74,85,112,0.2)' },
+  }
+
+  const handleUpgrade = async (planId) => {
+    setUpgradeLoading(true)
+    try {
+      const res = await apiFetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId,
+          email: user?.email || profile?.email,
+          userId: user?.id,
+          truckCount: subData?.truckCount || 1,
+        }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else showToast('error', 'Error', data.error || 'Could not start checkout')
+    } catch (e) {
+      showToast('error', 'Error', 'Could not start checkout')
+    } finally {
+      setUpgradeLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+        Loading subscription details...
+      </div>
+    )
+  }
+
+  const plan = PLAN_INFO[subData?.plan] || PLAN_INFO.starter
+  const badge = STATUS_BADGES[subData?.status] || STATUS_BADGES.inactive
+  const trialDays = subData?.trialDaysLeft ?? (subData?.status === 'trialing' && subData?.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(subData.trialEndsAt).getTime() - Date.now()) / 86400000))
+    : null)
+  const nextBilling = subData?.currentPeriodEnd
+    ? new Date(subData.currentPeriodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+
+  return (
+    <>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>SUBSCRIPTION</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Manage your Qivori AI plan, billing, and payment details</div>
+      </div>
+
+      {/* Current Plan Card */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Current Plan</div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+            {'\u25CF'} {badge.label}
+          </span>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Plan</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: plan.color }}>{plan.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{plan.price}</div>
+            </div>
+
+            {trialDays !== null && subData?.status === 'trialing' ? (
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Trial Remaining</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: trialDays <= 3 ? 'var(--danger)' : 'var(--accent)' }}>
+                  {trialDays} DAY{trialDays !== 1 ? 'S' : ''}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Ends {subData.trialEndsAt ? new Date(subData.trialEndsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '\u2014'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Next Billing</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: 'var(--text)' }}>
+                  {nextBilling || '\u2014'}
+                </div>
+                {subData?.cancelAtPeriodEnd && (
+                  <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 4, fontWeight: 700 }}>Cancels at period end</div>
+                )}
+              </div>
+            )}
+
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>Trucks</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: 'var(--accent2)' }}>
+                {subData?.truckCount || 1}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Active vehicles</div>
+            </div>
+          </div>
+
+          {subData?.status === 'trialing' && trialDays !== null && trialDays <= 3 && (
+            <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Ic icon={AlertTriangle} size={16} color="var(--danger)" />
+              <div style={{ fontSize: 12, color: 'var(--danger)' }}>
+                Your trial ends in <strong>{trialDays} day{trialDays !== 1 ? 's' : ''}</strong>. Add a payment method to continue using Qivori without interruption.
+              </div>
+            </div>
+          )}
+
+          {subData?.status === 'past_due' && (
+            <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Ic icon={AlertTriangle} size={16} color="var(--danger)" />
+              <div style={{ fontSize: 12, color: 'var(--danger)' }}>
+                Your payment failed. Please update your payment method to avoid service interruption.
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
+            {(subData?.customerId || subscription?.customerId) && (
+              <button onClick={openBillingPortal} className="btn btn-ghost" style={{ padding: '10px 20px', fontSize: 12, fontWeight: 700, border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", background: 'transparent', color: 'var(--text)' }}>
+                <Ic icon={CreditCard} size={14} />Manage Subscription
+              </button>
+            )}
+            {(plan.tier < 2) && (
+              <button onClick={() => handleUpgrade('autopilot_ai')} disabled={upgradeLoading}
+                style={{ padding: '10px 20px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 10, background: 'var(--accent)', color: '#000', cursor: upgradeLoading ? 'wait' : 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Ic icon={Zap} size={14} />
+                {upgradeLoading ? 'Loading...' : 'Upgrade Plan'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Available Plans */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Available Plans</div>
+        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+          {[
+            { id: 'starter', name: 'Starter', price: 'Free', desc: '14-day trial, 1 truck, basic features', color: '#8a8a9a' },
+            { id: 'autopilot', name: 'Pro', price: '$49/mo', desc: '5 trucks, invoicing, IFTA, load board', color: '#4d8ef0' },
+            { id: 'autopilot_ai', name: 'Autopilot', price: '$99/mo', desc: 'Unlimited trucks, AI dispatch, proactive loads', color: '#f0a500' },
+            { id: 'fleet', name: 'Fleet', price: '$799/mo', desc: 'API access, priority support, custom integrations', color: '#a78bfa' },
+          ].map(p => {
+            const isCurrent = (subData?.plan === p.id) || (subData?.plan === 'pro' && p.id === 'autopilot')
+            return (
+              <div key={p.id} style={{
+                padding: 16, borderRadius: 10,
+                border: isCurrent ? `2px solid ${p.color}` : '1px solid var(--border)',
+                background: isCurrent ? `${p.color}08` : 'var(--surface2)',
+                transition: 'all 0.15s',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: p.color }}>{p.name}</div>
+                  {isCurrent && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: `${p.color}18`, color: p.color }}>CURRENT</span>}
+                </div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, marginBottom: 4 }}>{p.price}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>{p.desc}</div>
+                {!isCurrent && p.id !== 'starter' && (
+                  <button onClick={() => p.id === 'fleet' ? window.open('mailto:support@qivori.com?subject=Fleet Plan', '_blank') : handleUpgrade(p.id)}
+                    disabled={upgradeLoading}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 11, fontWeight: 700, border: `1px solid ${p.color}40`, borderRadius: 8, background: 'transparent', color: p.color, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                    {p.id === 'fleet' ? 'Contact Sales' : (PLAN_INFO[subData?.plan]?.tier || 0) > (PLAN_INFO[p.id]?.tier || 0) ? 'Downgrade' : 'Upgrade'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Settings tab ───────────────────────────────────────────────────────────────
 function SettingsTab() {
   const { showToast, theme, setTheme } = useApp()
@@ -670,11 +900,13 @@ function SettingsTab() {
   const SECTIONS = [
     { id:'company',        icon: Building2, label:'Company Profile' },
     { id:'loadboards',     icon: Globe, label:'Load Boards' },
+    { id:'subscription',   icon: Star, label:'Subscription' },
     { id:'billing',        icon: CreditCard, label:'Billing & Pay' },
     { id:'providers',      icon: Shield, label:'Provider Keys' },
     { id:'integrations',   icon: Plug, label:'Integrations' },
     { id:'team',           icon: Users, label:'Team & Access' },
     { id:'notifications',  icon: Bell, label:'Notifications' },
+    { id:'sms',            icon: Smartphone, label:'SMS Alerts' },
     { id:'appearance',     icon: Palette, label:'Appearance' },
   ]
 
@@ -794,6 +1026,9 @@ function SettingsTab() {
 
         {/* Load Boards */}
         {settingsSec === 'loadboards' && <LoadBoardSettings />}
+
+        {/* Subscription Management */}
+        {settingsSec === 'subscription' && <SubscriptionSettings />}
 
         {/* Billing & Pay */}
         {settingsSec === 'billing' && (
@@ -996,6 +1231,11 @@ function SettingsTab() {
             </div>
             <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={() => showToast('','Saved','Notification preferences saved')}>Save Preferences</button>
           </>
+        )}
+
+        {/* SMS Alerts */}
+        {settingsSec === 'sms' && (
+          <SMSSettings />
         )}
 
         {/* Appearance */}
@@ -2599,12 +2839,12 @@ function SearchModal({ open, onClose, onTabChange }) {
 
 // ── AI CHATBOX ─────────────────────────────────────────────────────────────────
 const SUGGESTED_QUESTIONS = [
-  'What\'s my most profitable lane this month?',
-  'Which broker pays the fastest?',
-  'Is Unit 03 safe to dispatch?',
-  'How do I improve my CSA score?',
+  'Is $2.50/mi good for a dry van right now?',
+  'What\'s my profit margin this month?',
+  'Which of my invoices are overdue?',
   'What should I charge per mile right now?',
-  'How does FastPay work?',
+  'How much am I saving vs a human dispatcher?',
+  'When is my IFTA filing due?',
 ]
 
 function AIChatbox() {
@@ -2800,6 +3040,7 @@ const NAV = [
   { id:'_divider' },
   { id:'analytics',    icon: BarChart2,    label:'Analytics'    },
   { id:'load-board',   icon: Zap,          label:'AI Load Board' },
+  { id:'referrals',    icon: UserPlus,     label:'Referrals'    },
 ]
 
 // ── Hub sub-tab wrapper ─────────────────────────────────────────────────────
@@ -3155,6 +3396,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'settings':    return <SettingsTab />
     case 'analytics':   return <AnalyticsDashboard />
     case 'load-board':  return <AILoadBoard />
+    case 'referrals':   return <ReferralProgram />
     default:            return <OverviewTab onTabChange={(viewId) => navTo(viewId)} />
   }
 }

@@ -433,6 +433,10 @@ export default function LandingPage({ onGetStarted }) {
               {item}
             </a>
           ))}
+          <a href="#/loads" className="lp-nav-link"
+            style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600, transition: 'color 0.2s' }}>
+            Browse Loads
+          </a>
           <button onClick={onGetStarted}
             style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 18px', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, transition: 'all 0.2s' }}>
             Sign In
@@ -448,6 +452,7 @@ export default function LandingPage({ onGetStarted }) {
             {['Features', 'How It Works', 'Pricing'].map(item => (
               <a key={item} href={`#${item.toLowerCase().replace(/ /g, '-')}`} onClick={() => setMenuOpen(false)}>{item}</a>
             ))}
+            <a href="#/loads" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent) !important', fontWeight: 600 }}>Browse Loads</a>
             <div className="lp-mob-btns">
               <button onClick={onGetStarted} style={{ padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Sign In</button>
               <button onClick={handleTry} style={{ padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Get Started Free</button>
@@ -1009,6 +1014,10 @@ export default function LandingPage({ onGetStarted }) {
               <Ic icon={Zap} size={20} /> Start Free — No Card Needed
             </button>
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>14 days free · Then from $99/month · Cancel anytime</div>
+            <a href="#/loads" style={{ display: 'inline-block', marginTop: 16, fontSize: 14, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600, transition: 'opacity 0.2s' }}
+              onMouseOver={e => e.target.style.opacity = '0.8'} onMouseOut={e => e.target.style.opacity = '1'}>
+              Or search 2,000+ loads for free &rarr;
+            </a>
           </div>
         </FadeIn>
       </section>
@@ -1031,6 +1040,10 @@ export default function LandingPage({ onGetStarted }) {
               <a key={l} href="#features" style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
                 onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{l}</a>
             ))}
+            <a href="#/loads" style={{ display: 'block', fontSize: 13, color: 'var(--accent)', textDecoration: 'none', padding: '6px 0 4px', fontWeight: 600, transition: 'color 0.15s' }}
+              onMouseOver={e => e.target.style.color = '#ffc340'} onMouseOut={e => e.target.style.color = 'var(--accent)'}>
+              Search 2,000+ Loads Free &rarr;
+            </a>
           </div>
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>COMPANY</div>

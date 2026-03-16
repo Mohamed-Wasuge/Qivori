@@ -2,7 +2,7 @@ import { sendEmail, sendAdminEmail, sendAdminSMS, logEmail, logRevenueEvent, TEM
 
 export const config = { runtime: 'edge' }
 
-const PLAN_NAMES = { autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', basic: 'Autopilot', pro: 'Autopilot', solo: 'Autopilot', fleet: 'Autopilot', growing: 'Autopilot', enterprise: 'Autopilot AI' }
+const PLAN_NAMES = { pro: 'Pro', autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', fleet: 'Fleet', basic: 'Autopilot', solo: 'Autopilot', growing: 'Autopilot', enterprise: 'Autopilot AI' }
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
@@ -242,6 +242,36 @@ export default async function handler(req) {
           <p style="color:#8a8a9a;">Amount: $${((invoice.amount_due || 0) / 100).toFixed(2)}</p>
         `).catch(() => {})
         await sendAdminSMS(`QIVORI PAYMENT FAILED: ${profile?.email || 'Unknown'} — Attempt #${attemptCount}`).catch(() => {})
+        break
+      }
+
+      // ── TRIAL WILL END (Stripe fires 3 days before trial expires) ──
+      case 'customer.subscription.trial_will_end': {
+        const subscription = event.data.object
+        const customerId = subscription.customer
+        const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
+        const daysLeft = subscription.trial_end
+          ? Math.max(0, Math.ceil((subscription.trial_end * 1000 - Date.now()) / 86400000))
+          : 3
+
+        // Update trial_ends_at in profile to ensure it's synced
+        await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
+          trial_ends_at: trialEnd,
+        })
+
+        const profile = await getProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId)
+        if (profile?.email) {
+          const firstName = (profile.full_name || profile.email.split('@')[0]).split(' ')[0]
+          const t = TEMPLATES.day12_trial_ending(firstName, daysLeft)
+          await sendEmail(profile.email, t.subject, t.html).catch(() => {})
+        }
+
+        // Admin notification
+        await sendAdminEmail(`Trial Ending: ${profile?.email || customerId}`, `
+          <h2 style="color:#f0a500;margin:0 0 12px;">Trial Ending Soon</h2>
+          <p style="color:#c8c8d0;"><strong>${profile?.email || 'Unknown'}</strong> — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining</p>
+          <p style="color:#8a8a9a;">Trial ends: ${trialEnd || 'Unknown'}</p>
+        `).catch(() => {})
         break
       }
     }

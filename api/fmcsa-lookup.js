@@ -85,13 +85,13 @@ async function fetchCarrierByMC(mc, webKey) {
   const res = await fetch(`${FMCSA_BASE}/carriers/docket-number/${cleanMC}?webKey=${webKey}`)
   if (!res.ok) return null
   const data = await res.json()
-  // MC lookup returns array of carriers
-  const carriers = data?.content?.carrier || data?.content
-  if (Array.isArray(carriers) && carriers.length > 0) {
-    return parseCarrier(carriers[0])
+  // MC lookup returns content as array of { carrier: {...} } objects
+  const content = data?.content
+  if (Array.isArray(content) && content.length > 0) {
+    return parseCarrier(content[0]?.carrier || content[0])
   }
-  if (carriers && !Array.isArray(carriers)) {
-    return parseCarrier(carriers)
+  if (content?.carrier) {
+    return parseCarrier(content.carrier)
   }
   return null
 }

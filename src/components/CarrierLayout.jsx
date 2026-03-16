@@ -3189,8 +3189,8 @@ function OnboardingWizard({ onComplete }) {
       } else {
         showToast('', 'Not Found', 'No FMCSA match — enter info manually')
       }
-    } catch {
-      // Silent fail — user can still type manually
+    } catch (err) {
+      showToast('', 'Lookup Failed', err.message || 'Try entering info manually')
     }
     setLookupLoading(false)
   }

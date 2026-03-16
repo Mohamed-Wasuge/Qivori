@@ -729,6 +729,44 @@ function MobileAI() {
           }
           return true
         }
+        case 'rate_analysis': {
+          try {
+            const origin = action.origin || activeLoads[0]?.origin || ''
+            const dest = action.destination || activeLoads[0]?.dest || activeLoads[0]?.destination || ''
+            const miles = action.miles || activeLoads[0]?.miles || 0
+            const rate = action.rate || activeLoads[0]?.gross || activeLoads[0]?.gross_pay || 0
+            const equip = action.equipment || activeLoads[0]?.equipment || 'Dry Van'
+            if (!origin || !dest || !miles || !rate) {
+              setMessages(m => [...m, { role: 'assistant', content: 'I need more info to check the rate. Tell me the origin, destination, miles, and rate amount. For example: "Check rate $2500 Chicago to Atlanta 700 miles"' }])
+              return true
+            }
+            setMessages(m => [...m, { role: 'assistant', content: '📊 Analyzing rate...' }])
+            const res = await apiFetch('/api/rate-analysis', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ origin, destination: dest, miles: Number(miles), rate: Number(rate), equipment_type: equip, weight: action.weight || '' }),
+            })
+            const data = await res.json()
+            if (data.error) {
+              setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'Could not analyze rate: ' + data.error }; return u })
+            } else {
+              const emoji = data.verdict === 'excellent' ? '⭐' : data.verdict === 'good' ? '🟢' : data.verdict === 'fair' ? '🟡' : '🔴'
+              const msg = `${emoji} **Rate Check: ${data.verdict === 'below_market' ? 'Below Market' : data.verdict === 'fair' ? 'Fair' : data.verdict === 'good' ? 'Good Deal' : 'Excellent'}** (Score: ${data.score}/100)\n\n` +
+                `**${origin} → ${dest}** (${miles} mi)\n` +
+                `💰 Your rate: **$${rate.toLocaleString()}** ($${data.offered_rpm}/mi)\n` +
+                `📈 Market avg: **$${data.market_rpm.avg}/mi** ($${data.market_rpm.low}-$${data.market_rpm.high})\n` +
+                `💡 Suggested counter: **$${data.suggested_counter}/mi** ($${data.suggested_gross?.toLocaleString()})\n\n` +
+                `📊 Est. profit: **$${data.profit_estimate.net.toLocaleString()}** after fuel ($${data.profit_estimate.fuel}), driver pay ($${data.profit_estimate.driver_pay || 0}), and expenses\n\n` +
+                `${data.reasoning}\n\n` +
+                `🗣️ **Counter script:** "${data.negotiation_script}"`
+              setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: msg, rateAnalysis: data }; return u })
+              speak(`This rate is ${data.verdict === 'below_market' ? 'below market' : data.verdict}. Score ${data.score} out of 100. Your rate is $${data.offered_rpm} per mile, market average is $${data.market_rpm.avg}. I suggest countering at $${data.suggested_counter} per mile.`)
+            }
+          } catch (err) {
+            setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'Rate analysis failed. Try again.' }; return u })
+          }
+          return true
+        }
         case 'navigate': {
           showToast('info', 'Navigate', `Opening ${action.to}`)
           return true
@@ -1605,6 +1643,26 @@ function MobileAI() {
       return
     }
 
+    // Rate check / is this rate good → run rate analysis
+    if (/\b(is\s*this\s*rate\s*good|check\s*rate|rate\s*check|is\s*this\s*(a\s*)?(good|fair|bad)\s*(rate|deal)|analyze\s*(this\s*)?rate|rate\s*analysis|is\s*\$?\d+.*good|should\s*i\s*take\s*this\s*(rate|load|deal))\b/i.test(lowerText)) {
+      // Parse rate, origin, destination, miles from the message
+      const rateMatch = lowerText.match(/\$\s*([\d,]+)/); const milesMatch = lowerText.match(/(\d+)\s*mi/)
+      const cityPattern = /(?:from|)\s*([a-z\s]+?)(?:\s*to\s*)([a-z\s]+?)(?:\s*\d|\s*$|\s*for)/i; const cityMatch = text.match(cityPattern)
+      const parsedRate = rateMatch ? Number(rateMatch[1].replace(/,/g, '')) : null
+      const parsedMiles = milesMatch ? Number(milesMatch[1]) : null
+      const parsedOrigin = cityMatch ? cityMatch[1].trim() : null; const parsedDest = cityMatch ? cityMatch[2].trim() : null
+      await executeAction({
+        type: 'rate_analysis',
+        rate: parsedRate || activeLoads[0]?.gross || activeLoads[0]?.gross_pay || 0,
+        miles: parsedMiles || activeLoads[0]?.miles || 0,
+        origin: parsedOrigin || activeLoads[0]?.origin || '',
+        destination: parsedDest || activeLoads[0]?.dest || activeLoads[0]?.destination || '',
+        equipment: activeLoads[0]?.equipment || 'Dry Van',
+      })
+      setLoading(false)
+      return
+    }
+
     // Sleep/tired/rest → auto-search rest areas
     if (/\b(sleep|tired|exhausted|rest\s*area|nap|drowsy|fatigue|pull\s*over|need\s*rest|need\s*sleep)\b/.test(lowerText)) {
       await executeAction({ type: 'search_nearby', query: 'rest area OR truck stop parking' })
@@ -1740,6 +1798,7 @@ function MobileAI() {
     { icon: Receipt, label: 'Add Expense', msg: 'I need to add an expense' },
     { icon: Package, label: 'My Loads', msg: 'Show me my active loads' },
     { icon: DollarSign, label: 'Revenue', msg: "What's my revenue and profit this month?" },
+    { icon: DollarSign, label: 'Rate Check', msg: 'Is this rate good for my current load?' },
   ]
 
   // Suggested prompts for empty state — includes account management

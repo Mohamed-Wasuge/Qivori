@@ -5,7 +5,7 @@ import {
   Search, Bell, Moon, Eye, Zap, Wrench, CreditCard, BarChart2, AlertTriangle,
   TrendingUp, TrendingDown, ChevronLeft, ClipboardList, CheckCircle, Map, DollarSign, Droplets, FileCheck, Star, UserPlus,
   User, Building2, Plug, Palette, Scale, Package, MapPin, Smartphone, FileText, AlertCircle, Fuel,
-  Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2
+  Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2, Target
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { CarrierProvider, useCarrier } from '../context/CarrierContext'
@@ -18,7 +18,7 @@ import {
   DriverProfiles, BrokerDirectory, ExpenseTracker, FactoringCashflow,
   CommandCenter, AILoadBoard, CashFlowForecaster, CheckCallCenter, DriverScorecard, DATAlertBot,
   PLDashboard, ReceivablesAging, DriverPayReport, CashRunway, QuickBooksExport, CarrierPackage, EquipmentManager,
-  AnalyticsDashboard, ReferralProgram, SMSSettings,
+  AnalyticsDashboard, ReferralProgram, SMSSettings, RateNegotiation, RateBadge,
 } from '../pages/CarrierPages'
 import { apiFetch } from '../lib/api'
 
@@ -3164,9 +3164,12 @@ function KanbanCard({ load, onClick, onDragStart }) {
         <span>${rpm}/mi</span>
         <span>{(load.miles || 0).toLocaleString()} mi</span>
       </div>
-      <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:10, color:'var(--muted)' }}>
         <span>{load.driver || 'Unassigned'}</span>
-        <span>{load.broker || ''}</span>
+        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+          <RateBadge rpm={rpm} equipment={load.equipment} compact />
+          <span>{load.broker || ''}</span>
+        </div>
       </div>
     </div>
   )
@@ -3185,7 +3188,7 @@ function LoadsPipeline({ onOpenDrawer }) {
     updateLoadStatus(loadId, col.statuses[0])
   }
 
-  const PIPE_TABS = [{ id:'pipeline', label:'Pipeline' },{ id:'list', label:'List View' },{ id:'dispatch', label:'Dispatch Board' },{ id:'check-calls', label:'Check Calls' },{ id:'command', label:'Command Center' },{ id:'lane-intel', label:'Lane Intel' }]
+  const PIPE_TABS = [{ id:'pipeline', label:'Pipeline' },{ id:'list', label:'List View' },{ id:'dispatch', label:'Dispatch Board' },{ id:'check-calls', label:'Check Calls' },{ id:'command', label:'Command Center' },{ id:'lane-intel', label:'Lane Intel' },{ id:'rate-check', label:'Rate Check' }]
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, overflow:'hidden' }}>
@@ -3236,6 +3239,7 @@ function LoadsPipeline({ onOpenDrawer }) {
         {pipeTab === 'check-calls' && <CheckCallCenter />}
         {pipeTab === 'command' && <CommandCenter />}
         {pipeTab === 'lane-intel' && <LaneIntel />}
+        {pipeTab === 'rate-check' && <RateNegotiation />}
       </div>
     </div>
   )
@@ -3308,6 +3312,15 @@ function LoadDetailDrawer({ loadId, onClose }) {
                 Generate Invoice
               </button>
             )}
+          </div>
+
+          {/* Rate Analysis Badge */}
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <RateBadge rpm={rpm} equipment={load.equipment} />
+            <button className="btn btn-ghost" style={{ fontSize:11, padding:'6px 12px' }}
+              onClick={() => { const url = new URL(window.location); url.searchParams.set('rateCheck', JSON.stringify({ origin: load.origin, dest: load.dest || load.destination, miles: load.miles, gross, equipment: load.equipment })); showToast('', 'Rate Check', 'Open Rate Check tab in Loads → Rate Check to analyze this rate') }}>
+              <Ic icon={Target} size={12} /> Analyze Rate
+            </button>
           </div>
 
           {/* Details grid */}
@@ -3396,6 +3409,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'settings':    return <SettingsTab />
     case 'analytics':   return <AnalyticsDashboard />
     case 'load-board':  return <AILoadBoard />
+    case 'rate-check':  return <RateNegotiation />
     case 'referrals':   return <ReferralProgram />
     default:            return <OverviewTab onTabChange={(viewId) => navTo(viewId)} />
   }

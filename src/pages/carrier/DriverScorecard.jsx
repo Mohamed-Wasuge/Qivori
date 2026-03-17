@@ -1208,7 +1208,7 @@ export function DriverScorecard() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
 
       {/* Header */}
       <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0 }}>
@@ -1319,7 +1319,7 @@ export function DriverScorecard() {
         </div>
       ) : (
       /* ── SCORECARD VIEW ───────────────────────────────────────── */
-      <div style={{ flex:1, display:'flex', overflow:'auto' }}>
+      <div style={{ flex:1, display:'flex', minHeight:0 }}>
 
         {/* LEFT: Driver list */}
         <div style={{ width:270, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>

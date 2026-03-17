@@ -308,6 +308,16 @@ export function CarrierProvider({ children }) {
           db.createInvoice({ ...inv, load_id: l._dbId || l.id }).then(dbInv => {
             setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
           }).catch(e => console.error('Failed to create invoice:', e))
+
+          // If auto-invoice is enabled, fire the API to email the broker
+          const autoInvoiceSetting = localStorage.getItem('qivori_auto_invoice')
+          if (autoInvoiceSetting === 'true') {
+            apiFetch('/api/auto-invoice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ loadId: l._dbId || l.id }),
+            }).catch(() => {})
+          }
         } else {
           const fakeInv = normalizeInvoice({
             ...inv, id: 'local-inv-' + Date.now(),

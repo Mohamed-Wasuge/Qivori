@@ -18,9 +18,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'carrier-pages': ['./src/pages/CarrierPages.jsx'],
-          'broker-pages': ['./src/pages/BrokerPages.jsx'],
-          'vendor': ['react', 'react-dom'],
+          vendor: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js'],
+          pdf: ['jspdf', 'pdfjs-dist'],
+          sentry: ['@sentry/react'],
         }
       }
     }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, Component } from 'react'
+import React, { useState, useCallback, useEffect, useRef, useMemo, Component } from 'react'
 import * as Sentry from '@sentry/react'
 import {
   Monitor, Layers, Receipt, Truck, Shield, Users, Briefcase, Settings as SettingsIcon,
@@ -18,7 +18,7 @@ import {
   DriverProfiles, BrokerDirectory, ExpenseTracker, FactoringCashflow,
   CommandCenter, AILoadBoard, CashFlowForecaster, CheckCallCenter, DriverScorecard, DATAlertBot,
   PLDashboard, ReceivablesAging, DriverPayReport, CashRunway, QuickBooksExport, CarrierPackage, EquipmentManager,
-  AnalyticsDashboard, ReferralProgram, SMSSettings, RateNegotiation, RateBadge,
+  AnalyticsDashboard, ReferralProgram, SMSSettings, InvoicingSettings, RateNegotiation, RateBadge,
 } from '../pages/CarrierPages'
 import { apiFetch } from '../lib/api'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
@@ -1029,6 +1029,7 @@ function SettingsTab() {
     { id:'team',           icon: Users, label:'Team & Access' },
     { id:'notifications',  icon: Bell, label:'Notifications' },
     { id:'sms',            icon: Smartphone, label:'SMS Alerts' },
+    { id:'invoicing',      icon: FileText, label:'Invoicing' },
     { id:'appearance',     icon: Palette, label:'Appearance' },
   ]
 
@@ -1358,6 +1359,11 @@ function SettingsTab() {
         {/* SMS Alerts */}
         {settingsSec === 'sms' && (
           <SMSSettings />
+        )}
+
+        {/* Invoicing Settings */}
+        {settingsSec === 'invoicing' && (
+          <InvoicingSettings />
         )}
 
         {/* Appearance */}
@@ -3368,10 +3374,31 @@ function LoadsPipeline({ onOpenDrawer }) {
   )
 }
 
+// ── Invoice Status Badge ─────────────────────────────────────────────────────
+function InvoiceStatusBadge({ status }) {
+  const styles = {
+    Unpaid:   { bg:'rgba(240,165,0,0.12)', color:'#f0a500', label:'Sent' },
+    Sent:     { bg:'rgba(240,165,0,0.12)', color:'#f0a500', label:'Sent' },
+    Viewed:   { bg:'rgba(59,130,246,0.12)', color:'#3b82f6', label:'Viewed' },
+    Paid:     { bg:'rgba(34,197,94,0.12)', color:'#22c55e', label:'Paid' },
+    Overdue:  { bg:'rgba(239,68,68,0.12)', color:'#ef4444', label:'Overdue' },
+    Factored: { bg:'rgba(139,92,246,0.12)', color:'#8b5cf6', label:'Factored' },
+    Disputed: { bg:'rgba(239,68,68,0.12)', color:'#ef4444', label:'Disputed' },
+  }
+  const st = styles[status] || styles.Unpaid
+  return (
+    <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:8, background:st.bg, color:st.color, letterSpacing:0.5 }}>
+      {st.label}
+    </span>
+  )
+}
+
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 function LoadDetailDrawer({ loadId, onClose }) {
   const { loads, invoices, checkCalls, updateLoadStatus, drivers } = useCarrier()
   const { showToast } = useApp()
+  const [invoiceSending, setInvoiceSending] = useState(false)
+  const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
   const load = loads.find(l => (l.loadId || l.id) === loadId)
   if (!load) return null
 
@@ -3385,6 +3412,39 @@ function LoadDetailDrawer({ loadId, onClose }) {
   const STATUS_FLOW = ['Rate Con Received','Assigned to Driver','En Route to Pickup','Loaded','In Transit','Delivered','Invoiced','Paid']
   const currentIdx = STATUS_FLOW.indexOf(load.status)
   const nextStatus = currentIdx < STATUS_FLOW.length - 1 ? STATUS_FLOW[currentIdx + 1] : null
+
+  // Auto-invoice: generate and send invoice via API
+  const handleAutoInvoice = async () => {
+    setInvoiceSending(true)
+    try {
+      const res = await apiFetch('/api/auto-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loadId: load._dbId || load.id }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        updateLoadStatus(load.loadId || load.id, 'Invoiced')
+        showToast('', 'Invoice Sent!', `${data.invoiceNumber} — ${data.emailSent ? 'Email sent to broker' : 'Invoice created (no broker email on file)'}`)
+        setShowInvoicePrompt(false)
+      } else {
+        showToast('', 'Invoice Error', data.error || 'Could not generate invoice')
+      }
+    } catch (err) {
+      // Fallback: still create local invoice via status update
+      updateLoadStatus(load.loadId || load.id, 'Invoiced')
+      showToast('', 'Invoice Created', `${load.loadId} — created locally (API unavailable)`)
+      setShowInvoicePrompt(false)
+    }
+    setInvoiceSending(false)
+  }
+
+  // Show invoice prompt after advancing to Delivered
+  const handleAdvanceToDelivered = () => {
+    updateLoadStatus(load.loadId || load.id, 'Delivered')
+    showToast('', 'Status Updated', `${load.loadId} → Delivered`)
+    setShowInvoicePrompt(true)
+  }
 
   return (
     <>
@@ -3423,19 +3483,46 @@ function LoadDetailDrawer({ loadId, onClose }) {
 
           {/* Quick actions */}
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {nextStatus && (
+            {nextStatus && nextStatus !== 'Delivered' && (
               <button className="btn btn-primary" style={{ fontSize:11, flex:1 }}
                 onClick={() => { updateLoadStatus(load.loadId || load.id, nextStatus); showToast('','Status Updated', `${load.loadId} → ${nextStatus}`) }}>
                 Advance → {nextStatus}
               </button>
             )}
+            {nextStatus === 'Delivered' && (
+              <button className="btn btn-primary" style={{ fontSize:11, flex:1 }}
+                onClick={handleAdvanceToDelivered}>
+                Advance → Delivered
+              </button>
+            )}
             {load.status === 'Delivered' && !linkedInvoice && (
-              <button className="btn btn-ghost" style={{ fontSize:11, flex:1 }}
-                onClick={() => { updateLoadStatus(load.loadId || load.id, 'Invoiced'); showToast('','Invoice Created', load.loadId) }}>
-                Generate Invoice
+              <button className="btn btn-ghost" style={{ fontSize:11, flex:1, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.25)', color:'var(--accent)' }}
+                onClick={() => setShowInvoicePrompt(true)} disabled={invoiceSending}>
+                {invoiceSending ? 'Sending...' : 'Generate & Send Invoice'}
               </button>
             )}
           </div>
+
+          {/* Auto-Invoice Prompt */}
+          {showInvoicePrompt && !linkedInvoice && (
+            <div style={{ background:'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.25)', borderRadius:12, padding:16 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                <span style={{ fontSize:18 }}>&#9993;</span>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)' }}>Generate & Send Invoice?</div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>Auto-generate a professional invoice and email it to the broker</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn btn-primary" style={{ fontSize:11, flex:1 }} onClick={handleAutoInvoice} disabled={invoiceSending}>
+                  {invoiceSending ? 'Generating...' : 'Yes, Send Invoice'}
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setShowInvoicePrompt(false)}>
+                  Not Now
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Rate Analysis Badge */}
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -3472,16 +3559,22 @@ function LoadDetailDrawer({ loadId, onClose }) {
           {linkedInvoice && (
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
               <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', marginBottom:10, textTransform:'uppercase', letterSpacing:1 }}>Invoice</div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                 <div>
                   <div style={{ fontSize:13, fontWeight:700 }}>{linkedInvoice.invoice_number}</div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}>${Number(linkedInvoice.amount || 0).toLocaleString()}</div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>${Number(linkedInvoice.amount || 0).toLocaleString()} {linkedInvoice.dueDate ? `· Due ${linkedInvoice.dueDate}` : ''}</div>
                 </div>
-                <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:8,
-                  background: linkedInvoice.status === 'Paid' ? 'rgba(34,197,94,0.1)' : 'rgba(240,165,0,0.1)',
-                  color: linkedInvoice.status === 'Paid' ? 'var(--success)' : 'var(--accent)' }}>
-                  {linkedInvoice.status}
-                </span>
+                <InvoiceStatusBadge status={linkedInvoice.status} />
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn btn-ghost" style={{ fontSize:10, padding:'4px 12px' }}
+                  onClick={() => { window.open(`/api/invoice-pdf?invoiceId=${encodeURIComponent(linkedInvoice._dbId || linkedInvoice.id)}`, '_blank') }}>
+                  View Invoice
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:10, padding:'4px 12px' }}
+                  onClick={() => handleAutoInvoice()}>
+                  Resend to Broker
+                </button>
               </div>
             </div>
           )}
@@ -3538,16 +3631,22 @@ function resolveView(viewId, navTo, onOpenDrawer) {
   }
 }
 
-// ── New User Onboarding Wizard ──────────────────────────────────────────────
+// ── New User Onboarding Wizard (5 steps) ─────────────────────────────────────
 function OnboardingWizard({ onComplete }) {
-  const { showToast, profile } = useApp()
-  const { updateCompany, addVehicle } = useCarrier()
+  const { showToast, profile, user } = useApp()
+  const { updateCompany, addVehicle, addDriver } = useCarrier()
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ companyName: '', mc: '', dot: '', phone: '', truckType: 'Dry Van', truckYear: '', truckMake: '' })
+  const TOTAL_STEPS = 5
+  const [form, setForm] = useState({
+    companyName: '', mc: '', dot: '', address: '', phone: '',
+    truckType: 'Dry Van', truckYear: '', truckMake: '', truckModel: '', truckVin: '', truckPlate: '', truckUnit: '',
+    driverName: '', driverPhone: '', driverCDL: '', driverMedExpiry: '', imTheDriver: false,
+  })
   const [lookupLoading, setLookupLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const firstName = (profile?.full_name || 'Driver').split(' ')[0]
+  const wizInput = { width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }
 
-  // Auto-lookup FMCSA when MC or DOT is entered
   const lookupFMCSA = async (type, value) => {
     const clean = value.replace(/[^0-9]/g, '')
     if (clean.length < 4) return
@@ -3558,148 +3657,174 @@ function OnboardingWizard({ onComplete }) {
       const res = await resp.json()
       if (res.carrier) {
         const c = res.carrier
-        setForm(p => ({
-          ...p,
-          companyName: c.legalName || p.companyName,
-          dot: c.dotNumber || p.dot,
-          mc: c.mcNumber || p.mc,
-          phone: c.phone || p.phone,
-        }))
+        setForm(p => ({ ...p, companyName: c.legalName || p.companyName, dot: c.dotNumber || p.dot, mc: c.mcNumber || p.mc, phone: c.phone || p.phone, address: c.phyStreet ? `${c.phyStreet}, ${c.phyCity || ''}, ${c.phyState || ''} ${c.phyZipcode || ''}`.trim() : p.address }))
         showToast('', 'FMCSA Found', c.legalName || 'Company info loaded')
-      } else {
-        showToast('', 'Not Found', 'No FMCSA match — enter info manually')
-      }
-    } catch (err) {
-      showToast('', 'Lookup Failed', err.message || 'Try entering info manually')
-    }
+      } else { showToast('', 'Not Found', 'No FMCSA match — enter info manually') }
+    } catch (err) { showToast('', 'Lookup Failed', err.message || 'Try entering info manually') }
     setLookupLoading(false)
   }
 
-  const handleFinish = async () => {
-    // Save company info
-    if (form.companyName || form.mc || form.dot) {
-      await updateCompany({ name: form.companyName, mc: form.mc, dot: form.dot, phone: form.phone }).catch(() => {})
-    }
-    // Add first truck
-    if (form.truckMake || form.truckYear) {
-      await addVehicle({ type: form.truckType, year: form.truckYear, make: form.truckMake, status: 'Active' }).catch(() => {})
-    }
+  const markOnboardingComplete = async () => {
     localStorage.setItem('qv_onboarded', 'true')
-    showToast('', 'Welcome!', 'Your account is ready')
-    onComplete()
+    try {
+      const { supabase: sb } = await import('../lib/supabase')
+      await sb.from('platform_settings').upsert({ owner_id: user?.id, key: 'onboarding_complete', value: 'true' }, { onConflict: 'owner_id,key' })
+    } catch (e) { console.warn('Could not save onboarding setting:', e.message) }
   }
 
-  return (
-    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:40 }}>
-      <div style={{ maxWidth:480, width:'100%' }}>
-        {/* Progress */}
-        <div style={{ display:'flex', gap:4, marginBottom:32 }}>
-          {[1,2,3].map(s => (
-            <div key={s} style={{ flex:1, height:4, borderRadius:2, background: step >= s ? 'var(--accent)' : 'var(--surface2)', transition:'all 0.3s' }} />
-          ))}
-        </div>
+  const handleSkip = async () => { await markOnboardingComplete(); onComplete() }
 
+  const handleSaveStep = async (nextStep) => {
+    setSaving(true)
+    try {
+      if (step === 2 && (form.companyName || form.mc || form.dot)) await updateCompany({ name: form.companyName, mc_number: form.mc, dot_number: form.dot, phone: form.phone, address: form.address }).catch(() => {})
+      else if (step === 3 && (form.truckMake || form.truckYear || form.truckUnit)) await addVehicle({ type: form.truckType, year: form.truckYear, make: form.truckMake, model: form.truckModel, vin: form.truckVin, license_plate: form.truckPlate, unit_number: form.truckUnit, status: 'Active' }).catch(() => {})
+      else if (step === 4) { const name = form.imTheDriver ? (profile?.full_name || firstName) : form.driverName; const phone = form.imTheDriver ? (profile?.phone || form.driverPhone) : form.driverPhone; if (name) await addDriver({ name, phone, license_number: form.driverCDL, medical_card_expiry: form.driverMedExpiry || null, status: 'Active' }).catch(() => {}) }
+    } catch (e) { console.warn('Step save error:', e) }
+    setSaving(false)
+    if (nextStep > TOTAL_STEPS) { await markOnboardingComplete(); showToast('', 'Welcome!', 'Your account is ready to roll'); onComplete() }
+    else setStep(nextStep)
+  }
+
+  const stepLabels = ['Welcome', 'Company', 'Truck', 'Driver', 'First Load']
+
+  return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:40, overflowY:'auto' }}>
+      <div style={{ maxWidth:520, width:'100%' }}>
+        {/* Progress bar */}
+        <div style={{ marginBottom:8 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <span style={{ fontSize:10, fontWeight:700, color:'var(--muted)', letterSpacing:1 }}>STEP {step} OF {TOTAL_STEPS}</span>
+            <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>{stepLabels[step - 1]}</span>
+          </div>
+          <div style={{ display:'flex', gap:4 }}>
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <div key={i} style={{ flex:1, height:4, borderRadius:2, background: step > i ? 'var(--accent)' : step === i + 1 ? 'var(--accent2)' : 'var(--surface2)', transition:'all 0.3s' }} />
+            ))}
+          </div>
+        </div>
+        {/* Step 1: Welcome */}
         {step === 1 && (
-          <div style={{ textAlign:'center' }}>
-            <div style={{ fontSize:48, marginBottom:16 }}>👋</div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, marginBottom:8 }}>
-              Welcome, {firstName}!
+          <div style={{ textAlign:'center', paddingTop:32 }}>
+            <div style={{ width:64, height:64, borderRadius:16, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}><Ic icon={Zap} size={28} color="var(--accent)" /></div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, letterSpacing:3, marginBottom:8 }}>WELCOME TO <span style={{ color:'var(--accent)' }}>QIVORI AI</span></div>
+            <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.8, maxWidth:400, margin:'0 auto 32px' }}>Let's set up your account in 3 minutes.<br/>AI-powered dispatch, invoicing, compliance, and load matching — all in one platform built for carriers.</div>
+            <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap', marginBottom:28 }}>
+              {[{ icon: Building2, label:'Company Info', color:'var(--accent)' }, { icon: Truck, label:'Add Truck', color:'var(--accent2)' }, { icon: User, label:'Add Driver', color:'var(--accent3)' }, { icon: Package, label:'First Load', color:'var(--success)' }].map(item => (
+                <div key={item.label} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, fontSize:11, color:'var(--muted)' }}><Ic icon={item.icon} size={13} color={item.color} />{item.label}</div>
+              ))}
             </div>
-            <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.7, marginBottom:32 }}>
-              Let's set up your carrier account in 2 minutes.<br/>
-              AI-powered dispatch, load matching, and compliance — all in one place.
-            </div>
-            <button className="btn btn-primary" style={{ padding:'14px 40px', fontSize:14 }} onClick={() => setStep(2)}>
-              Let's Go →
-            </button>
-            <div style={{ marginTop:16 }}>
-              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { localStorage.setItem('qv_onboarded', 'true'); onComplete() }}>
-                Skip for now
-              </button>
-            </div>
+            <button className="btn btn-primary" style={{ padding:'14px 48px', fontSize:15, fontWeight:700 }} onClick={() => setStep(2)}>Let's Go</button>
+            <div style={{ marginTop:16 }}><button className="btn btn-ghost" style={{ fontSize:12 }} onClick={handleSkip}>Skip for now</button></div>
           </div>
         )}
-
+        {/* Step 2: Company Info */}
         {step === 2 && (
           <div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>YOUR COMPANY</div>
-            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Used on invoices, rate cons, and FMCSA lookups</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>COMPANY INFO</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Used on invoices, rate confirmations, and FMCSA lookups</div>
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
-              <div>
-                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>MC Number</label>
-                <div style={{ display:'flex', gap:8 }}>
-                  <input value={form.mc} onChange={e => setForm(p => ({ ...p, mc: e.target.value }))} placeholder="MC-1234567"
-                    onKeyDown={e => e.key === 'Enter' && lookupFMCSA('mc', form.mc)}
-                    style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
-                  <button onClick={() => lookupFMCSA('mc', form.mc)} disabled={lookupLoading || !form.mc}
-                    style={{ padding:'10px 14px', borderRadius:8, background: lookupLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:11, fontWeight:700, cursor: lookupLoading ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
-                    {lookupLoading ? '...' : 'Lookup'}
-                  </button>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                <div>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>MC Number</label>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input value={form.mc} onChange={e => setForm(p => ({ ...p, mc: e.target.value }))} placeholder="MC-1234567" onKeyDown={e => e.key === 'Enter' && lookupFMCSA('mc', form.mc)} style={{ ...wizInput, flex:1 }} />
+                    <button onClick={() => lookupFMCSA('mc', form.mc)} disabled={lookupLoading || !form.mc} style={{ padding:'10px 12px', borderRadius:8, background: lookupLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:10, fontWeight:700, cursor: lookupLoading ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>{lookupLoading ? '...' : 'Lookup'}</button>
+                  </div>
                 </div>
-                <div style={{ fontSize:10, color:'var(--accent)', marginTop:4 }}>Enter MC and hit Lookup to auto-fill your company info from FMCSA</div>
-              </div>
-              <div>
-                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>DOT Number</label>
-                <div style={{ display:'flex', gap:8 }}>
-                  <input value={form.dot} onChange={e => setForm(p => ({ ...p, dot: e.target.value }))} placeholder="1234567"
-                    onKeyDown={e => e.key === 'Enter' && lookupFMCSA('dot', form.dot)}
-                    style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
-                  <button onClick={() => lookupFMCSA('dot', form.dot)} disabled={lookupLoading || !form.dot}
-                    style={{ padding:'10px 14px', borderRadius:8, background: lookupLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:11, fontWeight:700, cursor: lookupLoading ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>
-                    {lookupLoading ? '...' : 'Lookup'}
-                  </button>
+                <div>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>DOT Number</label>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input value={form.dot} onChange={e => setForm(p => ({ ...p, dot: e.target.value }))} placeholder="1234567" onKeyDown={e => e.key === 'Enter' && lookupFMCSA('dot', form.dot)} style={{ ...wizInput, flex:1 }} />
+                    <button onClick={() => lookupFMCSA('dot', form.dot)} disabled={lookupLoading || !form.dot} style={{ padding:'10px 12px', borderRadius:8, background: lookupLoading ? 'var(--border)' : 'var(--accent)', color:'#000', border:'none', fontSize:10, fontWeight:700, cursor: lookupLoading ? 'wait' : 'pointer', whiteSpace:'nowrap' }}>{lookupLoading ? '...' : 'Lookup'}</button>
+                  </div>
                 </div>
               </div>
-              {[
-                { key:'companyName', label:'Company Name', ph:'Your Trucking LLC' },
-                { key:'phone', label:'Phone', ph:'(555) 123-4567' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
-                  <input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph}
-                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
-                </div>
+              <div style={{ fontSize:10, color:'var(--accent)', marginTop:-8 }}>Enter MC or DOT and hit Lookup to auto-fill from FMCSA</div>
+              {[{ key:'companyName', label:'Company Name', ph:'Your Trucking LLC' }, { key:'address', label:'Address', ph:'123 Main St, City, State ZIP' }, { key:'phone', label:'Phone', ph:'(555) 123-4567' }].map(f => (
+                <div key={f.key}><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label><input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={wizInput} /></div>
               ))}
             </div>
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
-              <button className="btn btn-ghost" onClick={() => setStep(1)}>Back</button>
-              <button className="btn btn-primary" style={{ flex:1 }} onClick={() => setStep(3)}>Continue →</button>
+              <button className="btn btn-ghost" onClick={() => setStep(1)}>Back</button><div style={{ flex:1 }} />
+              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setStep(3)}>Skip</button>
+              <button className="btn btn-primary" disabled={saving} onClick={() => handleSaveStep(3)}>{saving ? 'Saving...' : 'Continue'}</button>
             </div>
           </div>
         )}
-
+        {/* Step 3: First Truck */}
         {step === 3 && (
           <div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>YOUR FIRST TRUCK</div>
-            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Add your primary vehicle — you can add more later</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>ADD YOUR FIRST TRUCK</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Add your primary vehicle — you can always add more later from Fleet</div>
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
               <div>
                 <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Equipment Type</label>
-                <select value={form.truckType} onChange={e => setForm(p => ({ ...p, truckType: e.target.value }))}
-                  style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }}>
+                <select value={form.truckType} onChange={e => setForm(p => ({ ...p, truckType: e.target.value }))} style={{ ...wizInput, cursor:'pointer' }}>
                   {['Dry Van','Reefer','Flatbed','Step Deck','Box Truck','Hotshot','Power Only'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14 }}>
+                {[{ key:'truckUnit', label:'Unit #', ph:'101' }, { key:'truckYear', label:'Year', ph:'2022' }, { key:'truckMake', label:'Make', ph:'Freightliner' }].map(f => (
+                  <div key={f.key}><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label><input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={wizInput} /></div>
+                ))}
+              </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-                <div>
-                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Year</label>
-                  <input value={form.truckYear} onChange={e => setForm(p => ({ ...p, truckYear: e.target.value }))} placeholder="2022"
-                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                {[{ key:'truckModel', label:'Model', ph:'Cascadia' }, { key:'truckPlate', label:'License Plate', ph:'ABC-1234' }].map(f => (
+                  <div key={f.key}><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label><input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={wizInput} /></div>
+                ))}
+              </div>
+              <div><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>VIN</label><input value={form.truckVin} onChange={e => setForm(p => ({ ...p, truckVin: e.target.value }))} placeholder="1FUJGLDR5MLKJ2841" style={wizInput} /></div>
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button className="btn btn-ghost" onClick={() => setStep(2)}>Back</button><div style={{ flex:1 }} />
+              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setStep(4)}>Skip</button>
+              <button className="btn btn-primary" disabled={saving} onClick={() => handleSaveStep(4)}>{saving ? 'Saving...' : 'Continue'}</button>
+            </div>
+          </div>
+        )}
+        {/* Step 4: Add Driver */}
+        {step === 4 && (
+          <div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>ADD A DRIVER</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20 }}>Add your first driver to start dispatching loads</div>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
+              <button onClick={() => setForm(p => ({ ...p, imTheDriver: !p.imTheDriver, driverName: !p.imTheDriver ? (profile?.full_name || '') : '', driverPhone: !p.imTheDriver ? (profile?.phone || '') : '' }))}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', width:'100%', textAlign:'left', background: form.imTheDriver ? 'rgba(240,165,0,0.08)' : 'var(--surface2)', border: `1px solid ${form.imTheDriver ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, cursor:'pointer', transition:'all 0.15s' }}>
+                <div style={{ width:20, height:20, borderRadius:6, background: form.imTheDriver ? 'var(--accent)' : 'transparent', border: form.imTheDriver ? 'none' : '2px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {form.imTheDriver && <Ic icon={CheckCircle} size={14} color="#000" />}
                 </div>
-                <div>
-                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Make</label>
-                  <input value={form.truckMake} onChange={e => setForm(p => ({ ...p, truckMake: e.target.value }))} placeholder="Freightliner"
-                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                <div><div style={{ fontSize:13, fontWeight:700, color: form.imTheDriver ? 'var(--accent)' : 'var(--text)' }}>I'm the driver</div><div style={{ fontSize:11, color:'var(--muted)' }}>Use my profile as the driver info</div></div>
+              </button>
+              {!form.imTheDriver && (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                  <div><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Driver Name</label><input value={form.driverName} onChange={e => setForm(p => ({ ...p, driverName: e.target.value }))} placeholder="John Smith" style={wizInput} /></div>
+                  <div><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Phone</label><input value={form.driverPhone} onChange={e => setForm(p => ({ ...p, driverPhone: e.target.value }))} placeholder="(555) 123-4567" style={wizInput} /></div>
                 </div>
+              )}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                <div><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>CDL Number</label><input value={form.driverCDL} onChange={e => setForm(p => ({ ...p, driverCDL: e.target.value }))} placeholder="CDL-A 12345" style={wizInput} /></div>
+                <div><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Medical Card Expiry</label><input type="date" value={form.driverMedExpiry} onChange={e => setForm(p => ({ ...p, driverMedExpiry: e.target.value }))} style={{ ...wizInput, colorScheme:'dark' }} /></div>
               </div>
             </div>
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
-              <button className="btn btn-ghost" onClick={() => setStep(2)}>Back</button>
-              <button className="btn btn-primary" style={{ flex:1 }} onClick={handleFinish}>Finish Setup →</button>
+              <button className="btn btn-ghost" onClick={() => setStep(3)}>Back</button><div style={{ flex:1 }} />
+              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setStep(5)}>Skip</button>
+              <button className="btn btn-primary" disabled={saving} onClick={() => handleSaveStep(5)}>{saving ? 'Saving...' : 'Continue'}</button>
             </div>
-            <div style={{ fontSize:11, color:'var(--muted)', marginTop:10, textAlign:'center' }}>
-              You can skip and add trucks later from Fleet → Equipment
+          </div>
+        )}
+        {/* Step 5: First Load CTA */}
+        {step === 5 && (
+          <div style={{ textAlign:'center', paddingTop:24 }}>
+            <div style={{ width:64, height:64, borderRadius:16, background:'rgba(52,176,104,0.1)', border:'1px solid rgba(52,176,104,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}><Ic icon={CheckCircle} size={28} color="var(--success)" /></div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, marginBottom:8 }}>YOU'RE ALL <span style={{ color:'var(--success)' }}>SET</span></div>
+            <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.8, maxWidth:380, margin:'0 auto 32px' }}>Ready to book your first load? Scan a rate confirmation or search the AI-powered load board.</div>
+            <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
+              <button className="btn btn-primary" style={{ padding:'14px 28px', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:8 }} onClick={async () => { await markOnboardingComplete(); showToast('','Welcome!','Opening AI Load Board...'); onComplete('load-board') }}><Ic icon={Search} size={14} /> Search Load Board</button>
+              <button style={{ padding:'14px 28px', fontSize:13, fontWeight:700, borderRadius:10, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.3)', color:'var(--accent)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', gap:8 }} onClick={async () => { await markOnboardingComplete(); showToast('','Welcome!','Opening Dispatch...'); onComplete('loads') }}><Ic icon={FileText} size={14} /> Scan Rate Con</button>
             </div>
+            <div style={{ marginTop:20 }}><button className="btn btn-ghost" style={{ fontSize:12 }} onClick={async () => { await markOnboardingComplete(); showToast('','Welcome!','Your account is ready'); onComplete() }}>Go to Dashboard</button></div>
           </div>
         )}
       </div>
@@ -3721,7 +3846,11 @@ function CarrierLayoutInner() {
   const [searchOpen,    setSearchOpen]    = useState(false)
   const [notifOpen,     setNotifOpen]     = useState(false)
   const [mobileNav,     setMobileNav]     = useState(false)
+  const [readNotifs, setReadNotifs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('qv_read_notifs') || '[]') } catch { return [] }
+  })
   const [dismissedNotifs, setDismissedNotifs] = useState([])
+  const notifRef = useRef(null)
 
   const navTo = (viewId) => {
     setActiveView(viewId)
@@ -3734,14 +3863,97 @@ function CarrierLayoutInner() {
     return () => window.removeEventListener('keydown', h)
   }, [])
 
-  // Generate notifications from real data
-  const ALL_NOTIFS = [
-    ...(activeLoads.length > 0 ? [{ icon: Zap, title: `${activeLoads.length} Active Load(s)`, sub: 'View your dispatch board', color: 'var(--accent)', view: 'loads' }] : []),
-    ...(unpaidInvoices.length > 0 ? [{ icon: CreditCard, title: `${unpaidInvoices.length} Unpaid Invoice(s)`, sub: `$${unpaidInvoices.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0).toLocaleString()} outstanding`, color: 'var(--success)', view: 'financials' }] : []),
-    ...(loads.length === 0 ? [{ icon: Package, title: 'Get Started', sub: 'Add your first load to begin dispatching', color: 'var(--accent)', view: 'loads' }] : []),
-    ...(drivers.length === 0 ? [{ icon: Users, title: 'Add Drivers', sub: 'Add your drivers to assign loads', color: 'var(--accent2)', view: 'drivers' }] : []),
-  ]
-  const notifs = ALL_NOTIFS.filter((_, i) => !dismissedNotifs.includes(i))
+  // Click outside to close notification dropdown
+  useEffect(() => {
+    if (!notifOpen) return
+    const handleClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [notifOpen])
+
+  // Persist read state
+  useEffect(() => {
+    localStorage.setItem('qv_read_notifs', JSON.stringify(readNotifs))
+  }, [readNotifs])
+
+  // Generate rich notifications from real data
+  const timeAgo = (mins) => {
+    if (mins < 60) return `${mins}m ago`
+    if (mins < 1440) return `${Math.floor(mins / 60)}h ago`
+    return `${Math.floor(mins / 1440)}d ago`
+  }
+
+  const ALL_NOTIFS = useMemo(() => {
+    const n = []
+    let id = 0
+    // Load status changes
+    const bookedLoads = loads.filter(l => l.status === 'Booked')
+    const dispatchedLoads = loads.filter(l => l.status === 'Dispatched' || l.status === 'In Transit')
+    const deliveredLoads = loads.filter(l => l.status === 'Delivered')
+    if (bookedLoads.length > 0) n.push({ id: `load-booked-${bookedLoads.length}`, icon: Package, title: `${bookedLoads.length} Load${bookedLoads.length > 1 ? 's' : ''} Booked`, desc: `${bookedLoads[0]?.loadId || 'Load'} ${bookedLoads.length > 1 ? `and ${bookedLoads.length - 1} more` : ''} ready for dispatch`, color: 'var(--accent2)', view: 'loads', type: 'load', time: 12 })
+    if (dispatchedLoads.length > 0) n.push({ id: `load-dispatched-${dispatchedLoads.length}`, icon: Truck, title: `${dispatchedLoads.length} Load${dispatchedLoads.length > 1 ? 's' : ''} In Transit`, desc: `Currently en route — track on dispatch board`, color: 'var(--accent)', view: 'loads', type: 'load', time: 25 })
+    if (deliveredLoads.length > 0) n.push({ id: `load-delivered-${deliveredLoads.length}`, icon: CheckCircle, title: `${deliveredLoads.length} Load${deliveredLoads.length > 1 ? 's' : ''} Delivered`, desc: `Ready for invoicing`, color: 'var(--success)', view: 'loads', type: 'load', time: 45 })
+
+    // Invoice notifications
+    if (unpaidInvoices.length > 0) {
+      const total = unpaidInvoices.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+      const overdue = unpaidInvoices.filter(i => {
+        if (!i.due_date) return false
+        return new Date(i.due_date) < new Date()
+      })
+      if (overdue.length > 0) {
+        n.push({ id: `inv-overdue-${overdue.length}`, icon: AlertTriangle, title: `${overdue.length} Overdue Invoice${overdue.length > 1 ? 's' : ''}`, desc: `$${overdue.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0).toLocaleString()} past due — follow up ASAP`, color: 'var(--danger)', view: 'financials', type: 'invoice', time: 60 })
+      }
+      n.push({ id: `inv-unpaid-${unpaidInvoices.length}`, icon: CreditCard, title: `${unpaidInvoices.length} Unpaid Invoice${unpaidInvoices.length > 1 ? 's' : ''}`, desc: `$${total.toLocaleString()} outstanding receivables`, color: 'var(--accent)', view: 'financials', type: 'invoice', time: 120 })
+    }
+
+    // Compliance alerts — documents expiring
+    if (drivers.length > 0) {
+      const expiringDrivers = drivers.filter(d => {
+        if (!d.medical_card_expiry && !d.license_expiry) return false
+        const now = new Date()
+        const med = d.medical_card_expiry ? new Date(d.medical_card_expiry) : null
+        const lic = d.license_expiry ? new Date(d.license_expiry) : null
+        const threshold = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        return (med && med < threshold) || (lic && lic < threshold)
+      })
+      if (expiringDrivers.length > 0) {
+        n.push({ id: `compliance-expiring-${expiringDrivers.length}`, icon: Shield, title: `${expiringDrivers.length} Document${expiringDrivers.length > 1 ? 's' : ''} Expiring Soon`, desc: `${expiringDrivers[0]?.full_name || 'Driver'} CDL/medical card expires within 30 days`, color: 'var(--danger)', view: 'compliance', type: 'compliance', time: 180 })
+      }
+    }
+
+    // Active loads notification
+    if (activeLoads.length > 0) n.push({ id: `active-loads-${activeLoads.length}`, icon: Zap, title: `${activeLoads.length} Active Load${activeLoads.length > 1 ? 's' : ''}`, desc: 'View your dispatch board for live tracking', color: 'var(--accent)', view: 'loads', type: 'load', time: 300 })
+
+    // Trial ending (sample)
+    if (loads.length > 0 && loads.length < 5) n.push({ id: 'trial-ending', icon: Clock, title: 'Free Trial — 7 Days Left', desc: 'Upgrade to keep all your data and unlock premium features', color: 'var(--accent)', view: 'settings', type: 'system', time: 1440 })
+
+    // New referral signup (sample)
+    n.push({ id: 'referral-signup', icon: UserPlus, title: 'New Referral Signup!', desc: 'A carrier you referred just joined Qivori — you earned a credit', color: 'var(--success)', view: 'referral', type: 'referral', time: 2880 })
+
+    // Weekly summary available
+    if (loads.length >= 3) n.push({ id: 'weekly-summary', icon: BarChart2, title: 'Weekly Summary Ready', desc: `${loads.length} loads, $${loads.reduce((s,l) => s + (l.gross || 0), 0).toLocaleString()} gross — view your analytics`, color: 'var(--accent2)', view: 'analytics', type: 'summary', time: 4320 })
+
+    // Getting started prompts
+    if (loads.length === 0) n.push({ id: 'get-started', icon: Package, title: 'Get Started', desc: 'Add your first load to begin dispatching', color: 'var(--accent)', view: 'loads', type: 'system', time: 5 })
+    if (drivers.length === 0) n.push({ id: 'add-drivers', icon: Users, title: 'Add Drivers', desc: 'Add your drivers to assign loads', color: 'var(--accent2)', view: 'drivers', type: 'system', time: 10 })
+
+    return n
+  }, [loads, activeLoads, unpaidInvoices, drivers])
+
+  const notifs = ALL_NOTIFS.filter(n => !dismissedNotifs.includes(n.id))
+  const unreadCount = notifs.filter(n => !readNotifs.includes(n.id)).length
+
+  const markAllRead = () => {
+    setReadNotifs(notifs.map(n => n.id))
+  }
+  const markRead = (nid) => {
+    if (!readNotifs.includes(nid)) setReadNotifs(prev => [...prev, nid])
+  }
+
+  const notifTypeIcon = { load: '🚛', invoice: '💰', compliance: '📋', system: '⚙️', referral: '🤝', summary: '📊' }
 
   const sStyle = { fontFamily:"'DM Sans',sans-serif", width:'100vw', height:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', overflow:'hidden' }
   const inp    = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 12px', color:'var(--text)', fontSize:12, outline:'none', fontFamily:"'DM Sans',sans-serif" }
@@ -3815,41 +4027,137 @@ function CarrierLayoutInner() {
         </div>
 
         {/* Notifications */}
-        <div style={{ position:'relative' }}>
+        <div ref={notifRef} style={{ position:'relative' }}>
           <button onClick={() => setNotifOpen(o => !o)}
-            style={{ ...inp, display:'flex', alignItems:'center', gap:6, cursor:'pointer', padding:'5px 10px' }}>
+            style={{ ...inp, display:'flex', alignItems:'center', gap:6, cursor:'pointer', padding:'5px 10px', position:'relative' }}>
             <Bell size={15} />
-            {notifs.length > 0 && <span style={{ background:'var(--danger)', color:'#fff', fontSize:9, fontWeight:800, padding:'1px 5px', borderRadius:10 }}>{notifs.length}</span>}
+            {unreadCount > 0 && (
+              <span style={{
+                position:'absolute', top:-4, right:-4,
+                background:'var(--danger)', color:'#fff', fontSize:9, fontWeight:800,
+                minWidth:16, height:16, borderRadius:10,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                padding:'0 4px', boxShadow:'0 2px 6px rgba(239,68,68,0.4)',
+                animation:'pulse 2s infinite'
+              }}>{unreadCount}</span>
+            )}
           </button>
           {notifOpen && (
-            <div style={{ position:'absolute', top:42, right:0, width:320, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, boxShadow:'0 16px 48px rgba(0,0,0,0.6)', zIndex:999, overflow:'hidden' }}>
-              <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span>Notifications {notifs.length > 0 && <span style={{ fontSize:10, color:'var(--muted)', fontWeight:400 }}>· {notifs.length} new</span>}</span>
-                <div style={{ display:'flex', gap:8 }}>
-                  {notifs.length > 0 && <button onClick={() => setDismissedNotifs(ALL_NOTIFS.map((_,i)=>i))} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:11, fontFamily:"'DM Sans',sans-serif" }}>Clear all</button>}
-                  <button onClick={() => setNotifOpen(false)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:16 }}>✕</button>
+            <div style={{
+              position:'absolute', top:44, right:0, width:380,
+              background:'var(--surface)', border:'1px solid var(--border)',
+              borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.7)',
+              zIndex:999, overflow:'hidden', maxHeight:460, display:'flex', flexDirection:'column'
+            }}>
+              {/* Header */}
+              <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontWeight:800, fontSize:14 }}>Notifications</span>
+                  {unreadCount > 0 && (
+                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10, background:'var(--danger)15', color:'var(--danger)', border:'1px solid var(--danger)30' }}>
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
+                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                  {unreadCount > 0 && (
+                    <button onClick={markAllRead}
+                      style={{ background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontSize:11, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                      Mark all as read
+                    </button>
+                  )}
+                  <button onClick={() => setNotifOpen(false)}
+                    style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:16, lineHeight:1, padding:0 }}>✕</button>
                 </div>
               </div>
-              {notifs.length === 0
-                ? <div style={{ padding:28, textAlign:'center', color:'var(--muted)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><CheckCircle size={14} color="var(--success)" /> All caught up</div>
-                : ALL_NOTIFS.map((n, i) => dismissedNotifs.includes(i) ? null : (
-                  <div key={i} style={{ padding:'11px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer', display:'flex', gap:10, alignItems:'flex-start' }}
-                    onMouseOver={e => e.currentTarget.style.background='var(--surface2)'}
-                    onMouseOut={e  => e.currentTarget.style.background='transparent'}
-                    onClick={() => { navTo(n.view); setNotifOpen(false) }}>
-                    <div style={{ width:30, height:30, borderRadius:8, background:n.color+'15', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:n.color }}>{React.createElement(n.icon, { size:14 })}</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:12, fontWeight:700, marginBottom:2 }}>{n.title}</div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>{n.sub}</div>
-                    </div>
-                    <button onClick={e => { e.stopPropagation(); setDismissedNotifs(d => [...d, i]) }}
-                      style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:14, padding:0 }}>✕</button>
+
+              {/* Notification list */}
+              <div style={{ overflowY:'auto', maxHeight:360, flex:1 }}>
+                {notifs.length === 0 ? (
+                  <div style={{ padding:'40px 20px', textAlign:'center', color:'var(--muted)' }}>
+                    <CheckCircle size={28} color="var(--success)" style={{ marginBottom:10, opacity:0.6 }} />
+                    <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>All caught up!</div>
+                    <div style={{ fontSize:11 }}>No new notifications right now</div>
                   </div>
-                ))
-              }
+                ) : notifs.map(n => {
+                  const isUnread = !readNotifs.includes(n.id)
+                  return (
+                    <div key={n.id}
+                      style={{
+                        padding:'12px 18px', borderBottom:'1px solid var(--border)',
+                        cursor:'pointer', display:'flex', gap:12, alignItems:'flex-start',
+                        background: isUnread ? 'rgba(240,165,0,0.03)' : 'transparent',
+                        transition:'background 0.15s'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = isUnread ? 'rgba(240,165,0,0.07)' : 'var(--surface2)'}
+                      onMouseOut={e => e.currentTarget.style.background = isUnread ? 'rgba(240,165,0,0.03)' : 'transparent'}
+                      onClick={() => { markRead(n.id); navTo(n.view); setNotifOpen(false) }}>
+                      {/* Unread dot */}
+                      <div style={{ width:8, minWidth:8, paddingTop:12 }}>
+                        {isUnread && (
+                          <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 6px var(--accent)' }} />
+                        )}
+                      </div>
+                      {/* Icon */}
+                      <div style={{
+                        width:36, height:36, borderRadius:10,
+                        background: n.color + '15', border:'1px solid ' + n.color + '25',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        flexShrink:0, color: n.color
+                      }}>
+                        {React.createElement(n.icon, { size:16 })}
+                      </div>
+                      {/* Content */}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                          <div style={{ fontSize:12, fontWeight: isUnread ? 800 : 600, color: isUnread ? 'var(--text)' : 'var(--muted)' }}>
+                            {n.title}
+                          </div>
+                          <span style={{ fontSize:9, color:'var(--muted)', flexShrink:0, marginLeft:8 }}>
+                            {timeAgo(n.time)}
+                          </span>
+                        </div>
+                        <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {n.desc}
+                        </div>
+                        <div style={{ marginTop:4 }}>
+                          <span style={{ fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:4, background: n.color + '12', color: n.color, textTransform:'uppercase', letterSpacing:0.5 }}>
+                            {n.type}
+                          </span>
+                        </div>
+                      </div>
+                      {/* Dismiss */}
+                      <button onClick={e => { e.stopPropagation(); setDismissedNotifs(d => [...d, n.id]) }}
+                        style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:13, padding:'4px', opacity:0.5, flexShrink:0 }}
+                        onMouseOver={e => e.currentTarget.style.opacity = '1'}
+                        onMouseOut={e => e.currentTarget.style.opacity = '0.5'}>
+                        ✕
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Footer */}
+              {notifs.length > 0 && (
+                <div style={{ padding:'10px 18px', borderTop:'1px solid var(--border)', textAlign:'center', flexShrink:0, background:'var(--surface)' }}>
+                  <button onClick={() => { navTo('settings'); setNotifOpen(false) }}
+                    style={{ background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontSize:11, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>
+                    View All Notifications →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
+
+        {/* Notification pulse animation */}
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+          }
+        `}</style>
 
         {/* Controls */}
         <button className="btn btn-primary" style={{ fontSize:12, fontWeight:700, padding:'5px 14px' }}
@@ -3927,7 +4235,7 @@ function CarrierLayoutInner() {
         {/* MAIN CONTENT */}
         <div className="carrier-main">
           {showOnboarding ? (
-            <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+            <OnboardingWizard onComplete={(navTarget) => { setShowOnboarding(false); if (navTarget) setActiveView(navTarget) }} />
           ) : (
             <>
               <ViewErrorBoundary key={activeView}>

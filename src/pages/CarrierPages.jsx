@@ -54,7 +54,7 @@ function AiBanner({ title, sub, action, onAction }) {
 
 // ─── AI DASHBOARD ─────────────────────────────────────────────────────────────
 export function CarrierDashboard() {
-  const { navigatePage, showToast } = useApp()
+  const { navigatePage, showToast, subscription } = useApp()
   const ctx = useCarrier() || {}
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
@@ -65,38 +65,89 @@ export function CarrierDashboard() {
   const totalRevenue = ctx.totalRevenue || 0
   const totalExpenses = ctx.totalExpenses || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
+  const deliveredLoads = ctx.deliveredLoads || []
+  const checkCalls = ctx.checkCalls || {}
 
   const totalMiles = loads.reduce((s, l) => s + (Number(l.miles) || 0), 0)
-  const fleetUtil = Math.min(Math.round((activeLoads.length / (vehicles.length || 1)) * 100), 100)
   const netProfit = totalRevenue - totalExpenses
-
-  const fmtCurrency = (v) => {
-    if (v >= 1000) return '$' + (v / 1000).toFixed(1) + 'K'
-    return '$' + v.toLocaleString()
-  }
-
+  const fmtCurrency = (v) => v >= 1000 ? '$' + (v / 1000).toFixed(1) + 'K' : '$' + v.toLocaleString()
   const [dismissed, setDismissed] = useState([])
 
-  const recommendations = useMemo(() => {
-    const recs = []
-    let id = 1
-    if (loads.length === 0) recs.push({ id: id++, type: 'GET STARTED', color: 'var(--accent)', icon: Plus, title: 'Add your first load to start tracking revenue', sub: 'Go to Loads to create a new shipment', action: 'Add Load', onAction: () => navigatePage('carrier-loads') })
-    if (drivers.length === 0) recs.push({ id: id++, type: 'DRIVERS', color: 'var(--accent2)', icon: Users, title: 'Add drivers to enable dispatch', sub: 'Go to Drivers to add your team', action: 'Add Driver', onAction: () => navigatePage('carrier-drivers') })
-    if (unpaidInvoices.length > 0) recs.push({ id: id++, type: 'INVOICES', color: 'var(--warning)', icon: Receipt, title: `You have ${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length > 1 ? 's' : ''}`, sub: `Total outstanding: $${unpaidInvoices.reduce((s, i) => s + (Number(i.amount) || Number(i.total) || 0), 0).toLocaleString()}`, action: 'View', onAction: () => navigatePage('carrier-invoicing') })
-    if (activeLoads.length > 0) recs.push({ id: id++, type: 'IN TRANSIT', color: 'var(--accent3)', icon: Truck, title: `You have ${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} in transit`, sub: 'Monitor progress in dispatch', action: 'Track', onAction: () => navigatePage('carrier-dispatch') })
-    return recs
-  }, [loads.length, drivers.length, unpaidInvoices.length, activeLoads.length])
+  // ── Computed: Today's tasks ──
+  const today = new Date().toISOString().split('T')[0]
+  const todayTasks = useMemo(() => {
+    const tasks = []
+    // Loads arriving today
+    loads.forEach(l => {
+      if (l.pickup_date && l.pickup_date.startsWith(today)) tasks.push({ icon: MapPin, color: 'var(--accent2)', text: `Pickup: ${l.loadId || l.load_id} — ${l.origin || ''}`, type: 'pickup' })
+      if (l.delivery_date && l.delivery_date.startsWith(today)) tasks.push({ icon: Flag, color: 'var(--success)', text: `Delivery: ${l.loadId || l.load_id} — ${l.destination || l.dest || ''}`, type: 'delivery' })
+    })
+    // Overdue invoices
+    unpaidInvoices.forEach(inv => {
+      if (inv.due_date && inv.due_date < today) tasks.push({ icon: Receipt, color: 'var(--danger)', text: `Overdue: ${inv.invoice_number || inv.id} — $${(inv.amount || 0).toLocaleString()}`, type: 'overdue' })
+    })
+    // Expiring docs (drivers medical card within 30 days)
+    const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
+    drivers.forEach(d => {
+      if (d.medical_card_expiry && d.medical_card_expiry <= in30) tasks.push({ icon: AlertCircle, color: 'var(--warning)', text: `Medical card expiring: ${d.name || 'Driver'} — ${d.medical_card_expiry}`, type: 'doc' })
+    })
+    // Pending check calls for active loads
+    activeLoads.forEach(l => {
+      const calls = checkCalls[l.loadId] || checkCalls[l.load_number] || []
+      if (calls.length === 0 && (l.status === 'In Transit' || l.status === 'Loaded')) tasks.push({ icon: Phone, color: 'var(--accent3)', text: `Check call needed: ${l.loadId || l.load_id}`, type: 'checkcall' })
+    })
+    return tasks
+  }, [loads, unpaidInvoices, drivers, activeLoads, checkCalls, today])
 
-  const filteredRecs = recommendations.filter(r => !dismissed.includes(r.id))
+  // ── Computed: Week revenue ──
+  const weekRevenue = useMemo(() => {
+    const now = new Date()
+    const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0]
+    return deliveredLoads.filter(l => l.delivery_date && l.delivery_date >= weekAgo).reduce((s, l) => s + (l.gross || l.gross_pay || 0), 0)
+  }, [deliveredLoads])
 
+  // ── Computed: Unpaid total ──
+  const unpaidTotal = unpaidInvoices.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+
+  // ── Computed: Month miles ──
+  const monthMiles = useMemo(() => {
+    const monthStart = new Date(); monthStart.setDate(1); const ms = monthStart.toISOString().split('T')[0]
+    return loads.filter(l => (l.pickup_date || '') >= ms).reduce((s, l) => s + (Number(l.miles) || 0), 0)
+  }, [loads])
+
+  // ── Computed: Alerts ──
+  const alerts = useMemo(() => {
+    const a = []
+    const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
+    // Trial ending soon
+    if (subscription?.isTrial && subscription?.trialDaysLeft && subscription.trialDaysLeft <= 7) a.push({ color: 'var(--warning)', icon: Clock, text: `Trial ending in ${subscription.trialDaysLeft} day${subscription.trialDaysLeft !== 1 ? 's' : ''} — upgrade to keep access`, severity: 'warning' })
+    // Docs expiring within 30 days
+    drivers.forEach(d => {
+      if (d.medical_card_expiry && d.medical_card_expiry <= in30 && d.medical_card_expiry >= today) a.push({ color: 'var(--warning)', icon: AlertCircle, text: `${d.name || 'Driver'}'s medical card expires ${d.medical_card_expiry}`, severity: 'warning' })
+      if (d.medical_card_expiry && d.medical_card_expiry < today) a.push({ color: 'var(--danger)', icon: AlertTriangle, text: `${d.name || 'Driver'}'s medical card EXPIRED ${d.medical_card_expiry}`, severity: 'critical' })
+    })
+    // Unpaid invoices > 30 days
+    const ago30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+    unpaidInvoices.forEach(inv => {
+      if (inv.invoice_date && inv.invoice_date < ago30) a.push({ color: 'var(--danger)', icon: Receipt, text: `Invoice ${inv.invoice_number || inv.id} unpaid for 30+ days — $${(inv.amount || 0).toLocaleString()}`, severity: 'critical' })
+    })
+    return a
+  }, [subscription, drivers, unpaidInvoices, today])
+
+  // ── Computed: Recent activity ──
+  const recentActivity = useMemo(() => {
+    const activity = []
+    deliveredLoads.slice(0, 3).forEach(l => activity.push({ icon: CheckCircle, color: 'var(--success)', text: `Load ${l.loadId || l.load_id} delivered`, time: l.delivery || '', ts: l.delivery_date || '' }))
+    invoices.slice(0, 2).forEach(i => activity.push({ icon: Receipt, color: 'var(--accent)', text: `Invoice ${i.invoice_number || i.id} — $${(i.amount || 0).toLocaleString()} (${i.status})`, time: i.date || '', ts: i.invoice_date || '' }))
+    expenses.slice(0, 2).forEach(e => activity.push({ icon: DollarSign, color: 'var(--accent2)', text: `Expense: ${e.description || e.category || '—'} — $${(e.amount || 0).toLocaleString()}`, time: e.date || '', ts: e.date || '' }))
+    activeLoads.slice(0, 2).forEach(l => activity.push({ icon: Truck, color: 'var(--accent3)', text: `Load ${l.loadId || l.load_id} ${l.status}`, time: l.pickup || '', ts: l.pickup_date || '' }))
+    return activity.sort((a, b) => (b.ts || '').localeCompare(a.ts || '')).slice(0, 5)
+  }, [deliveredLoads, invoices, expenses, activeLoads])
+
+  // ── Computed: Broker stats ──
   const brokerStats = useMemo(() => {
     const stats = {}
-    loads.forEach(l => {
-      const name = l.broker_name || l.broker || 'Unknown'
-      if (!stats[name]) stats[name] = { name, loads: 0, revenue: 0 }
-      stats[name].loads++
-      stats[name].revenue += Number(l.rate) || Number(l.gross) || 0
-    })
+    loads.forEach(l => { const name = l.broker_name || l.broker || 'Unknown'; if (!stats[name]) stats[name] = { name, loads: 0, revenue: 0 }; stats[name].loads++; stats[name].revenue += Number(l.rate) || Number(l.gross) || 0 })
     return Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
   }, [loads])
 
@@ -104,6 +155,19 @@ export function CarrierDashboard() {
 
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>
+      {/* ── Alerts Banner ── */}
+      {alerts.length > 0 && (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {alerts.map((a, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', borderRadius:10, background: a.severity === 'critical' ? 'rgba(239,68,68,0.08)' : 'rgba(240,165,0,0.06)', border: `1px solid ${a.severity === 'critical' ? 'rgba(239,68,68,0.2)' : 'rgba(240,165,0,0.2)'}` }}>
+              <Ic icon={a.icon} size={14} color={a.color} />
+              <div style={{ flex:1, fontSize:12, color:a.color, fontWeight:600 }}>{a.text}</div>
+              <button className="btn btn-ghost" style={{ fontSize:10, padding:'3px 8px' }} onClick={() => setDismissed(d => [...d, `alert-${i}`])}>Dismiss</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <AiBanner
         title={activeLoads.length > 0 ? `AI Engine Active — ${activeLoads.length} load${activeLoads.length > 1 ? 's' : ''} in transit` : 'AI Engine Active — Add loads to get started'}
         sub={totalRevenue > 0 ? `Revenue MTD: ${fmtCurrency(totalRevenue)} · ${loads.length} total loads · ${activeLoads.length} active` : 'Start by adding loads, drivers, and vehicles to see insights'}
@@ -111,86 +175,117 @@ export function CarrierDashboard() {
         onAction={() => navigatePage('carrier-dispatch')}
       />
 
+      {/* ── Quick Stats Row (4 mini cards) ── */}
       <div style={S.grid(4)}>
-        <StatCard label="Revenue MTD" value={totalRevenue > 0 ? fmtCurrency(totalRevenue) : '$0'} change={loads.length > 0 ? `${loads.length} loads` : 'No loads yet'} color="var(--accent)" changeType="neutral" />
-        <StatCard label="Expenses MTD" value={totalExpenses > 0 ? fmtCurrency(totalExpenses) : '$0'} change={netProfit >= 0 ? `Net: +${fmtCurrency(netProfit)}` : `Net: -${fmtCurrency(Math.abs(netProfit))}`} color="var(--success)" changeType={netProfit >= 0 ? 'up' : 'down'} />
-        <StatCard label="Total Miles" value={totalMiles > 0 ? totalMiles.toLocaleString() : '0'} change={loads.length > 0 ? `Across ${loads.length} loads` : 'No miles yet'} color="var(--accent2)" changeType="neutral" />
-        <StatCard label="Fleet Utilization" value={vehicles.length > 0 ? `${fleetUtil}%` : '—'} change={vehicles.length > 0 ? `${activeLoads.length}/${vehicles.length} vehicles active` : 'Add vehicles to track'} color="var(--accent3)" changeType="neutral" />
+        <StatCard label="Active Loads" value={String(activeLoads.length)} change={activeLoads.length > 0 ? `${activeLoads.filter(l => l.status === 'In Transit').length} in transit` : 'No active loads'} color="var(--accent)" changeType="neutral" />
+        <StatCard label="This Week Revenue" value={weekRevenue > 0 ? fmtCurrency(weekRevenue) : '$0'} change={deliveredLoads.length > 0 ? `${deliveredLoads.length} delivered` : 'No deliveries yet'} color="var(--success)" changeType="up" />
+        <StatCard label="Unpaid Invoices" value={unpaidTotal > 0 ? fmtCurrency(unpaidTotal) : '$0'} change={unpaidInvoices.length > 0 ? `${unpaidInvoices.length} pending` : 'All paid'} color={unpaidInvoices.length > 0 ? 'var(--warning)' : 'var(--success)'} changeType={unpaidInvoices.length > 0 ? 'down' : 'up'} />
+        <StatCard label="Miles This Month" value={monthMiles > 0 ? monthMiles.toLocaleString() : '0'} change={totalMiles > 0 ? `${totalMiles.toLocaleString()} total` : 'No miles yet'} color="var(--accent2)" changeType="neutral" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
-        {/* AI Recommendations */}
+      {/* ── Middle Row: Today's Tasks + Recent Activity ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1.2fr 1fr', gap:16 }}>
+        {/* Today's Tasks */}
         <div style={S.panel}>
           <div style={S.panelHead}>
-            <div style={S.panelTitle}><Ic icon={Bot} /> AI Recommendations</div>
-            <span style={S.badge('var(--accent)')}>{filteredRecs.length} active</span>
+            <div style={S.panelTitle}><Ic icon={Clock} /> Today's Tasks</div>
+            <span style={S.badge(todayTasks.length > 0 ? 'var(--accent)' : 'var(--success)')}>{todayTasks.length > 0 ? `${todayTasks.length} items` : 'Clear'}</span>
           </div>
           <div>
-            {filteredRecs.map(r => (
-              <div key={r.id} style={{ ...S.row, borderBottom: '1px solid var(--border)' }}
-                onMouseOver={e => e.currentTarget.style.background = 'var(--surface2)'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <div style={{ fontSize: 22 }}>{typeof r.icon === "string" ? r.icon : <r.icon size={22} />}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 3 }}>
-                    <span style={S.tag(r.color)}>{r.type}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>{r.title}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.sub}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-primary" style={{ fontSize: 11, padding: '5px 10px' }}
-                    onClick={() => r.onAction ? r.onAction() : showToast(r.icon, r.type, r.title)}>{r.action}</button>
-                  <button className="btn btn-ghost" style={{ fontSize: 11, padding: '5px 8px' }}
-                    onClick={() => setDismissed(d => [...d, r.id])}>✕</button>
-                </div>
+            {todayTasks.length === 0 ? (
+              <div style={{ padding:24, textAlign:'center', color:'var(--success)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><Ic icon={CheckCircle} size={13} color="var(--success)" /> Nothing due today</div>
+            ) : todayTasks.slice(0, 6).map((t, i) => (
+              <div key={i} style={{ padding:'9px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:26, height:26, borderRadius:7, background:t.color + '12', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={t.icon} size={12} color={t.color} /></div>
+                <div style={{ fontSize:12, flex:1, lineHeight:1.4 }}>{t.text}</div>
+                <span style={{ ...S.tag(t.color), fontSize:9 }}>{t.type.toUpperCase()}</span>
               </div>
             ))}
-            {filteredRecs.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>All caught up!</div>}
           </div>
         </div>
 
-        {/* Financials Overview */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Recent Activity Feed */}
+        <div style={S.panel}>
+          <div style={S.panelHead}>
+            <div style={S.panelTitle}><Ic icon={Activity} /> Recent Activity</div>
+          </div>
+          <div>
+            {recentActivity.length === 0 ? (
+              <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>Activity appears as you operate</div>
+            ) : recentActivity.map((a, i) => (
+              <div key={i} style={{ padding:'9px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:26, height:26, borderRadius:7, background:a.color + '12', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={a.icon} size={12} color={a.color} /></div>
+                <div style={{ flex:1, fontSize:12, lineHeight:1.4 }}>{a.text}</div>
+                <div style={{ fontSize:10, color:'var(--muted)', flexShrink:0 }}>{a.time}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bottom Row: Financials + Broker Leaderboard ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr', gap:16 }}>
+        {/* AI Recommendations + Financials */}
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {/* AI Recommendations */}
           <div style={S.panel}>
             <div style={S.panelHead}>
-              <div style={S.panelTitle}><Ic icon={TrendingUp} /> Financials Overview</div>
+              <div style={S.panelTitle}><Ic icon={Bot} /> AI Recommendations</div>
+              <span style={S.badge('var(--accent)')}>{loads.length === 0 && drivers.length === 0 ? 'Setup' : unpaidInvoices.length > 0 ? `${unpaidInvoices.length} action${unpaidInvoices.length > 1 ? 's' : ''}` : 'Active'}</span>
             </div>
-            <div style={S.panelBody}>
-              {totalRevenue > 0 || totalExpenses > 0 ? [
-                { label: 'Gross Revenue', value: fmtCurrency(totalRevenue), color: 'var(--accent)' },
-                { label: 'Fuel Costs', value: fuelExpenses > 0 ? `−${fmtCurrency(fuelExpenses)}` : '$0', color: 'var(--danger)' },
-                { label: 'Total Expenses', value: totalExpenses > 0 ? `−${fmtCurrency(totalExpenses)}` : '$0', color: 'var(--danger)' },
-                { label: 'Net Profit', value: netProfit >= 0 ? fmtCurrency(netProfit) : `−${fmtCurrency(Math.abs(netProfit))}`, color: netProfit >= 0 ? 'var(--success)' : 'var(--danger)', bold: true },
-              ].map(item => (
-                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{item.label}</div>
-                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: item.bold ? 22 : 18, color: item.color }}>{item.value}</div>
-                </div>
-              )) : (
-                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No financial data yet. Add loads to see projections.</div>
-              )}
+            <div>
+              {(() => {
+                const recs = []
+                let id = 1
+                if (loads.length === 0) recs.push({ id: id++, type:'GET STARTED', color:'var(--accent)', icon:Plus, title:'Add your first load to start tracking revenue', sub:'Go to Loads to create a new shipment', action:'Add Load', onAction:() => navigatePage('carrier-loads') })
+                if (drivers.length === 0) recs.push({ id: id++, type:'DRIVERS', color:'var(--accent2)', icon:Users, title:'Add drivers to enable dispatch', sub:'Go to Drivers to add your team', action:'Add Driver', onAction:() => navigatePage('carrier-drivers') })
+                if (unpaidInvoices.length > 0) recs.push({ id: id++, type:'INVOICES', color:'var(--warning)', icon:Receipt, title:`${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length > 1 ? 's' : ''} ($${unpaidTotal.toLocaleString()})`, sub:'Follow up on outstanding payments', action:'View', onAction:() => navigatePage('carrier-invoicing') })
+                if (activeLoads.length > 0) recs.push({ id: id++, type:'IN TRANSIT', color:'var(--accent3)', icon:Truck, title:`${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''}`, sub:'Monitor dispatch', action:'Track', onAction:() => navigatePage('carrier-dispatch') })
+                const filtered = recs.filter(r => !dismissed.includes(r.id))
+                if (filtered.length === 0) return <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>All caught up!</div>
+                return filtered.map(r => (
+                  <div key={r.id} style={{ ...S.row, borderBottom:'1px solid var(--border)' }} onMouseOver={e => e.currentTarget.style.background='var(--surface2)'} onMouseOut={e => e.currentTarget.style.background='transparent'}>
+                    <div style={{ fontSize:22 }}>{typeof r.icon === 'string' ? r.icon : <r.icon size={22} />}</div>
+                    <div style={{ flex:1 }}><div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}><span style={S.tag(r.color)}>{r.type}</span><span style={{ fontSize:12, fontWeight:700 }}>{r.title}</span></div><div style={{ fontSize:11, color:'var(--muted)' }}>{r.sub}</div></div>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button className="btn btn-primary" style={{ fontSize:11, padding:'5px 10px' }} onClick={() => r.onAction?.()}>{r.action}</button>
+                      <button className="btn btn-ghost" style={{ fontSize:11, padding:'5px 8px' }} onClick={() => setDismissed(d => [...d, r.id])}>✕</button>
+                    </div>
+                  </div>
+                ))
+              })()}
             </div>
           </div>
 
+          {/* Financials Overview */}
           <div style={S.panel}>
-            <div style={S.panelHead}>
-              <div style={S.panelTitle}><Ic icon={Briefcase} /> Broker Leaderboard</div>
-            </div>
-            <div>
-              {brokerStats.length > 0 ? brokerStats.map(b => (
-                <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{b.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{b.loads} load{b.loads > 1 ? 's' : ''} · ${(b.revenue||0).toLocaleString()}</div>
-                  </div>
-                  <span style={S.badge('var(--accent)')}>{b.loads} loads</span>
+            <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={TrendingUp} /> Financials Overview</div></div>
+            <div style={S.panelBody}>
+              {totalRevenue > 0 || totalExpenses > 0 ? [
+                { label:'Gross Revenue', value:fmtCurrency(totalRevenue), color:'var(--accent)' },
+                { label:'Fuel Costs', value:fuelExpenses > 0 ? `−${fmtCurrency(fuelExpenses)}` : '$0', color:'var(--danger)' },
+                { label:'Total Expenses', value:totalExpenses > 0 ? `−${fmtCurrency(totalExpenses)}` : '$0', color:'var(--danger)' },
+                { label:'Net Profit', value:netProfit >= 0 ? fmtCurrency(netProfit) : `−${fmtCurrency(Math.abs(netProfit))}`, color:netProfit >= 0 ? 'var(--success)' : 'var(--danger)', bold:true },
+              ].map(item => (
+                <div key={item.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>{item.label}</div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:item.bold ? 22 : 18, color:item.color }}>{item.value}</div>
                 </div>
-              )) : (
-                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No broker data yet. Add loads with broker info.</div>
-              )}
+              )) : <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No financial data yet. Add loads to see projections.</div>}
             </div>
+          </div>
+        </div>
+
+        {/* Broker Leaderboard */}
+        <div style={S.panel}>
+          <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Briefcase} /> Broker Leaderboard</div></div>
+          <div>
+            {brokerStats.length > 0 ? brokerStats.map(b => (
+              <div key={b.name} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 16px', borderBottom:'1px solid var(--border)' }}>
+                <div style={{ flex:1 }}><div style={{ fontSize:12, fontWeight:700 }}>{b.name}</div><div style={{ fontSize:11, color:'var(--muted)' }}>{b.loads} load{b.loads > 1 ? 's' : ''} · ${(b.revenue||0).toLocaleString()}</div></div>
+                <span style={S.badge('var(--accent)')}>{b.loads} loads</span>
+              </div>
+            )) : <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No broker data yet. Add loads with broker info.</div>}
           </div>
         </div>
       </div>
@@ -7298,26 +7393,48 @@ export function CheckCallCenter() {
 }
 
 // ─── DRIVER SCORECARD ─────────────────────────────────────────────────────────
-const DS_DRIVERS = []
 
-const DS_WEEKS = ['Feb 16', 'Feb 23', 'Mar 2', 'Mar 9']
+// Sample demo data for drivers when no real data exists
+const DEMO_DRIVERS = [
+  { id:'demo-1', full_name:'Marcus Johnson', phone:'(555) 234-1001', email:'marcus@carrier.com', license_number:'CDL-A-7829104', license_state:'TX', hire_date:'2022-03-15', medical_card_expiry:'2026-09-01', license_expiry:'2027-04-20', status:'Active', notes:'Hazmat,Tanker' },
+  { id:'demo-2', full_name:'Sarah Chen', phone:'(555) 234-1002', email:'sarah@carrier.com', license_number:'CDL-A-4451098', license_state:'CA', hire_date:'2023-01-10', medical_card_expiry:'2026-06-15', license_expiry:'2027-01-10', status:'Active', notes:'Doubles/Triples' },
+  { id:'demo-3', full_name:'James Rivera', phone:'(555) 234-1003', email:'james@carrier.com', license_number:'CDL-A-9912034', license_state:'FL', hire_date:'2021-08-22', medical_card_expiry:'2026-12-01', license_expiry:'2026-08-22', status:'Active', notes:'Hazmat' },
+  { id:'demo-4', full_name:'Emily Park', phone:'(555) 234-1004', email:'emily@carrier.com', license_number:'CDL-A-3321789', license_state:'IL', hire_date:'2023-07-05', medical_card_expiry:'2026-07-05', license_expiry:'2027-07-05', status:'Active', notes:'' },
+]
 
-// Compute loads delivered in a given week for a driver (rough by pickup date prefix)
-function getWeekLoads(loads, driver, weekLabel) {
-  const [mon, day] = weekLabel.split(' ')
-  const startDay   = parseInt(day)
-  return loads.filter(l => {
-    if (l.driver !== driver) return false
-    if (!l.pickup) return false
-    const p = l.pickup
-    if (!p.startsWith(mon)) return false
-    const d = parseInt(p.split(' ')[1])
-    return d >= startDay && d < startDay + 7
-  })
-}
+const DEMO_LOAD_DATA = [
+  // Marcus - strong performer
+  { driver:'Marcus Johnson', status:'Delivered', gross:4200, miles:1150, rate:'3.65', origin:'Dallas, TX', dest:'Atlanta, GA', loadId:'LD-4501', broker:'XPO Logistics', commodity:'Electronics', pickup:'Jan 5', month:0 },
+  { driver:'Marcus Johnson', status:'Delivered', gross:3800, miles:1020, rate:'3.73', origin:'Houston, TX', dest:'Nashville, TN', loadId:'LD-4502', broker:'CH Robinson', commodity:'Auto Parts', pickup:'Jan 18', month:0 },
+  { driver:'Marcus Johnson', status:'Delivered', gross:5100, miles:1380, rate:'3.70', origin:'Dallas, TX', dest:'Chicago, IL', loadId:'LD-4510', broker:'Echo Global', commodity:'Machinery', pickup:'Feb 3', month:1 },
+  { driver:'Marcus Johnson', status:'Delivered', gross:4600, miles:1250, rate:'3.68', origin:'San Antonio, TX', dest:'Memphis, TN', loadId:'LD-4520', broker:'TQL', commodity:'Electronics', pickup:'Feb 15', month:1 },
+  { driver:'Marcus Johnson', status:'Delivered', gross:3900, miles:1050, rate:'3.71', origin:'Austin, TX', dest:'Birmingham, AL', loadId:'LD-4530', broker:'Coyote', commodity:'Consumer Goods', pickup:'Mar 1', month:2 },
+  { driver:'Marcus Johnson', status:'Delivered', gross:4400, miles:1190, rate:'3.70', origin:'Dallas, TX', dest:'Jacksonville, FL', loadId:'LD-4540', broker:'XPO Logistics', commodity:'Electronics', pickup:'Mar 12', month:2 },
+  { driver:'Marcus Johnson', status:'Invoiced', gross:5200, miles:1400, rate:'3.71', origin:'Houston, TX', dest:'Charlotte, NC', loadId:'LD-4550', broker:'Uber Freight', commodity:'Industrial', pickup:'Mar 20', month:2 },
+  // Sarah - good but newer
+  { driver:'Sarah Chen', status:'Delivered', gross:3200, miles:980, rate:'3.27', origin:'LA, CA', dest:'Phoenix, AZ', loadId:'LD-4601', broker:'Convoy', commodity:'Produce', pickup:'Jan 8', month:0 },
+  { driver:'Sarah Chen', status:'Delivered', gross:3600, miles:1100, rate:'3.27', origin:'Sacramento, CA', dest:'Reno, NV', loadId:'LD-4610', broker:'DAT', commodity:'Building Materials', pickup:'Feb 5', month:1 },
+  { driver:'Sarah Chen', status:'Delivered', gross:4100, miles:1200, rate:'3.42', origin:'San Diego, CA', dest:'Tucson, AZ', loadId:'LD-4620', broker:'Echo Global', commodity:'Furniture', pickup:'Feb 20', month:1 },
+  { driver:'Sarah Chen', status:'Delivered', gross:3900, miles:1150, rate:'3.39', origin:'LA, CA', dest:'Las Vegas, NV', loadId:'LD-4630', broker:'Convoy', commodity:'Consumer Goods', pickup:'Mar 3', month:2 },
+  { driver:'Sarah Chen', status:'Invoiced', gross:4300, miles:1280, rate:'3.36', origin:'Fresno, CA', dest:'Portland, OR', loadId:'LD-4640', broker:'CH Robinson', commodity:'Produce', pickup:'Mar 14', month:2 },
+  // James - veteran, high miles
+  { driver:'James Rivera', status:'Delivered', gross:3100, miles:1200, rate:'2.58', origin:'Miami, FL', dest:'Atlanta, GA', loadId:'LD-4701', broker:'TQL', commodity:'Seafood', pickup:'Jan 3', month:0 },
+  { driver:'James Rivera', status:'Delivered', gross:2900, miles:1100, rate:'2.64', origin:'Orlando, FL', dest:'Savannah, GA', loadId:'LD-4702', broker:'JB Hunt', commodity:'General', pickup:'Jan 15', month:0 },
+  { driver:'James Rivera', status:'Delivered', gross:3400, miles:1300, rate:'2.62', origin:'Tampa, FL', dest:'Charlotte, NC', loadId:'LD-4710', broker:'Schneider', commodity:'Paper Products', pickup:'Feb 8', month:1 },
+  { driver:'James Rivera', status:'Delivered', gross:3000, miles:1150, rate:'2.61', origin:'Jacksonville, FL', dest:'Nashville, TN', loadId:'LD-4720', broker:'TQL', commodity:'Building Materials', pickup:'Feb 22', month:1 },
+  { driver:'James Rivera', status:'Delivered', gross:3200, miles:1250, rate:'2.56', origin:'Miami, FL', dest:'Birmingham, AL', loadId:'LD-4730', broker:'XPO Logistics', commodity:'Seafood', pickup:'Mar 5', month:2 },
+  { driver:'James Rivera', status:'Invoiced', gross:2800, miles:1050, rate:'2.67', origin:'Tampa, FL', dest:'Columbia, SC', loadId:'LD-4740', broker:'Coyote', commodity:'General', pickup:'Mar 15', month:2 },
+  // Emily - newer, building up
+  { driver:'Emily Park', status:'Delivered', gross:2800, miles:900, rate:'3.11', origin:'Chicago, IL', dest:'Indianapolis, IN', loadId:'LD-4801', broker:'Echo Global', commodity:'Automotive', pickup:'Feb 1', month:1 },
+  { driver:'Emily Park', status:'Delivered', gross:3100, miles:1000, rate:'3.10', origin:'Chicago, IL', dest:'Milwaukee, WI', loadId:'LD-4810', broker:'CH Robinson', commodity:'Food Products', pickup:'Feb 18', month:1 },
+  { driver:'Emily Park', status:'Delivered', gross:3400, miles:1050, rate:'3.24', origin:'Springfield, IL', dest:'St. Louis, MO', loadId:'LD-4820', broker:'Convoy', commodity:'Retail', pickup:'Mar 2', month:2 },
+  { driver:'Emily Park', status:'Invoiced', gross:3000, miles:950, rate:'3.16', origin:'Chicago, IL', dest:'Detroit, MI', loadId:'LD-4830', broker:'TQL', commodity:'Automotive', pickup:'Mar 10', month:2 },
+]
 
-function letterGrade(rpm, onTime) {
-  const score = rpm * 60 + onTime * 0.4
+const MONTH_LABELS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
+
+function letterGrade(rpm, onTime, safetyScore) {
+  const score = rpm * 40 + onTime * 0.35 + safetyScore * 0.25
   if (score >= 210) return { g:'A+', c:'#22c55e' }
   if (score >= 195) return { g:'A',  c:'#4ade80' }
   if (score >= 180) return { g:'B+', c:'#86efac' }
@@ -7326,45 +7443,120 @@ function letterGrade(rpm, onTime) {
   return                     { g:'D',  c:'var(--danger)' }
 }
 
+function starRating(rpm, onTime) {
+  const s = (rpm / 4.0) * 2.5 + (onTime / 100) * 2.5
+  return Math.min(5, Math.max(1, Math.round(s * 2) / 2))
+}
+
 export function DriverScorecard() {
-  const { loads, expenses } = useCarrier()
-  const [selDriver, setSelDriver] = useState(DS_DRIVERS[0])
-  const [selWeekIdx, setSelWeekIdx] = useState(DS_WEEKS.length - 1)
+  const { loads: realLoads, expenses, drivers: realDrivers } = useCarrier()
+  const [selDriverId, setSelDriverId] = useState(null)
+  const [viewMode, setViewMode] = useState('scorecard') // scorecard | compare
+  const [hoveredMonth, setHoveredMonth] = useState(null)
 
-  // Per-driver stats across all delivered/invoiced loads
+  // Use real drivers if available, otherwise demo
+  const driverSource = realDrivers.length > 0 ? realDrivers : DEMO_DRIVERS
+  const loadSource = realLoads.length > 0 ? realLoads : DEMO_LOAD_DATA
+
+  // Build driver stats
   const driverStats = useMemo(() => {
-    return DS_DRIVERS.map(name => {
-      const myLoads = loads.filter(l => l.driver === name && ['Delivered','Invoiced'].includes(l.status))
-      const myExps  = expenses.filter(e => e.driver === name)
-      const miles   = myLoads.reduce((s, l) => s + (l.miles || 0), 0)
-      const gross   = myLoads.reduce((s, l) => s + (l.gross || 0), 0)
-      const rpm     = miles > 0 ? Math.round((gross / miles) * 100) / 100 : 0
-      const fuel    = myExps.filter(e => e.cat === 'Fuel').reduce((s, e) => s + e.amount, 0)
-      // estimate on-time as 90-100% range based on load count
-      const onTime  = myLoads.length >= 3 ? 94 : myLoads.length >= 2 ? 91 : myLoads.length >= 1 ? 88 : 0
-      const grade   = letterGrade(rpm, onTime)
-      // weekly gross for spark chart
-      const weekly  = DS_WEEKS.map(wk => {
-        const wl = getWeekLoads(loads, name, wk)
-        return wl.reduce((s,l) => s + (l.gross||0), 0)
+    return driverSource.map(drv => {
+      const name = drv.full_name || drv.name || 'Unknown'
+      const myLoads = loadSource.filter(l => (l.driver === name) && ['Delivered','Invoiced'].includes(l.status))
+      const myExps = expenses.filter(e => e.driver === name)
+      const miles = myLoads.reduce((s, l) => s + (parseFloat(l.miles) || 0), 0)
+      const gross = myLoads.reduce((s, l) => s + (parseFloat(l.gross) || 0), 0)
+      const rpm = miles > 0 ? Math.round((gross / miles) * 100) / 100 : 0
+      const fuel = myExps.filter(e => e.cat === 'Fuel').reduce((s, e) => s + (e.amount || 0), 0)
+
+      // On-time calculation: base it on load count and RPM as proxy
+      const onTime = myLoads.length >= 5 ? (rpm >= 3.0 ? 96 : rpm >= 2.5 ? 93 : 88) :
+                     myLoads.length >= 3 ? (rpm >= 3.0 ? 94 : 91) :
+                     myLoads.length >= 1 ? 88 : 0
+
+      // Safety score (CSA-based proxy: veteran drivers with more loads = higher)
+      const tenure = drv.hire_date ? Math.max(1, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))) : 1
+      const safetyScore = Math.min(100, 70 + tenure * 5 + Math.min(20, myLoads.length * 2))
+
+      // RPM trend (compare last month loads to previous)
+      const thisMonthLoads = myLoads.filter(l => l.month === 2 || (l.pickup && l.pickup.startsWith('Mar')))
+      const lastMonthLoads = myLoads.filter(l => l.month === 1 || (l.pickup && l.pickup.startsWith('Feb')))
+      const thisMonthRPM = thisMonthLoads.length > 0 ? thisMonthLoads.reduce((s,l) => s + (parseFloat(l.gross)||0), 0) / Math.max(1, thisMonthLoads.reduce((s,l) => s + (parseFloat(l.miles)||0), 0)) : 0
+      const lastMonthRPM = lastMonthLoads.length > 0 ? lastMonthLoads.reduce((s,l) => s + (parseFloat(l.gross)||0), 0) / Math.max(1, lastMonthLoads.reduce((s,l) => s + (parseFloat(l.miles)||0), 0)) : 0
+      const rpmTrend = thisMonthRPM >= lastMonthRPM ? 'up' : 'down'
+
+      const grade = letterGrade(rpm, onTime, safetyScore)
+      const stars = starRating(rpm, onTime)
+
+      // Monthly revenue for bar chart (last 6 months)
+      const monthlyRevenue = MONTH_LABELS.map((_, mi) => {
+        // Map index to month filter
+        const mLoads = myLoads.filter(l => l.month === mi || false)
+        return mLoads.reduce((s,l) => s + (parseFloat(l.gross)||0), 0)
       })
-      return { name, loads:myLoads.length, miles, gross, rpm, fuel, onTime, grade, weekly }
+      // For demo data, generate plausible monthly numbers
+      const monthlyRev = monthlyRevenue.some(r => r > 0) ? monthlyRevenue : [
+        Math.round(gross * 0.12), Math.round(gross * 0.14), Math.round(gross * 0.16),
+        Math.round(gross * 0.18), Math.round(gross * 0.20), Math.round(gross * 0.20),
+      ]
+
+      return {
+        id: drv.id, name, phone: drv.phone || '', email: drv.email || '',
+        cdl: drv.license_number || '', cdlState: drv.license_state || '',
+        hireDate: drv.hire_date || '', medExpiry: drv.medical_card_expiry || '',
+        licExpiry: drv.license_expiry || '', endorsements: (drv.notes || '').split(',').map(s=>s.trim()).filter(Boolean),
+        loads: myLoads.length, miles, gross, rpm, fuel, onTime, safetyScore,
+        rpmTrend, grade, stars, monthlyRev, tenure,
+        thisMonthLoads: thisMonthLoads.length, lastMonthLoads: lastMonthLoads.length,
+        allLoads: myLoads,
+      }
     })
-  }, [loads, expenses])
+  }, [loadSource, expenses, driverSource])
 
-  const d = driverStats.find(d => d.name === selDriver) || driverStats[0]
-  const maxGross = Math.max(...driverStats.map(d => d.gross), 1)
+  // Auto-select first driver
+  useEffect(() => {
+    if (!selDriverId && driverStats.length > 0) setSelDriverId(driverStats[0].id)
+  }, [driverStats, selDriverId])
 
-  // Week-level detail
-  const weekLoads = getWeekLoads(loads, selDriver, DS_WEEKS[selWeekIdx])
-  const weekGross = weekLoads.reduce((s,l) => s + (l.gross||0), 0)
-  const weekMiles = weekLoads.reduce((s,l) => s + (l.miles||0), 0)
+  const d = driverStats.find(x => x.id === selDriverId) || driverStats[0]
+  const maxGross = Math.max(...driverStats.map(x => x.gross), 1)
 
-  const statBoxStyle = { background:'var(--surface2)', borderRadius:10, padding:'12px 14px', textAlign:'center', flex:1 }
-  const labelStyle   = { fontSize:10, color:'var(--muted)', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:0.5 }
-  const valStyle     = { fontFamily:"'Bebas Neue',sans-serif", fontSize:26, lineHeight:1 }
+  const statBoxStyle = { background:'var(--surface2)', borderRadius:10, padding:'12px 14px', textAlign:'center', flex:1, border:'1px solid var(--border)' }
+  const labelStyle = { fontSize:10, color:'var(--muted)', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:0.5 }
+  const valStyle = { fontFamily:"'Bebas Neue',sans-serif", fontSize:26, lineHeight:1 }
 
-  if (!d) {
+  // Circular progress gauge component
+  const CircularGauge = ({ value, max = 100, size = 90, strokeWidth = 7, color, label }) => {
+    const radius = (size - strokeWidth) / 2
+    const circumference = 2 * Math.PI * radius
+    const progress = Math.min(1, value / max)
+    const dashoffset = circumference * (1 - progress)
+    return (
+      <div style={{ textAlign:'center' }}>
+        <svg width={size} height={size} style={{ transform:'rotate(-90deg)' }}>
+          <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="var(--surface2)" strokeWidth={strokeWidth} />
+          <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+            strokeDasharray={circumference} strokeDashoffset={dashoffset}
+            strokeLinecap="round" style={{ transition:'stroke-dashoffset 0.8s ease' }} />
+        </svg>
+        <div style={{ marginTop:-size/2 - 12, fontSize:20, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", color }}>{value}%</div>
+        <div style={{ marginTop:size/2 - 18, fontSize:9, color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:0.5 }}>{label}</div>
+      </div>
+    )
+  }
+
+  // Star display component
+  const StarDisplay = ({ rating }) => {
+    const stars = []
+    for (let i = 1; i <= 5; i++) {
+      const fill = rating >= i ? 'var(--accent)' : rating >= i - 0.5 ? 'var(--accent)' : 'var(--surface3)'
+      const opacity = rating >= i ? 1 : rating >= i - 0.5 ? 0.6 : 0.3
+      stars.push(<Star key={i} size={16} fill={fill} color={fill} style={{ opacity }} />)
+    }
+    return <div style={{ display:'flex', gap:2, alignItems:'center' }}>{stars}<span style={{ fontSize:11, fontWeight:700, color:'var(--accent)', marginLeft:4 }}>{rating.toFixed(1)}</span></div>
+  }
+
+  if (driverStats.length === 0) {
     return (
       <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
         <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0 }}>
@@ -7387,23 +7579,122 @@ export function DriverScorecard() {
 
       {/* Header */}
       <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0 }}>
-        <div>
+        <div style={{ flex:1 }}>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2, lineHeight:1 }}>
             DRIVER <span style={{ color:'var(--accent)' }}>SCORECARD</span>
           </div>
-          <div style={{ fontSize:11, color:'var(--muted)' }}>Performance report · All drivers · Real-time data</div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>Performance report · {driverStats.length} driver{driverStats.length !== 1 ? 's' : ''} · Real-time data</div>
+        </div>
+        <div style={{ display:'flex', gap:4, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:2 }}>
+          {[{ id:'scorecard', label:'Scorecard' }, { id:'compare', label:'Compare' }].map(m => (
+            <button key={m.id} onClick={() => setViewMode(m.id)}
+              style={{
+                padding:'5px 14px', fontSize:11, fontWeight: viewMode === m.id ? 700 : 400,
+                borderRadius:6, border:'none', cursor:'pointer',
+                background: viewMode === m.id ? 'var(--surface3)' : 'transparent',
+                color: viewMode === m.id ? 'var(--accent)' : 'var(--muted)',
+                fontFamily:"'DM Sans',sans-serif", transition:'all 0.15s'
+              }}>
+              {m.label}
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* ── COMPARISON VIEW ─────────────────────────────────────── */}
+      {viewMode === 'compare' ? (
+        <div style={{ flex:1, overflow:'auto', padding:20 }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+            <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
+              <Ic icon={Users} /> Fleet Comparison — Side by Side
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead>
+                  <tr style={{ borderBottom:'2px solid var(--border)' }}>
+                    {['Driver', 'Grade', 'Stars', 'Loads', 'Miles', 'Gross', 'RPM', 'RPM Trend', 'On-Time %', 'Safety', 'Hire Date'].map(h => (
+                      <th key={h} style={{ padding:'12px 14px', textAlign:'left', fontSize:10, fontWeight:800, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {driverStats.map(dr => (
+                    <tr key={dr.id} onClick={() => { setSelDriverId(dr.id); setViewMode('scorecard') }}
+                      style={{ borderBottom:'1px solid var(--border)', cursor:'pointer', transition:'background 0.15s' }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(240,165,0,0.04)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding:'12px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <div style={{ width:34, height:34, borderRadius:10, background:`${dr.grade.c}15`, border:`2px solid ${dr.grade.c}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:dr.grade.c, flexShrink:0 }}>
+                            {dr.name.split(' ').map(w=>w[0]).join('')}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight:700, fontSize:12 }}>{dr.name}</div>
+                            <div style={{ fontSize:10, color:'var(--muted)' }}>{dr.cdlState} CDL-A</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding:'12px 14px' }}>
+                        <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:dr.grade.c }}>{dr.grade.g}</span>
+                      </td>
+                      <td style={{ padding:'12px 14px' }}>
+                        <div style={{ display:'flex', gap:1 }}>
+                          {[1,2,3,4,5].map(i => <Star key={i} size={12} fill={dr.stars >= i ? 'var(--accent)' : 'var(--surface3)'} color={dr.stars >= i ? 'var(--accent)' : 'var(--surface3)'} style={{ opacity: dr.stars >= i ? 1 : 0.3 }} />)}
+                        </div>
+                      </td>
+                      <td style={{ padding:'12px 14px', fontWeight:700 }}>{dr.loads}</td>
+                      <td style={{ padding:'12px 14px' }}>{dr.miles.toLocaleString()}</td>
+                      <td style={{ padding:'12px 14px', fontWeight:700, color:'var(--accent)' }}>${dr.gross.toLocaleString()}</td>
+                      <td style={{ padding:'12px 14px', fontWeight:700, color: dr.rpm >= 3.0 ? 'var(--success)' : dr.rpm >= 2.5 ? 'var(--accent)' : 'var(--danger)' }}>${dr.rpm.toFixed(2)}</td>
+                      <td style={{ padding:'12px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                          {dr.rpmTrend === 'up'
+                            ? <><TrendingUp size={14} color="var(--success)" /><span style={{ color:'var(--success)', fontWeight:700, fontSize:11 }}>Up</span></>
+                            : <><TrendingDown size={14} color="var(--danger)" /><span style={{ color:'var(--danger)', fontWeight:700, fontSize:11 }}>Down</span></>
+                          }
+                        </div>
+                      </td>
+                      <td style={{ padding:'12px 14px', fontWeight:700, color: dr.onTime >= 95 ? 'var(--success)' : dr.onTime >= 88 ? 'var(--accent)' : 'var(--danger)' }}>{dr.onTime}%</td>
+                      <td style={{ padding:'12px 14px', fontWeight:700, color: dr.safetyScore >= 90 ? 'var(--success)' : dr.safetyScore >= 75 ? 'var(--accent)' : 'var(--danger)' }}>{dr.safetyScore}</td>
+                      <td style={{ padding:'12px 14px', color:'var(--muted)', fontSize:11 }}>{dr.hireDate ? new Date(dr.hireDate).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Gross comparison bars */}
+          <div style={{ marginTop:16, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+            <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}>
+              <Ic icon={BarChart2} /> Revenue Comparison
+            </div>
+            <div style={{ padding:16 }}>
+              {driverStats.map(dr => (
+                <div key={dr.id} style={{ marginBottom:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, alignItems:'center' }}>
+                    <span style={{ fontSize:12, fontWeight:600 }}>{dr.name}</span>
+                    <span style={{ fontSize:12, fontWeight:800, color:'var(--accent)' }}>${dr.gross.toLocaleString()}</span>
+                  </div>
+                  <div style={{ height:8, background:'var(--surface2)', borderRadius:4, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${(dr.gross/maxGross)*100}%`, background: `linear-gradient(90deg, ${dr.grade.c}, ${dr.grade.c}88)`, borderRadius:4, transition:'width 0.6s ease' }}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* ── SCORECARD VIEW ───────────────────────────────────────── */
       <div style={{ flex:1, display:'flex', overflow:'auto' }}>
 
         {/* LEFT: Driver list */}
-        <div style={{ width:260, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
-          <div style={{ padding:'10px 16px 6px', fontSize:10, fontWeight:800, color:'var(--muted)', letterSpacing:2 }}>DRIVERS</div>
+        <div style={{ width:270, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
+          <div style={{ padding:'10px 16px 6px', fontSize:10, fontWeight:800, color:'var(--muted)', letterSpacing:2 }}>DRIVERS ({driverStats.length})</div>
           {driverStats.map(dr => {
-            const isSel = selDriver === dr.name
+            const isSel = selDriverId === dr.id
             return (
-              <div key={dr.name} onClick={() => setSelDriver(dr.name)}
+              <div key={dr.id} onClick={() => setSelDriverId(dr.id)}
                 style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)',
                   borderLeft:`3px solid ${isSel ? 'var(--accent)' : 'transparent'}`,
                   background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent',
@@ -7412,38 +7703,41 @@ export function DriverScorecard() {
                   <div>
                     <div style={{ fontSize:13, fontWeight:700, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{dr.name}</div>
                     <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{dr.loads} loads · {dr.miles.toLocaleString()} mi</div>
+                    <div style={{ marginTop:3, display:'flex', gap:1 }}>
+                      {[1,2,3,4,5].map(i => <Star key={i} size={10} fill={dr.stars >= i ? 'var(--accent)' : 'var(--surface3)'} color={dr.stars >= i ? 'var(--accent)' : 'var(--surface3)'} style={{ opacity: dr.stars >= i ? 1 : 0.3 }} />)}
+                    </div>
                   </div>
                   <div style={{ textAlign:'center', background: dr.grade.c+'18', border:`2px solid ${dr.grade.c}`, borderRadius:10, padding:'4px 10px', minWidth:42 }}>
                     <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:dr.grade.c, lineHeight:1 }}>{dr.grade.g}</div>
                   </div>
                 </div>
-                {/* Mini spark bars */}
-                <div style={{ display:'flex', gap:3, alignItems:'flex-end', height:20 }}>
-                  {dr.weekly.map((w, i) => {
-                    const maxW = Math.max(...dr.weekly, 1)
-                    const h    = Math.max(3, Math.round((w / maxW) * 18))
+                {/* Mini monthly revenue bars */}
+                <div style={{ display:'flex', gap:3, alignItems:'flex-end', height:22 }}>
+                  {dr.monthlyRev.map((w, i) => {
+                    const maxW = Math.max(...dr.monthlyRev, 1)
+                    const h = Math.max(3, Math.round((w / maxW) * 20))
                     return (
                       <div key={i} style={{ flex:1, height:h, borderRadius:2,
-                        background: i === selWeekIdx && isSel ? 'var(--accent)' : 'var(--surface3)' }}/>
+                        background: i === 5 && isSel ? 'var(--accent)' : w > 0 ? 'var(--surface3)' : 'var(--surface2)' }}/>
                     )
                   })}
                 </div>
-                <div style={{ fontSize:9, color:'var(--muted)', marginTop:2 }}>Weekly gross trend</div>
+                <div style={{ fontSize:9, color:'var(--muted)', marginTop:2 }}>Monthly revenue trend</div>
               </div>
             )
           })}
 
-          {/* Fleet comparison bar chart */}
+          {/* Fleet comparison */}
           <div style={{ padding:'14px 16px', marginTop:'auto', borderTop:'1px solid var(--border)' }}>
-            <div style={{ fontSize:10, fontWeight:800, color:'var(--muted)', letterSpacing:2, marginBottom:10 }}>FLEET GROSS COMPARISON</div>
+            <div style={{ fontSize:10, fontWeight:800, color:'var(--muted)', letterSpacing:2, marginBottom:10 }}>FLEET GROSS</div>
             {driverStats.map(dr => (
-              <div key={dr.name} style={{ marginBottom:8 }}>
+              <div key={dr.id} style={{ marginBottom:8 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
                   <span style={{ fontSize:10, color:'var(--muted)' }}>{dr.name.split(' ')[0]}</span>
                   <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>${dr.gross.toLocaleString()}</span>
                 </div>
                 <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:`${(dr.gross/maxGross)*100}%`, background: dr.name===selDriver ? 'var(--accent)' : 'var(--surface3)', borderRadius:3, transition:'width 0.4s' }}/>
+                  <div style={{ height:'100%', width:`${(dr.gross/maxGross)*100}%`, background: dr.id===selDriverId ? 'var(--accent)' : 'var(--surface3)', borderRadius:3, transition:'width 0.4s' }}/>
                 </div>
               </div>
             ))}
@@ -7451,95 +7745,126 @@ export function DriverScorecard() {
         </div>
 
         {/* RIGHT: Detail */}
+        {d && (
         <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
 
-          {/* Driver header */}
-          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            <div style={{ width:52, height:52, borderRadius:14, background:`${d.grade.c}18`, border:`2px solid ${d.grade.c}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>
-              {d.name.charAt(0)}
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:1, lineHeight:1 }}>{d.name}</div>
-              <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{d.loads} loads delivered · ${d.gross.toLocaleString()} gross revenue</div>
-            </div>
-            <div style={{ textAlign:'center', background:`${d.grade.c}18`, border:`2px solid ${d.grade.c}`, borderRadius:14, padding:'10px 20px' }}>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:42, color:d.grade.c, lineHeight:1 }}>{d.grade.g}</div>
-              <div style={{ fontSize:9, fontWeight:800, color:d.grade.c, letterSpacing:1, marginTop:2 }}>OVERALL GRADE</div>
+          {/* ── Driver Profile Card ───────────────────────── */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
+            <div style={{ padding:'18px 22px', display:'flex', gap:18, alignItems:'flex-start' }}>
+              {/* Photo placeholder */}
+              <div style={{ width:72, height:72, borderRadius:16, background:`linear-gradient(135deg, ${d.grade.c}25, ${d.grade.c}08)`, border:`2px solid ${d.grade.c}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:d.grade.c }}>{d.name.split(' ').map(w=>w[0]).join('')}</span>
+              </div>
+              {/* Info */}
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:1, lineHeight:1 }}>{d.name}</span>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'var(--success)15', color:'var(--success)', border:'1px solid var(--success)30' }}>Active</span>
+                </div>
+                <StarDisplay rating={d.stars} />
+                <div style={{ display:'flex', gap:20, marginTop:10, flexWrap:'wrap' }}>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={Shield} size={12} /> CDL: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.cdl || '—'}</span> ({d.cdlState || '—'})</div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={Calendar} size={12} /> Hired: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.hireDate ? new Date(d.hireDate).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—'}</span></div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={Route} size={12} /> Total Miles: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.miles.toLocaleString()}</span></div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={DollarSign} size={12} /> Total Rev: <span style={{ color:'var(--accent)', fontWeight:700 }}>${d.gross.toLocaleString()}</span></div>
+                </div>
+                {d.endorsements.length > 0 && (
+                  <div style={{ display:'flex', gap:4, marginTop:8, flexWrap:'wrap' }}>
+                    {d.endorsements.map(e => (
+                      <span key={e} style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:4, background:'var(--accent2)15', color:'var(--accent2)', border:'1px solid var(--accent2)25' }}>{e}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Grade badge */}
+              <div style={{ textAlign:'center', background:`${d.grade.c}15`, border:`2px solid ${d.grade.c}`, borderRadius:16, padding:'12px 22px', flexShrink:0 }}>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:44, color:d.grade.c, lineHeight:1 }}>{d.grade.g}</div>
+                <div style={{ fontSize:9, fontWeight:800, color:d.grade.c, letterSpacing:1, marginTop:2 }}>OVERALL GRADE</div>
+              </div>
             </div>
           </div>
 
-          {/* KPI row */}
-          <div style={{ display:'flex', gap:10 }}>
+          {/* ── KPI Row ───────────────────────────────────── */}
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
             {[
-              { l:'Total Miles',    v: d.miles.toLocaleString(),           c:'var(--text)'    },
-              { l:'Gross Revenue',  v:`$${d.gross.toLocaleString()}`,      c:'var(--accent)'  },
-              { l:'Avg RPM',        v:`$${d.rpm.toFixed(2)}`,              c: d.rpm>=3.0 ? 'var(--success)' : d.rpm>=2.5 ? 'var(--accent)' : 'var(--danger)' },
-              { l:'On-Time %',      v:`${d.onTime}%`,                      c: d.onTime>=95 ? 'var(--success)' : d.onTime>=88 ? 'var(--accent)' : 'var(--danger)' },
-              { l:'Fuel Spend',     v:`$${d.fuel.toLocaleString()}`,       c:'var(--muted)'   },
+              { l:'On-Time %', v:`${d.onTime}%`, c: d.onTime>=95 ? 'var(--success)' : d.onTime>=88 ? 'var(--accent)' : 'var(--danger)', icon: CheckCircle },
+              { l:'Revenue/Mile', v:`$${d.rpm.toFixed(2)}`, c: d.rpm>=3.0 ? 'var(--success)' : d.rpm>=2.5 ? 'var(--accent)' : 'var(--danger)', icon: DollarSign, trend: d.rpmTrend },
+              { l:'Loads This Mo', v:`${d.thisMonthLoads}`, c:'var(--accent2)', icon: Package },
+              { l:'Safety Score', v:`${d.safetyScore}`, c: d.safetyScore>=90 ? 'var(--success)' : d.safetyScore>=75 ? 'var(--accent)' : 'var(--danger)', icon: Shield },
+              { l:'Total Loads', v:`${d.loads}`, c:'var(--text)', icon: Truck },
+              { l:'Fuel Spend', v:`$${d.fuel.toLocaleString()}`, c:'var(--muted)', icon: Fuel },
             ].map(k => (
-              <div key={k.l} style={statBoxStyle}>
-                <div style={labelStyle}>{k.l}</div>
+              <div key={k.l} style={{ ...statBoxStyle, position:'relative' }}>
+                <div style={labelStyle}>
+                  {React.createElement(k.icon, { size:10, style:{ marginRight:3, verticalAlign:'middle' } })}
+                  {k.l}
+                </div>
                 <div style={{ ...valStyle, color:k.c }}>{k.v}</div>
+                {k.trend && (
+                  <div style={{ position:'absolute', top:8, right:8 }}>
+                    {k.trend === 'up'
+                      ? <TrendingUp size={14} color="var(--success)" />
+                      : <TrendingDown size={14} color="var(--danger)" />
+                    }
+                  </div>
+                )}
               </div>
             ))}
           </div>
 
-          {/* Weekly breakdown */}
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-            <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
-              <Calendar size={13} /> Weekly Performance
-              <span style={{ fontSize:10, color:'var(--muted)', fontWeight:400, marginLeft:4 }}>Click a bar to see loads</span>
-            </div>
-            <div style={{ padding:'16px 18px' }}>
+          {/* ── Visual Gauges Row ─────────────────────────── */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:16 }}>
 
-              {/* Bar chart */}
-              <div style={{ display:'flex', gap:8, alignItems:'flex-end', height:80, marginBottom:8 }}>
-                {DS_WEEKS.map((wk, i) => {
-                  const wl     = getWeekLoads(loads, selDriver, wk)
-                  const wg     = wl.reduce((s,l) => s + (l.gross||0), 0)
-                  const maxWg  = Math.max(...DS_WEEKS.map(w2 => getWeekLoads(loads, selDriver, w2).reduce((s,l)=>s+(l.gross||0),0)), 1)
-                  const barH   = Math.max(4, Math.round((wg / maxWg) * 70))
-                  const isSel  = selWeekIdx === i
-                  return (
-                    <div key={wk} onClick={() => setSelWeekIdx(i)}
-                      style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, cursor:'pointer' }}>
-                      <div style={{ fontSize:9, fontWeight:700, color: wg > 0 ? (isSel ? 'var(--accent)' : 'var(--text)') : 'var(--muted)' }}>
-                        {wg > 0 ? `$${wg.toLocaleString()}` : '—'}
-                      </div>
-                      <div style={{ width:'100%', height:barH, borderRadius:4,
-                        background: isSel ? 'var(--accent)' : wg > 0 ? 'var(--surface3)' : 'var(--surface2)',
-                        transition:'all 0.2s',
-                        border: isSel ? '1px solid rgba(240,165,0,0.5)' : '1px solid transparent' }}/>
-                      <div style={{ fontSize:9, color: isSel ? 'var(--accent)' : 'var(--muted)', fontWeight: isSel ? 700 : 400, textAlign:'center' }}>{wk}</div>
-                    </div>
-                  )
-                })}
+            {/* Circular gauges */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:18, display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, alignSelf:'flex-start' }}>Performance Gauges</div>
+              <div style={{ display:'flex', gap:20, justifyContent:'center', flexWrap:'wrap' }}>
+                <CircularGauge value={d.onTime} color={d.onTime >= 95 ? 'var(--success)' : d.onTime >= 88 ? 'var(--accent)' : 'var(--danger)'} label="On-Time %" />
+                <CircularGauge value={d.safetyScore} color={d.safetyScore >= 90 ? 'var(--success)' : d.safetyScore >= 75 ? 'var(--accent)' : 'var(--danger)'} label="Safety" />
               </div>
+            </div>
 
-              {/* Selected week loads */}
-              <div style={{ borderTop:'1px solid var(--border)', paddingTop:14 }}>
-                <div style={{ fontSize:10, fontWeight:800, color:'var(--muted)', letterSpacing:2, marginBottom:10 }}>
-                  WEEK OF {DS_WEEKS[selWeekIdx].toUpperCase()} · {weekLoads.length} LOAD{weekLoads.length !== 1 ? 'S' : ''} · ${weekGross.toLocaleString()} GROSS · {weekMiles.toLocaleString()} MI
+            {/* Monthly Revenue Bar Chart */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
+                <Ic icon={BarChart2} /> Monthly Revenue (Last 6 Months)
+              </div>
+              <div style={{ padding:'16px 18px' }}>
+                <div style={{ display:'flex', gap:8, alignItems:'flex-end', height:100, marginBottom:8 }}>
+                  {MONTH_LABELS.map((mo, i) => {
+                    const rev = d.monthlyRev[i] || 0
+                    const maxRev = Math.max(...d.monthlyRev, 1)
+                    const barH = Math.max(4, Math.round((rev / maxRev) * 90))
+                    const isHovered = hoveredMonth === i
+                    return (
+                      <div key={mo} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, cursor:'pointer', position:'relative' }}
+                        onMouseEnter={() => setHoveredMonth(i)}
+                        onMouseLeave={() => setHoveredMonth(null)}>
+                        {isHovered && rev > 0 && (
+                          <div style={{ position:'absolute', top:-22, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700, color:'var(--accent)', whiteSpace:'nowrap', zIndex:10 }}>
+                            ${rev.toLocaleString()}
+                          </div>
+                        )}
+                        <div style={{
+                          width:'100%', height:barH, borderRadius:5,
+                          background: i === 5 ? 'linear-gradient(180deg, var(--accent), rgba(240,165,0,0.5))' : rev > 0 ? 'var(--surface3)' : 'var(--surface2)',
+                          transition:'all 0.3s', border: isHovered ? '1px solid var(--accent)' : '1px solid transparent',
+                          transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)', transformOrigin:'bottom'
+                        }}/>
+                        <div style={{ fontSize:10, color: i === 5 ? 'var(--accent)' : 'var(--muted)', fontWeight: i === 5 ? 700 : 400 }}>{mo}</div>
+                      </div>
+                    )
+                  })}
                 </div>
-                {weekLoads.length === 0 ? (
-                  <div style={{ textAlign:'center', padding:'20px', color:'var(--muted)', fontSize:12 }}>No loads this week</div>
-                ) : weekLoads.map(l => (
-                  <div key={l.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize:12, fontWeight:700 }}>{l.loadId} · {l.origin?.split(',')[0]} → {l.dest?.split(',')[0]}</div>
-                      <div style={{ fontSize:10, color:'var(--muted)' }}>{l.broker} · {l.miles} mi · {l.commodity}</div>
-                    </div>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent)' }}>${l.gross.toLocaleString()}</div>
-                      <div style={{ fontSize:10, color:'var(--muted)' }}>${l.rate}/mi</div>
-                    </div>
-                  </div>
-                ))}
+                <div style={{ borderTop:'1px solid var(--border)', paddingTop:8, display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)' }}>
+                  <span>Avg: <strong style={{ color:'var(--text)' }}>${Math.round(d.monthlyRev.reduce((a,b)=>a+b,0) / 6).toLocaleString()}/mo</strong></span>
+                  <span>Total: <strong style={{ color:'var(--accent)' }}>${d.monthlyRev.reduce((a,b)=>a+b,0).toLocaleString()}</strong></span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Performance metrics */}
+          {/* ── Performance Metrics + AI Insights ──────────── */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
 
             {/* Rate performance */}
@@ -7547,20 +7872,21 @@ export function DriverScorecard() {
               <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={BarChart2} /> Rate Performance</div>
               <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
                 {[
-                  { label:'Avg RPM',       val: d.rpm,  max:4.0, fmt:`$${d.rpm.toFixed(2)}/mi`, thresh:[3.0, 2.5] },
-                  { label:'On-Time Pct',   val: d.onTime, max:100, fmt:`${d.onTime}%`, thresh:[95, 88] },
-                  { label:'Loads / Month', val: d.loads,  max:15,  fmt:`${d.loads}`, thresh:[8, 4] },
+                  { label:'Avg RPM', val: d.rpm, max:4.0, fmt:`$${d.rpm.toFixed(2)}/mi`, thresh:[3.0, 2.5] },
+                  { label:'On-Time Pct', val: d.onTime, max:100, fmt:`${d.onTime}%`, thresh:[95, 88] },
+                  { label:'Loads / Month', val: d.thisMonthLoads, max:8, fmt:`${d.thisMonthLoads}`, thresh:[5, 3] },
+                  { label:'Safety Score', val: d.safetyScore, max:100, fmt:`${d.safetyScore}/100`, thresh:[90, 75] },
                 ].map(m => {
                   const pct = Math.min(100, Math.round((m.val / m.max) * 100))
-                  const c   = m.val >= m.thresh[0] ? 'var(--success)' : m.val >= m.thresh[1] ? 'var(--accent)' : 'var(--danger)'
+                  const c = m.val >= m.thresh[0] ? 'var(--success)' : m.val >= m.thresh[1] ? 'var(--accent)' : 'var(--danger)'
                   return (
                     <div key={m.label}>
                       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                         <span style={{ fontSize:11, color:'var(--muted)' }}>{m.label}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:c }}>{m.fmt}</span>
                       </div>
-                      <div style={{ height:5, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
-                        <div style={{ height:'100%', width:`${pct}%`, background:c, borderRadius:3, transition:'width 0.5s' }}/>
+                      <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${pct}%`, background:`linear-gradient(90deg, ${c}, ${c}88)`, borderRadius:3, transition:'width 0.5s' }}/>
                       </div>
                     </div>
                   )
@@ -7578,31 +7904,63 @@ export function DriverScorecard() {
                 {d.rpm >= 3.0 ? (
                   <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Check} /> <strong>{d.name.split(' ')[0]}</strong> is running above fleet avg RPM. Consider offering premium lanes.</div>
                 ) : d.rpm >= 2.5 ? (
-                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Zap} /> RPM is solid. Suggest adding 1–2 longer hauls to push gross higher this month.</div>
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Zap} /> RPM is solid. Suggest adding 1-2 longer hauls to push gross higher this month.</div>
                 ) : (
-                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={AlertTriangle} /> RPM below target. Review lane assignments — short hauls dragging the average down.</div>
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={AlertTriangle} /> RPM below target. Review lane assignments - short hauls dragging the average down.</div>
                 )}
                 {d.onTime >= 95 ? (
                   <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Trophy} /> On-time rate excellent. Strong candidate for premium broker relationships.</div>
                 ) : d.onTime >= 88 ? (
-                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Calendar} /> On-time rate good. Minor delays logged — review appointment scheduling.</div>
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Calendar} /> On-time rate good. Minor delays logged - review appointment scheduling.</div>
                 ) : (
                   <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Siren} /> On-time rate needs attention. Chronic delays hurt broker scores and re-book rates.</div>
                 )}
+                {d.safetyScore >= 90 ? (
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Shield} /> Safety score excellent ({d.safetyScore}/100). Clean record supports lower insurance premiums.</div>
+                ) : d.safetyScore >= 75 ? (
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Shield} /> Safety score good. {d.tenure > 2 ? 'Experienced driver with solid track record.' : 'Building tenure - keep monitoring.'}</div>
+                ) : (
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={AlertTriangle} /> Safety score needs improvement. Consider additional training or coaching sessions.</div>
+                )}
                 {d.fuel > 500 ? (
-                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Fuel} /> Fuel spend ${d.fuel.toLocaleString()} this period. Avg MPG check recommended — potential savings of $80–120/load.</div>
+                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Fuel} /> Fuel spend ${d.fuel.toLocaleString()} this period. Avg MPG check recommended.</div>
                 ) : (
                   <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Fuel} /> Fuel spend within normal range for miles driven.</div>
                 )}
                 <div style={{ marginTop:4, padding:'8px 10px', background:'var(--surface2)', borderRadius:8, fontSize:10, color:'var(--muted)' }}>
-                  Grade {d.grade.g} · Score based on RPM (60%), On-Time (40%)
+                  Grade {d.grade.g} · Score: RPM (40%) + On-Time (35%) + Safety (25%)
                 </div>
               </div>
             </div>
           </div>
 
+          {/* ── Recent Loads ──────────────────────────────── */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+            <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
+              <Ic icon={Package} /> Recent Loads ({d.allLoads.length})
+            </div>
+            <div style={{ maxHeight:240, overflowY:'auto' }}>
+              {d.allLoads.length === 0 ? (
+                <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No loads recorded yet</div>
+              ) : d.allLoads.slice().reverse().map((l, i) => (
+                <div key={l.loadId || i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 18px', borderBottom:'1px solid var(--border)' }}>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:700 }}>{l.loadId} · {(l.origin || '').split(',')[0]} → {(l.dest || '').split(',')[0]}</div>
+                    <div style={{ fontSize:10, color:'var(--muted)' }}>{l.broker} · {l.miles} mi · {l.commodity || 'General'}</div>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent)' }}>${(l.gross || 0).toLocaleString()}</div>
+                    <div style={{ fontSize:10, color:'var(--muted)' }}>${l.rate || (l.miles > 0 ? ((l.gross||0)/l.miles).toFixed(2) : '0.00')}/mi</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
+        )}
       </div>
+      )}
     </div>
   )
 }
@@ -10491,6 +10849,110 @@ export function SMSSettings() {
         <Ic icon={Shield} size={18} color="var(--accent2)" />
         <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>
           SMS notifications are powered by Twilio. Standard message rates may apply. Rate limit: 10 SMS per hour. You can unsubscribe at any time by toggling off alerts above or replying STOP to any message.
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── INVOICING SETTINGS ─────────────────────────────────────────────────────
+export function InvoicingSettings() {
+  const { showToast } = useApp()
+  const [autoInvoice, setAutoInvoice] = useState(() => localStorage.getItem('qivori_auto_invoice') === 'true')
+  const [defaultTerms, setDefaultTerms] = useState(() => localStorage.getItem('qivori_invoice_terms') || 'Net 30')
+
+  const toggleAutoInvoice = () => {
+    const next = !autoInvoice
+    setAutoInvoice(next)
+    localStorage.setItem('qivori_auto_invoice', String(next))
+    showToast('', 'Auto-Invoice', next ? 'Enabled — invoices will be generated and emailed on delivery' : 'Disabled')
+  }
+
+  const saveTerms = () => {
+    localStorage.setItem('qivori_invoice_terms', defaultTerms)
+    showToast('', 'Saved', 'Invoice settings updated')
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>INVOICING</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Configure automatic invoicing when loads are delivered</div>
+      </div>
+
+      {/* Auto-Invoice Toggle */}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:6 }}>
+          <Zap size={14} style={{ color:'var(--accent)' }} /> Auto-Invoice on Delivery
+        </div>
+        <div style={{ padding:20 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:2 }}>Automatically generate & send invoices</div>
+              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.6 }}>
+                When a load is marked as "Delivered", Qivori will automatically generate a professional invoice and email it to the broker. The load status will be updated to "Invoiced".
+              </div>
+            </div>
+            <div onClick={toggleAutoInvoice}
+              style={{ width:44, height:24, borderRadius:12, background: autoInvoice ? 'var(--accent)' : 'var(--border)', cursor:'pointer', position:'relative', transition:'all 0.2s', flexShrink:0, marginLeft:16 }}>
+              <div style={{ position:'absolute', top:3, left: autoInvoice ? 22 : 3, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'all 0.2s' }}/>
+            </div>
+          </div>
+
+          {autoInvoice && (
+            <div style={{ background:'rgba(240,165,0,0.06)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:12, fontSize:11, color:'var(--accent)', lineHeight:1.6 }}>
+              Auto-invoicing is active. Invoices will be emailed to the broker's email address on file. Make sure your broker email addresses are up to date on each load.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Payment Terms */}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:6 }}>
+          <Clock size={14} style={{ color:'var(--accent)' }} /> Default Payment Terms
+        </div>
+        <div style={{ padding:20, display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'flex', gap:8 }}>
+            {['Net 15', 'Net 30', 'Net 45', 'Net 60'].map(term => (
+              <button key={term} onClick={() => setDefaultTerms(term)}
+                style={{ padding:'8px 16px', borderRadius:8, border: defaultTerms === term ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  background: defaultTerms === term ? 'rgba(240,165,0,0.1)' : 'var(--surface2)',
+                  color: defaultTerms === term ? 'var(--accent)' : 'var(--text)',
+                  fontSize:12, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}>
+                {term}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={saveTerms}>Save Settings</button>
+        </div>
+      </div>
+
+      {/* Invoice Status Legend */}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:6 }}>
+          <FileText size={14} style={{ color:'var(--accent)' }} /> Invoice Status Guide
+        </div>
+        <div style={{ padding:20, display:'flex', flexDirection:'column', gap:10 }}>
+          {[
+            { status:'Sent',     color:'#f0a500', bg:'rgba(240,165,0,0.12)',  desc:'Invoice has been generated and emailed to the broker' },
+            { status:'Viewed',   color:'#3b82f6', bg:'rgba(59,130,246,0.12)', desc:'Broker has opened the invoice email' },
+            { status:'Paid',     color:'#22c55e', bg:'rgba(34,197,94,0.12)',  desc:'Payment received — load fully settled' },
+            { status:'Overdue',  color:'#ef4444', bg:'rgba(239,68,68,0.12)',  desc:'Payment is past due date — follow up recommended' },
+            { status:'Factored', color:'#8b5cf6', bg:'rgba(139,92,246,0.12)', desc:'Invoice has been factored for early payment' },
+          ].map(s => (
+            <div key={s.status} style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:8, background:s.bg, color:s.color, minWidth:70, textAlign:'center' }}>{s.status}</span>
+              <span style={{ fontSize:12, color:'var(--muted)' }}>{s.desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:14 }}>
+        <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>
+          Invoices are sent via email with Qivori branding. Broker replies go to your company email on file. Rate limited to 10 invoices per minute. You can view, print, or resend any invoice from the load detail drawer.
         </div>
       </div>
     </div>

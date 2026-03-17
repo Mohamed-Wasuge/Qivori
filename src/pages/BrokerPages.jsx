@@ -565,7 +565,6 @@ function MessageThread({ loadId, user }) {
       setInput('')
       await loadMessages()
     } catch (e) {
-      console.error('Send message failed:', e)
     }
     setSending(false)
   }

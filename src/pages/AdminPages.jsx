@@ -1068,7 +1068,6 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle, botStates, touchBot
       if (driversRes.data) setDrivers(driversRes.data)
       return { loads: loadsRes.data || [], drivers: driversRes.data || [] }
     } catch (e) {
-      console.warn('[LoadAgent] Fetch error:', e)
       return { loads: [], drivers: [] }
     }
   }, [])

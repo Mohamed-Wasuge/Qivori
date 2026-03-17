@@ -4958,7 +4958,6 @@ export function DriverOnboarding() {
         showToast('success', 'APIs Called', result.started.join(', ') + ' ordered via providers')
       }
     } catch (err) {
-      console.warn('Provider API calls pending setup:', err.message)
     }
 
     // Update UI to processing after a short delay
@@ -4999,7 +4998,6 @@ export function DriverOnboarding() {
           showToast('', 'Auto-Advanced', result.started.join(', ') + ' auto-ordered')
         }
       } catch (err) {
-        console.warn('Auto-advance pending setup:', err.message)
       }
     }
   }
@@ -5029,7 +5027,7 @@ export function DriverOnboarding() {
         status: 'Onboarding',
         hire_date: new Date().toISOString().split('T')[0],
       })
-    } catch (err) { console.warn('DB save failed:', err.message) }
+    } catch (err) { /* DB save failed — handled silently */ }
 
     // Auto-send consent email + start phase 1 checks
     if (newDriver.email) {
@@ -5037,7 +5035,7 @@ export function DriverOnboarding() {
         const { startOnboarding } = await import('../lib/onboarding')
         await startOnboarding(newDriver)
         showToast('success', 'Consent Email Sent', `Sent to ${newDriver.email}`)
-      } catch (err) { console.warn('Auto-onboard pending setup:', err.message) }
+      } catch (err) { /* Auto-onboard pending setup */ }
     }
 
     const driverName = newDriver.name
@@ -6338,11 +6336,9 @@ export function AILoadBoard() {
       } else {
         const errMsg = data?.error || 'Could not parse'
         showToast('','Parse Error', errMsg)
-        console.error('Rate con parse error:', errMsg, text?.slice(0, 300))
       }
     } catch(err) {
       showToast('','Error', err?.message || 'Failed to parse rate con')
-      console.error('Rate con fetch error:', err)
     }
     setParsingRC(false)
   }

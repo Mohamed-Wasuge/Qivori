@@ -52,7 +52,6 @@ function writeStore(store) {
  */
 export function recordStep(userId, step) {
   if (!FUNNEL_STEPS.includes(step)) {
-    console.warn(`[Funnel] Unknown step: ${step}`)
     return
   }
 

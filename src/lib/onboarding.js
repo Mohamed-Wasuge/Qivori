@@ -111,7 +111,7 @@ export async function autoAdvance(driver, clearedCheckId, consentReceived = fals
       results.started.push(phase.id)
     } catch (err) {
       // Don't block the chain — log and continue
-      console.warn(`Auto-advance: ${phase.id} failed:`, err.message)
+      // Auto-advance failed for this phase — continue chain
     }
   }
 

@@ -49,7 +49,6 @@ export default function LoadBoard() {
       const data = await dbFetchLoads()
       setLoads(data || [])
     } catch (error) {
-      console.error('Error fetching loads:', error)
       showToast('error', 'Error', 'Failed to load data')
     }
     setLoading(false)
@@ -109,7 +108,6 @@ export default function LoadBoard() {
       setShowModal(false)
       fetchLoads()
     } catch (error) {
-      console.error('Error posting load:', error)
       showToast('error', 'Error', 'Failed to post load')
     }
     setPosting(false)

@@ -10,7 +10,6 @@ async function getUserId() {
 async function safeSelect(table, query) {
   const { data, error } = await query
   if (error) {
-    console.warn(`[DB] ${table} query failed:`, error.message)
     return null
   }
   return data
@@ -20,7 +19,6 @@ async function safeSelect(table, query) {
 async function safeMutate(label, query) {
   const { data, error } = await query
   if (error) {
-    console.warn(`[DB] ${label} failed:`, error.message)
     return { data: null, error }
   }
   return { data, error: null }

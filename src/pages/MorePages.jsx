@@ -346,7 +346,7 @@ export function Payments() {
 /* ─── Support Tickets (Supabase) ─────────────────────────────────────────── */
 
 export function Documents() {
-  const { showToast } = useApp()
+  const { showToast, user } = useApp()
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
@@ -395,7 +395,7 @@ export function Documents() {
       priority: newTicket.priority,
       status: 'open',
       user_name: 'Admin',
-      user_email: 'admin@qivori.com',
+      user_email: user?.email || 'support@qivori.com',
     })
     setCreating(false)
     if (error) {

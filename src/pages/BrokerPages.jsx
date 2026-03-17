@@ -181,6 +181,7 @@ export function BrokerPostLoad() {
   const [weight, setWeight] = useState('')
   const [rate, setRate] = useState('')
   const [notes, setNotes] = useState('')
+  const [commodity, setCommodity] = useState('')
 
   const compressImg = (file) => new Promise((resolve) => {
     if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
@@ -428,7 +429,7 @@ export function BrokerPostLoad() {
               </div>
               <div className="form-group"><label className="form-label">Weight (lbs)</label><input className="form-input" placeholder={loadType === 'LTL' ? 'e.g. 8,500' : 'e.g. 42,000'} value={weight} onChange={e => setWeight(e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Rate ($) *</label><input className="form-input" placeholder="e.g. 3,200" value={rate} onChange={e => setRate(e.target.value)} /></div>
-              <div className="form-group"><label className="form-label">Commodity</label><input className="form-input" placeholder="e.g. General Freight" /></div>
+              <div className="form-group"><label className="form-label">Commodity</label><input className="form-input" placeholder="e.g. General Freight" value={commodity} onChange={e => setCommodity(e.target.value)} /></div>
             </div>
             <div className="form-group"><label className="form-label">Special Instructions</label>
               <textarea className="form-input" rows={3} placeholder="e.g. No touch freight, appointment required, driver assist" style={{ resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }} value={notes} onChange={e => setNotes(e.target.value)} />

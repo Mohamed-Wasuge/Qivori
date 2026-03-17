@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { trackDemoRequest, trackDemoEnter, trackCheckout } from '../lib/analytics'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Twitter, Linkedin, Facebook, Instagram, Monitor, Mail } from 'lucide-react'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Monitor, Mail } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -1095,11 +1095,11 @@ export default function LandingPage({ onGetStarted }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>{t('landing.footerCompany')}</div>
             {[
-              { key: 'landing.about', href: '#' },
+              { key: 'landing.about', href: '#about' },
               { key: 'landing.navPricing', href: '#pricing' },
-              { key: 'landing.blog', href: '#' },
-              { key: 'landing.careers', href: '#' },
-              { key: 'landing.contact', href: '#' },
+              { key: 'landing.blog', href: '#/guides/ifta-reporting' },
+              { key: 'landing.careers', href: 'mailto:hello@qivori.com' },
+              { key: 'landing.contact', href: 'mailto:hello@qivori.com' },
             ].map(l => (
               <a key={l.key} href={l.href} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
                 onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{t(l.key)}</a>
@@ -1110,29 +1110,15 @@ export default function LandingPage({ onGetStarted }) {
             {[
               { key: 'landing.privacyPolicy', href: '#/privacy' },
               { key: 'landing.termsOfService', href: '#/terms' },
-              { key: 'landing.cookiePolicy', href: '#' },
+              { key: 'landing.cookiePolicy', href: '#', title: 'Coming soon' },
             ].map(l => (
-              <a key={l.key} href={l.href} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
+              <a key={l.key} href={l.href} title={l.title} style={{ display: 'block', fontSize: 13, color: 'var(--muted)', textDecoration: 'none', padding: '4px 0', transition: 'color 0.15s' }}
                 onMouseOver={e => e.target.style.color = 'var(--text)'} onMouseOut={e => e.target.style.color = 'var(--muted)'}>{t(l.key)}</a>
             ))}
           </div>
         </div>
         <div style={{ maxWidth: 960, margin: '0 auto', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('landing.footerCopyright')}</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {[
-              { icon: Twitter, label: 'Twitter' },
-              { icon: Linkedin, label: 'LinkedIn' },
-              { icon: Facebook, label: 'Facebook' },
-              { icon: Instagram, label: 'Instagram' },
-            ].map(s => (
-              <a key={s.label} href="#" aria-label={s.label} style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s', textDecoration: 'none' }}
-                onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(240,165,0,0.4)'; e.currentTarget.style.background = 'rgba(240,165,0,0.06)' }}
-                onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)' }}>
-                <Ic icon={s.icon} size={14} color="var(--muted)" />
-              </a>
-            ))}
-          </div>
         </div>
       </footer>
 
@@ -1153,14 +1139,14 @@ export default function LandingPage({ onGetStarted }) {
             >
               <Ic icon={X} size={28} color="#fff" />
             </button>
-            {/* Replace VIDEO_ID with your actual YouTube video ID */}
-            <iframe
-              src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&rel=0"
-              title="Qivori AI Demo"
-              style={{ width: '100%', height: '100%', border: 'none', borderRadius: 16 }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+            {/* TODO: Replace with YouTube embed once demo video is recorded */}
+            <div style={{ width: '100%', height: '100%', borderRadius: 16, background: 'linear-gradient(135deg, #12141a 0%, #1a1f2a 100%)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+              <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', border: '2px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><polygon points="9.5,7.5 16.5,12 9.5,16.5" fill="#f0a500"/></svg>
+              </div>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 2, color: '#c8d0dc' }}>Demo Video Coming Soon</div>
+              <div style={{ fontSize: 13, color: '#6b7590', maxWidth: 320, textAlign: 'center', lineHeight: 1.5 }}>We're putting the finishing touches on our product walkthrough. Check back soon.</div>
+            </div>
           </div>
         </div>
       )}

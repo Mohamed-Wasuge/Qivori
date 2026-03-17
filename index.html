@@ -51,7 +51,7 @@
       gtag('config', 'G-6B577V205M');
     </script>
 
-    <!-- Facebook Pixel — Replace YOUR_PIXEL_ID with your actual Facebook Pixel ID -->
+    <!-- Uncomment and replace YOUR_PIXEL_ID when Facebook Pixel is configured
     <script>
       !function(f,b,e,v,n,t,s)
       {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -64,10 +64,13 @@
       fbq('init', 'YOUR_PIXEL_ID');
       fbq('track', 'PageView');
     </script>
+    -->
   </head>
   <body>
+    <!-- Uncomment when Facebook Pixel is configured
     <noscript><img height="1" width="1" style="display:none"
       src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"/></noscript>
+    -->
     <div id="root">
       <!-- Inline loading indicator — prevents black screen while JS loads -->
       <div id="boot-loader" style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#0c0f15;position:fixed;top:0;left:0;z-index:99999">

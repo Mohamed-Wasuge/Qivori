@@ -1956,7 +1956,7 @@ function ProactiveAgentPanel({ addLog, cardStyle }) {
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: 14 }}>Proactive Load Finder</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Autopilot AI $499 — auto-finds loads before delivery</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Autopilot AI $799 — auto-finds loads before delivery</div>
           </div>
         </div>
         <button onClick={fetchEvents} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>

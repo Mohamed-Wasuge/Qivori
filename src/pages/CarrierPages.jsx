@@ -4210,7 +4210,7 @@ export function FactoringCashflow() {
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: acc.color + '15', color: acc.color }}>{acc.status}</span>
                 </div>
               ))}
-              <button className="btn btn-ghost" style={{ marginTop: 6 }} onClick={() => {}}>+ Connect Bank Account</button>
+              <button className="btn btn-ghost" style={{ marginTop: 6 }} onClick={() => showToast('', 'Coming Soon', 'Bank account connection is coming soon')}>+ Connect Bank Account</button>
             </div>
           </div>
         </div>
@@ -8136,7 +8136,7 @@ export function DATAlertBot() {
           </button>
           <button onClick={handleSearch} disabled={searchLoading}
             style={{ padding:'7px 16px', fontSize:12, fontWeight:700, background:'var(--accent)', border:'none', borderRadius:8, color:'#000', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", opacity: searchLoading ? 0.7 : 1 }}>
-            {searchLoading ? 'Scanning…' : '<Search size={13} /> Scan DAT Now'}
+            {searchLoading ? 'Scanning…' : <><Ic icon={Search} size={13} /> Scan DAT Now</>}
           </button>
         </div>
       </div>
@@ -8346,7 +8346,7 @@ export function DATAlertBot() {
             </div>
             <button onClick={handleSearch} disabled={searchLoading}
               style={{ marginTop:10, padding:'10px 24px', fontSize:13, fontWeight:700, background:'var(--accent)', border:'none', borderRadius:8, color:'#000', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-              {searchLoading ? 'Scanning…' : '<Search size={13} /> Scan DAT Now'}
+              {searchLoading ? 'Scanning…' : <><Ic icon={Search} size={13} /> Scan DAT Now</>}
             </button>
           </div>
         )}

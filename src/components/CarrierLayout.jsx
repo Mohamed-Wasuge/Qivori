@@ -677,9 +677,7 @@ function SubscriptionSettings() {
   const PLAN_INFO = {
     starter:      { name: 'Starter',      price: '$0',       color: '#8a8a9a', tier: 0 },
     autopilot:    { name: 'Autopilot',    price: '$99/mo',   color: '#f0a500', tier: 1 },
-    pro:          { name: 'Pro',          price: '$49/mo',   color: '#4d8ef0', tier: 1 },
     autopilot_ai: { name: 'Autopilot AI', price: '$799/mo', color: '#f0a500', tier: 2 },
-    fleet:        { name: 'Fleet',        price: '$799/mo',  color: '#a78bfa', tier: 3 },
   }
 
   const STATUS_BADGES = {

@@ -34,8 +34,8 @@ export default async function handler(req) {
     let referralCode = profiles?.[0]?.referral_code
 
     if (!referralCode) {
-      // Generate unique code from user email
-      referralCode = (profiles?.[0]?.email || '').split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || user.id.slice(0, 8)
+      // Generate cryptographically random referral code
+      referralCode = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
       await sb(`profiles?id=eq.${user.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ referral_code: referralCode }),

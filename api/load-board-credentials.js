@@ -15,7 +15,7 @@ async function getEncryptionKey() {
 
 async function encrypt(plaintext) {
   const key = await getEncryptionKey()
-  if (!key) return { encrypted: plaintext, iv: '' } // fallback: store raw if no key configured
+  if (!key) throw new Error('CREDENTIALS_ENCRYPTION_KEY is not configured — encryption is mandatory')
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encoded = new TextEncoder().encode(plaintext)
   const ciphertext = await crypto.subtle.encrypt({ name: ALGORITHM, iv }, key, encoded)
@@ -27,7 +27,8 @@ async function encrypt(plaintext) {
 
 async function decrypt(encryptedB64, ivB64) {
   const key = await getEncryptionKey()
-  if (!key || !ivB64) return encryptedB64 // fallback: raw
+  if (!key) throw new Error('CREDENTIALS_ENCRYPTION_KEY is not configured — decryption is mandatory')
+  if (!ivB64) throw new Error('Missing encryption IV — credential data may be corrupt')
   const ciphertext = Uint8Array.from(atob(encryptedB64), c => c.charCodeAt(0))
   const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0))
   const decrypted = await crypto.subtle.decrypt({ name: ALGORITHM, iv }, key, ciphertext)

@@ -1,4 +1,5 @@
 import { sendEmail } from './_lib/emails.js'
+import { handleCors, corsHeaders } from './_lib/auth.js'
 
 export const config = { runtime: 'edge' }
 
@@ -8,17 +9,16 @@ export const config = { runtime: 'edge' }
  * Saves to demo_requests table in Supabase for admin tracking.
  */
 export default async function handler(req) {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders() })
-  }
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders() })
+    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
 
   try {
     const { name, email, phone, company } = await req.json()
     if (!email) {
-      return Response.json({ error: 'Email required' }, { status: 400, headers: corsHeaders() })
+      return Response.json({ error: 'Email required' }, { status: 400, headers: corsHeaders(req) })
     }
 
     const firstName = (name || email.split('@')[0]).split(' ')[0]
@@ -96,16 +96,8 @@ Qivori AI · Replaces your dispatcher — save $1,036/month<br/>
       ).catch(() => {})
     }
 
-    return Response.json({ success: true, firstName }, { headers: corsHeaders() })
+    return Response.json({ success: true, firstName }, { headers: corsHeaders(req) })
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders() })
-  }
-}
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders(req) })
   }
 }

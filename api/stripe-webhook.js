@@ -45,7 +45,7 @@ export default async function handler(req) {
     const expectedSig = Array.from(new Uint8Array(signatureBytes)).map(b => b.toString(16).padStart(2, '0')).join('')
 
     if (expectedSig !== v1Sig) {
-      console.error('[stripe-webhook] Signature mismatch — expected:', expectedSig.slice(0, 12) + '...', 'got:', v1Sig.slice(0, 12) + '...')
+      console.error('[stripe-webhook] Signature mismatch')
       return Response.json({ error: 'Invalid signature' }, { status: 400 })
     }
 

@@ -17,6 +17,47 @@ export const config = { runtime: 'edge' }
 
 const TWIML_HEADER = { 'Content-Type': 'text/xml' }
 
+/**
+ * Validate Twilio request signature (HMAC-SHA1).
+ * Returns true if the signature is valid or if TWILIO_AUTH_TOKEN is not set (dev mode).
+ */
+async function validateTwilioSignature(req, url, params) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+  if (!authToken) {
+    // Dev mode — skip validation when auth token is not configured
+    return true
+  }
+
+  const signature = req.headers.get('x-twilio-signature')
+  if (!signature) return false
+
+  // Build the validation URL: full URL + sorted POST params appended as key+value
+  const proto = req.headers.get('x-forwarded-proto') || 'https'
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || url.host
+  const validationUrl = `${proto}://${host}${url.pathname}${url.search}`
+
+  // Sort params alphabetically by key and append key+value to URL
+  const sortedKeys = [...params.keys()].sort()
+  let dataString = validationUrl
+  for (const key of sortedKeys) {
+    dataString += key + params.get(key)
+  }
+
+  // Compute HMAC-SHA1
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(authToken),
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  )
+  const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(dataString))
+  const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)))
+
+  return expectedSignature === signature
+}
+
 function twiml(message) {
   const escaped = message
     .replace(/&/g, '&amp;')
@@ -199,6 +240,12 @@ export default async function handler(req) {
     // Parse form-urlencoded body from Twilio
     const bodyText = await req.text()
     const params = new URLSearchParams(bodyText)
+
+    // Validate Twilio signature
+    const isValid = await validateTwilioSignature(req, url, params)
+    if (!isValid) {
+      return new Response('Forbidden', { status: 403 })
+    }
 
     // Handle delivery status callbacks
     if (url.searchParams.get('type') === 'status') {

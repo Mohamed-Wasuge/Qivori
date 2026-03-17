@@ -33,10 +33,30 @@ export default async function handler(req) {
     const plan = PLANS[resolvedId]
     if (!plan) return Response.json({ error: 'Invalid plan' }, { status: 400, headers: corsHeaders(req) })
 
-    // Autopilot AI founder pricing: $799 for first 100, then $1,200
+    // Autopilot AI founder pricing: $799 for verified founders, $1,200 for everyone else
     let priceCents = plan.price_cents
-    if (resolvedId === 'autopilot_ai' && plan.founder && typeof founderCount === 'number' && founderCount >= 100) {
-      priceCents = plan.full_price_cents
+    if (resolvedId === 'autopilot_ai' && plan.founder) {
+      // Server-side verification: check if user is a verified founder in Supabase
+      let isVerifiedFounder = false
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+      const serviceKey = process.env.SUPABASE_SERVICE_KEY
+      if (supabaseUrl && serviceKey && userId) {
+        try {
+          const profRes = await fetch(
+            `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=is_founder`,
+            { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
+          )
+          if (profRes.ok) {
+            const profiles = await profRes.json()
+            isVerifiedFounder = profiles?.[0]?.is_founder === true
+          }
+        } catch {
+          // If check fails, default to full price for safety
+        }
+      }
+      if (!isVerifiedFounder) {
+        priceCents = plan.full_price_cents
+      }
     }
 
     const origin = req.headers.get('origin') || 'https://qivori.com'

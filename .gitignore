@@ -6,4 +6,5 @@ dist
 .env.*
 backups/
 .vercel
+coverage/
 .env*.local

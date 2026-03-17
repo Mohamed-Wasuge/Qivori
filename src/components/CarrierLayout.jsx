@@ -3191,9 +3191,9 @@ function DriversHub() {
   const [tab, setTab] = useState('profiles')
   const TABS = [{ id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' }]
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+    <div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, minHeight:0 }}>
+      <div>
         {tab === 'profiles' && <DriverProfiles />}
         {tab === 'settlement' && <DriverSettlement />}
         {tab === 'scorecards' && <DriverScorecard />}

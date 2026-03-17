@@ -1208,10 +1208,10 @@ export function DriverScorecard() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div style={{ display:'flex', flexDirection:'column' }}>
 
       {/* Header */}
-      <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0, position:'sticky', top:0, zIndex:10 }}>
+      <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16 }}>
         <div style={{ flex:1 }}>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2, lineHeight:1 }}>
             DRIVER <span style={{ color:'var(--accent)' }}>SCORECARD</span>
@@ -1236,7 +1236,7 @@ export function DriverScorecard() {
 
       {/* ── COMPARISON VIEW ─────────────────────────────────────── */}
       {viewMode === 'compare' ? (
-        <div style={{ flex:1, overflow:'auto', padding:20 }}>
+        <div style={{ padding:20 }}>
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
             <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
               <Ic icon={Users} /> Fleet Comparison — Side by Side
@@ -1319,7 +1319,7 @@ export function DriverScorecard() {
         </div>
       ) : (
       /* ── SCORECARD VIEW ───────────────────────────────────────── */
-      <div style={{ flex:1, display:'flex', minHeight:600 }}>
+      <div style={{ display:'flex', minHeight:600 }}>
 
         {/* LEFT: Driver list */}
         <div style={{ width:270, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column' }}>

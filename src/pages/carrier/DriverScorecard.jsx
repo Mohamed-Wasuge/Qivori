@@ -4,12 +4,11 @@ import {
   DollarSign, CheckCircle, Clock, Package, Truck, Users, CreditCard, Star,
   Shield, User, UserPlus, Briefcase, Settings, Download, Upload, Send, Check,
   ChevronRight, Plus, Filter, Calendar, Hash, Gauge, TrendingUp, TrendingDown,
-  Zap, Square, Route, Fuel, Activity, Sparkles, Edit3 as PencilIcon, Phone, Save, Trash2, Eye
+  Zap, Square, Route, Fuel, Activity, Sparkles, Edit3 as PencilIcon, Phone, Save, Trash2, Eye,
+  FileCheck, AlertTriangle, FileText, BarChart2, Bot, Trophy, Siren
 } from 'lucide-react'
 
 // ─── DRIVER SETTLEMENT ─────────────────────────────────────────────────────────
-const SETTLE_DRIVERS = []
-
 const PAY_MODELS = [
   { id: 'percent', label: '% of Gross', desc: 'e.g. 28%' },
   { id: 'permile', label: 'Per Mile',   desc: 'e.g. $0.52/mi' },
@@ -26,16 +25,21 @@ function calcPay(load, model, val) {
 
 export function DriverSettlement() {
   const { showToast } = useApp()
-  const { loads: ctxLoads } = useCarrier()
-  const [activeDriver, setActiveDriver] = useState('james')
-  const [models, setModels] = useState({ james: 'percent', marcus: 'permile', priya: 'flat' })
-  const [modelVals, setModelVals] = useState({ james: 28, marcus: 0.52, priya: 900 })
-  const [deductions, setDeductions] = useState({ james: [{ id: 1, label: 'Fuel Advance', amount: -200 }], marcus: [], priya: [] })
+  const { loads: ctxLoads, drivers: ctxDrivers } = useCarrier()
+  const [activeDriver, setActiveDriver] = useState(null)
+  const [models, setModels] = useState({})
+  const [modelVals, setModelVals] = useState({})
+  const [deductions, setDeductions] = useState({})
   const [addingDeduct, setAddingDeduct] = useState(false)
   const [newDeduct, setNewDeduct] = useState({ label: 'Fuel Advance', amount: '' })
   const [showSheet, setShowSheet] = useState(false)
 
-  const driver = SETTLE_DRIVERS.find(d => d.id === activeDriver)
+  // Auto-select first driver
+  useEffect(() => {
+    if (!activeDriver && ctxDrivers.length > 0) setActiveDriver(ctxDrivers[0].id)
+  }, [ctxDrivers, activeDriver])
+
+  const driver = ctxDrivers.find(d => d.id === activeDriver)
 
   if (!driver) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
@@ -44,16 +48,15 @@ export function DriverSettlement() {
     </div>
   )
 
-  const model = models[activeDriver]
-  const modelVal = modelVals[activeDriver]
+  const driverName = driver.full_name || driverName || 'Unknown'
+  const driverAvatar = driverName.split(' ').map(w => w[0]).join('')
+  const model = models[activeDriver] || 'percent'
+  const modelVal = modelVals[activeDriver] ?? 28
   const driverDeductions = deductions[activeDriver] || []
 
-  // Merge context delivered loads with hardcoded history for this driver
-  const driverName = driver?.name || ''
-  const contextLoads = ctxLoads
+  const mergedLoads = ctxLoads
     .filter(l => l.driver === driverName && (l.status === 'Delivered' || l.status === 'Invoiced'))
-    .map(l => ({ id: l.loadId, route: (l.origin||'').split(',')[0] + ' → ' + (l.dest||'').split(',')[0], miles: l.miles, gross: l.gross, date: l.pickup?.split(' ·')[0] || 'Mar' }))
-  const mergedLoads = contextLoads.length > 0 ? contextLoads : (driver?.loads || [])
+    .map(l => ({ id: l.loadId, route: (l.origin||'').split(',')[0] + ' → ' + (l.dest||'').split(',')[0], miles: l.miles || 0, gross: l.gross || 0, date: l.pickup?.split(' ·')[0] || '' }))
 
   const loadPays = mergedLoads.map(l => ({ ...l, pay: calcPay(l, model, modelVal) }))
   const grossPay = loadPays.reduce((s, l) => s + l.pay, 0)
@@ -76,15 +79,18 @@ export function DriverSettlement() {
       {/* ── Driver selector ── */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 8 }}>
-          {SETTLE_DRIVERS.map(d => {
+          {ctxDrivers.map(d => {
             const isActive = activeDriver === d.id
+            const name = d.full_name || d.name || 'Unknown'
+            const avatar = name.split(' ').map(w => w[0]).join('')
+            const loadCount = ctxLoads.filter(l => l.driver === name && (l.status==='Delivered'||l.status==='Invoiced')).length
             return (
               <button key={d.id} onClick={() => setActiveDriver(d.id)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, background: isActive ? 'rgba(240,165,0,0.08)' : 'var(--surface)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: isActive ? 'var(--accent)' : 'var(--surface2)', color: isActive ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{d?.avatar || '?'}</div>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: isActive ? 'var(--accent)' : 'var(--surface2)', color: isActive ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{avatar}</div>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? 'var(--accent)' : 'var(--text)' }}>{d.name}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{(ctxLoads.filter(l => l.driver === d.name && (l.status==='Delivered'||l.status==='Invoiced')).length || d.loads.length)} loads this period</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? 'var(--accent)' : 'var(--text)' }}>{name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{loadCount} loads this period</div>
                 </div>
               </button>
             )
@@ -94,7 +100,7 @@ export function DriverSettlement() {
         <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowSheet(s => !s)}>
           {showSheet ? '✕ Close Sheet' : 'Settlement Sheet'}
         </button>
-        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => showToast('', 'FastPay Sent', `${driver?.name || 'Driver'} · $${netPay.toLocaleString()} · 24hr deposit`)}>
+        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => showToast('', 'FastPay Sent', `${driverName} · $${netPay.toLocaleString()} · 24hr deposit`)}>
           <Zap size={13} /> FastPay ${netPay.toLocaleString()}
         </button>
       </div>
@@ -108,7 +114,7 @@ export function DriverSettlement() {
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Qivori TMS · Period: Mar W2 · Generated {new Date().toLocaleDateString()}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>{driver.name}</div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{driverName}</div>
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>Pay Model: {PAY_MODELS.find(m => m.id === model)?.label} · {model === 'percent' ? modelVal + '%' : model === 'permile' ? '$' + modelVal + '/mi' : '$' + modelVal + '/load'}</div>
             </div>
           </div>
@@ -149,9 +155,9 @@ export function DriverSettlement() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'FastPay Sent', `${driver.name} · $${netPay.toLocaleString()} · 24hr deposit`)}><Ic icon={Zap} /> FastPay — 2.5% fee · 24hr deposit</button>
-            <button className="btn btn-ghost" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'ACH Transfer Queued', `${driver.name} · $${netPay.toLocaleString()} · 1–3 business days`)}><Ic icon={Briefcase} /> Standard ACH — 1–3 days · Free</button>
-            <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={() => generateSettlementPDF(driver.name, mergedLoads, 'Mar 1–15, 2026')} title="Download Settlement PDF"><Ic icon={Download} /> PDF</button>
+            <button className="btn btn-primary" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'FastPay Sent', `${driverName} · $${netPay.toLocaleString()} · 24hr deposit`)}><Ic icon={Zap} /> FastPay — 2.5% fee · 24hr deposit</button>
+            <button className="btn btn-ghost" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'ACH Transfer Queued', `${driverName} · $${netPay.toLocaleString()} · 1–3 business days`)}><Ic icon={Briefcase} /> Standard ACH — 1–3 days · Free</button>
+            <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={() => generateSettlementPDF(driverName, mergedLoads, 'Mar 1–15, 2026')} title="Download Settlement PDF"><Ic icon={Download} /> PDF</button>
           </div>
         </div>
       )}
@@ -160,7 +166,7 @@ export function DriverSettlement() {
 
         {/* ── Pay Model ── */}
         <div style={S.panel}>
-          <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Settings} /> Pay Model — {driver.name}</div></div>
+          <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Settings} /> Pay Model — {driverName}</div></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {PAY_MODELS.map(pm => {
               const isActive = model === pm.id
@@ -221,7 +227,7 @@ export function DriverSettlement() {
       {/* ── Load Table ── */}
       <div style={S.panel}>
         <div style={S.panelHead}>
-          <div style={S.panelTitle}><Ic icon={Package} /> Loads This Period — {driver.name}</div>
+          <div style={S.panelTitle}><Ic icon={Package} /> Loads This Period — {driverName}</div>
           <span style={S.badge('var(--accent2)')}>{PAY_MODELS.find(m => m.id === model)?.label} · {model === 'percent' ? modelVal + '%' : model === 'permile' ? '$' + modelVal + '/mi' : '$' + modelVal + '/load'}</span>
         </div>
         <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth:600 }}>
@@ -263,12 +269,12 @@ export function DriverSettlement() {
       {/* ── Pay actions ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <button className="btn btn-primary" style={{ padding: '14px 0', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          onClick={() => showToast('', 'FastPay Sent', `${driver.name} · $${netPay.toLocaleString()} · 24hr deposit`)}>
+          onClick={() => showToast('', 'FastPay Sent', `${driverName} · $${netPay.toLocaleString()} · 24hr deposit`)}>
           <span><Ic icon={Zap} /> FastPay</span>
           <span style={{ opacity: 0.7, fontSize: 12 }}>2.5% fee · Same-day deposit</span>
         </button>
         <button className="btn btn-ghost" style={{ padding: '14px 0', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          onClick={() => showToast('', 'ACH Queued', `${driver.name} · $${netPay.toLocaleString()} · 1–3 business days`)}>
+          onClick={() => showToast('', 'ACH Queued', `${driverName} · $${netPay.toLocaleString()} · 1–3 business days`)}>
           <span><Ic icon={Briefcase} /> Standard ACH</span>
           <span style={{ opacity: 0.7, fontSize: 12 }}>Free · 1–3 business days</span>
         </button>
@@ -276,7 +282,7 @@ export function DriverSettlement() {
 
       {/* ── Settlement history ── */}
       <div style={S.panel}>
-        <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Settlement History — {driver.name}</div></div>
+        <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Settlement History — {driverName}</div></div>
         <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth:550 }}>
           <thead><tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
             {['Period', 'Gross Paid', 'Net Pay', 'Paid On', 'Status'].map(h => (
@@ -856,7 +862,7 @@ export function DriverOnboarding() {
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4, flexWrap:'wrap' }}>
-                  <span style={{ fontSize:16, fontWeight:800 }}>{driver.name}</span>
+                  <span style={{ fontSize:16, fontWeight:800 }}>{driverName}</span>
                   <span style={{ fontSize:10, fontWeight:800, padding:'3px 10px', borderRadius:8, background:elig.bg, color:elig.color, letterSpacing:0.5 }}>{elig.label}</span>
                   {driver.cdlNum && <span style={{ fontSize:11, color:'var(--muted)', fontFamily:'monospace' }}>{driver.cdlNum}</span>}
                 </div>
@@ -870,7 +876,7 @@ export function DriverOnboarding() {
               <div style={{ display:'flex', gap:8, flexShrink:0 }}>
                 {requiredCleared
                   ? <button className="btn btn-primary" style={{ fontSize:11 }}
-                      onClick={() => showToast('','Driver Activated', driver.name + ' added to active fleet!')}>
+                      onClick={() => showToast('','Driver Activated', driverName + ' added to active fleet!')}>
                       <Zap size={13} /> Activate & Add to Fleet
                     </button>
                   : allIdle
@@ -1038,10 +1044,10 @@ export function DriverOnboarding() {
                 <div style={{ padding:'24px 20px', background:'linear-gradient(135deg,rgba(34,197,94,0.08),rgba(0,212,170,0.06))', border:'1px solid rgba(34,197,94,0.3)', borderRadius:12, textAlign:'center', marginTop:4 }}>
                   <div style={{ marginBottom:8 }}><Sparkles size={32} /></div>
                   <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--success)', letterSpacing:1, marginBottom:6 }}>ELIGIBLE TO HIRE</div>
-                  <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>All FMCSA required checks cleared — {driver.name} is ready to be dispatched</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>All FMCSA required checks cleared — {driverName} is ready to be dispatched</div>
                   <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
                     <button className="btn btn-primary" style={{ padding:'11px 28px', fontSize:13 }}
-                      onClick={() => showToast('','Driver Activated', driver.name + ' added to active fleet!')}>
+                      onClick={() => showToast('','Driver Activated', driverName + ' added to active fleet!')}>
                       <Zap size={13} /> Activate & Add to Fleet
                     </button>
                     <button className="btn btn-ghost" style={{ fontSize:12 }}
@@ -1059,10 +1065,6 @@ export function DriverOnboarding() {
   )
 }
 
-
-// No demo data — real data only
-const DEMO_DRIVERS = []
-const DEMO_LOAD_DATA = []
 
 const MONTH_LABELS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 
@@ -1087,9 +1089,8 @@ export function DriverScorecard() {
   const [viewMode, setViewMode] = useState('scorecard') // scorecard | compare
   const [hoveredMonth, setHoveredMonth] = useState(null)
 
-  // Use real drivers if available, otherwise demo
-  const driverSource = realDrivers.length > 0 ? realDrivers : DEMO_DRIVERS
-  const loadSource = realLoads.length > 0 ? realLoads : DEMO_LOAD_DATA
+  const driverSource = realDrivers
+  const loadSource = realLoads
 
   // Build driver stats
   const driverStats = useMemo(() => {
@@ -1154,12 +1155,12 @@ export function DriverScorecard() {
   const d = driverStats.find(x => x.id === selDriverId) || driverStats[0]
   const maxGross = Math.max(...driverStats.map(x => x.gross), 1)
 
-  const statBoxStyle = { background:'var(--surface2)', borderRadius:10, padding:'12px 14px', textAlign:'center', flex:1, border:'1px solid var(--border)' }
-  const labelStyle = { fontSize:10, color:'var(--muted)', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:0.5 }
-  const valStyle = { fontFamily:"'Bebas Neue',sans-serif", fontSize:26, lineHeight:1 }
+  const statBoxStyle = { background:'var(--surface2)', borderRadius:8, padding:'8px 10px', textAlign:'center', flex:1, border:'1px solid var(--border)' }
+  const labelStyle = { fontSize:9, color:'var(--muted)', fontWeight:600, marginBottom:2, textTransform:'uppercase', letterSpacing:0.5 }
+  const valStyle = { fontFamily:"'Bebas Neue',sans-serif", fontSize:20, lineHeight:1 }
 
   // Circular progress gauge component
-  const CircularGauge = ({ value, max = 100, size = 90, strokeWidth = 7, color, label }) => {
+  const CircularGauge = ({ value, max = 100, size = 56, strokeWidth = 5, color, label }) => {
     const radius = (size - strokeWidth) / 2
     const circumference = 2 * Math.PI * radius
     const progress = Math.min(1, value / max)
@@ -1172,8 +1173,8 @@ export function DriverScorecard() {
             strokeDasharray={circumference} strokeDashoffset={dashoffset}
             strokeLinecap="round" style={{ transition:'stroke-dashoffset 0.8s ease' }} />
         </svg>
-        <div style={{ marginTop:-size/2 - 12, fontSize:20, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", color }}>{value}%</div>
-        <div style={{ marginTop:size/2 - 18, fontSize:9, color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:0.5 }}>{label}</div>
+        <div style={{ marginTop:-size/2 - 10, fontSize:16, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", color }}>{value}%</div>
+        <div style={{ marginTop:size/2 - 16, fontSize:8, color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:0.5 }}>{label}</div>
       </div>
     )
   }
@@ -1379,46 +1380,38 @@ export function DriverScorecard() {
 
         {/* RIGHT: Detail */}
         {d && (
-        <div style={{ flex:1, padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+        <div style={{ flex:1, padding:'14px 20px', display:'flex', flexDirection:'column', gap:10 }}>
 
           {/* ── Driver Profile Card ───────────────────────── */}
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14 }}>
-            <div style={{ padding:'18px 22px', display:'flex', gap:18, alignItems:'flex-start', flexWrap:'wrap' }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'visible' }}>
+            <div style={{ padding:'12px 16px', display:'flex', gap:14, alignItems:'center' }}>
               {/* Photo placeholder */}
-              <div style={{ width:72, height:72, borderRadius:16, background:`linear-gradient(135deg, ${d.grade.c}25, ${d.grade.c}08)`, border:`2px solid ${d.grade.c}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:d.grade.c }}>{d.name.split(' ').map(w=>w[0]).join('')}</span>
+              <div style={{ width:44, height:44, borderRadius:10, background:`linear-gradient(135deg, ${d.grade.c}25, ${d.grade.c}08)`, border:`2px solid ${d.grade.c}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:d.grade.c }}>{d.name.split(' ').map(w=>w[0]).join('')}</span>
               </div>
               {/* Info */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4, flexWrap:'wrap' }}>
-                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:1, lineHeight:1.1 }}>{d.name}</span>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'var(--success)15', color:'var(--success)', border:'1px solid var(--success)30' }}>Active</span>
+              <div style={{ flex:1, minWidth:0, overflow:'hidden' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, lineHeight:1.1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.name}</span>
+                  <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:5, background:'var(--success)15', color:'var(--success)', border:'1px solid var(--success)30', flexShrink:0 }}>Active</span>
                 </div>
-                <StarDisplay rating={d.stars} />
-                <div style={{ display:'flex', gap:20, marginTop:10, flexWrap:'wrap' }}>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={Shield} size={12} /> CDL: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.cdl || '—'}</span> ({d.cdlState || '—'})</div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={Calendar} size={12} /> Hired: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.hireDate ? new Date(d.hireDate).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—'}</span></div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={Route} size={12} /> Total Miles: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.miles.toLocaleString()}</span></div>
-                  <div style={{ fontSize:11, color:'var(--muted)' }}><Ic icon={DollarSign} size={12} /> Total Rev: <span style={{ color:'var(--accent)', fontWeight:700 }}>${d.gross.toLocaleString()}</span></div>
+                <div style={{ display:'flex', gap:14, flexWrap:'wrap', alignItems:'center' }}>
+                  <StarDisplay rating={d.stars} />
+                  <div style={{ fontSize:10, color:'var(--muted)' }}><Ic icon={Shield} size={11} /> CDL: <span style={{ color:'var(--text)', fontWeight:600 }}>{d.cdl || '—'}</span></div>
+                  <div style={{ fontSize:10, color:'var(--muted)' }}><Ic icon={Route} size={11} /> {d.miles.toLocaleString()} mi</div>
+                  <div style={{ fontSize:10, color:'var(--muted)' }}><Ic icon={DollarSign} size={11} /> <span style={{ color:'var(--accent)', fontWeight:700 }}>${d.gross.toLocaleString()}</span></div>
                 </div>
-                {d.endorsements.length > 0 && (
-                  <div style={{ display:'flex', gap:4, marginTop:8, flexWrap:'wrap' }}>
-                    {d.endorsements.map(e => (
-                      <span key={e} style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:4, background:'var(--accent2)15', color:'var(--accent2)', border:'1px solid var(--accent2)25' }}>{e}</span>
-                    ))}
-                  </div>
-                )}
               </div>
               {/* Grade badge */}
-              <div style={{ textAlign:'center', background:`${d.grade.c}15`, border:`2px solid ${d.grade.c}`, borderRadius:16, padding:'12px 22px', flexShrink:0 }}>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:44, color:d.grade.c, lineHeight:1 }}>{d.grade.g}</div>
-                <div style={{ fontSize:9, fontWeight:800, color:d.grade.c, letterSpacing:1, marginTop:2 }}>OVERALL GRADE</div>
+              <div style={{ textAlign:'center', background:`${d.grade.c}15`, border:`2px solid ${d.grade.c}`, borderRadius:10, padding:'6px 14px', flexShrink:0 }}>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:d.grade.c, lineHeight:1 }}>{d.grade.g}</div>
+                <div style={{ fontSize:7, fontWeight:800, color:d.grade.c, letterSpacing:1, marginTop:1 }}>GRADE</div>
               </div>
             </div>
           </div>
 
           {/* ── KPI Row ───────────────────────────────────── */}
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             {[
               { l:'On-Time %', v:`${d.onTime}%`, c: d.onTime>=95 ? 'var(--success)' : d.onTime>=88 ? 'var(--accent)' : 'var(--danger)', icon: CheckCircle },
               { l:'Revenue/Mile', v:`$${d.rpm.toFixed(2)}`, c: d.rpm>=3.0 ? 'var(--success)' : d.rpm>=2.5 ? 'var(--accent)' : 'var(--danger)', icon: DollarSign, trend: d.rpmTrend },
@@ -1446,28 +1439,28 @@ export function DriverScorecard() {
           </div>
 
           {/* ── Visual Gauges Row ─────────────────────────── */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:10 }}>
 
             {/* Circular gauges */}
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:18, display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, alignSelf:'flex-start' }}>Performance Gauges</div>
-              <div style={{ display:'flex', gap:20, justifyContent:'center', flexWrap:'wrap' }}>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 14px', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, alignSelf:'flex-start' }}>Gauges</div>
+              <div style={{ display:'flex', gap:14, justifyContent:'center' }}>
                 <CircularGauge value={d.onTime} color={d.onTime >= 95 ? 'var(--success)' : d.onTime >= 88 ? 'var(--accent)' : 'var(--danger)'} label="On-Time %" />
                 <CircularGauge value={d.safetyScore} color={d.safetyScore >= 90 ? 'var(--success)' : d.safetyScore >= 75 ? 'var(--accent)' : 'var(--danger)'} label="Safety" />
               </div>
             </div>
 
             {/* Monthly Revenue Bar Chart */}
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
-                <Ic icon={BarChart2} /> Monthly Revenue (Last 6 Months)
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:12, display:'flex', alignItems:'center', gap:8 }}>
+                <Ic icon={BarChart2} /> Monthly Revenue (6 Mo)
               </div>
-              <div style={{ padding:'16px 18px' }}>
-                <div style={{ display:'flex', gap:8, alignItems:'flex-end', height:100, marginBottom:8 }}>
+              <div style={{ padding:'10px 14px' }}>
+                <div style={{ display:'flex', gap:8, alignItems:'flex-end', height:60, marginBottom:6 }}>
                   {MONTH_LABELS.map((mo, i) => {
                     const rev = d.monthlyRev[i] || 0
                     const maxRev = Math.max(...d.monthlyRev, 1)
-                    const barH = Math.max(4, Math.round((rev / maxRev) * 90))
+                    const barH = Math.max(4, Math.round((rev / maxRev) * 50))
                     const isHovered = hoveredMonth === i
                     return (
                       <div key={mo} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, cursor:'pointer', position:'relative' }}
@@ -1489,7 +1482,7 @@ export function DriverScorecard() {
                     )
                   })}
                 </div>
-                <div style={{ borderTop:'1px solid var(--border)', paddingTop:8, display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)' }}>
+                <div style={{ borderTop:'1px solid var(--border)', paddingTop:6, display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)' }}>
                   <span>Avg: <strong style={{ color:'var(--text)' }}>${Math.round(d.monthlyRev.reduce((a,b)=>a+b,0) / 6).toLocaleString()}/mo</strong></span>
                   <span>Total: <strong style={{ color:'var(--accent)' }}>${d.monthlyRev.reduce((a,b)=>a+b,0).toLocaleString()}</strong></span>
                 </div>
@@ -1498,12 +1491,12 @@ export function DriverScorecard() {
           </div>
 
           {/* ── Performance Metrics + AI Insights ──────────── */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
 
             {/* Rate performance */}
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={BarChart2} /> Rate Performance</div>
-              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:12 }}><Ic icon={BarChart2} /> Rate Performance</div>
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:8 }}>
                 {[
                   { label:'Avg RPM', val: d.rpm, max:4.0, fmt:`$${d.rpm.toFixed(2)}/mi`, thresh:[3.0, 2.5] },
                   { label:'On-Time Pct', val: d.onTime, max:100, fmt:`${d.onTime}%`, thresh:[95, 88] },
@@ -1528,14 +1521,14 @@ export function DriverScorecard() {
             </div>
 
             {/* AI Insights */}
-            <div style={{ background:'var(--surface)', border:'1px solid rgba(240,165,0,0.25)', borderRadius:12, overflow:'hidden' }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', gap:8, alignItems:'center' }}>
+            <div style={{ background:'var(--surface)', border:'1px solid rgba(240,165,0,0.25)', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:12, display:'flex', gap:8, alignItems:'center' }}>
                 <Ic icon={Bot} /> AI Insights
                 <span style={{ fontSize:9, padding:'2px 6px', borderRadius:4, background:'rgba(240,165,0,0.15)', color:'var(--accent)', fontWeight:800, letterSpacing:1 }}>AI</span>
               </div>
-              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:6 }}>
                 {d.rpm >= 3.0 ? (
-                  <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Check} /> <strong>{d.name.split(' ')[0]}</strong> is running above fleet avg RPM. Consider offering premium lanes.</div>
+                  <div style={{ fontSize:11, lineHeight:1.4 }}><Ic icon={Check} /> <strong>{d.name.split(' ')[0]}</strong> is running above fleet avg RPM. Consider offering premium lanes.</div>
                 ) : d.rpm >= 2.5 ? (
                   <div style={{ fontSize:11, lineHeight:1.5 }}><Ic icon={Zap} /> RPM is solid. Suggest adding 1-2 longer hauls to push gross higher this month.</div>
                 ) : (
@@ -1568,11 +1561,11 @@ export function DriverScorecard() {
           </div>
 
           {/* ── Recent Loads ──────────────────────────────── */}
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-            <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+            <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:12, display:'flex', alignItems:'center', gap:8 }}>
               <Ic icon={Package} /> Recent Loads ({d.allLoads.length})
             </div>
-            <div style={{ maxHeight:240, overflowY:'auto' }}>
+            <div style={{ maxHeight:180, overflowY:'auto' }}>
               {d.allLoads.length === 0 ? (
                 <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No loads recorded yet</div>
               ) : d.allLoads.slice().reverse().map((l, i) => (

@@ -1040,7 +1040,7 @@ function SettingsTab() {
   )
 
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', height:'100%', minHeight:0, overflow:'hidden' }}>
 
       {/* Sidebar */}
       <div style={{ width:200, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column' }}>
@@ -1064,7 +1064,7 @@ function SettingsTab() {
       </div>
 
       {/* Content */}
-      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:24, display:'flex', flexDirection:'column', gap:20 }}>
+      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:24, paddingBottom:80, display:'flex', flexDirection:'column', gap:20 }}>
 
         {/* Company Profile */}
         {settingsSec === 'company' && (

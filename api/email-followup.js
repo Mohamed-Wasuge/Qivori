@@ -242,7 +242,7 @@ ${(originalReply || '').substring(0, 1000)}
 
 Write follow-up #${followupNumber} for this conversation.`
 
-  const models = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022']
+  const models = ['claude-sonnet-4-20250514', 'claude-sonnet-4-20250514']
 
   for (const model of models) {
     try {

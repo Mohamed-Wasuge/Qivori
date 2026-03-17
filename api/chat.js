@@ -269,7 +269,7 @@ LANGUAGE: The user's language preference is Spanish. Respond in Spanish. You are
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
+            model: 'claude-sonnet-4-20250514',
             max_tokens: 2048,
             system: systemPrompt,
             messages: claudeMessages,

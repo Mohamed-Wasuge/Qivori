@@ -481,7 +481,7 @@ INTELLIGENCE RULES:
 // ═══════════════════════════════════════════════════════════════
 
 async function callClaude(apiKey, systemPrompt, senderEmail, subject, body) {
-  const models = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022']
+  const models = ['claude-sonnet-4-20250514', 'claude-sonnet-4-20250514']
 
   for (const model of models) {
     try {

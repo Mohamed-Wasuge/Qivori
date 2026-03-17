@@ -1319,7 +1319,7 @@ export function DriverScorecard() {
         </div>
       ) : (
       /* ── SCORECARD VIEW ───────────────────────────────────────── */
-      <div style={{ flex:1, display:'flex', minHeight:0 }}>
+      <div style={{ flex:1, display:'flex', minHeight:0, overflow:'hidden' }}>
 
         {/* LEFT: Driver list */}
         <div style={{ width:270, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>

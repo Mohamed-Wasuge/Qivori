@@ -1208,10 +1208,10 @@ export function DriverScorecard() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
 
       {/* Header */}
-      <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0 }}>
+      <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', gap:16, flexShrink:0, position:'sticky', top:0, zIndex:10 }}>
         <div style={{ flex:1 }}>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2, lineHeight:1 }}>
             DRIVER <span style={{ color:'var(--accent)' }}>SCORECARD</span>
@@ -1319,10 +1319,10 @@ export function DriverScorecard() {
         </div>
       ) : (
       /* ── SCORECARD VIEW ───────────────────────────────────────── */
-      <div style={{ flex:1, display:'flex', minHeight:0, overflow:'hidden' }}>
+      <div style={{ flex:1, display:'flex', minHeight:600 }}>
 
         {/* LEFT: Driver list */}
-        <div style={{ width:270, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
+        <div style={{ width:270, flexShrink:0, borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column' }}>
           <div style={{ padding:'10px 16px 6px', fontSize:10, fontWeight:800, color:'var(--muted)', letterSpacing:2 }}>DRIVERS ({driverStats.length})</div>
           {driverStats.map(dr => {
             const isSel = selDriverId === dr.id
@@ -1379,7 +1379,7 @@ export function DriverScorecard() {
 
         {/* RIGHT: Detail */}
         {d && (
-        <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+        <div style={{ flex:1, padding:20, display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* ── Driver Profile Card ───────────────────────── */}
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14 }}>

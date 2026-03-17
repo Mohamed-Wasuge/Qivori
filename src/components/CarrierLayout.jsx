@@ -3193,7 +3193,7 @@ function DriversHub() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, minHeight:0, overflow: tab === 'scorecards' ? 'hidden' : 'auto' }}>
+      <div style={{ flex:1, minHeight:0 }}>
         {tab === 'profiles' && <DriverProfiles />}
         {tab === 'settlement' && <DriverSettlement />}
         {tab === 'scorecards' && <DriverScorecard />}

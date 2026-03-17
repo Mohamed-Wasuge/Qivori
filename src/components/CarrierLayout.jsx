@@ -740,7 +740,7 @@ function SubscriptionSettings() {
     : null
 
   return (
-    <>
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
       <div>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>SUBSCRIPTION</div>
         <div style={{ fontSize:12, color:'var(--muted)' }}>Manage your Qivori AI plan, billing, and payment details</div>
@@ -971,7 +971,7 @@ function SubscriptionSettings() {
           </div>
         </>
       )}
-    </>
+    </div>
   )
 }
 
@@ -1043,7 +1043,7 @@ function SettingsTab() {
     <div style={{ display:'flex', height:'100%', minHeight:0, overflow:'hidden' }}>
 
       {/* Sidebar */}
-      <div style={{ width:200, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column' }}>
+      <div style={{ width:200, flexShrink:0, background:'var(--surface)', borderRight:'1px solid var(--border)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
         <div style={{ padding:'14px 16px 8px', borderBottom:'1px solid var(--border)' }}>
           <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2 }}>SETTINGS</div>
         </div>
@@ -1064,7 +1064,7 @@ function SettingsTab() {
       </div>
 
       {/* Content */}
-      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:24, paddingBottom:80, display:'flex', flexDirection:'column', gap:20 }}>
+      <div className="settings-scroll" style={{ flex:1, minHeight:0, overflowY:'auto', padding:24, paddingBottom:120 }}>
 
         {/* Company Profile */}
         {settingsSec === 'company' && (

@@ -472,3 +472,11 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* Settings scroll area — children should not flex-shrink */
+.settings-scroll > * {
+  margin-bottom: 20px;
+}
+.settings-scroll > *:last-child {
+  margin-bottom: 0;
+}

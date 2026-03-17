@@ -29,7 +29,7 @@ const Ic = ({ icon: Icon, size = 16, color, style, ...props }) => <Icon size={si
 class ViewErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  componentDidCatch(err, info) { console.error('[Qivori] View crash:', err, info); Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
+  componentDidCatch(err, info) { Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
   render() {
     if (this.state.error) {
       return (
@@ -113,7 +113,7 @@ function FuelTicker() {
           const valid = data.prices.filter(p => p.price > 0)
           if (valid.length > 0) setPrices(valid)
         }
-      } catch { /* silent */ }
+      } catch { /* non-critical: diesel price fetch failed */ }
     }
     fetchDiesel()
     // Re-fetch every 2 hours
@@ -546,13 +546,13 @@ function BillingTab() {
   const { invoices, vehicles, unpaidInvoices, totalRevenue, totalExpenses } = useCarrier()
 
   const truckCount = vehicles.length || profile?.truck_count || 1
-  const planName = { autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', pro: 'Pro', fleet: 'Fleet', starter: 'Starter' }[subscription?.plan] || 'Starter'
-  const planPrice = { autopilot: 99, autopilot_ai: 799, pro: 49, fleet: 799, starter: 0 }[subscription?.plan] || 0
-  const perTruck = subscription?.plan === 'autopilot_ai' ? 150 : 49
+  const planName = { autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI' }[subscription?.plan] || 'No Plan'
+  const planPrice = { autopilot: 149, autopilot_ai: 799 }[subscription?.plan] || 0
+  const perTruck = subscription?.plan === 'autopilot_ai' ? 150 : 0
   const extraTrucks = Math.max(0, truckCount - 1)
   const totalMonthly = planPrice + (extraTrucks * perTruck)
 
-  const isFreeTier = !subscription?.plan || subscription?.plan === 'starter'
+  const isFreeTier = !subscription?.plan || !['autopilot', 'autopilot_ai'].includes(subscription?.plan)
   const statusLabel = subscription?.isTrial ? 'TRIAL' : subscription?.isActive ? 'ACTIVE' : subscription?.status === 'past_due' ? 'PAST DUE' : isFreeTier ? 'FREE TIER' : 'INACTIVE'
   const statusColor = { Unpaid:'var(--warning)', Paid:'var(--success)', Factored:'var(--accent2)', Overdue:'var(--danger)' }
   const badgeColor = subscription?.isTrial ? 'var(--accent)' : subscription?.isActive ? 'var(--success)' : isFreeTier ? 'var(--accent2)' : 'var(--danger)'
@@ -653,7 +653,7 @@ function SubscriptionSettings() {
         plan: 'autopilot', status: 'trialing', trialDaysLeft: 11,
         trialEndsAt: new Date(Date.now() + 11 * 86400000).toISOString(),
         currentPeriodEnd: new Date(Date.now() + 11 * 86400000).toISOString(),
-        amount: 9900, truckCount: 1,
+        amount: 14900, truckCount: 1,
       })
       setLoading(false)
       return
@@ -663,7 +663,7 @@ function SubscriptionSettings() {
       .then(data => { setSubData(data); setLoading(false) })
       .catch(() => {
         setSubData({
-          plan: profile?.subscription_plan || 'starter',
+          plan: profile?.subscription_plan || null,
           status: profile?.subscription_status || 'inactive',
           trialEndsAt: profile?.trial_ends_at,
           currentPeriodEnd: profile?.current_period_end,
@@ -675,8 +675,7 @@ function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    starter:      { name: 'Starter',      price: '$0',       color: '#8a8a9a', tier: 0 },
-    autopilot:    { name: 'Autopilot',    price: '$99/mo',   color: '#f0a500', tier: 1 },
+    autopilot:    { name: 'Autopilot',    price: '$149/mo',  color: '#f0a500', tier: 1 },
     autopilot_ai: { name: 'Autopilot AI', price: '$799/mo', color: '#f0a500', tier: 2 },
   }
 
@@ -730,7 +729,7 @@ function SubscriptionSettings() {
     )
   }
 
-  const plan = PLAN_INFO[subData?.plan] || PLAN_INFO.starter
+  const plan = PLAN_INFO[subData?.plan] || { name: 'No Plan', price: '$0', color: '#8a8a9a', tier: 0 }
   const badge = STATUS_BADGES[subData?.status] || STATUS_BADGES.inactive
   const trialDays = subData?.trialDaysLeft ?? (subData?.status === 'trialing' && subData?.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(subData.trialEndsAt).getTime() - Date.now()) / 86400000))
@@ -833,7 +832,7 @@ function SubscriptionSettings() {
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Available Plans</div>
         <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, maxWidth: 700 }}>
           {[
-            { id: 'autopilot', name: 'Autopilot', sub: 'AI-assisted dispatching', price: '$99', priceSub: '/mo · 1 truck', color: 'var(--accent)', features: [
+            { id: 'autopilot', name: 'Autopilot', sub: 'AI-assisted dispatching', price: '$149', priceSub: '/mo · 1 truck', color: 'var(--accent)', features: [
               'AI Load Board & Scoring',
               'Smart Dispatch Suggestions',
               'Fleet Map & GPS Tracking',
@@ -982,8 +981,8 @@ function SettingsTab() {
   const [company, setCompany] = useState(ctxCompany || { name:'', mc:'', dot:'', address:'', phone:'', email:'', ein:'' })
   const [billing, setBilling] = useState({ factoringRate:'2.5', payDefault:'28%', fastpayEnabled:true, autoInvoice:true })
   const [integrations] = useState([
-    { name:'Samsara ELD',      status:'Connected', statusC:'var(--success)', icon: Smartphone, desc:'3 devices active · Last sync 4 min ago' },
-    { name:'Comdata Fuel Card', status:'Connected', statusC:'var(--success)', icon: Fuel, desc:'Card ending 4821 · $3,200 available' },
+    { name:'Samsara ELD',      status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Samsara ELD to sync device data' },
+    { name:'Comdata Fuel Card', status:'Not connected', statusC:'var(--muted)', icon: Fuel, desc:'Connect your Comdata fuel card for transaction tracking' },
     { name:'QuickBooks Online', status:'Not connected', statusC:'var(--muted)', icon: BarChart2, desc:'Connect to auto-sync expenses & invoices' },
     { name:'DAT Load Board',    status:'Not connected', statusC:'var(--muted)', icon: Truck, desc:'Connect to pull spot rates on your lanes' },
     { name:'FourKites TMS',     status:'Not connected', statusC:'var(--muted)', icon: Map, desc:'Real-time shipment visibility platform' },
@@ -1499,7 +1498,7 @@ function LoadBoardSettings() {
           }
           setConnections(connMap)
         }
-      } catch {}
+      } catch { /* non-critical: load board credentials fetch failed */ }
       setLoading(false)
     })()
   }, [])
@@ -1545,7 +1544,7 @@ function LoadBoardSettings() {
       } else {
         showToast('error', 'Test Failed', data.message)
       }
-    } catch {
+    } catch { /* non-critical error */
       showToast('error', 'Test Failed', 'Could not reach server')
     }
     setTesting(null)
@@ -1561,7 +1560,7 @@ function LoadBoardSettings() {
       setConnections(prev => { const n = { ...prev }; delete n[provider]; return n })
       setCredentials(prev => { const n = { ...prev }; delete n[provider]; return n })
       showToast('success', 'Disconnected', `${provider} removed`)
-    } catch {}
+    } catch { /* non-critical: disconnect request failed */ }
   }
 
   const connectedCount = Object.values(connections).filter(c => c.status === 'connected').length
@@ -2179,7 +2178,6 @@ async function parseRateConWithAI(file) {
     b64 = result.b64
     mt = result.mt
   } catch (compErr) {
-    console.error('[RC] Compression error:', compErr)
     throw compErr
   }
 
@@ -2229,7 +2227,8 @@ const DOC_COLORS = { 'Rate Con': 'var(--accent)', 'BOL': 'var(--accent2)', 'POD'
 
 function BookedLoads() {
   const { showToast } = useApp()
-  const { loads: bookedLoads, addLoad: ctxAddLoad, updateLoadStatus: ctxUpdateStatus, removeLoad, company } = useCarrier()
+  const { loads: bookedLoads, addLoad: ctxAddLoad, updateLoadStatus: ctxUpdateStatus, removeLoad, company, drivers: ctxDrivers } = useCarrier()
+  const driverNames = (ctxDrivers || []).map(d => d.name || d.full_name || d.driver_name).filter(Boolean)
   const [loadDocs, setLoadDocs] = useState({
     1: [{ id: 1, name: 'EC-88421-ratecon.pdf', type: 'Rate Con', size: '124 KB', uploadedAt: 'Mar 8', dataUrl: null }],
     2: [{ id: 2, name: 'CL-22910-ratecon.pdf', type: 'Rate Con', size: '98 KB',  uploadedAt: 'Mar 8', dataUrl: null }],
@@ -2270,8 +2269,7 @@ function BookedLoads() {
       setLoadDocs(d => ({ ...d, [loadId]: [...(d[loadId] || []), doc] }))
       showToast('success', type + ' Uploaded', file.name)
     } catch (err) {
-      console.warn('Storage upload failed, saving locally:', err.message)
-      // Fallback: save locally with dataUrl
+      /* Storage upload failed — fallback to local dataUrl */
       const reader = new FileReader()
       reader.onload = e => {
         const doc = { id: Date.now(), name: file.name, type, size: sizeLabel, uploadedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), dataUrl: e.target.result }
@@ -2288,7 +2286,7 @@ function BookedLoads() {
     try {
       const { deleteDocument } = await import('../lib/database')
       await deleteDocument(docId)
-    } catch (err) { console.warn('DB delete failed:', err.message) }
+    } catch (err) { /* non-critical: DB delete failed */ }
     showToast('', 'Document Removed', '')
   }
 
@@ -2303,7 +2301,7 @@ function BookedLoads() {
       const w = window.open()
       w.document.write(`<iframe src="${doc.dataUrl}" style="width:100%;height:100vh;border:none"></iframe>`)
     } else {
-      showToast('', doc.name, 'No preview available for seed documents')
+      showToast('', doc.name, 'No preview available')
     }
   }
 
@@ -2322,7 +2320,6 @@ function BookedLoads() {
       const filled = Object.values(parsed).filter(v => v && v !== 0 && v !== '').length
       showToast('', 'Rate Con Parsed', `${filled} fields auto-filled — review and confirm`)
     } catch (e) {
-      console.error('Rate con error:', e)
       showToast('', 'Parse Failed', e.message || 'Check your API key and try again')
       setShowForm(false)
     } finally {
@@ -2524,7 +2521,8 @@ function BookedLoads() {
             <select value={form.driver} onChange={e => setForm(fm => ({ ...fm, driver: e.target.value }))}
               style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: form.driver ? 'var(--text)' : 'var(--muted)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
               <option value="">— Assign later —</option>
-              {DRIVERS.map(d => <option key={d}>{d}</option>)}
+              {driverNames.length === 0 && <option disabled>No drivers added yet</option>}
+              {driverNames.map(d => <option key={d}>{d}</option>)}
             </select>
           </div>
           {form.rate && (
@@ -2701,7 +2699,8 @@ function BookedLoads() {
                 {!load.driver && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: 'var(--warning)', fontWeight: 700, display:'inline-flex', alignItems:'center', gap:4 }}><Ic icon={AlertTriangle} size={12} color="var(--warning)" /> Assign a driver to dispatch this load:</span>
-                    {DRIVERS.map(d => (
+                    {driverNames.length === 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>No drivers added yet</span>}
+                    {driverNames.map(d => (
                       <button key={d} className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => assignDriver(load.loadId, d)}>{d}</button>
                     ))}
                   </div>
@@ -3667,7 +3666,7 @@ function OnboardingWizard({ onComplete }) {
     try {
       const { supabase: sb } = await import('../lib/supabase')
       await sb.from('platform_settings').upsert({ owner_id: user?.id, key: 'onboarding_complete', value: 'true' }, { onConflict: 'owner_id,key' })
-    } catch (e) { console.warn('Could not save onboarding setting:', e.message) }
+    } catch (e) { /* non-critical: onboarding setting save failed */ }
   }
 
   const handleSkip = async () => { await markOnboardingComplete(); onComplete() }
@@ -3678,7 +3677,7 @@ function OnboardingWizard({ onComplete }) {
       if (step === 2 && (form.companyName || form.mc || form.dot)) await updateCompany({ name: form.companyName, mc_number: form.mc, dot_number: form.dot, phone: form.phone, address: form.address }).catch(() => {})
       else if (step === 3 && (form.truckMake || form.truckYear || form.truckUnit)) await addVehicle({ type: form.truckType, year: form.truckYear, make: form.truckMake, model: form.truckModel, vin: form.truckVin, license_plate: form.truckPlate, unit_number: form.truckUnit, status: 'Active' }).catch(() => {})
       else if (step === 4) { const name = form.imTheDriver ? (profile?.full_name || firstName) : form.driverName; const phone = form.imTheDriver ? (profile?.phone || form.driverPhone) : form.driverPhone; if (name) await addDriver({ name, phone, license_number: form.driverCDL, medical_card_expiry: form.driverMedExpiry || null, status: 'Active' }).catch(() => {}) }
-    } catch (e) { console.warn('Step save error:', e) }
+    } catch (e) { /* non-critical: step save error */ }
     setSaving(false)
     if (nextStep > TOTAL_STEPS) { await markOnboardingComplete(); showToast('', 'Welcome!', 'Your account is ready to roll'); onComplete() }
     else setStep(nextStep)
@@ -3928,8 +3927,8 @@ function CarrierLayoutInner() {
     // Trial ending (sample)
     if (loads.length > 0 && loads.length < 5) n.push({ id: 'trial-ending', icon: Clock, title: 'Free Trial — 7 Days Left', desc: 'Upgrade to keep all your data and unlock premium features', color: 'var(--accent)', view: 'settings', type: 'system', time: 1440 })
 
-    // New referral signup (sample)
-    n.push({ id: 'referral-signup', icon: UserPlus, title: 'New Referral Signup!', desc: 'A carrier you referred just joined Qivori — you earned a credit', color: 'var(--success)', view: 'referral', type: 'referral', time: 2880 })
+    // New referral signup — only show if user has referral activity
+    // TODO: wire to actual referral data when available
 
     // Weekly summary available
     if (loads.length >= 3) n.push({ id: 'weekly-summary', icon: BarChart2, title: 'Weekly Summary Ready', desc: `${loads.length} loads, $${loads.reduce((s,l) => s + (l.gross || 0), 0).toLocaleString()} gross — view your analytics`, color: 'var(--accent2)', view: 'analytics', type: 'summary', time: 4320 })

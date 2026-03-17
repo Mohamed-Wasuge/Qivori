@@ -3,11 +3,8 @@ import { useApp } from '../context/AppContext'
 
 // Plan hierarchy for feature gating
 const PLAN_TIERS = {
-  starter: 0,
   autopilot: 1,
-  pro: 1,         // alias
   autopilot_ai: 2,
-  fleet: 3,
 }
 
 // Which plan tier is required for each gated feature
@@ -19,24 +16,21 @@ const FEATURE_GATES = {
   proactive_loads: 2,
   voice_ai:      2,
   auto_booking:  2,
-  api_access:    3,  // Fleet only
-  custom_integrations: 3,
-  priority_support: 3,
+  api_access:    2,  // Autopilot AI
+  custom_integrations: 2,
+  priority_support: 2,
 }
 
 const PLAN_DISPLAY = {
-  starter:      { name: 'Starter',      price: 0,    color: '#8a8a9a' },
-  autopilot:    { name: 'Autopilot',    price: 99,   color: '#f0a500' },
-  pro:          { name: 'Pro',          price: 49,   color: '#4d8ef0' },
-  autopilot_ai: { name: 'Autopilot AI', price: 799,  color: '#f0a500' },
-  fleet:        { name: 'Fleet',        price: 799,  color: '#a78bfa' },
+  autopilot:    { name: 'Autopilot',    price: 149,  color: '#6366f1' },
+  autopilot_ai: { name: 'Autopilot AI', price: 799,  color: '#a78bfa' },
 }
 
 export function useSubscription() {
   const { profile, subscription, demoMode } = useApp()
 
   return useMemo(() => {
-    const plan = subscription?.plan || 'starter'
+    const plan = subscription?.plan || 'autopilot'
     const status = subscription?.status || null
     const isTrialing = subscription?.isTrial || false
     const isActive = subscription?.isActive || demoMode || false
@@ -53,7 +47,7 @@ export function useSubscription() {
 
     const isPaid = isActive && !isTrialing
     const tier = PLAN_TIERS[plan] ?? 0
-    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.starter
+    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.autopilot
 
     // Feature access check
     const canAccess = (feature) => {

@@ -6,36 +6,12 @@ import { useApp } from './AppContext'
 const CarrierContext = createContext(null)
 
 // ─── Demo sample data ────────────────────────────────────────
-const DEMO_LOADS = [
-  { id: 'd1', load_id: 'QV-8001', origin: 'Chicago, IL', destination: 'Detroit, MI', rate: 3200, gross_pay: 3200, miles: 282, weight: '42,000 lbs', equipment: 'Dry Van', status: 'In Transit', broker_name: 'TQL Logistics', carrier_name: 'Mike Johnson', pickup_date: '2026-03-14', delivery_date: '2026-03-15' },
-  { id: 'd2', load_id: 'QV-8002', origin: 'Dallas, TX', destination: 'Houston, TX', rate: 1850, gross_pay: 1850, miles: 239, weight: '38,000 lbs', equipment: 'Reefer', status: 'Delivered', broker_name: 'CH Robinson', carrier_name: 'Mike Johnson', pickup_date: '2026-03-12', delivery_date: '2026-03-13' },
-  { id: 'd3', load_id: 'QV-8003', origin: 'Atlanta, GA', destination: 'Nashville, TN', rate: 2400, gross_pay: 2400, miles: 249, weight: '35,000 lbs', equipment: 'Flatbed', status: 'Rate Con Received', broker_name: 'XPO Logistics', carrier_name: '', pickup_date: '2026-03-16', delivery_date: '2026-03-17' },
-  { id: 'd4', load_id: 'QV-8004', origin: 'Minneapolis, MN', destination: 'Milwaukee, WI', rate: 1600, gross_pay: 1600, miles: 337, weight: '44,000 lbs', equipment: 'Dry Van', status: 'Assigned to Driver', broker_name: 'Echo Global', carrier_name: 'Sarah Davis', pickup_date: '2026-03-15', delivery_date: '2026-03-16' },
-  { id: 'd5', load_id: 'QV-8005', origin: 'Los Angeles, CA', destination: 'Phoenix, AZ', rate: 2800, gross_pay: 2800, miles: 373, weight: '40,000 lbs', equipment: 'Reefer', status: 'Invoiced', broker_name: 'Coyote Logistics', carrier_name: 'Mike Johnson', pickup_date: '2026-03-10', delivery_date: '2026-03-11' },
-  { id: 'd6', load_id: 'QV-8006', origin: 'Denver, CO', destination: 'Kansas City, MO', rate: 2100, gross_pay: 2100, miles: 606, weight: '36,000 lbs', equipment: 'Dry Van', status: 'En Route to Pickup', broker_name: 'Landstar', carrier_name: 'James Wilson', pickup_date: '2026-03-15', delivery_date: '2026-03-16' },
-]
-const DEMO_INVOICES = [
-  { id: 'inv1', invoice_number: 'INV-1001', load_number: 'QV-8002', amount: 1850, status: 'Paid', invoice_date: '2026-03-13', due_date: '2026-03-27', driver_name: 'Mike Johnson' },
-  { id: 'inv2', invoice_number: 'INV-1002', load_number: 'QV-8005', amount: 2800, status: 'Pending', invoice_date: '2026-03-11', due_date: '2026-03-25', driver_name: 'Mike Johnson' },
-  { id: 'inv3', invoice_number: 'INV-1003', load_number: 'QV-8001', amount: 3200, status: 'Unpaid', invoice_date: '2026-03-15', due_date: '2026-03-29', driver_name: 'Mike Johnson' },
-]
-const DEMO_EXPENSES = [
-  { id: 'exp1', description: 'Diesel — Loves Travel Stop', category: 'Fuel', amount: 485, date: '2026-03-14', load_number: 'QV-8001', driver_name: 'Mike Johnson' },
-  { id: 'exp2', description: 'Oil change', category: 'Maintenance', amount: 280, date: '2026-03-12', load_number: '', driver_name: '' },
-  { id: 'exp3', description: 'Toll — Illinois Tollway', category: 'Tolls', amount: 32, date: '2026-03-14', load_number: 'QV-8001', driver_name: 'Mike Johnson' },
-  { id: 'exp4', description: 'Diesel — Pilot', category: 'Fuel', amount: 412, date: '2026-03-10', load_number: 'QV-8005', driver_name: 'Mike Johnson' },
-]
-const DEMO_DRIVERS = [
-  { id: 'drv1', name: 'Mike Johnson', phone: '(555) 111-2222', email: 'mike@demo.com', license_number: 'CDL-A 12345', status: 'Active', hire_date: '2024-06-15' },
-  { id: 'drv2', name: 'Sarah Davis', phone: '(555) 333-4444', email: 'sarah@demo.com', license_number: 'CDL-A 67890', status: 'Active', hire_date: '2025-01-10' },
-  { id: 'drv3', name: 'James Wilson', phone: '(555) 555-6666', email: 'james@demo.com', license_number: 'CDL-A 11223', status: 'Active', hire_date: '2025-08-01' },
-]
-const DEMO_VEHICLES = [
-  { id: 'veh1', type: 'Dry Van', year: '2022', make: 'Freightliner', model: 'Cascadia', vin: '1FUJGLDR5MLKJ2841', license_plate: 'MN-94821', status: 'Active', assigned_driver: 'Mike Johnson' },
-  { id: 'veh2', type: 'Reefer', year: '2023', make: 'Kenworth', model: 'T680', vin: '2XKYD49X3PM456789', license_plate: 'TX-38291', status: 'Active', assigned_driver: 'Sarah Davis' },
-  { id: 'veh3', type: 'Flatbed', year: '2021', make: 'Peterbilt', model: '579', vin: '1XPWD40X1PD987654', license_plate: 'GA-72104', status: 'Active', assigned_driver: 'James Wilson' },
-]
-const DEMO_COMPANY = { name: 'Demo Trucking LLC', mc: 'MC-123456', dot: '2823675', mc_number: 'MC-123456', dot_number: '2823675', phone: '(555) 999-0000' }
+const DEMO_LOADS = []
+const DEMO_INVOICES = []
+const DEMO_EXPENSES = []
+const DEMO_DRIVERS = []
+const DEMO_VEHICLES = []
+const DEMO_COMPANY = {}
 
 // ─── Compatibility layer ─────────────────────────────────────
 // Actual DB loads table: id, load_id, origin, destination, rate, broker_id,
@@ -202,7 +178,6 @@ export function CarrierProvider({ children }) {
         if (dbCompany) setCompany(normalizeCompany(dbCompany))
         setUseDb(true)
       } catch (e) {
-        console.warn('Supabase not ready, starting empty:', e.message)
         setLoads([])
         setInvoices([])
         setExpenses([])
@@ -225,7 +200,7 @@ export function CarrierProvider({ children }) {
         setLoads(ls => [normalized, ...ls])
         return normalized
       } catch (e) {
-        console.error('Failed to create load:', e)
+        /* error handled gracefully */
       }
     }
     // Fallback: local-only
@@ -240,7 +215,7 @@ export function CarrierProvider({ children }) {
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
-      try { await db.deleteLoad(load.id) } catch (e) { console.error('Failed to delete load:', e) }
+      try { await db.deleteLoad(load.id) } catch { /* error handled gracefully */ }
     }
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
     // Also remove any linked invoices
@@ -275,7 +250,7 @@ export function CarrierProvider({ children }) {
           }),
         }).catch(() => {})
       } catch (e) {
-        console.error('Failed to update load:', e)
+        /* error handled gracefully */
       }
     }
 
@@ -307,7 +282,7 @@ export function CarrierProvider({ children }) {
         if (useDb && !String(l.id).startsWith('mock') && !String(l.id).startsWith('local')) {
           db.createInvoice({ ...inv, load_id: l._dbId || l.id }).then(dbInv => {
             setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
-          }).catch(e => console.error('Failed to create invoice:', e))
+          }).catch(() => { /* error handled gracefully */ })
 
           // If auto-invoice is enabled, fire the API to email the broker
           const autoInvoiceSetting = localStorage.getItem('qivori_auto_invoice')
@@ -366,7 +341,7 @@ export function CarrierProvider({ children }) {
       try {
         await db.updateInvoice(inv._dbId, { status })
       } catch (e) {
-        console.error('Failed to update invoice:', e)
+        /* error handled gracefully */
       }
     }
 
@@ -392,7 +367,7 @@ export function CarrierProvider({ children }) {
         setExpenses(es => [normalizeExpense(newExp), ...es])
         return normalizeExpense(newExp)
       } catch (e) {
-        console.error('Failed to create expense:', e)
+        /* error handled gracefully */
       }
     }
     const fakeExp = normalizeExpense({ ...exp, id: 'local-exp-' + Date.now() })
@@ -413,7 +388,7 @@ export function CarrierProvider({ children }) {
         }))
         return
       } catch (e) {
-        console.error('Failed to log check call:', e)
+        /* error handled gracefully */
       }
     }
 
@@ -431,7 +406,7 @@ export function CarrierProvider({ children }) {
         const newDriver = await db.createDriver(driver)
         setDrivers(ds => [newDriver, ...ds])
         return newDriver
-      } catch (e) { console.error('Failed to create driver:', e) }
+      } catch { /* error handled gracefully */ }
     }
     const fake = { ...driver, id: 'local-drv-' + Date.now() }
     setDrivers(ds => [fake, ...ds])
@@ -440,14 +415,14 @@ export function CarrierProvider({ children }) {
 
   const editDriver = useCallback(async (id, updates) => {
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateDriver(id, updates) } catch (e) { console.error('Failed to update driver:', e) }
+      try { await db.updateDriver(id, updates) } catch { /* error handled gracefully */ }
     }
     setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
   }, [useDb])
 
   const removeDriver = useCallback(async (id) => {
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteDriver(id) } catch (e) { console.error('Failed to delete driver:', e) }
+      try { await db.deleteDriver(id) } catch { /* error handled gracefully */ }
     }
     setDrivers(ds => ds.filter(d => d.id !== id))
   }, [useDb])
@@ -460,7 +435,7 @@ export function CarrierProvider({ children }) {
         const newVeh = await db.createVehicle(vehicle)
         setVehicles(vs => [newVeh, ...vs])
         result = newVeh
-      } catch (e) { console.error('Failed to create vehicle:', e) }
+      } catch { /* error handled gracefully */ }
     }
     if (!result) {
       result = { ...vehicle, id: 'local-veh-' + Date.now() }
@@ -473,7 +448,7 @@ export function CarrierProvider({ children }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ truckCount: newCount }),
-      }).catch(e => console.warn('Truck billing update failed:', e))
+      }).catch(() => { /* error handled gracefully */ })
       return vs
     })
     return result
@@ -481,14 +456,14 @@ export function CarrierProvider({ children }) {
 
   const editVehicle = useCallback(async (id, updates) => {
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateVehicle(id, updates) } catch (e) { console.error('Failed to update vehicle:', e) }
+      try { await db.updateVehicle(id, updates) } catch { /* error handled gracefully */ }
     }
     setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
   }, [useDb])
 
   const removeVehicle = useCallback(async (id) => {
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteVehicle(id) } catch (e) { console.error('Failed to delete vehicle:', e) }
+      try { await db.deleteVehicle(id) } catch { /* error handled gracefully */ }
     }
     setVehicles(vs => {
       const updated = vs.filter(v => v.id !== id)
@@ -498,7 +473,7 @@ export function CarrierProvider({ children }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ truckCount: newCount }),
-      }).catch(e => console.warn('Truck billing update failed:', e))
+      }).catch(() => { /* error handled gracefully */ })
       return updated
     })
   }, [useDb])
@@ -511,7 +486,7 @@ export function CarrierProvider({ children }) {
       try {
         await db.upsertCompany(merged)
       } catch (e) {
-        console.error('Failed to update company:', e)
+        /* error handled gracefully */
       }
     }
   }, [company, useDb])

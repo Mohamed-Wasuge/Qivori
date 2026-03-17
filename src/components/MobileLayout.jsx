@@ -265,7 +265,7 @@ function MobileAI() {
 
   // ── PROACTIVE LOAD FINDING AGENT ─────────────────────────────────────
   // Trigger: driver within ~60min of delivery destination
-  // Requires Autopilot AI plan ($499) and connected load board
+  // Requires Autopilot AI plan ($799) and connected load board
   useEffect(() => {
     if (!subscription?.plan || subscription.plan !== 'autopilot') return
     if (!subscription?.isActive) return
@@ -387,10 +387,10 @@ function MobileAI() {
           logProactiveActivity('found', `${scored.length} loads from ${dest}, best: ${origin}→${destination} $${best.rate} (${best._aiScore}/99)`)
 
         } catch (err) {
-          console.warn('[ProactiveAgent] Load search error:', err)
+          // Load search error — silently ignored
         }
       } catch (err) {
-        console.warn('[ProactiveAgent] Geocode error:', err)
+        // Geocode error — silently ignored
       }
     }
 
@@ -632,7 +632,6 @@ function MobileAI() {
               setMessages(m => [...m, { role: 'assistant', content: 'No weigh stations found in your area. Try expanding your search radius.' }])
             }
           } catch (err) {
-            console.error('Weigh station check error:', err)
             setMessages(m => [...m, { role: 'assistant', content: 'Couldn\'t check weigh stations right now. Try again in a moment.' }])
           }
           return true
@@ -995,7 +994,6 @@ function MobileAI() {
     }
 
     recognition.onerror = (event) => {
-      console.error('Speech error:', event.error)
       setListening(false)
       if (event.error === 'not-allowed') {
         showToast('error', 'Mic Blocked', 'Allow microphone access in browser settings')
@@ -1162,7 +1160,6 @@ function MobileAI() {
             sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
           }
         } catch (parseErr) {
-          console.warn('Document OCR parsing failed:', parseErr.message)
           sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
         } finally {
           setLoading(false)
@@ -1172,7 +1169,6 @@ function MobileAI() {
         sendMessage(`I just uploaded the ${label} for load ${load?.load_id || load_id}`)
       }
     } catch (err) {
-      console.warn('Doc upload failed, saving locally:', err.message)
       showToast('warning', 'Saved Locally', `${label} saved — will sync when online`)
       setPendingUpload(null)
       setMessages(m => [
@@ -1266,7 +1262,6 @@ function MobileAI() {
         showToast('error', 'Booking Failed', err.message)
       }
     } catch (err) {
-      console.error('Rate con parse error:', err)
       setMessages(m => [...m, { role: 'assistant', content: `Error processing the rate con: ${err.message || 'Try again.'}` }])
     } finally {
       setLoading(false)
@@ -1392,7 +1387,7 @@ function MobileAI() {
       // Detect which plan they want
       let targetPlan = null
       if (/autopilot\s*ai/i.test(lowerText) || /enterprise/i.test(lowerText)) targetPlan = { id: 'autopilot_ai', name: 'Autopilot AI', price: '$799/mo (founder)' }
-      else if (/autopilot/i.test(lowerText) || /\bbasic\b/i.test(lowerText) || /\bpro\b/i.test(lowerText) || /\bsolo\b/i.test(lowerText) || /\bfleet\b/i.test(lowerText) || /growing/i.test(lowerText)) targetPlan = { id: 'autopilot', name: 'Autopilot', price: '$99/mo' }
+      else if (/autopilot/i.test(lowerText)) targetPlan = { id: 'autopilot', name: 'Autopilot', price: '$149/mo' }
 
       if (targetPlan) {
         // Generate Stripe checkout link
@@ -1415,8 +1410,8 @@ function MobileAI() {
         }
       } else {
         // No specific plan mentioned — show options
-        setMessages(m => [...m, { role: 'assistant', content: `**Available Plans:**\n\n**Autopilot** — $99/mo\nAI-assisted dispatching. AI load board, scoring, IFTA, invoicing, compliance, fleet map. +$49/mo per additional truck.\n\n**Autopilot AI** — $799/mo (founder pricing)\nFull AI autonomy. AI auto-dispatches, proactive load finding, auto-booking, revenue optimization, unlimited. +$150/mo per additional truck.\n\nSay **"upgrade to Autopilot"** or **"upgrade to Autopilot AI"**.` }])
-        speak('I have two plans. Autopilot at 99 per month, and Autopilot AI at 799 per month with full AI autonomy. Which would you like?')
+        setMessages(m => [...m, { role: 'assistant', content: `**Available Plans:**\n\n**Autopilot** — $149/mo\nAI-assisted dispatching. AI load board, scoring, IFTA, invoicing, compliance, fleet map. +$49/mo per additional truck.\n\n**Autopilot AI** — $799/mo (founder pricing)\nFull AI autonomy. AI auto-dispatches, proactive load finding, auto-booking, revenue optimization, unlimited. +$150/mo per additional truck.\n\nSay **"upgrade to Autopilot"** or **"upgrade to Autopilot AI"**.` }])
+        speak('I have two plans. Autopilot at 149 per month, and Autopilot AI at 799 per month with full AI autonomy. Which would you like?')
       }
       setLoading(false)
       return
@@ -1513,7 +1508,7 @@ function MobileAI() {
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { autopilot: '$99/mo', autopilot_ai: '$799/mo', basic: '$99/mo', pro: '$99/mo', solo: '$99/mo', fleet: '$99/mo', growing: '$99/mo', enterprise: '$799/mo' }
+      const planPrices = { autopilot: '$149/mo', autopilot_ai: '$799/mo' }
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`
@@ -1772,7 +1767,6 @@ function MobileAI() {
         }
       })
     } catch (err) {
-      console.error('Chat error:', err)
       escalateAttemptRef.current += 1
       if (escalateAttemptRef.current >= 2) {
         // Auto-escalate after 2 failed attempts

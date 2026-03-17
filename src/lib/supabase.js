@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 
 // These are PUBLIC keys (anon key + project URL) — safe for client-side code.
 // Real security is enforced by Supabase Row Level Security (RLS) policies.
-const FALLBACK_URL = 'https://jrencclzfztrilrldmwf.supabase.co'
-const FALLBACK_KEY = 'sb_publishable_JPboIPM1fpNAZC6RtdCWGQ_ZvaKCC3g'
+const FALLBACK_URL = ''
+const FALLBACK_KEY = ''
 
 const raw_url = import.meta.env.VITE_SUPABASE_URL
 const raw_key = import.meta.env.VITE_SUPABASE_ANON_KEY

@@ -1,35 +1,16 @@
 import React, { useState } from 'react'
-import { Check, Zap, Bot, Crown, Building2, ArrowRight } from 'lucide-react'
+import { Check, Zap, Bot, Crown, ArrowRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
 
 const PRICING_PLANS = [
   {
-    id: 'starter',
-    name: 'Starter',
-    sub: 'Get started for free',
-    price: '$0',
-    period: '14-day trial',
-    color: '#8a8a9a',
-    icon: Zap,
-    features: [
-      '1 truck',
-      'Basic dispatch board',
-      'Fleet tracking',
-      'Compliance dashboard',
-      'Community support',
-    ],
-    limits: ['No invoicing', 'No IFTA', 'No AI features'],
-    cta: 'Start Free',
-    stripeId: null, // no checkout needed
-  },
-  {
     id: 'autopilot',
-    name: 'Pro',
+    name: 'Autopilot',
     sub: 'For growing carriers',
-    price: '$49',
+    price: '$149',
     period: '/mo',
-    color: '#4d8ef0',
+    color: '#6366f1',
     icon: Bot,
     popular: true,
     features: [
@@ -48,47 +29,29 @@ const PRICING_PLANS = [
   },
   {
     id: 'autopilot_ai',
-    name: 'Autopilot',
+    name: 'Autopilot AI',
     sub: 'AI runs your dispatch',
-    price: '$99',
+    price: '$799',
     period: '/mo',
-    color: '#f0a500',
+    color: '#a78bfa',
     icon: Crown,
     features: [
       'Unlimited trucks',
-      'Everything in Pro',
+      'Everything in Autopilot',
       'AI Auto-Dispatch',
       'Proactive Load Finding',
       'Voice AI Chatbot',
       'Auto-booking & broker calls',
       'HOS & Weather on Route',
-      'Priority support',
-    ],
-    limits: [],
-    cta: 'Start Free Trial',
-    stripeId: 'autopilot_ai',
-  },
-  {
-    id: 'fleet',
-    name: 'Fleet',
-    sub: 'Enterprise-grade TMS',
-    price: '$799',
-    period: '/mo',
-    color: '#a78bfa',
-    icon: Building2,
-    features: [
-      'Everything in Autopilot',
       'API access',
       'Custom integrations',
-      'Dedicated account manager',
       'Priority phone support',
-      'SLA guarantees',
       'Custom reporting',
       'Multi-terminal support',
     ],
     limits: [],
-    cta: 'Contact Sales',
-    stripeId: 'autopilot_ai', // uses autopilot_ai pricing as base
+    cta: 'Start Free Trial',
+    stripeId: 'autopilot_ai',
   },
 ]
 
@@ -99,16 +62,6 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
   const handleSelect = async (plan) => {
     if (onPlanSelect) {
       onPlanSelect(plan.id)
-      return
-    }
-
-    if (plan.id === 'starter') {
-      showToast('', 'Starter Plan', 'Sign up to get started with the free trial')
-      return
-    }
-
-    if (plan.id === 'fleet') {
-      window.open('mailto:support@qivori.com?subject=Fleet Plan Inquiry', '_blank')
       return
     }
 

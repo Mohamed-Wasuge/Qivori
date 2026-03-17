@@ -240,7 +240,7 @@ function AppContent() {
 class AppErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  componentDidCatch(err, info) { console.error('[Qivori] App crash:', err, info); Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
+  componentDidCatch(err, info) { Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
   render() {
     if (this.state.error) {
       return (

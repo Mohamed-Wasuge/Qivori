@@ -576,7 +576,7 @@ export function MasterAgent() {
   // ── Bot controls state ────────────────────────────────────
   const [botStates, setBotStates] = useState(() => {
     const saved = localStorage.getItem('qv_bot_states')
-    if (saved) try { return JSON.parse(saved) } catch {}
+    if (saved) try { return JSON.parse(saved) } catch { /* parse error */ }
     return {
       chatbot: { enabled: true, paused: false, lastActive: null },
       loadAgent: { enabled: true, paused: false, lastActive: null },
@@ -1118,7 +1118,7 @@ function LoadManagementAgent({ addLog, sendAlert, cardStyle, botStates, touchBot
     let assignedDriver = currentDrivers.find(d => d.status === 'available' || d.status === 'Active')
     let simDriver = false
     if (!assignedDriver) {
-      assignedDriver = { id: 'sim-driver-001', full_name: 'Marcus Johnson (Sim)', status: 'available', _simulated: true }
+      assignedDriver = { id: 'sim-driver-001', full_name: 'Simulated Driver', status: 'available', _simulated: true }
       simDriver = true
       log(3, `[SIM] No real drivers found — using simulated driver: ${assignedDriver.full_name}`, 'fix')
     } else {
@@ -1634,7 +1634,7 @@ function ContentCalendar({ addLog, cardStyle, botStates, touchBot }) {
       try {
         const parsed = JSON.parse(saved)
         return parsed.map(p => ({ ...p, date: new Date(p.date) }))
-      } catch {}
+      } catch { /* referral error */ }
     }
     return generateWeekPosts(getWeekStart(new Date()))
   })
@@ -2022,7 +2022,7 @@ export function RevenueDashboard() {
     try {
       const res = await apiFetch('/api/revenue-stats')
       if (res.ok) setStats(await res.json())
-    } catch {}
+    } catch { /* analytics fetch error */ }
     setLoading(false)
   }
 

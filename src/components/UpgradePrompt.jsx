@@ -4,9 +4,8 @@ import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
 
 const PLAN_DETAILS = {
-  autopilot: { name: 'Autopilot', price: '$99/mo', features: ['AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
-  autopilot_ai: { name: 'Autopilot AI', price: '$799/mo', features: ['Everything in Autopilot', 'AI Auto-Dispatch', 'Proactive Load Finding', 'Voice AI & Auto-Booking'] },
-  fleet: { name: 'Fleet', price: '$799/mo', features: ['Everything in Autopilot AI', 'API Access', 'Priority Support', 'Custom Integrations'] },
+  autopilot: { name: 'Autopilot', price: '$149/mo', features: ['AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
+  autopilot_ai: { name: 'Autopilot AI', price: '$799/mo', features: ['Everything in Autopilot', 'AI Auto-Dispatch', 'Proactive Load Finding', 'Voice AI & Auto-Booking', 'API Access', 'Priority Support', 'Custom Integrations'] },
 }
 
 export default function UpgradePrompt({ feature, requiredPlan, onClose }) {

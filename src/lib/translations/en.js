@@ -236,7 +236,7 @@ const en = {
   'landing.moneyOnTable': 'MONEY ON THE TABLE?',
   'landing.finalCtaDesc': 'Join owner-operators and small fleets using Qivori to find better loads, run leaner, and get paid faster.',
   'landing.startFreeNoCard': 'Start Free \u2014 No Card Needed',
-  'landing.trialInfo': '14 days free \u00b7 Then from $99/month \u00b7 Cancel anytime',
+  'landing.trialInfo': '14 days free \u00b7 Then from $149/month \u00b7 Cancel anytime',
   'landing.searchLoads': 'Or search 2,000+ loads for free',
 
   // ── Landing Page: Footer ──

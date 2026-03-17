@@ -60,7 +60,7 @@ export function Onboarding() {
         dot_number: companyInfo.dot,
         phone: companyInfo.phone,
       }, { onConflict: 'owner_id' })
-    } catch {}
+    } catch { /* company info save error */ }
     setStep(3)
   }
 
@@ -341,7 +341,7 @@ export function Settings() {
           <div className="panel-header"><div className="panel-title"><Ic icon={CreditCard} size={14} /> Subscription Plans</div></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { name: 'Autopilot', price: '$99/mo + $49/truck', users: '40 users', color: 'var(--accent)' },
+              { name: 'Autopilot', price: '$149/mo + $49/truck', users: '40 users', color: 'var(--accent)' },
               { name: 'Autopilot AI', price: '$799/mo + $150/truck', users: '24 users', color: '#f0a500' },
             ].map(p => (
               <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--surface2)', borderRadius: 10 }}>
@@ -404,7 +404,7 @@ function ReferralPanel() {
         const { apiFetch } = await import('../lib/api')
         const res = await apiFetch('/api/referral')
         if (res.ok) setReferralData(await res.json())
-      } catch {}
+      } catch { /* referral fetch error */ }
       setLoading(false)
     })()
   }, [])

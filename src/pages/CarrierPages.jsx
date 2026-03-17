@@ -315,7 +315,7 @@ export function SmartDispatch() {
   const { loads: ctxLoads, addLoad, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
   const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
     name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
-    location: '', hos: '—', unit: '',
+    location: d.location || '', hos: d.hos_remaining || '—', unit: d.unit_number || '',
   })) : DISPATCH_DRIVERS
 
   const [loads, setLoads] = useState(SAMPLE_MARKET_LOADS)
@@ -587,7 +587,7 @@ export function SmartDispatch() {
       const data = await res.json()
       setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content: data.reply || data.error }] }))
     } catch {
-      setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content:'Connection error — start the server on port 4000.' }] }))
+      setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content:'AI assistant unavailable — please try again later.' }] }))
     } finally {
       setAiLoading(false)
     }
@@ -689,7 +689,7 @@ export function SmartDispatch() {
         {/* DAT source badge */}
         <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8, background:'var(--surface)' }}>
           <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)' }}/>
-          <span style={{ fontSize:10, color:'var(--muted)' }}>Showing mock data · DAT API ready to connect</span>
+          <span style={{ fontSize:10, color:'var(--muted)' }}>No live data — connect DAT API in Settings</span>
         </div>
       </div>
 
@@ -1236,6 +1236,11 @@ function TruckROI() {
 
 // ─── REVENUE INTEL ───────────────────────────────────────────────────────────
 export function RevenueIntel() {
+  const { loads: ctxLoads, invoices: ctxInvoices, totalRevenue, expenses: ctxExpenses } = useCarrier()
+  const totalExp = Array.isArray(ctxExpenses) ? ctxExpenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0) : 0
+  const grossMTD = totalRevenue || 0
+  const netMTD = grossMTD - totalExp
+  const avgLoadSize = ctxLoads && ctxLoads.length > 0 ? Math.round(grossMTD / ctxLoads.length) : 0
   const [tab, setTab] = useState('overview')
   const weeks = ['W1','W2','W3','W4']
   const gross  = [5200, 6800, 4900, 7200]
@@ -1261,14 +1266,14 @@ export function RevenueIntel() {
       {tab === 'overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16, flex:1, overflowY:'auto', minHeight:0 }}>
           <AiBanner
-            title="AI Revenue Forecast: You're on track for $14,200 this month"
-            sub="Best performing lane: MSP→CHI at $3.10/mi avg · Take 2 more loads this week to hit your $5,000/week target"
+            title={grossMTD > 0 ? `AI Revenue Forecast: $${(grossMTD/1000).toFixed(1)}K gross this month` : "AI Revenue Forecast: Add loads to see forecasts"}
+            sub={grossMTD > 0 ? `${ctxLoads.length} loads · $${(grossMTD / Math.max(ctxLoads.length, 1)).toFixed(0)} avg per load` : "Start adding loads to generate revenue insights"}
           />
           <div style={S.grid(4)}>
-            <StatCard label="Gross MTD"     value="$12.4K" change="↑ 18%" color="var(--accent)" />
-            <StatCard label="Net MTD"       value="$4,820" change="After all costs" color="var(--success)" />
-            <StatCard label="Best Lane RPM" value="$3.22"  change="DAL→MIA" color="var(--accent2)" changeType="neutral"/>
-            <StatCard label="Avg Load Size" value="$3,890" change="↑ $340 vs last mo" color="var(--accent3)" />
+            <StatCard label="Gross MTD"     value={grossMTD > 0 ? `$${(grossMTD/1000).toFixed(1)}K` : "$0"} change={grossMTD > 0 ? `${ctxLoads.length} loads` : "—"} color="var(--accent)" />
+            <StatCard label="Net MTD"       value={netMTD !== 0 ? `$${netMTD.toLocaleString()}` : "$0"} change="After all costs" color="var(--success)" />
+            <StatCard label="Best Lane RPM" value="—"  change="Add loads to track" color="var(--accent2)" changeType="neutral"/>
+            <StatCard label="Avg Load Size" value={avgLoadSize > 0 ? `$${avgLoadSize.toLocaleString()}` : "$0"} change="—" color="var(--accent3)" />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
@@ -1297,13 +1302,7 @@ export function RevenueIntel() {
             <div style={S.panel}>
               <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Flame} /> Top Lanes by Net</div></div>
               <div>
-                {[
-                  { lane:'DAL→MIA', rpm:3.22, loads:4, net:'$13.7K', trend:'↑12%', color:'var(--success)' },
-                  { lane:'ATL→CHI', rpm:2.94, loads:6, net:'$11.2K', trend:'↑8%',  color:'var(--success)' },
-                  { lane:'MEM→NYC', rpm:3.10, loads:3, net:'$9.7K',  trend:'↑5%',  color:'var(--accent2)' },
-                  { lane:'MSP→CHI', rpm:3.10, loads:5, net:'$8.4K',  trend:'→',    color:'var(--muted)'   },
-                  { lane:'PHX→LAX', rpm:2.41, loads:8, net:'$6.1K',  trend:'↓3%',  color:'var(--danger)'  },
-                ].map((l, i) => (
+                {[].length > 0 ? [].map((l, i) => (
                   <div key={l.lane} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--border)', gap: 10 }}>
                     <div style={{ fontSize: 12, color: 'var(--muted)', width: 16 }}>#{i+1}</div>
                     <div style={{ flex: 1 }}>
@@ -1315,7 +1314,9 @@ export function RevenueIntel() {
                       <div style={{ fontSize: 10, color: l.color }}>{l.trend}</div>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No lane data yet</div>
+                )}
               </div>
             </div>
           </div>
@@ -2625,9 +2626,10 @@ function MiniGauge({ label, value, max, color, unit = '' }) {
 
 function AIComplianceCenter({ defaultTab = 'overview' }) {
   const { showToast } = useApp()
+  const { vehicles: ctxVehicles } = useCarrier()
   const [compTab, setCompTab] = useState(defaultTab)
   const [items, setItems] = useState(DVIR_ITEMS_DEFAULT)
-  const [selectedUnit, setSelectedUnit] = useState('Unit 01')
+  const [selectedUnit, setSelectedUnit] = useState('')
   const defects = items.filter(i => i.status === 'Defect').length
 
   // FMCSA real data state
@@ -2689,9 +2691,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const [chDriver, setChDriver] = useState('')
   const [chType, setChType] = useState('Pre-Employment')
   const [chConsent, setChConsent] = useState(false)
-  const [chOrders, setChOrders] = useState([
-    { id:'CH-001', driver:'Example Driver', cdl:'XX-000000', type:'Pre-Employment', date:'Jan 15, 2026', status:'Complete', result:'Clear', cost:1.25 },
-  ])
+  const [chOrders, setChOrders] = useState([])
 
   const submitCH = () => {
     if (!chDriver) { showToast('','Select Driver','Choose a driver to query'); return }
@@ -2757,7 +2757,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   <MiniGauge label="HOS" value={0} max={5} color="var(--success)" unit="" />
                   <MiniGauge label="CSA" value={Math.round(BASIC_SCORES.reduce((s,b) => s + b.score, 0) / BASIC_SCORES.length)} max={65} color="var(--success)" unit="%" />
                   <MiniGauge label="DVIR" value={defects === 0 ? 100 : Math.max(0, 100 - defects * 10)} max={100} color={defects === 0 ? 'var(--success)' : 'var(--danger)'} unit="%" />
-                  <MiniGauge label="Drug" value={100} max={100} color="var(--success)" unit="%" />
+                  <MiniGauge label="Drug" value={0} max={100} color="var(--muted)" unit="%" />{/* N/A when no data */}
                 </div>
               </div>
 
@@ -2767,7 +2767,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10 }}>
                   {[
                     { label:'ELD Devices',    value:'3/3',   sub:'All synced',      color:'var(--success)' },
-                    { label:'HOS Violations',  value:'0',     sub:'Clean 30 days',   color:'var(--success)' },
+                    { label:'HOS Violations',  value:'0',     sub:'No data yet',   color:'var(--success)' },
                     { label:'CSA Rating',      value:'Satisfactory', sub:'FMCSA Status', color:'var(--success)' },
                   ].map(s => (
                     <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
@@ -2813,9 +2813,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {[
-                      { name:'Example Driver', unit:'Unit 01', cdl:'XX-000000', eld:'—', hos:'—', dvir:'—', csa:'—', ch:'—', med:'—', medWarn:false },
-                    ].map(d => (
+                    {[].length > 0 ? [].map(d => (
                       <tr key={d.name} style={{ borderBottom:'1px solid var(--border)' }}>
                         <td style={{ padding:'11px 12px', fontSize:13, fontWeight:700, whiteSpace:'nowrap' }}>{d.name}</td>
                         <td style={{ padding:'11px 12px', fontSize:12, color:'var(--muted)' }}>{d.unit}</td>
@@ -2829,7 +2827,9 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                           <span style={S.tag(d.medWarn ? 'var(--warning)' : 'var(--success)')}>{d.med}</span>
                         </td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr><td colSpan={9} style={{ padding:'24px 12px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet — add your first driver to get started</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2871,7 +2871,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
 
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               {[
-                { label:'Units Online',   value:'0/0',  sub:'No devices',     color:'var(--muted)' },
+                { label:'Units Online',   value:'0/0',  sub:'No devices connected',     color:'var(--muted)' },
                 { label:'HOS Violations',  value:'0',    sub:'No data yet',    color:'var(--muted)' },
                 { label:'Avg HOS Left',    value:'—',    sub:'No drivers yet', color:'var(--muted)' },
                 { label:'ELD Provider',    value:'—',    sub:'Not connected',  color:'var(--muted)' },
@@ -2889,9 +2889,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 <div style={S.panelTitle}><Ic icon={Activity} /> Driver HOS Status — Live</div>
                 <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','ELD Sync','All devices synced')}><Ic icon={RefreshCw} /> Sync All</button>
               </div>
-              {[
-                { driver:'Example Driver', unit:'Unit 01', status:'Off Duty', hosLeft:'11h 0m', driveToday:'0h', shiftLeft:'14h', cycleLeft:'70h', statusColor:'var(--muted)', load:'—', rec:'Add your drivers and connect ELD to see live data' },
-              ].map(d => (
+              {[].length > 0 ? [].map(d => (
                 <div key={d.driver} style={{ padding:'16px 18px', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10, flexWrap:'wrap' }}>
                     <div style={{ width:38, height:38, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:12, color:'var(--accent)', flexShrink:0 }}>
@@ -2937,22 +2935,24 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     {d.rec}
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div style={{ padding:'24px 18px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet — connect your ELD to see live data</div>
+              )}
             </div>
 
             {/* HOS Events */}
             <div style={S.panel}>
               <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Recent HOS Events</div></div>
-              {[
-                { date:'—',  driver:'Example Driver', event:'No events recorded yet', type:'Info', color:'var(--muted)' },
-              ].map((e, i) => (
+              {[].length > 0 ? [].map((e, i) => (
                 <div key={i} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
                   <span style={{ fontSize:11, color:'var(--muted)', minWidth:42 }}>{e.date}</span>
                   <span style={S.tag(e.color)}>{e.type}</span>
                   <span style={{ fontSize:12, fontWeight:600 }}>{e.driver}</span>
                   <span style={{ fontSize:12, color:'var(--muted)' }}>{e.event}</span>
                 </div>
-              ))}
+              )) : (
+                <div style={{ padding:'24px 16px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No HOS events yet</div>
+              )}
             </div>
           </>
         )}
@@ -2967,7 +2967,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               </div>
               <select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)}
                 style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
-                {['Unit 01','Unit 02','Unit 03'].map(u => <option key={u}>{u}</option>)}
+                {(ctxVehicles && ctxVehicles.length > 0) ? ctxVehicles.map(v => <option key={v.id || v.unit_number} value={v.unit_number || v.name}>{v.unit_number || v.name}</option>) : <option value="">No units</option>}
               </select>
               <div style={{ fontSize:12, color:'var(--muted)' }}>{new Date().toLocaleDateString()}</div>
             </div>
@@ -3016,9 +3016,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     {['Date','Unit','Driver','Result',''].map(h => <th key={h} style={{ padding:'9px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {[
-                      { date:'—', unit:'Unit 01', driver:'Example Driver', result:'No inspections yet', color:'var(--muted)' },
-                    ].map((r,i) => (
+                    {[].length > 0 ? [].map((r,i) => (
                       <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
                         <td style={{ padding:'10px 14px', fontSize:12, color:'var(--muted)' }}>{r.date}</td>
                         <td style={{ padding:'10px 14px', fontSize:12, fontWeight:700 }}>{r.unit}</td>
@@ -3026,7 +3024,9 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                         <td style={{ padding:'10px 14px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:r.color+'15', color:r.color }}>{r.result}</span></td>
                         <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','DVIR',r.date + ' · ' + r.unit)}>View</button></td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr><td colSpan={5} style={{ padding:'24px 14px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No inspections yet — connect ELD to see DVIR data</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3162,7 +3162,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               </div>
               <div style={{ textAlign:'right', flexShrink:0 }}>
                 <div style={{ fontSize:11, color:'var(--muted)' }}>Balance</div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>$48.75</div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>$0.00</div>
               </div>
             </div>
 
@@ -3259,7 +3259,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {chOrders.map(o => (
+                    {chOrders.length > 0 ? chOrders.map(o => (
                       <tr key={o.id} style={{ borderBottom:'1px solid var(--border)' }}>
                         <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, color:'var(--accent)' }}>{o.id}</td>
                         <td style={{ padding:'10px 12px', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>{o.driver}</td>
@@ -3270,7 +3270,9 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                         <td style={{ padding:'10px 12px' }}><span style={S.tag(o.result === 'Clear' ? 'var(--success)' : o.result === 'Pending' ? 'var(--accent)' : 'var(--danger)')}>{o.result}</span></td>
                         <td style={{ padding:'10px 12px', fontSize:12, color:'var(--muted)' }}>${o.cost.toFixed(2)}</td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr><td colSpan={8} style={{ padding:'24px 12px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No clearinghouse orders yet — add drivers to get started</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -4210,7 +4212,7 @@ export function FactoringCashflow() {
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: acc.color + '15', color: acc.color }}>{acc.status}</span>
                 </div>
               ))}
-              <button className="btn btn-ghost" style={{ marginTop: 6 }} onClick={() => showToast('', 'Coming Soon', 'Bank account connection is coming soon')}>+ Connect Bank Account</button>
+              <button className="btn btn-ghost" style={{ marginTop: 6 }} onClick={() => showToast('', 'Coming Soon', 'Bank account connection is coming soon')}>+ Connect Bank Account (Coming Soon)</button>
             </div>
           </div>
         </div>
@@ -4958,6 +4960,7 @@ export function DriverOnboarding() {
         showToast('success', 'APIs Called', result.started.join(', ') + ' ordered via providers')
       }
     } catch (err) {
+      /* save error — non-blocking */
     }
 
     // Update UI to processing after a short delay
@@ -4998,6 +5001,7 @@ export function DriverOnboarding() {
           showToast('', 'Auto-Advanced', result.started.join(', ') + ' auto-ordered')
         }
       } catch (err) {
+        /* save error — non-blocking */
       }
     }
   }
@@ -5625,11 +5629,11 @@ const GANTT_BLOCKS = {}
 
 export function CommandCenter() {
   const { showToast } = useApp()
-  const { loads, activeLoads } = useCarrier()
+  const { loads, activeLoads, drivers: dbDrivers } = useCarrier()
   const [selDriver, setSelDriver] = useState(null)
   const [filterStatus, setFilterStatus] = useState('All')
 
-  const drivers = ['Example Driver']
+  const drivers = dbDrivers.length ? dbDrivers.map(d => d.full_name) : []
 
   // Build enriched truck data
   const trucks = drivers.map(driver => {
@@ -5896,12 +5900,12 @@ export function CommandCenter() {
               <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)' }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5, marginBottom:8 }}>HOURS OF SERVICE</div>
                 <div style={{ fontSize:22, fontFamily:"'Bebas Neue',sans-serif", color:'var(--success)', marginBottom:6 }}>
-                  {CC_HOS[selected.driver]} drive time left
+                  {CC_HOS[selected.driver] || '—'}
                 </div>
                 <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden', marginBottom:4 }}>
-                  <div style={{ height:'100%', width:'72%', background:'linear-gradient(90deg,var(--success),var(--accent2))', borderRadius:3 }}/>
+                  <div style={{ height:'100%', width: CC_HOS[selected.driver] ? '72%' : '0%', background:'linear-gradient(90deg,var(--success),var(--accent2))', borderRadius:3 }}/>
                 </div>
-                <div style={{ fontSize:10, color:'var(--muted)' }}>70-hr week: 38h used · 32h remaining</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>{CC_HOS[selected.driver] ? '70-hr week: 38h used · 32h remaining' : 'No HOS data available'}</div>
               </div>
 
               {/* Active load */}
@@ -5981,10 +5985,10 @@ export function CommandCenter() {
       <div style={{ height:168, flexShrink:0, borderTop:'1px solid var(--border)', background:'var(--surface)' }}>
         <div style={{ padding:'8px 16px 6px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2 }}>FREIGHT SCHEDULE</div>
-          <div style={{ fontSize:10, color:'var(--muted)' }}>Today · Mar 9, 2026</div>
+          <div style={{ fontSize:10, color:'var(--muted)' }}>{'Today · ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}</div>
           <div style={{ marginLeft:'auto', display:'flex', gap:12, fontSize:10, color:'var(--muted)' }}>
-            <span style={{ color:'var(--danger)', fontWeight:700 }}>● NOW · 10:30 AM</span>
-            <span>7 AM → 12 AM</span>
+            <span style={{ color:'var(--danger)', fontWeight:700 }}>{'● NOW · ' + new Date().toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })}</span>
+            <span>Current shift</span>
           </div>
         </div>
 
@@ -6042,19 +6046,13 @@ export function CommandCenter() {
 
 // ─── AI LOAD BOARD ────────────────────────────────────────────────────────────
 // Broker risk reference — grows from API data over time
-const LB_BROKER = {
-  'Echo Global': { risk:'LOW', score:98, pay:'< 24hr', color:'var(--success)' },
-}
+const LB_BROKER = {}
 
 // Lane market rates — populated by load board API data
-const LB_LANE = {
-  'CHI→ATL': { avgRpm:2.72, trend:0, backhaul:50 },
-}
+const LB_LANE = {}
 
 // Fallback sample load — shown when no API keys configured
-const SAMPLE_BOARD_LOADS = [
-  { id:'LD-001', broker:'Echo Global', origin:'Chicago, IL', dest:'Atlanta, GA', miles:674, rate:3.05, gross:2056, weight:'42,000', commodity:'Auto Parts', equipment:'Dry Van', pickup:'Mar 10 · 8:00 AM', delivery:'Mar 11 · 6:00 PM', deadhead:0, refNum:'EC-89100', laneKey:'CHI→ATL' },
-]
+const SAMPLE_BOARD_LOADS = []
 
 function calcAiScore(load) {
   const lane    = LB_LANE[load.laneKey] || { avgRpm:2.70, trend:0, backhaul:50 }
@@ -6222,7 +6220,7 @@ function AIRateNegotiator({ load, lane, bkr }) {
 
 export function AILoadBoard() {
   const { showToast } = useApp()
-  const { addLoad } = useCarrier()
+  const { addLoad, drivers: dbDrivers } = useCarrier()
   const [filters, setFilters] = useState({ equip:'All', minRpm:'', sortBy:'score' })
   const [boardLoads, setBoardLoads] = useState(SAMPLE_BOARD_LOADS)
   const [selected, setSelected] = useState(SAMPLE_BOARD_LOADS[0]?.id || null)
@@ -6271,7 +6269,7 @@ export function AILoadBoard() {
           }
         }
       } catch {
-        // Keep sample data as fallback
+        /* API fetch failed — using cached data */
       } finally {
         if (!cancelled) setLbLoading(false)
       }
@@ -6600,7 +6598,9 @@ export function AILoadBoard() {
                     <select value={assignDriver} onChange={e => setAssignDriver(e.target.value)}
                       style={{ ...selectStyle, flex:1, padding:'10px 12px', fontSize:13 }}>
                       <option value="">Assign Driver…</option>
-                      <option value="Example Driver">Example Driver (Unit 01)</option>
+                      {(dbDrivers || []).map(d => (
+                        <option key={d.id} value={d.full_name}>{d.full_name}{d.truck_number ? ` (Unit ${d.truck_number})` : ''}</option>
+                      ))}
                     </select>
                     <button className="btn btn-primary" onClick={handleBook}
                       style={{ padding:'10px 28px', fontSize:13, whiteSpace:'nowrap', opacity: assignDriver ? 1 : 0.5 }}>
@@ -6684,7 +6684,7 @@ const CF_DUE_WEEK = {
   'Apr 13':5,'Apr 14':5,'Apr 15':5,'Apr 16':5,'Apr 17':5,'Apr 18':5,'Apr 19':5,
 }
 
-const CF_START_BALANCE = 12400
+const CF_START_BALANCE = 0
 
 export function CashFlowForecaster() {
   const { loads, invoices, expenses } = useCarrier()
@@ -6717,7 +6717,7 @@ export function CashFlowForecaster() {
     const weeklyBase  = Math.round(totalExpAmt / 4) // spread over 4 weeks of history
     const outgoing = CF_WEEKS.map((_, i) => {
       const driverPay = Math.round(incoming[i] * 0.28)
-      const fuel      = 840  // ~$280/truck/week × 3
+      const fuel      = Math.round((totalExpAmt || 0) / 4)
       const ops       = i === 0 ? Math.round(weeklyBase * 0.6) : Math.round(weeklyBase * 0.35)
       return driverPay + fuel + ops
     })
@@ -6888,7 +6888,7 @@ export function CashFlowForecaster() {
                     {item.factorAmt && !item.projected && (
                       <div style={{ fontSize:10, color:'var(--accent)', cursor:'pointer' }}
                         onClick={() => showToast('','Factor Now',`Factoring ${item.id} — $${item.factorAmt.toLocaleString()} same-day deposit initiated`)}>
-                        Factor → ${item.factorAmt.toLocaleString()}
+                        Factor Now (Coming Soon)
                       </div>
                     )}
                   </div>
@@ -6927,7 +6927,7 @@ export function CashFlowForecaster() {
                       <span style={{ fontSize:11, flex:1, color:'var(--muted)' }}>{inv.id} · ${inv.amount.toLocaleString()}</span>
                       <button className="btn btn-ghost" style={{ fontSize:10, padding:'3px 10px', color:'var(--accent)', borderColor:'rgba(240,165,0,0.3)' }}
                         onClick={() => showToast('','Factored',`${inv.id} sent to factor — $${Math.round(inv.amount*0.975).toLocaleString()} incoming`)}>
-                        Factor 2.5%
+                        Factor (Coming Soon)
                       </button>
                     </div>
                   ))}
@@ -7390,42 +7390,9 @@ export function CheckCallCenter() {
 
 // ─── DRIVER SCORECARD ─────────────────────────────────────────────────────────
 
-// Sample demo data for drivers when no real data exists
-const DEMO_DRIVERS = [
-  { id:'demo-1', full_name:'Marcus Johnson', phone:'(555) 234-1001', email:'marcus@carrier.com', license_number:'CDL-A-7829104', license_state:'TX', hire_date:'2022-03-15', medical_card_expiry:'2026-09-01', license_expiry:'2027-04-20', status:'Active', notes:'Hazmat,Tanker' },
-  { id:'demo-2', full_name:'Sarah Chen', phone:'(555) 234-1002', email:'sarah@carrier.com', license_number:'CDL-A-4451098', license_state:'CA', hire_date:'2023-01-10', medical_card_expiry:'2026-06-15', license_expiry:'2027-01-10', status:'Active', notes:'Doubles/Triples' },
-  { id:'demo-3', full_name:'James Rivera', phone:'(555) 234-1003', email:'james@carrier.com', license_number:'CDL-A-9912034', license_state:'FL', hire_date:'2021-08-22', medical_card_expiry:'2026-12-01', license_expiry:'2026-08-22', status:'Active', notes:'Hazmat' },
-  { id:'demo-4', full_name:'Emily Park', phone:'(555) 234-1004', email:'emily@carrier.com', license_number:'CDL-A-3321789', license_state:'IL', hire_date:'2023-07-05', medical_card_expiry:'2026-07-05', license_expiry:'2027-07-05', status:'Active', notes:'' },
-]
-
-const DEMO_LOAD_DATA = [
-  // Marcus - strong performer
-  { driver:'Marcus Johnson', status:'Delivered', gross:4200, miles:1150, rate:'3.65', origin:'Dallas, TX', dest:'Atlanta, GA', loadId:'LD-4501', broker:'XPO Logistics', commodity:'Electronics', pickup:'Jan 5', month:0 },
-  { driver:'Marcus Johnson', status:'Delivered', gross:3800, miles:1020, rate:'3.73', origin:'Houston, TX', dest:'Nashville, TN', loadId:'LD-4502', broker:'CH Robinson', commodity:'Auto Parts', pickup:'Jan 18', month:0 },
-  { driver:'Marcus Johnson', status:'Delivered', gross:5100, miles:1380, rate:'3.70', origin:'Dallas, TX', dest:'Chicago, IL', loadId:'LD-4510', broker:'Echo Global', commodity:'Machinery', pickup:'Feb 3', month:1 },
-  { driver:'Marcus Johnson', status:'Delivered', gross:4600, miles:1250, rate:'3.68', origin:'San Antonio, TX', dest:'Memphis, TN', loadId:'LD-4520', broker:'TQL', commodity:'Electronics', pickup:'Feb 15', month:1 },
-  { driver:'Marcus Johnson', status:'Delivered', gross:3900, miles:1050, rate:'3.71', origin:'Austin, TX', dest:'Birmingham, AL', loadId:'LD-4530', broker:'Coyote', commodity:'Consumer Goods', pickup:'Mar 1', month:2 },
-  { driver:'Marcus Johnson', status:'Delivered', gross:4400, miles:1190, rate:'3.70', origin:'Dallas, TX', dest:'Jacksonville, FL', loadId:'LD-4540', broker:'XPO Logistics', commodity:'Electronics', pickup:'Mar 12', month:2 },
-  { driver:'Marcus Johnson', status:'Invoiced', gross:5200, miles:1400, rate:'3.71', origin:'Houston, TX', dest:'Charlotte, NC', loadId:'LD-4550', broker:'Uber Freight', commodity:'Industrial', pickup:'Mar 20', month:2 },
-  // Sarah - good but newer
-  { driver:'Sarah Chen', status:'Delivered', gross:3200, miles:980, rate:'3.27', origin:'LA, CA', dest:'Phoenix, AZ', loadId:'LD-4601', broker:'Convoy', commodity:'Produce', pickup:'Jan 8', month:0 },
-  { driver:'Sarah Chen', status:'Delivered', gross:3600, miles:1100, rate:'3.27', origin:'Sacramento, CA', dest:'Reno, NV', loadId:'LD-4610', broker:'DAT', commodity:'Building Materials', pickup:'Feb 5', month:1 },
-  { driver:'Sarah Chen', status:'Delivered', gross:4100, miles:1200, rate:'3.42', origin:'San Diego, CA', dest:'Tucson, AZ', loadId:'LD-4620', broker:'Echo Global', commodity:'Furniture', pickup:'Feb 20', month:1 },
-  { driver:'Sarah Chen', status:'Delivered', gross:3900, miles:1150, rate:'3.39', origin:'LA, CA', dest:'Las Vegas, NV', loadId:'LD-4630', broker:'Convoy', commodity:'Consumer Goods', pickup:'Mar 3', month:2 },
-  { driver:'Sarah Chen', status:'Invoiced', gross:4300, miles:1280, rate:'3.36', origin:'Fresno, CA', dest:'Portland, OR', loadId:'LD-4640', broker:'CH Robinson', commodity:'Produce', pickup:'Mar 14', month:2 },
-  // James - veteran, high miles
-  { driver:'James Rivera', status:'Delivered', gross:3100, miles:1200, rate:'2.58', origin:'Miami, FL', dest:'Atlanta, GA', loadId:'LD-4701', broker:'TQL', commodity:'Seafood', pickup:'Jan 3', month:0 },
-  { driver:'James Rivera', status:'Delivered', gross:2900, miles:1100, rate:'2.64', origin:'Orlando, FL', dest:'Savannah, GA', loadId:'LD-4702', broker:'JB Hunt', commodity:'General', pickup:'Jan 15', month:0 },
-  { driver:'James Rivera', status:'Delivered', gross:3400, miles:1300, rate:'2.62', origin:'Tampa, FL', dest:'Charlotte, NC', loadId:'LD-4710', broker:'Schneider', commodity:'Paper Products', pickup:'Feb 8', month:1 },
-  { driver:'James Rivera', status:'Delivered', gross:3000, miles:1150, rate:'2.61', origin:'Jacksonville, FL', dest:'Nashville, TN', loadId:'LD-4720', broker:'TQL', commodity:'Building Materials', pickup:'Feb 22', month:1 },
-  { driver:'James Rivera', status:'Delivered', gross:3200, miles:1250, rate:'2.56', origin:'Miami, FL', dest:'Birmingham, AL', loadId:'LD-4730', broker:'XPO Logistics', commodity:'Seafood', pickup:'Mar 5', month:2 },
-  { driver:'James Rivera', status:'Invoiced', gross:2800, miles:1050, rate:'2.67', origin:'Tampa, FL', dest:'Columbia, SC', loadId:'LD-4740', broker:'Coyote', commodity:'General', pickup:'Mar 15', month:2 },
-  // Emily - newer, building up
-  { driver:'Emily Park', status:'Delivered', gross:2800, miles:900, rate:'3.11', origin:'Chicago, IL', dest:'Indianapolis, IN', loadId:'LD-4801', broker:'Echo Global', commodity:'Automotive', pickup:'Feb 1', month:1 },
-  { driver:'Emily Park', status:'Delivered', gross:3100, miles:1000, rate:'3.10', origin:'Chicago, IL', dest:'Milwaukee, WI', loadId:'LD-4810', broker:'CH Robinson', commodity:'Food Products', pickup:'Feb 18', month:1 },
-  { driver:'Emily Park', status:'Delivered', gross:3400, miles:1050, rate:'3.24', origin:'Springfield, IL', dest:'St. Louis, MO', loadId:'LD-4820', broker:'Convoy', commodity:'Retail', pickup:'Mar 2', month:2 },
-  { driver:'Emily Park', status:'Invoiced', gross:3000, miles:950, rate:'3.16', origin:'Chicago, IL', dest:'Detroit, MI', loadId:'LD-4830', broker:'TQL', commodity:'Automotive', pickup:'Mar 10', month:2 },
-]
+// No demo data — real data only
+const DEMO_DRIVERS = []
+const DEMO_LOAD_DATA = []
 
 const MONTH_LABELS = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 
@@ -7564,7 +7531,7 @@ export function DriverScorecard() {
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12, color:'var(--muted)' }}>
           <Users size={32} />
           <div style={{ fontSize:14, fontWeight:600 }}>No drivers yet</div>
-          <div style={{ fontSize:12 }}>Add drivers to see their performance scorecards</div>
+          <div style={{ fontSize:12 }}>No drivers yet — add your first driver to get started</div>
         </div>
       </div>
     )
@@ -7745,16 +7712,16 @@ export function DriverScorecard() {
         <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
 
           {/* ── Driver Profile Card ───────────────────────── */}
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
-            <div style={{ padding:'18px 22px', display:'flex', gap:18, alignItems:'flex-start' }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14 }}>
+            <div style={{ padding:'18px 22px', display:'flex', gap:18, alignItems:'flex-start', flexWrap:'wrap' }}>
               {/* Photo placeholder */}
               <div style={{ width:72, height:72, borderRadius:16, background:`linear-gradient(135deg, ${d.grade.c}25, ${d.grade.c}08)`, border:`2px solid ${d.grade.c}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:d.grade.c }}>{d.name.split(' ').map(w=>w[0]).join('')}</span>
               </div>
               {/* Info */}
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:1, lineHeight:1 }}>{d.name}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4, flexWrap:'wrap' }}>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:1, lineHeight:1.1 }}>{d.name}</span>
                   <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'var(--success)15', color:'var(--success)', border:'1px solid var(--success)30' }}>Active</span>
                 </div>
                 <StarDisplay rating={d.stars} />
@@ -8025,7 +7992,7 @@ export function DATAlertBot() {
           // Auto-select first new alert
           setSelAlert(a => a || msg.alerts[0]?.id || null)
         }
-      } catch {}
+      } catch { /* SSE parse error — skip frame */ }
     }
 
     es.onerror = () => setConnected(false)
@@ -8036,7 +8003,7 @@ export function DATAlertBot() {
   // Manual search
   const handleSearch = async () => {
     if (!DAT_API) {
-      showToast('', 'DAT API', 'DAT API not configured — showing mock data')
+      showToast('', 'DAT API', 'DAT API not connected — connect in Settings to see live loads')
       setSearchLoading(false)
       return
     }
@@ -8058,7 +8025,7 @@ export function DATAlertBot() {
         showToast('', 'DAT Search', `${fresh.length} loads pulled · top scores shown first`)
       }
     } catch (err) {
-      showToast('', 'Search Failed', 'Check that the server is running on port 4000')
+      showToast('', 'Search Failed', 'Search unavailable — please try again later')
     }
     setSearchLoading(false)
   }
@@ -8753,7 +8720,7 @@ export function DriverPayReport() {
 // ─── 4. Cash Runway ────────────────────────────────────────────────────────────
 export function CashRunway() {
   const { invoices, expenses } = useCarrier()
-  const [cashBalance, setCashBalance] = useState(18400)
+  const [cashBalance, setCashBalance] = useState(0)
 
   const weeklyExpenses = useMemo(() => {
     const total = expenses.reduce((s,e) => s+(e.amount||0), 0)
@@ -8766,10 +8733,10 @@ export function CashRunway() {
 
   const weeks = useMemo(() => {
     let bal = cashBalance
-    const weeklyIncoming = [incomingRevenue * 0.4, incomingRevenue * 0.3, incomingRevenue * 0.2, incomingRevenue * 0.1, 1200, 3800]
+    const weeklyIncoming = [incomingRevenue * 0.4, incomingRevenue * 0.3, incomingRevenue * 0.2, incomingRevenue * 0.1, 0, 0]
     return Array.from({ length:6 }, (_, i) => {
       const incoming = weeklyIncoming[i] || 0
-      const outgoing = weeklyExpenses + (i === 2 ? 1200 : 0)
+      const outgoing = weeklyExpenses
       bal = bal + incoming - outgoing
       return { week:`Wk ${i+1}`, bal: Math.round(bal), incoming: Math.round(incoming), outgoing: Math.round(outgoing) }
     })
@@ -8940,7 +8907,7 @@ export function QuickBooksExport() {
         <button onClick={() => setConnected(c => !c)}
           style={{ padding:'10px 20px', fontSize:13, fontWeight:700, borderRadius:8, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
             background: connected ? 'rgba(239,68,68,0.15)' : 'var(--accent3)', color: connected ? 'var(--danger)' : '#fff' }}>
-          {connected ? 'Disconnect' : '<Paperclip size={13} /> Connect QuickBooks'}
+          {connected ? 'Disconnect' : <><Paperclip size={13} /> Connect QuickBooks</>}
         </button>
       </div>
 
@@ -9026,9 +8993,9 @@ export function CarrierPackage() {
   const [tab, setTab] = useState('overview')
 
   const [insurance, setInsurance] = useState({
-    auto:    { company:'Progressive Commercial', policy:'PCT-8821047', amount:'$1,000,000', expiry:'Nov 15, 2026' },
-    cargo:   { company:'Great West Casualty',    policy:'GWC-334821',  amount:'$100,000',   expiry:'Nov 15, 2026' },
-    general: { company:'Progressive Commercial', policy:'PCG-7720831', amount:'$1,000,000', expiry:'Nov 15, 2026' },
+    auto:    { company:'\u2014', policy:'\u2014', amount:'\u2014', expiry:'\u2014' },
+    cargo:   { company:'\u2014', policy:'\u2014', amount:'\u2014', expiry:'\u2014' },
+    general: { company:'\u2014', policy:'\u2014', amount:'\u2014', expiry:'\u2014' },
   })
   const [docs, setDocs] = useState({
     w9:        { uploaded:true,  filename:'Swift-Carriers-W9.pdf' },
@@ -10128,7 +10095,7 @@ export function ReferralProgram() {
               rewards: [],
             })
           }
-        } catch {}
+        } catch { /* referral data unavailable */ }
       }
       if (!cancelled) setLoading(false)
     }

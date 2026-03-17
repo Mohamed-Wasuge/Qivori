@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori AI. We have 2 plans: Autopilot $99/mo (AI-assisted, +$49/truck) and Autopilot AI $799/mo founder pricing (full AI autonomy, +$150/truck, first 100 customers then $1,200/mo). Both include AI. 14-day free trial, no credit card. Keep answers short and helpful. Direct them to sign up.',
+          context: 'This is a landing page visitor asking about Qivori AI. We have 2 plans: Autopilot $149/mo (AI-assisted, +$49/truck) and Autopilot AI $799/mo founder pricing (full AI autonomy, +$150/truck, first 100 customers then $1,200/mo). Both include AI. 14-day free trial, no credit card. Keep answers short and helpful. Direct them to sign up.',
         }),
       })
       const data = await res.json()
@@ -877,7 +877,7 @@ export default function LandingPage({ onGetStarted }) {
 
               {/* Price Row */}
               {[
-                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: 'From $99/mo', qivoriHighlight: true },
+                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: 'From $149/mo', qivoriHighlight: true },
                 { feature: 'Setup / Onboarding Fee', legacy: '$500–1,500', enterprise: '$2,000–10,000', qivori: '$0', qivoriHighlight: true },
                 { feature: 'Contract Length', legacy: '12 months', enterprise: '24–36 months', qivori: 'Month-to-month', qivoriHighlight: true },
                 { feature: 'AI Load Scoring', legacy: false, enterprise: false, qivori: true },

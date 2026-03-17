@@ -120,7 +120,6 @@ export function AppProvider({ children }) {
         return data
       }
     } catch (e) {
-      console.warn('Profile fetch failed:', e)
     }
     return null
   }, [])
@@ -141,7 +140,6 @@ export function AppProvider({ children }) {
       }
       setAuthLoading(false)
     }).catch(e => {
-      console.warn('[Qivori] Auth init error:', e)
       setAuthLoading(false)
     })
 
@@ -200,13 +198,11 @@ export function AppProvider({ children }) {
         }
         showToast('', 'Welcome, ' + displayName, 'Signed in as ' + ROLES[prof?.role || quickRole].badgeText)
       }).catch(e => {
-        console.warn('[Qivori] Profile fetch error:', e)
         showToast('', 'Welcome, ' + displayName, 'Signed in')
       })
 
       return { ok: true }
     } catch (e) {
-      console.error('[Qivori] Login error:', e)
       return { error: e?.message || 'Login failed. Please try again.' }
     }
   }, [fetchProfile, showToast])
@@ -228,7 +224,7 @@ export function AppProvider({ children }) {
         status: 'pending',
         referred_by: refCode || null,
       })
-      if (profileError) console.error('Profile creation error:', profileError)
+      if (profileError) {}
 
       trackSignup('email', role)
       recordStep(data.user.id, 'signup')

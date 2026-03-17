@@ -277,9 +277,10 @@ export default function LandingPage({ onGetStarted }) {
   const [founderCount, setFounderCount] = useState(0)
   const [demoModal, setDemoModal] = useState(false)
   const [videoModal, setVideoModal] = useState(false)
-  const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '' })
+  const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '', _hp: '' })
   const [demoLoading, setDemoLoading] = useState(false)
   const [demoSent, setDemoSent] = useState(false)
+  const [demoError, setDemoError] = useState('')
 
   // Close video modal on Escape key
   useEffect(() => {
@@ -302,17 +303,37 @@ export default function LandingPage({ onGetStarted }) {
 
   const handleDemoSubmit = async () => {
     if (!demoForm.name.trim() || !demoForm.email.trim() || !demoForm.phone.trim() || !demoForm.company.trim()) return
+    setDemoError('')
     setDemoLoading(true)
     try {
-      await fetch('/api/demo-request', {
+      // Get reCAPTCHA token if available
+      let recaptchaToken = ''
+      if (window.grecaptcha) {
+        try {
+          recaptchaToken = await window.grecaptcha.execute(
+            window.__RECAPTCHA_SITE_KEY || '6LfI9owsAAAAAJqtaymyhddtjfYd7KZJG66uBLuG',
+            { action: 'demo_request' }
+          )
+        } catch {}
+      }
+      const res = await fetch('/api/demo-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(demoForm),
+        body: JSON.stringify({ ...demoForm, recaptchaToken }),
       })
-    } catch {}
-    trackDemoRequest(demoForm.email)
-    setDemoLoading(false)
-    setDemoSent(true)
+      const data = await res.json()
+      if (!res.ok) {
+        setDemoError(data.error || 'Something went wrong. Please try again.')
+        setDemoLoading(false)
+        return
+      }
+      trackDemoRequest(demoForm.email)
+      setDemoLoading(false)
+      setDemoSent(true)
+    } catch {
+      setDemoError('Network error. Please try again.')
+      setDemoLoading(false)
+    }
   }
 
   // Track referral code from URL (?ref=code or /ref/code)
@@ -1200,13 +1221,22 @@ export default function LandingPage({ onGetStarted }) {
                   ].map(f => (
                     <div key={f.key}>
                       <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
-                      <input value={demoForm[f.key]} onChange={e => setDemoForm(p => ({ ...p, [f.key]: e.target.value }))}
+                      <input value={demoForm[f.key]} onChange={e => { setDemoError(''); setDemoForm(p => ({ ...p, [f.key]: e.target.value })) }}
                         placeholder={f.ph} type={f.type || 'text'} required={f.required}
                         onKeyDown={e => e.key === 'Enter' && handleDemoSubmit()}
                         style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
                     </div>
                   ))}
+                  {/* Honeypot — hidden from real users, bots will fill it */}
+                  <input name="website" value={demoForm._hp} onChange={e => setDemoForm(p => ({ ...p, _hp: e.target.value }))}
+                    tabIndex={-1} autoComplete="off" aria-hidden="true"
+                    style={{ position:'absolute', left:'-9999px', opacity:0, height:0, width:0, overflow:'hidden' }} />
                 </div>
+                {demoError && (
+                  <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, fontSize:13, color:'#ef4444', textAlign:'center' }}>
+                    {demoError}
+                  </div>
+                )}
                 <button onClick={handleDemoSubmit} disabled={demoLoading || !demoForm.name.trim() || !demoForm.email.trim() || !demoForm.phone.trim() || !demoForm.company.trim()}
                   style={{ width:'100%', marginTop:20, padding:'14px', background: demoLoading ? 'var(--border)' : 'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:12, color:'#000', fontSize:15, fontWeight:800, cursor: demoLoading ? 'wait' : 'pointer', fontFamily:"'DM Sans',sans-serif", display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                   {demoLoading ? 'Sending...' : <><Ic icon={Send} size={16} /> Get Demo Link</>}

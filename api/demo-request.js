@@ -1,11 +1,86 @@
 import { sendEmail } from './_lib/emails.js'
 import { handleCors, corsHeaders } from './_lib/auth.js'
+import { rateLimit, getClientIP } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
+/* ── Disposable / throwaway email domains ─────────────────────── */
+const DISPOSABLE_DOMAINS = new Set([
+  'mailinator.com','tempmail.com','guerrillamail.com','guerrillamail.net',
+  'sharklasers.com','grr.la','guerrillamailblock.com','throwaway.email',
+  'yopmail.com','trashmail.com','10minutemail.com','tempail.com',
+  'fakeinbox.com','dispostable.com','maildrop.cc','mailnesia.com',
+  'temp-mail.org','getnada.com','mohmal.com','burnermail.io',
+  'mailsac.com','harakirimail.com','discard.email','33mail.com',
+  'mytemp.email','tempinbox.com','spamgourmet.com','mailcatch.com',
+  'mintemail.com','inboxkitten.com','tempr.email','anonymousemail.me',
+])
+
+/* ── Email validation ─────────────────────────────────────────── */
+function validateEmail(email) {
+  if (!email || typeof email !== 'string') return 'Email required'
+  const trimmed = email.trim().toLowerCase()
+
+  // Basic format
+  const emailRe = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/
+  if (!emailRe.test(trimmed)) return 'Please enter a valid business email address'
+
+  const [local, domain] = trimmed.split('@')
+
+  // Reject disposable domains
+  if (DISPOSABLE_DOMAINS.has(domain)) return 'Please enter a valid business email address'
+
+  // Reject suspiciously long random-looking local parts (8+ consecutive digits)
+  if (/\d{8,}/.test(local)) return 'Please enter a valid business email address'
+
+  // Reject local parts that are mostly random chars (>20 chars with <3 vowels)
+  if (local.length > 20) {
+    const vowels = (local.match(/[aeiou]/gi) || []).length
+    if (vowels < 3) return 'Please enter a valid business email address'
+  }
+
+  // Domain must have a dot and reasonable TLD
+  const parts = domain.split('.')
+  if (parts.length < 2 || parts[parts.length - 1].length < 2) {
+    return 'Please enter a valid business email address'
+  }
+
+  return null // valid
+}
+
+/* ── MX record check via DNS-over-HTTPS ───────────────────────── */
+async function hasMxRecords(domain) {
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    const data = await res.json()
+    return data.Answer && data.Answer.length > 0
+  } catch {
+    return true // allow on DNS failure (don't block real users)
+  }
+}
+
+/* ── reCAPTCHA v3 verification ────────────────────────────────── */
+async function verifyRecaptcha(token) {
+  const secret = process.env.RECAPTCHA_SECRET_KEY
+  if (!secret) return true // skip if not configured
+  try {
+    const res = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`,
+    })
+    const data = await res.json()
+    return data.success && (data.score || 0) >= 0.3
+  } catch {
+    return true // allow on verification failure
+  }
+}
+
 /**
  * Demo Request — captures lead info, sends welcome email, grants instant demo access.
- * POST { name, email, phone?, company? }
+ * POST { name, email, phone?, company?, _hp?, recaptchaToken? }
  * Saves to demo_requests table in Supabase for admin tracking.
  */
 export default async function handler(req) {
@@ -16,9 +91,37 @@ export default async function handler(req) {
   }
 
   try {
-    const { name, email, phone, company } = await req.json()
-    if (!email) {
-      return Response.json({ error: 'Email required' }, { status: 400, headers: corsHeaders(req) })
+    const { name, email, phone, company, _hp, recaptchaToken } = await req.json()
+
+    // Honeypot — if hidden field is filled, silently accept (bot thinks it worked)
+    if (_hp) {
+      return Response.json({ success: true, firstName: 'Thanks' }, { headers: corsHeaders(req) })
+    }
+
+    // Rate limit — 3 requests per IP per day (86400s)
+    const ip = getClientIP(req)
+    const { limited } = rateLimit(`demo_${ip}`, 3, 86400000)
+    if (limited) {
+      return Response.json({ error: 'Too many requests. Please try again tomorrow.' }, { status: 429, headers: corsHeaders(req) })
+    }
+
+    // Email validation
+    const emailError = validateEmail(email)
+    if (emailError) {
+      return Response.json({ error: emailError }, { status: 400, headers: corsHeaders(req) })
+    }
+
+    // MX record check
+    const domain = email.trim().toLowerCase().split('@')[1]
+    const hasMx = await hasMxRecords(domain)
+    if (!hasMx) {
+      return Response.json({ error: 'Please enter a valid business email address' }, { status: 400, headers: corsHeaders(req) })
+    }
+
+    // reCAPTCHA v3 verification
+    const captchaOk = await verifyRecaptcha(recaptchaToken || '')
+    if (!captchaOk) {
+      return Response.json({ error: 'Verification failed. Please try again.' }, { status: 400, headers: corsHeaders(req) })
     }
 
     const firstName = (name || email.split('@')[0]).split(' ')[0]

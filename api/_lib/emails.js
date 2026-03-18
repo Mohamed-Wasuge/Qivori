@@ -1,6 +1,7 @@
 /**
  * Shared email templates and sending utilities for the Qivori business system.
  * All emails use Resend API with Qivori branding.
+ // v2.1 — autonomous agent email utilities
  */
 
 // ── Send email via Resend ──

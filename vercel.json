@@ -41,7 +41,8 @@
     { "path": "/api/weekly-summary", "schedule": "0 15 * * 0" },
     { "path": "/api/agent-autonomous", "schedule": "0 9 * * *" },
     { "path": "/api/agent-daily-briefing", "schedule": "0 13 * * *" },
-    { "path": "/api/agent-weekly-report", "schedule": "0 13 * * 1" }
+    { "path": "/api/agent-weekly-report", "schedule": "0 13 * * 1" },
+    { "path": "/api/self-repair", "schedule": "*/30 * * * *" }
   ]
 }
 

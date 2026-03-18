@@ -39,7 +39,7 @@ export function DriverSettlement() {
     if (!activeDriver && ctxDrivers.length > 0) setActiveDriver(ctxDrivers[0].id)
   }, [ctxDrivers, activeDriver])
 
-  const driver = ctxDrivers.find(d => d.id === activeDriver)
+  const driver = (ctxDrivers || []).find(d => d.id === activeDriver)
 
   if (!driver) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
@@ -58,7 +58,7 @@ export function DriverSettlement() {
     .filter(l => l.driver === driverName && (l.status === 'Delivered' || l.status === 'Invoiced'))
     .map(l => ({ id: l.loadId, route: (l.origin||'').split(',')[0] + ' → ' + (l.dest||'').split(',')[0], miles: l.miles || 0, gross: l.gross || 0, date: l.pickup?.split(' ·')[0] || '' }))
 
-  const loadPays = mergedLoads.map(l => ({ ...l, pay: calcPay(l, model, modelVal) }))
+  const loadPays = (mergedLoads || []).map(l => ({ ...l, pay: calcPay(l, model, modelVal) }))
   const grossPay = loadPays.reduce((s, l) => s + l.pay, 0)
   const totalDeduct = driverDeductions.reduce((s, d) => s + d.amount, 0)
   const netPay = grossPay + totalDeduct
@@ -79,7 +79,7 @@ export function DriverSettlement() {
       {/* ── Driver selector ── */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 8 }}>
-          {ctxDrivers.map(d => {
+          {(ctxDrivers || []).map(d => {
             const isActive = activeDriver === d.id
             const name = d.full_name || d.name || 'Unknown'
             const avatar = name.split(' ').map(w => w[0]).join('')
@@ -123,7 +123,7 @@ export function DriverSettlement() {
               {['Load ID','Route','Miles','Gross','Pay'].map(h => <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>)}
             </tr></thead>
             <tbody>
-              {loadPays.map(l => (
+              {(loadPays || []).map(l => (
                 <tr key={l.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px', fontSize: 12, color: 'var(--muted)' }}>{l.id}</td>
                   <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600 }}>{l.route}</td>
@@ -132,7 +132,7 @@ export function DriverSettlement() {
                   <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, color: 'var(--success)' }}>${l.pay.toLocaleString()}</td>
                 </tr>
               ))}
-              {driverDeductions.map(d => (
+              {(driverDeductions || []).map(d => (
                 <tr key={d.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td colSpan={4} style={{ padding: '10px 12px', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>{d.label}</td>
                   <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, color: d.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>{d.amount < 0 ? '−' : '+'}${Math.abs(d.amount).toLocaleString()}</td>
@@ -211,7 +211,7 @@ export function DriverSettlement() {
             {driverDeductions.length === 0 && !addingDeduct && (
               <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '12px 0' }}>No deductions this period</div>
             )}
-            {driverDeductions.map(d => (
+            {(driverDeductions || []).map(d => (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
                 <div style={{ flex: 1, fontSize: 13 }}>{d.label}</div>
                 <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue',sans-serif", color: d.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>
@@ -237,7 +237,7 @@ export function DriverSettlement() {
             ))}
           </tr></thead>
           <tbody>
-            {loadPays.map((l, i) => (
+            {(loadPays || []).map((l, i) => (
               <tr key={l.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                 <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--muted)', fontFamily: 'monospace' }}>{l.id}</td>
                 <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600 }}>{l.route}</td>
@@ -290,7 +290,7 @@ export function DriverSettlement() {
             ))}
           </tr></thead>
           <tbody>
-            {driver.history.map(h => (
+            {(driver.history || []).map(h => (
               <tr key={h.period} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '11px 16px', fontSize: 13, fontWeight: 600 }}>{h.period}</td>
                 <td style={{ padding: '11px 16px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: 'var(--accent)' }}>${h.gross.toLocaleString()}</td>

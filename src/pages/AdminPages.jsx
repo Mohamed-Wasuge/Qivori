@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
-import { Users, Mail, Download, Send, Search, CheckCircle, Trash2, BarChart2, Clock, TrendingUp, Shield, Eye, AlertTriangle, Zap, Package, Map, CreditCard, Truck, Activity, UserPlus, LogIn, Settings, X, Bot, RefreshCw, Bell, Wifi, WifiOff, Database, MessageSquare, Server, Fuel, DollarSign, Radio, ArrowRight, User, Hash, ChevronDown, ChevronUp, Calendar, Copy, Edit3, SkipForward, Facebook, Megaphone, Type, Calculator, Star, Monitor, Phone, Building2, Inbox } from 'lucide-react'
+import { Users, Mail, Download, Send, Search, CheckCircle, Trash2, BarChart2, Clock, TrendingUp, Shield, Eye, AlertTriangle, Zap, Package, Map, CreditCard, Truck, Activity, UserPlus, LogIn, Settings, X, Bot, RefreshCw, Bell, Wifi, WifiOff, Database, MessageSquare, Server, Fuel, DollarSign, Radio, ArrowRight, User, Hash, ChevronDown, ChevronUp, Calendar, Copy, Edit3, SkipForward, Facebook, Megaphone, Type, Calculator, Star, Monitor, Phone, Building2, Inbox, Brain } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 

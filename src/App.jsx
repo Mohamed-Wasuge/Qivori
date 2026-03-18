@@ -28,7 +28,7 @@ const MobileLayout = lazy(() => import('./components/MobileLayout'))
 const Sidebar = lazy(() => import('./components/Sidebar'))
 const Topbar = lazy(() => import('./components/Topbar'))
 
-// Admin core pages — small, lazy-loaded individually
+// Admin core pages â small, lazy-loaded individually
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const LoadBoard = lazy(() => import('./pages/LoadBoard'))
 const Carriers = lazy(() => import('./pages/Carriers'))
@@ -40,7 +40,7 @@ const Documents = lazyNamed(() => import('./pages/MorePages'), 'Documents')
 // ExtraPages group
 const Settings = lazyNamed(() => import('./pages/ExtraPages'), 'Settings')
 
-// AdminPages group (heavy — now lazy-loaded as a chunk)
+// AdminPages group (heavy â now lazy-loaded as a chunk)
 const WaitlistManager = lazyNamed(() => import('./pages/AdminPages'), 'WaitlistManager')
 const Analytics = lazyNamed(() => import('./pages/AdminPages'), 'Analytics')
 const ActivityLog = lazyNamed(() => import('./pages/AdminPages'), 'ActivityLog')
@@ -49,14 +49,14 @@ const RevenueDashboard = lazyNamed(() => import('./pages/AdminPages'), 'RevenueD
 const DemoRequests = lazyNamed(() => import('./pages/AdminPages'), 'DemoRequests')
 const AdminEmail = lazyNamed(() => import('./pages/AdminPages'), 'AdminEmail')
 
-// BrokerPages group (heavy — now lazy-loaded as a chunk)
+// BrokerPages group (heavy â now lazy-loaded as a chunk)
 const BrokerDashboard = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerDashboard')
 const BrokerPostLoad = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerPostLoad')
 const BrokerLoads = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerLoads')
 const BrokerCarriers = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerCarriers')
 const BrokerPayments = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerPayments')
 
-// CarrierPages group (heaviest — 902KB, now lazy-loaded as a chunk)
+// CarrierPages group (heaviest â 902KB, now lazy-loaded as a chunk)
 const CarrierDashboard = lazyNamed(() => import('./pages/CarrierPages'), 'CarrierDashboard')
 const SmartDispatch = lazyNamed(() => import('./pages/CarrierPages'), 'SmartDispatch')
 const RevenueIntel = lazyNamed(() => import('./pages/CarrierPages'), 'RevenueIntel')
@@ -198,12 +198,12 @@ function AppContent() {
         {/* Login View */}
         {view === 'login' && <LoginPage />}
 
-        {/* Carrier — mobile gets AI chat, desktop gets full TMS */}
+        {/* Carrier â mobile gets AI chat, desktop gets full TMS */}
         {view === 'app' && currentRole === 'carrier' && (
           isMobile ? <MobileLayout /> : <CarrierLayout />
         )}
 
-        {/* Admin / Broker — sidebar layout */}
+        {/* Admin / Broker â sidebar layout */}
         {view === 'app' && currentRole !== 'carrier' && (
           <div style={{
             display: 'flex', width: '100%', height: '100%',
@@ -240,7 +240,25 @@ function AppContent() {
 class AppErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
-  componentDidCatch(err, info) { Sentry.captureException(err, { extra: { componentStack: info?.componentStack } }) }
+  componentDidCatch(err, info) {
+    Sentry.captureException(err, { extra: { componentStack: info?.componentStack } })
+    // Report to self-repair AI agent
+    try {
+      fetch('/api/error-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error_message: String(err),
+          error_stack: err?.stack || '',
+          component_stack: info?.componentStack || '',
+          page: window.location.pathname + window.location.hash,
+          user_agent: navigator.userAgent,
+          url: window.location.href,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+    } catch (_) {}
+  }
   render() {
     if (this.state.error) {
       return (

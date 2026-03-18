@@ -44,3 +44,4 @@
     { "path": "/api/agent-weekly-report", "schedule": "0 13 * * 1" }
   ]
 }
+

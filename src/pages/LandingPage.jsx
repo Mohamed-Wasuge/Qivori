@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori AI, an AI-powered operating system for trucking companies. We have 2 plans: Autopilot $99/mo (1 truck, AI-assisted) and Autopilot AI $799/mo founder pricing (full AI autonomy, +$150/truck, first 100 customers then $1,200/mo). Both include AI. 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up.',
+          context: 'This is a landing page visitor asking about Qivori AI, an AI-powered operating system for trucking companies. One simple plan: $399/truck/month — everything included, no upsells. Founder pricing (normally $599). 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up.',
         }),
       })
       const data = await res.json()
@@ -236,16 +236,25 @@ const FEATURES = [
 
 const PLANS = [
   {
-    name: 'Autopilot', sub: 'AI-powered assistance for your operation', price: '$99', color: 'var(--accent)',
-    features: ['AI Load Board & Scoring', 'Smart Dispatch Suggestions', 'Fleet Map & GPS', 'P&L Dashboard', 'IFTA Auto-Filing', 'Invoicing & Factoring', 'Fuel Optimizer', 'Compliance Dashboard', 'Carrier Package'],
-    extra: '1 truck · Everything included',
-    cta: 'Start Free Trial', highlight: true, stripeId: 'autopilot',
-  },
-  {
-    name: 'Autopilot AI', sub: 'Full AI autonomy for growing fleets', price: '$799', color: '#f0a500',
-    features: ['Everything in Autopilot', 'AI handles dispatch automatically', 'Proactive Load Finding Agent', 'Voice AI Assistant', 'Automated booking & outreach', 'HOS Tracking', 'Weather on Route', 'Smart Document Handling', 'Dedicated support'],
-    extra: '+$150/mo per additional truck · No upsells',
-    cta: 'Claim Founder Pricing', highlight: false, stripeId: 'autopilot_ai', founder: true, fullPrice: '$1,200',
+    name: 'Autonomous Fleet AI', sub: 'Everything included · Per truck · No upsells', price: '$399', color: '#f0a500',
+    features: [
+      'AI Load Board & Scoring',
+      'AI-Powered Dispatch',
+      'Proactive Load Finding Agent',
+      'Voice AI Assistant',
+      'Fleet Map & GPS Tracking',
+      'P&L Dashboard & Analytics',
+      'IFTA Auto-Filing',
+      'Invoicing & Auto-Factoring',
+      'Fuel Optimizer',
+      'Full Compliance Suite',
+      'HR & DQ File Management',
+      'Driver Portal & Scorecards',
+      'Smart Document Handling',
+      'Dedicated Support',
+    ],
+    extra: 'Per truck / month · Add trucks anytime',
+    cta: 'Start Free Trial', highlight: true, stripeId: 'autonomous_fleet', founder: true, fullPrice: '$599',
   },
 ]
 
@@ -912,7 +921,7 @@ export default function LandingPage({ onGetStarted }) {
 
               {/* Price Row */}
               {[
-                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: 'From $149/mo', qivoriHighlight: true },
+                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: '$399/truck', qivoriHighlight: true },
                 { feature: 'Setup / Onboarding Fee', legacy: '$500–1,500', enterprise: '$2,000–10,000', qivori: '$0', qivoriHighlight: true },
                 { feature: 'Contract Length', legacy: '12 months', enterprise: '24–36 months', qivori: 'Month-to-month', qivoriHighlight: true },
                 { feature: 'AI Load Scoring', legacy: false, enterprise: false, qivori: true },
@@ -977,7 +986,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
           </FadeIn>
 
-          <div className="lp-pricing-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 20, maxWidth: 700, margin: '0 auto' }}>
+          <div className="lp-pricing-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20, maxWidth: 480, margin: '0 auto' }}>
             {PLANS.map((plan, i) => {
               const isFounder = plan.founder && founderCount < 100
               const spotsLeft = Math.max(0, 100 - founderCount)
@@ -986,7 +995,7 @@ export default function LandingPage({ onGetStarted }) {
                 <div className="lp-plan-card" style={{ background: plan.founder ? 'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(240,165,0,0.02))' : plan.highlight ? 'linear-gradient(135deg,rgba(240,165,0,0.06),rgba(240,165,0,0.02))' : 'var(--bg)',
                   border: `${plan.highlight || plan.founder ? '2px' : '1px'} solid ${plan.founder ? 'rgba(240,165,0,0.5)' : plan.highlight ? 'rgba(240,165,0,0.4)' : 'var(--border)'}`, borderRadius: 18, padding: '28px 22px',
                   position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  {plan.highlight && (
+                  {plan.highlight && !plan.founder && (
                     <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
                       background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', fontSize: 10, fontWeight: 800, padding: '4px 16px', borderRadius: 12, letterSpacing: 1, whiteSpace: 'nowrap' }}>
                       {t('landing.mostPopular')}
@@ -1004,12 +1013,12 @@ export default function LandingPage({ onGetStarted }) {
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                       {plan.founder && !isFounder && <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--muted)', textDecoration: 'line-through', marginRight: 4 }}>{plan.price}</span>}
                       <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 48, color: plan.color, lineHeight: 1 }}>{plan.founder && !isFounder ? plan.fullPrice : plan.price}</span>
-                      <span style={{ fontSize: 14, color: 'var(--muted)' }}>/mo</span>
+                      <span style={{ fontSize: 14, color: 'var(--muted)' }}>/truck/mo</span>
                     </div>
                     {plan.founder && isFounder && (
                       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                        <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{plan.fullPrice}/mo</span>
-                        <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $401/mo</span>
+                        <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{plan.fullPrice}/truck/mo</span>
+                        <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $200/truck</span>
                       </div>
                     )}
                     {plan.extra && (

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { trackDemoRequest, trackDemoEnter, trackCheckout } from '../lib/analytics'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
-import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Monitor, Mail } from 'lucide-react'
+import { Bot, Map, TrendingUp, Fuel, BarChart2, FlaskConical, Landmark, CreditCard, ClipboardList, MapPin, Truck, FileText, Zap, CheckCircle, Frown, Satellite, DollarSign, Check, Mic, Send, Camera, Navigation, Volume2, ScanLine, ArrowRight, Star, Shield, Clock, Users, ChevronRight, Globe, Headphones, Play, MessageCircle, X, Monitor, Mail, Layers } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori AI. We have 2 plans: Autopilot $149/mo (AI-assisted, +$49/truck) and Autopilot AI $799/mo founder pricing (full AI autonomy, +$150/truck, first 100 customers then $1,200/mo). Both include AI. 14-day free trial, no credit card. Keep answers short and helpful. Direct them to sign up.',
+          context: 'This is a landing page visitor asking about Qivori AI, an AI-powered operating system for trucking companies. We have 2 plans: Autopilot $99/mo (1 truck, AI-assisted) and Autopilot AI $799/mo founder pricing (full AI autonomy, +$150/truck, first 100 customers then $1,200/mo). Both include AI. 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up.',
         }),
       })
       const data = await res.json()
@@ -211,62 +211,62 @@ function ChatBubble() {
 }
 
 const PAIN_SOLUTIONS = [
-  { pain: 'Searching DAT for hours finding bad loads', fix: 'AI scores every load 0–100 — best loads surface instantly' },
-  { pain: 'Switching between 6 different tools all day', fix: 'Everything in one platform — dispatch, fleet, accounting, compliance' },
-  { pain: 'IFTA filing taking a full weekend every quarter', fix: 'Auto-calculated from your mileage — file in minutes' },
-  { pain: 'Chasing brokers for payment for weeks', fix: 'Broker risk scores + factoring calculator to plan cash flow' },
-  { pain: 'Losing money on bad lanes without knowing it', fix: 'Lane Intelligence shows exactly which lanes make money' },
-  { pain: 'Fuel costs eating your margin mile by mile', fix: 'Live diesel price tracking by region so you know where fuel is cheapest' },
+  { pain: 'Hours spent searching load boards for the right freight', fix: 'Find better loads faster — AI scores every load 0–100 so the best ones surface first' },
+  { pain: 'Juggling 6 different tools just to run your day', fix: 'One platform for dispatch, fleet, accounting, and compliance — less switching, more doing' },
+  { pain: 'IFTA filing eating up an entire weekend every quarter', fix: 'Auto-calculated from your mileage — your team files in minutes, not days' },
+  { pain: 'Chasing brokers for payment with no visibility', fix: 'Broker risk scores help you make smarter booking decisions upfront' },
+  { pain: 'No clear picture of which lanes are actually profitable', fix: 'Lane Intelligence gives your team real-time data to pick the best routes' },
+  { pain: 'Fuel costs quietly eating into every mile', fix: 'Live diesel prices by region so you always know where to fuel up smarter' },
 ]
 
 const FEATURES = [
-  { icon: Bot, label: 'AI Load Board', desc: 'DAT-ready · AI scores every load 0–100', color: '#f0a500' },
-  { icon: Map, label: 'Live Fleet Map', desc: 'Fleet status tracking & load progress', color: '#00d4aa' },
-  { icon: TrendingUp, label: 'P&L Dashboard', desc: 'Live profit & loss by load, lane, driver', color: '#4d8ef0' },
-  { icon: Fuel, label: 'Fuel Optimizer', desc: 'Live diesel prices by region', color: '#f06040' },
-  { icon: BarChart2, label: 'IFTA Filing', desc: 'Auto-calculated quarterly returns', color: '#a78bfa' },
-  { icon: FlaskConical, label: 'Pre-Employment', desc: 'Full FMCSA screening in one click', color: '#f0a500' },
-  { icon: Landmark, label: 'Broker Risk Intel', desc: 'Know who pays before you book', color: '#00d4aa' },
-  { icon: CreditCard, label: 'Factoring', desc: 'Invoice factoring calculator', color: '#4d8ef0' },
-  { icon: ClipboardList, label: 'DVIR / ELD / HOS', desc: 'Compliance dashboard & alerts', color: '#f06040' },
-  { icon: MapPin, label: 'Check Calls', desc: 'AI-assisted shipper check-in log', color: '#a78bfa' },
-  { icon: Truck, label: 'Equipment Manager', desc: 'Trucks, trailers, VINs, expiry alerts', color: '#f0a500' },
-  { icon: FileText, label: 'Carrier Package', desc: 'One-click broker contracting packet', color: '#00d4aa' },
+  { icon: Bot, label: 'AI Load Board', desc: 'Find better loads faster with AI-powered scoring (0–100)', color: '#f0a500' },
+  { icon: Map, label: 'Live Fleet Map', desc: 'Stay on top of your fleet without constant checking', color: '#00d4aa' },
+  { icon: TrendingUp, label: 'P&L Dashboard', desc: 'See exactly where you make and lose money — by load, lane, or driver', color: '#4d8ef0' },
+  { icon: Fuel, label: 'Fuel Optimizer', desc: 'Make smarter fuel stops with live diesel prices by region', color: '#f06040' },
+  { icon: BarChart2, label: 'IFTA Filing', desc: 'Handle quarterly IFTA in minutes instead of days', color: '#a78bfa' },
+  { icon: FlaskConical, label: 'Pre-Employment', desc: 'Run full FMCSA screening with less manual work', color: '#f0a500' },
+  { icon: Landmark, label: 'Broker Risk Intel', desc: 'Make smarter booking decisions with real-time broker data', color: '#00d4aa' },
+  { icon: CreditCard, label: 'Factoring', desc: 'Plan your cash flow with built-in factoring tools', color: '#4d8ef0' },
+  { icon: ClipboardList, label: 'DVIR / ELD / HOS', desc: 'Keep compliance organized with alerts before issues arise', color: '#f06040' },
+  { icon: MapPin, label: 'Check Calls', desc: 'Handle shipper check-ins with less back and forth', color: '#a78bfa' },
+  { icon: Truck, label: 'Equipment Manager', desc: 'Track trucks, trailers, and expiry dates in one place', color: '#f0a500' },
+  { icon: FileText, label: 'Carrier Package', desc: 'Send broker contracting packets in one click', color: '#00d4aa' },
 ]
 
 const PLANS = [
   {
-    name: 'Autopilot', sub: 'AI-assisted dispatching', price: '$99', color: 'var(--accent)',
+    name: 'Autopilot', sub: 'AI-powered assistance for your operation', price: '$99', color: 'var(--accent)',
     features: ['AI Load Board & Scoring', 'Smart Dispatch Suggestions', 'Fleet Map & GPS', 'P&L Dashboard', 'IFTA Auto-Filing', 'Invoicing & Factoring', 'Fuel Optimizer', 'Compliance Dashboard', 'Carrier Package'],
-    extra: '1 truck only',
+    extra: '1 truck · Everything included',
     cta: 'Start Free Trial', highlight: true, stripeId: 'autopilot',
   },
   {
-    name: 'Autopilot AI', sub: 'Full AI autonomy', price: '$799', color: '#f0a500',
-    features: ['Everything in Autopilot', 'AI auto-dispatches for you', 'Proactive Load Finding Agent', 'Voice AI Chatbot', 'Auto-booking & broker calls', 'HOS Tracking', 'Weather on Route', 'BOL Upload', 'Dedicated support'],
-    extra: '+$150/mo per additional truck',
+    name: 'Autopilot AI', sub: 'Full AI autonomy for growing fleets', price: '$799', color: '#f0a500',
+    features: ['Everything in Autopilot', 'AI handles dispatch automatically', 'Proactive Load Finding Agent', 'Voice AI Assistant', 'Automated booking & outreach', 'HOS Tracking', 'Weather on Route', 'Smart Document Handling', 'Dedicated support'],
+    extra: '+$150/mo per additional truck · No upsells',
     cta: 'Claim Founder Pricing', highlight: false, stripeId: 'autopilot_ai', founder: true, fullPrice: '$1,200',
   },
 ]
 
 const TESTIMONIALS = [
-  { name: 'Marcus T.', role: 'Owner-Operator, Atlanta GA', truck: 'Owner-Operator', text: 'Qivori replaced my dispatcher and saved me $800/month. The AI finds better loads than any human.', rating: 5 },
-  { name: 'Rosa M.', role: 'Fleet Owner, 5 Trucks, Dallas TX', truck: '5 Trucks', text: 'I was skeptical about AI dispatch but Qivori books loads while I sleep. My revenue is up 23%.', rating: 5 },
-  { name: 'James K.', role: 'Owner-Operator, Chicago IL', truck: 'Owner-Operator', text: 'The IFTA calculator alone saves me hours every quarter. And the rate negotiation AI got me $400 more on my last load.', rating: 5 },
-  { name: 'Darrell W.', role: 'Fleet Owner, Houston TX, 3 Trucks', truck: '3 Trucks', text: 'Finally a TMS that doesn\'t need a PhD to use. I run everything from my phone now.', rating: 5 },
+  { name: 'Marcus T.', role: 'Owner-Operator, Atlanta GA', truck: 'Owner-Operator', text: 'Qivori cut my daily workload in half. The AI surfaces loads I would have missed and handles the busywork so I can focus on driving.', rating: 5 },
+  { name: 'Rosa M.', role: 'Fleet Owner, 5 Trucks, Dallas TX', truck: '5 Trucks', text: 'My team operates way more efficiently now. Dispatch is smoother, compliance is organized, and our revenue is up 23% since switching.', rating: 5 },
+  { name: 'James K.', role: 'Owner-Operator, Chicago IL', truck: 'Owner-Operator', text: 'The IFTA calculator alone saves me hours every quarter. And the rate insights helped me negotiate $400 more on my last load.', rating: 5 },
+  { name: 'Darrell W.', role: 'Fleet Owner, Houston TX, 3 Trucks', truck: '3 Trucks', text: 'Finally a platform that\'s actually built for small fleets. Everything is clear, simple, and I can manage it all from my phone.', rating: 5 },
 ]
 
 const HOW_IT_WORKS = [
-  { step: '01', title: 'Sign Up in 60 Seconds', desc: 'Create your account, add your MC number. No credit card needed for the 14-day trial.', icon: Users },
-  { step: '02', title: 'AI Learns Your Lanes', desc: 'Qivori analyzes your history and preferences to find the most profitable loads for your operation.', icon: Bot },
-  { step: '03', title: 'Run Everything from One Place', desc: 'Dispatch, compliance, invoicing, P&L — all managed by AI. Talk to it or tap, your choice.', icon: Zap },
+  { step: '01', title: 'Sign Up in 60 Seconds', desc: 'Create your account and add your MC number. No credit card, no setup fees, no long-term contracts.', icon: Users },
+  { step: '02', title: 'AI Learns Your Operation', desc: 'Qivori studies your lanes, preferences, and history to surface the most profitable opportunities for your team.', icon: Bot },
+  { step: '03', title: 'Operate Smarter Every Day', desc: 'Dispatch, compliance, invoicing, fleet tracking — all organized in one place with AI-powered assistance.', icon: Zap },
 ]
 
 const STATS = [
-  { value: '$2,400', label: 'Average saved per month', icon: DollarSign },
-  { value: '40+', label: 'Hours saved weekly', icon: Clock },
+  { value: '$2,400', label: 'Average monthly savings', icon: DollarSign },
+  { value: '40+', label: 'Hours of manual work reduced weekly', icon: Clock },
   { value: '89/100', label: 'Average AI load score', icon: Bot },
-  { value: '14', label: 'Day free trial', icon: Shield },
+  { value: '14', label: 'Day free trial — no card needed', icon: Shield },
 ]
 
 export default function LandingPage({ onGetStarted }) {
@@ -635,6 +635,41 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
+      {/* ── HOW IT HELPS YOUR TEAM ────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '80px 40px', maxWidth: 960, margin: '0 auto' }}>
+        <FadeIn>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>YOUR TEAM, AMPLIFIED</div>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
+              HOW QIVORI HELPS YOUR TEAM
+            </h2>
+            <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>
+              Qivori doesn't replace your people — it gives them AI-powered tools to work smarter, faster, and with less stress.
+            </p>
+          </div>
+        </FadeIn>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16 }} className="lp-features-grid">
+          {[
+            { icon: Zap, title: 'Reduces Repetitive Tasks', desc: 'Invoicing, check calls, IFTA calculations — AI handles the busywork so your team focuses on high-value decisions.', color: '#f0a500' },
+            { icon: Layers, title: 'Everything in One Place', desc: 'No more switching between 6 tools. Dispatch, fleet, accounting, and compliance — all organized under one roof.', color: '#00d4aa' },
+            { icon: TrendingUp, title: 'Faster, Smarter Decisions', desc: 'Real-time load scores, lane profitability, and broker risk data give your team the clarity to act quickly.', color: '#4d8ef0' },
+            { icon: Shield, title: 'Clarity Across Operations', desc: 'From P&L to compliance to fleet status — everyone on your team sees the same real-time picture.', color: '#a78bfa' },
+          ].map((item, i) => (
+            <FadeIn key={i} delay={i * 0.08}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '28px 24px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: `${item.color}12`, border: `1px solid ${item.color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Ic icon={item.icon} size={22} color={item.color} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{item.title}</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>{item.desc}</div>
+                </div>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </section>
+
       {/* ── FEATURES ──────────────────────────────────────────────────── */}
       <section id="features" className="lp-section" style={{ padding: '80px 40px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -762,12 +797,12 @@ export default function LandingPage({ onGetStarted }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {[
-                { icon: Mic, title: 'Voice-First', desc: 'Tap and talk — AI processes your commands hands-free while you drive.' },
-                { icon: Volume2, title: 'AI Reads Back', desc: 'Responses are spoken aloud so you never take your eyes off the road.' },
-                { icon: ScanLine, title: 'Snap Rate Con', desc: 'Photo a rate confirmation — AI extracts details and books the load.' },
-                { icon: Send, title: 'Auto-Invoice', desc: 'Deliver a load and AI emails a branded invoice to the broker.' },
-                { icon: Navigation, title: 'Find Truck Stops', desc: '"Find me a truck stop" — maps open with the nearest options.' },
-                { icon: Camera, title: 'Smart Documents', desc: 'AI prompts for BOL, signed BOL, and POD at exactly the right time.' },
+                { icon: Mic, title: 'Voice-First', desc: 'Tap and talk — give your team hands-free AI assistance while on the road.' },
+                { icon: Volume2, title: 'AI Reads Back', desc: 'Responses are spoken aloud so drivers never take their eyes off the road.' },
+                { icon: ScanLine, title: 'Snap Rate Con', desc: 'Photo a rate confirmation — AI extracts the details so your team can move faster.' },
+                { icon: Send, title: 'Auto-Invoice', desc: 'Deliver a load and a branded invoice goes out automatically — less manual work.' },
+                { icon: Navigation, title: 'Find Truck Stops', desc: '"Find me a truck stop" — maps open with the nearest options instantly.' },
+                { icon: Camera, title: 'Smart Documents', desc: 'AI prompts for BOL, signed BOL, and POD at the right time — nothing gets missed.' },
               ].map((f, i) => (
                 <FadeIn key={i} delay={i * 0.08}>
                   <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
@@ -1015,9 +1050,9 @@ export default function LandingPage({ onGetStarted }) {
             <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 32 }}>{t('landing.savingsDesc')}</p>
             <div className="lp-savings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {[
-                { icon: DollarSign, value: '$1,000+', label: 'saved per month on dispatching costs', color: '#22c55e' },
-                { icon: Clock, value: '40+', label: 'hours saved per week', color: '#f0a500' },
-                { icon: Zap, value: '0–99', label: 'AI scores every load instantly', color: '#4d8ef0' },
+                { icon: DollarSign, value: '$1,000+', label: 'saved per month by reducing manual workload', color: '#22c55e' },
+                { icon: Clock, value: '40+', label: 'hours of repetitive tasks eliminated weekly', color: '#f0a500' },
+                { icon: Zap, value: '0–99', label: 'AI scores every load so your team picks the best', color: '#4d8ef0' },
               ].map(s => (
                 <div key={s.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14, padding: '24px 16px' }}>
                   <div style={{ width: 40, height: 40, borderRadius: 12, background: `${s.color}15`, border: `1px solid ${s.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>

@@ -3,34 +3,37 @@ import { useApp } from '../context/AppContext'
 
 // Plan hierarchy for feature gating
 const PLAN_TIERS = {
-  autopilot: 1,
-  autopilot_ai: 2,
+  autonomous_fleet: 2,
+  autopilot_ai: 2,   // legacy — maps to same tier
+  autopilot: 1,       // legacy
 }
 
 // Which plan tier is required for each gated feature
+// With the single $399 plan, all features are tier 2 (full access)
 const FEATURE_GATES = {
-  load_board:    1,  // Pro / Autopilot+
+  load_board:    1,
   invoicing:     1,
   ifta:          1,
-  ai_dispatch:   2,  // Autopilot AI+
+  ai_dispatch:   2,
   proactive_loads: 2,
   voice_ai:      2,
   auto_booking:  2,
-  api_access:    2,  // Autopilot AI
+  api_access:    2,
   custom_integrations: 2,
   priority_support: 2,
 }
 
 const PLAN_DISPLAY = {
-  autopilot:    { name: 'Autopilot',    price: 149,  color: '#6366f1' },
-  autopilot_ai: { name: 'Autopilot AI', price: 799,  color: '#a78bfa' },
+  autonomous_fleet: { name: 'Autonomous Fleet AI', price: 399,  color: '#f0a500' },
+  autopilot_ai:     { name: 'Autonomous Fleet AI', price: 399,  color: '#f0a500' },  // legacy mapping
+  autopilot:        { name: 'Autonomous Fleet AI', price: 399,  color: '#f0a500' },  // legacy mapping
 }
 
 export function useSubscription() {
   const { profile, subscription, demoMode } = useApp()
 
   return useMemo(() => {
-    const plan = subscription?.plan || 'autopilot'
+    const plan = subscription?.plan || 'autonomous_fleet'
     const status = subscription?.status || null
     const isTrialing = subscription?.isTrial || false
     const isActive = subscription?.isActive || demoMode || false
@@ -46,8 +49,8 @@ export function useSubscription() {
     }
 
     const isPaid = isActive && !isTrialing
-    const tier = PLAN_TIERS[plan] ?? 0
-    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.autopilot
+    const tier = PLAN_TIERS[plan] ?? 2  // default to full access
+    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.autonomous_fleet
 
     // Feature access check
     const canAccess = (feature) => {
@@ -62,8 +65,7 @@ export function useSubscription() {
     const requiredPlanFor = (feature) => {
       const requiredTier = FEATURE_GATES[feature]
       if (requiredTier === undefined) return null
-      const entry = Object.entries(PLAN_TIERS).find(([, t]) => t === requiredTier)
-      return entry ? entry[0] : null
+      return 'autonomous_fleet'
     }
 
     return {

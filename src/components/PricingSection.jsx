@@ -5,53 +5,35 @@ import { apiFetch } from '../lib/api'
 
 const PRICING_PLANS = [
   {
-    id: 'autopilot',
-    name: 'Autopilot',
-    sub: 'For growing carriers',
-    price: '$149',
-    period: '/mo',
-    color: '#6366f1',
-    icon: Bot,
+    id: 'autonomous_fleet',
+    name: 'Autonomous Fleet AI',
+    sub: 'Everything included · Per truck · No upsells',
+    price: '$399',
+    period: '/truck/mo',
+    color: '#f0a500',
+    icon: Crown,
     popular: true,
     features: [
-      'Up to 5 trucks',
       'AI Load Board & Scoring',
-      'Invoicing & Factoring',
+      'AI-Powered Dispatch',
+      'Proactive Load Finding Agent',
+      'Voice AI Assistant',
+      'Fleet Map & GPS Tracking',
+      'P&L Dashboard & Analytics',
       'IFTA Auto-Filing',
-      'P&L Dashboard',
+      'Invoicing & Auto-Factoring',
       'Fuel Optimizer',
-      'Carrier Package',
-      'Email support',
+      'Full Compliance Suite',
+      'HR & DQ File Management',
+      'Driver Portal & Scorecards',
+      'Smart Document Handling',
+      'Dedicated Support',
     ],
     limits: [],
     cta: 'Start Free Trial',
-    stripeId: 'autopilot',
-  },
-  {
-    id: 'autopilot_ai',
-    name: 'Autopilot AI',
-    sub: 'AI runs your dispatch',
-    price: '$799',
-    period: '/mo',
-    color: '#a78bfa',
-    icon: Crown,
-    features: [
-      'Unlimited trucks',
-      'Everything in Autopilot',
-      'AI Auto-Dispatch',
-      'Proactive Load Finding',
-      'Voice AI Chatbot',
-      'Auto-booking & broker calls',
-      'HOS & Weather on Route',
-      'API access',
-      'Custom integrations',
-      'Priority phone support',
-      'Custom reporting',
-      'Multi-terminal support',
-    ],
-    limits: [],
-    cta: 'Start Free Trial',
-    stripeId: 'autopilot_ai',
+    stripeId: 'autonomous_fleet',
+    founder: true,
+    fullPrice: '$599',
   },
 ]
 
@@ -101,21 +83,21 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
 
   return (
     <div style={containerStyle}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
         {!embedded && (
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 2, marginBottom: 8 }}>
               SIMPLE, TRANSPARENT PRICING
             </div>
             <div style={{ fontSize: 14, color: 'var(--muted)', maxWidth: 500, margin: '0 auto' }}>
-              Start free. Upgrade when you're ready. No hidden fees, no contracts.
+              One plan. Everything included. No upsells, no hidden fees.
             </div>
           </div>
         )}
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+          gridTemplateColumns: '1fr',
           gap: 16,
         }}>
           {PRICING_PLANS.map(plan => {
@@ -123,26 +105,25 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
             const isLoading = loading === plan.id
             return (
               <div key={plan.id} style={{
-                background: 'var(--surface)',
-                border: `1px solid ${plan.popular ? plan.color : 'var(--border)'}`,
+                background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(240,165,0,0.02))',
+                border: `2px solid rgba(240,165,0,0.5)`,
                 borderRadius: 14,
                 padding: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 position: 'relative',
                 overflow: 'hidden',
-                transition: 'border-color 0.2s, box-shadow 0.2s',
-                boxShadow: plan.popular ? `0 0 24px ${plan.color}15` : 'none',
+                boxShadow: `0 0 24px ${plan.color}15`,
               }}>
-                {/* Popular badge */}
-                {plan.popular && (
+                {/* Founder badge */}
+                {plan.founder && (
                   <div style={{
                     position: 'absolute', top: 12, right: 12,
                     fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 10,
-                    background: `${plan.color}18`, color: plan.color,
-                    border: `1px solid ${plan.color}30`, letterSpacing: 1,
+                    background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000',
+                    letterSpacing: 1,
                   }}>
-                    MOST POPULAR
+                    FOUNDER PRICING
                   </div>
                 )}
 
@@ -168,6 +149,12 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
                   <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 2 }}>
                     {plan.period}
                   </span>
+                  {plan.founder && (
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                      <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{plan.fullPrice}/truck/mo</span>
+                      <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $200/truck</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Features */}
@@ -177,12 +164,6 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
                       <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
                         <Check size={14} color={plan.color} style={{ flexShrink: 0, marginTop: 1 }} />
                         <span style={{ color: 'var(--text)' }}>{f}</span>
-                      </div>
-                    ))}
-                    {plan.limits.map(f => (
-                      <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
-                        <span style={{ color: 'var(--muted)', fontSize: 14, lineHeight: '14px', flexShrink: 0 }}>-</span>
-                        <span style={{ color: 'var(--muted)' }}>{f}</span>
                       </div>
                     ))}
                   </div>
@@ -196,12 +177,13 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
                     style={{
                       width: '100%', padding: '12px 16px', border: 'none', borderRadius: 10,
                       cursor: isLoading ? 'wait' : 'pointer',
-                      background: plan.popular ? plan.color : 'var(--surface2)',
-                      color: plan.popular ? '#000' : 'var(--text)',
+                      background: 'linear-gradient(135deg, #f0a500, #e09000)',
+                      color: '#000',
                       fontSize: 13, fontWeight: 700,
                       fontFamily: "'DM Sans',sans-serif",
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       opacity: isLoading ? 0.7 : 1,
+                      boxShadow: '0 4px 16px rgba(240,165,0,0.25)',
                       transition: 'opacity 0.15s',
                     }}
                     onMouseOver={e => { if (!isLoading) e.currentTarget.style.opacity = '0.85' }}
@@ -218,7 +200,7 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
 
         {/* Trial note */}
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: 'var(--muted)' }}>
-          All paid plans include a 14-day free trial. No credit card required to start. Cancel anytime.
+          14-day free trial. No credit card required. Cancel anytime.
         </div>
       </div>
     </div>

@@ -1383,35 +1383,26 @@ function MobileAI() {
     }
 
     // ── ACCOUNT MANAGEMENT — upgrade/downgrade plan ──
-    if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(basic|pro|autopilot|autopilot\s*ai|solo|fleet|enterprise|growing)\b/.test(lowerText)) {
-      // Detect which plan they want
-      let targetPlan = null
-      if (/autopilot\s*ai/i.test(lowerText) || /enterprise/i.test(lowerText)) targetPlan = { id: 'autopilot_ai', name: 'Autopilot AI', price: '$799/mo (founder)' }
-      else if (/autopilot/i.test(lowerText)) targetPlan = { id: 'autopilot', name: 'Autopilot', price: '$149/mo' }
+    if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(basic|pro|autopilot|autopilot\s*ai|solo|fleet|enterprise|growing|autonomous)\b/.test(lowerText)) {
+      const targetPlan = { id: 'autonomous_fleet', name: 'Autonomous Fleet AI', price: '$399/truck/mo (founder pricing)' }
 
-      if (targetPlan) {
-        // Generate Stripe checkout link
-        try {
-          const res = await apiFetch('/api/create-checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ planId: targetPlan.id, email: user?.email, userId: user?.id }),
-          })
-          const data = await res.json()
-          if (data.url) {
-            setMessages(m => [...m, { role: 'assistant', content: `**Upgrade to ${targetPlan.name} (${targetPlan.price})**\n\nI've generated your checkout link. Tap below to complete:\n\n[Upgrade Now](${data.url})\n\nIncludes a 14-day free trial. Cancel anytime.` }])
-            speak(`Opening checkout for the ${targetPlan.name} plan at ${targetPlan.price}.`)
-            setTimeout(() => window.open(data.url, '_blank'), 1500)
-          } else {
-            setMessages(m => [...m, { role: 'assistant', content: `Couldn't create checkout: ${data.error || 'Try again later.'}` }])
-          }
-        } catch (err) {
-          setMessages(m => [...m, { role: 'assistant', content: `Error creating checkout: ${err.message}` }])
+      // Generate Stripe checkout link
+      try {
+        const res = await apiFetch('/api/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: targetPlan.id, email: user?.email, userId: user?.id }),
+        })
+        const data = await res.json()
+        if (data.url) {
+          setMessages(m => [...m, { role: 'assistant', content: `**Subscribe to ${targetPlan.name} (${targetPlan.price})**\n\nI've generated your checkout link. Tap below to complete:\n\n[Subscribe Now](${data.url})\n\nIncludes a 14-day free trial. Cancel anytime. Everything included, no upsells.` }])
+          speak(`Opening checkout for the Autonomous Fleet AI plan at 399 dollars per truck per month.`)
+          setTimeout(() => window.open(data.url, '_blank'), 1500)
+        } else {
+          setMessages(m => [...m, { role: 'assistant', content: `Couldn't create checkout: ${data.error || 'Try again later.'}` }])
         }
-      } else {
-        // No specific plan mentioned — show options
-        setMessages(m => [...m, { role: 'assistant', content: `**Available Plans:**\n\n**Autopilot** — $149/mo\nAI-assisted dispatching. AI load board, scoring, IFTA, invoicing, compliance, fleet map. +$49/mo per additional truck.\n\n**Autopilot AI** — $799/mo (founder pricing)\nFull AI autonomy. AI auto-dispatches, proactive load finding, auto-booking, revenue optimization, unlimited. +$150/mo per additional truck.\n\nSay **"upgrade to Autopilot"** or **"upgrade to Autopilot AI"**.` }])
-        speak('I have two plans. Autopilot at 149 per month, and Autopilot AI at 799 per month with full AI autonomy. Which would you like?')
+      } catch (err) {
+        setMessages(m => [...m, { role: 'assistant', content: `Error creating checkout: ${err.message}` }])
       }
       setLoading(false)
       return

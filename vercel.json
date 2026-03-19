@@ -50,6 +50,7 @@
     { "path": "/api/load-finder", "schedule": "0 11 * * *" },
     { "path": "/api/carrier-expiry-alerts", "schedule": "0 8 * * 1" },
     { "path": "/api/check-calls", "schedule": "0 12 * * *" },
-    { "path": "/api/admin-notifications?action=send_digest", "schedule": "0 18 * * *" }
+    { "path": "/api/admin-notifications?action=send_digest", "schedule": "0 18 * * *" },
+    { "path": "/api/doc-expiry-alerts", "schedule": "0 8 * * *" }
   ]
 }

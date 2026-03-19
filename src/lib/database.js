@@ -268,6 +268,113 @@ export async function deleteDocument(id) {
   if (error) throw error
 }
 
+// ─── DRIVER DQ FILES ────────────────────────────────────────
+export async function fetchDQFiles(driverId) {
+  let query = supabase.from('driver_dq_files').select('*').order('created_at', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_dq_files', query)
+  return data || []
+}
+
+export async function createDQFile(doc) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createDQFile',
+    supabase.from('driver_dq_files').insert({ ...doc, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateDQFile(id, updates) {
+  const { data, error } = await safeMutate('updateDQFile',
+    supabase.from('driver_dq_files').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function deleteDQFile(id) {
+  const { error } = await safeMutate('deleteDQFile',
+    supabase.from('driver_dq_files').delete().eq('id', id)
+  )
+  if (error) throw error
+}
+
+// ─── DRUG & ALCOHOL TESTS ───────────────────────────────────
+export async function fetchDrugTests(driverId) {
+  let query = supabase.from('driver_drug_tests').select('*').order('test_date', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_drug_tests', query)
+  return data || []
+}
+
+export async function createDrugTest(test) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createDrugTest',
+    supabase.from('driver_drug_tests').insert({ ...test, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateDrugTest(id, updates) {
+  const { data, error } = await safeMutate('updateDrugTest',
+    supabase.from('driver_drug_tests').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── DRIVER INCIDENTS ───────────────────────────────────────
+export async function fetchIncidents(driverId) {
+  let query = supabase.from('driver_incidents').select('*').order('incident_date', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_incidents', query)
+  return data || []
+}
+
+export async function createIncident(incident) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createIncident',
+    supabase.from('driver_incidents').insert({ ...incident, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateIncident(id, updates) {
+  const { data, error } = await safeMutate('updateIncident',
+    supabase.from('driver_incidents').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── DRIVER PAYROLL ─────────────────────────────────────────
+export async function fetchPayroll(driverId) {
+  let query = supabase.from('driver_payroll').select('*').order('period_start', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_payroll', query)
+  return data || []
+}
+
+export async function createPayroll(record) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createPayroll',
+    supabase.from('driver_payroll').insert({ ...record, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updatePayroll(id, updates) {
+  const { data, error } = await safeMutate('updatePayroll',
+    supabase.from('driver_payroll').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
 // ─── MESSAGES ───────────────────────────────────────────────
 export async function fetchMessages(loadId) {
   const { data } = await supabase.from('messages').select('*').eq('load_id', loadId).order('created_at', { ascending: true })

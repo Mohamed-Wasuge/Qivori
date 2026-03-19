@@ -22,6 +22,7 @@ import {
 } from '../pages/CarrierPages'
 import { apiFetch } from '../lib/api'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
+import { DQFileManager, ExpiryAlerts, DrugAlcoholCompliance, IncidentTracker, PayrollTracker, DriverPortal } from '../pages/carrier/HR'
 
 const Ic = ({ icon: Icon, size = 16, color, style, ...props }) => <Icon size={size} color={color} style={style} {...props} />
 
@@ -3189,16 +3190,25 @@ function HubTabBar({ tabs, active, onChange }) {
 // ── Drivers Hub ──
 function DriversHub() {
   const [tab, setTab] = useState('profiles')
-  const TABS = [{ id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' }]
+  const TABS = [
+    { id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' },
+    { id:'dq-files', label:'DQ Files' },{ id:'expiry-alerts', label:'Expiry Alerts' },{ id:'drug-alcohol', label:'Drug & Alcohol' },{ id:'incidents', label:'Incidents' },{ id:'payroll', label:'1099 / Payroll' },{ id:'driver-portal', label:'Driver Portal' },
+  ]
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div>
+      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'profiles' && <DriverProfiles />}
         {tab === 'settlement' && <DriverSettlement />}
         {tab === 'scorecards' && <DriverScorecard />}
         {tab === 'pay-reports' && <DriverPayReport />}
         {tab === 'onboarding' && <DriverOnboarding />}
+        {tab === 'dq-files' && <DQFileManager />}
+        {tab === 'expiry-alerts' && <ExpiryAlerts />}
+        {tab === 'drug-alcohol' && <DrugAlcoholCompliance />}
+        {tab === 'incidents' && <IncidentTracker />}
+        {tab === 'payroll' && <PayrollTracker />}
+        {tab === 'driver-portal' && <DriverPortal />}
       </div>
     </div>
   )

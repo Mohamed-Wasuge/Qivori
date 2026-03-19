@@ -98,6 +98,34 @@ async function pingEndpoint(endpoint) {
   }
 }
 
+
+
+// === LANDING PAGE HEALTH CHECK (Added by AI upgrade) ===
+async function checkLandingPage() {
+  const results = { ok: true, failures: [] }
+  try {
+    // Landing page health check
+    const lpCheck = await checkLandingPage()
+    if (!lpCheck.ok) {
+      console.error('[UPTIME] Landing page issues:', lpCheck.failures)
+      // Alert via existing notification system
+      const RESEND = process.env.RESEND_API_KEY
+      if (RESEND) {
+        await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: 'Bearer ' + RESEND, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: 'Qivori Alerts <alerts@qivori.com>', to: ['hello@qivori.com'], subject: '[ALERT] Landing page broken - ' + new Date().toISOString(), html: '<h2>Landing Page Alert</h2><p>Failures: ' + lpCheck.failures.join(', ') + '</p>' }) }).catch(() => {})
+      }
+    }
+
+    const res = await fetch('https://www.qivori.com', { redirect: 'follow' })
+    if (res.status !== 200) results.failures.push('Status: ' + res.status)
+    const html = await res.text()
+    if (!html.includes('QIVORI') && !html.includes('qivori')) results.failures.push('Brand missing')
+    if (html.includes('useNavigate') && html.includes('Error')) results.failures.push('React crash detected')
+    if (!html.includes('Sign In') && !html.includes('waitlist') && !html.includes('Get Started')) results.failures.push('UI elements missing')
+    results.ok = results.failures.length === 0
+  } catch (e) { results.ok = false; results.failures.push('Fetch failed: ' + e.message) }
+  return results
+}
+
 export default async function handler(req) {
   const corsHeaders = { 'Content-Type': 'application/json' }
 

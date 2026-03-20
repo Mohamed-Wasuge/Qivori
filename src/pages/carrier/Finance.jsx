@@ -754,12 +754,18 @@ const PRIORITY_COLORS = { HIGH:'var(--success)', MEDIUM:'var(--accent)', URGENT:
 
 export function FactoringCashflow() {
   const { showToast } = useApp()
-  const { invoices: ctxInvoices, updateInvoiceStatus } = useCarrier()
+  const { invoices: ctxInvoices, updateInvoiceStatus, company: carrierCompany, updateCompany } = useCarrier()
   const [selected, setSelected] = useState(new Set())
   const [tab, setTab] = useState('invoices')
-  const [factoringRate, setFactoringRate] = useState(2.5)
-  const [company, setCompany] = useState('Qivori FastPay')
+  const [factoringRate, setFactoringRate] = useState(carrierCompany?.factoring_rate || 2.5)
+  const [company, setCompany] = useState(carrierCompany?.factoring_company || '')
   const [history, setHistory] = useState(HISTORY)
+
+  // Persist factoring settings to Supabase
+  const saveFactoringSettings = (newCompany, newRate) => {
+    updateCompany({ factoring_company: newCompany, factoring_rate: newRate })
+    showToast('', 'Settings Saved', `${newCompany} @ ${newRate}%`)
+  }
 
   // Use real invoices from context — Unpaid = factorable, Factored/Paid = history
   const readyInvoices = ctxInvoices.filter(i => i.status === 'Unpaid').map(i => ({
@@ -1019,7 +1025,8 @@ export function FactoringCashflow() {
                 <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Factoring Company</label>
                 <select value={company} onChange={e => setCompany(e.target.value)}
                   style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif" }}>
-                  {['Qivori FastPay', 'RTS Financial', 'OTR Solutions', 'Triumph Business Capital', 'TBS Factoring', 'Other'].map(c => <option key={c}>{c}</option>)}
+                  <option value="">Select your factoring company...</option>
+                  {['OTR Solutions', 'RTS Financial', 'Triumph Business Capital', 'Apex Capital', 'TAFS', 'TBS Factoring', 'Thunder Funding', 'WEX Capital', 'Riviera Finance', 'Fleet One Factoring', 'Instapay (Relay)', 'Express Freight Finance', 'Cass Commercial Bank', 'Interstate Capital', 'Compass Funding', 'Porter Freight Funding', 'FactorCloud', 'Bobtail', 'Denim', 'I don\'t use factoring', 'Other'].map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -1031,6 +1038,10 @@ export function FactoringCashflow() {
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>% flat fee per invoice</span>
                 </div>
               </div>
+              <button className="btn btn-primary" style={{ padding: '10px 20px', fontSize: 13, marginTop: 4 }}
+                onClick={() => saveFactoringSettings(company, factoringRate)}>
+                <Ic icon={Check} size={13} /> Save Factoring Settings
+              </button>
               {[
                 { label: 'Advance Rate',      value: '97.5%', note: 'Percentage of invoice advanced upfront' },
                 { label: 'Deposit Speed',     value: '24hr',  note: 'Business days after submission' },

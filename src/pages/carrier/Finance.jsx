@@ -579,7 +579,7 @@ export function ExpenseTracker() {
   const { expenses, addExpense: ctxAddExpense } = useCarrier()
   const [showForm, setShowForm] = useState(false)
   const [filterCat, setFilterCat] = useState('All')
-  const [newExp, setNewExp] = useState({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'' })
+  const [newExp, setNewExp] = useState({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'' })
   const [scanning, setScanning] = useState(false)
   const [scanDrag, setScanDrag] = useState(false)
 
@@ -589,10 +589,24 @@ export function ExpenseTracker() {
 
   const addExpense = () => {
     if (!newExp.amount || !newExp.cat) return
-    ctxAddExpense({ ...newExp, amount: parseFloat(newExp.amount) })
-    setNewExp({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'' })
+    const expData = { ...newExp, amount: parseFloat(newExp.amount) }
+    if (newExp.gallons) expData.gallons = parseFloat(newExp.gallons)
+    if (newExp.state) expData.state = newExp.state.toUpperCase().trim()
+    // Auto-link: if fuel expense has load, find matching truck/driver
+    if (newExp.cat === 'Fuel' && newExp.load) {
+      const matchedLoad = (ctx?.loads || []).find(l => (l.loadId || l.load_number || '') === newExp.load)
+      if (matchedLoad && !newExp.driver) expData.driver = matchedLoad.driver || matchedLoad.driver_name || ''
+      if (matchedLoad && !newExp.state) {
+        // Auto-detect state from load origin/destination
+        const loc = matchedLoad.origin || matchedLoad.destination || ''
+        const stMatch = loc.match(/,\s*([A-Z]{2})$/i)
+        if (stMatch) expData.state = stMatch[1].toUpperCase()
+      }
+    }
+    ctxAddExpense(expData)
+    setNewExp({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'' })
     setShowForm(false)
-    showToast('', 'Expense Added', `${newExp.cat} · $${newExp.amount}`)
+    showToast('', 'Expense Added', `${newExp.cat} · $${newExp.amount}${expData.state ? ' · ' + expData.state : ''}${expData.gallons ? ' · ' + expData.gallons + ' gal' : ''}`)
   }
 
   const scanReceipt = async (file) => {
@@ -710,6 +724,18 @@ export function ExpenseTracker() {
                 {EXPENSE_CATS.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
+            {newExp.cat === 'Fuel' && <>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--accent)', display: 'block', marginBottom: 4 }}>Gallons <span style={{ color:'var(--muted)' }}>(for IFTA)</span></label>
+                <input type="number" placeholder="85.2" value={newExp.gallons} onChange={e => setNewExp(x => ({ ...x, gallons: e.target.value }))}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--accent)', display: 'block', marginBottom: 4 }}>State <span style={{ color:'var(--muted)' }}>(for IFTA)</span></label>
+                <input type="text" placeholder="TX" maxLength={2} value={newExp.state} onChange={e => setNewExp(x => ({ ...x, state: e.target.value.toUpperCase() }))}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box', textTransform: 'uppercase' }} />
+              </div>
+            </>}
           </div>
           <button className="btn btn-primary" style={{ width: '100%', padding: '11px 0' }} onClick={addExpense}><Ic icon={Check} /> Add Expense</button>
         </div>
@@ -719,7 +745,7 @@ export function ExpenseTracker() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ overflowX:'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth:600 }}>
           <thead><tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
-            {['Date','Category','Amount','Load','Driver','Notes'].map(h => (
+            {['Date','Category','Amount','Gal','State','Load','Driver','Notes'].map(h => (
               <th key={h} style={{ padding: '10px 14px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
             ))}
           </tr></thead>
@@ -731,6 +757,8 @@ export function ExpenseTracker() {
                   <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: (CAT_COLORS[e.cat]||'var(--muted)') + '15', color: CAT_COLORS[e.cat]||'var(--muted)' }}>{React.createElement(CAT_ICONS[e.cat] || Paperclip, {size:11})} {e.cat}</span>
                 </td>
                 <td style={{ padding: '11px 14px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--danger)' }}>−${e.amount.toLocaleString()}</td>
+                <td style={{ padding: '11px 14px', fontSize: 12, color: e.gallons ? 'var(--accent)' : 'var(--muted)' }}>{e.gallons ? e.gallons + 'g' : '—'}</td>
+                <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: e.state ? 700 : 400, color: e.state ? 'var(--accent)' : 'var(--muted)' }}>{e.state || '—'}</td>
                 <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted)', fontFamily: 'monospace' }}>{e.load || '—'}</td>
                 <td style={{ padding: '11px 14px', fontSize: 12 }}>{e.driver || '—'}</td>
                 <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted)' }}>{e.notes}</td>

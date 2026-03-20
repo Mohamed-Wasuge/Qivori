@@ -64,11 +64,30 @@ export function CarrierIFTA() {
   const { showToast } = useApp()
   const ctx = useCarrier ? useCarrier() : {}
   const loads = ctx?.loads || []
+  const expenses = ctx?.expenses || []
   const company = ctx?.company || {}
   const [iftaTab, setIftaTab] = useState('report')
   const [avgMpg, setAvgMpg] = useState('6.9')
   const [manualOverrides, setManualOverrides] = useState({})
   const [showReturn, setShowReturn] = useState(false)
+
+  // Pull actual fuel purchases from expenses for IFTA
+  const fuelPurchases = useMemo(() => {
+    const byState = {}
+    expenses.forEach(e => {
+      if ((e.cat || e.category || '').toLowerCase() !== 'fuel') return
+      if (!e.state || !e.gallons) return
+      const st = e.state.toUpperCase().trim()
+      if (!byState[st]) byState[st] = { gallons: 0, amount: 0, count: 0 }
+      byState[st].gallons += Number(e.gallons) || 0
+      byState[st].amount += Number(e.amount) || 0
+      byState[st].count += 1
+    })
+    return byState
+  }, [expenses])
+
+  const totalFuelGallons = Object.values(fuelPurchases).reduce((s, v) => s + v.gallons, 0)
+  const totalFuelSpend = Object.values(fuelPurchases).reduce((s, v) => s + v.amount, 0)
 
   // Dynamic quarter calculation
   const now = new Date()
@@ -120,9 +139,14 @@ export function CarrierIFTA() {
     .map(([state, miles]) => {
       const rate = ALL_IFTA_RATES[state] || 0.25
       const gal = Math.round(miles / parseFloat(avgMpg || 6.9))
-      const tax = parseFloat((gal * rate).toFixed(2))
+      // Use actual fuel purchases for this state if available
+      const fuelData = fuelPurchases[state]
+      const purchasedGal = fuelData ? Math.round(fuelData.gallons) : 0
+      const taxOwed = parseFloat((gal * rate).toFixed(2))
+      const taxCredit = parseFloat((purchasedGal * rate).toFixed(2))
+      const tax = parseFloat((taxOwed - taxCredit).toFixed(2))
       const isAutoCalc = !(state in manualOverrides) && state in autoMilesByState
-      return { state, miles, gal, rate, tax, status: 'Pending', isAutoCalc }
+      return { state, miles, gal, rate, tax, purchasedGal, taxOwed, taxCredit, status: 'Pending', isAutoCalc, hasFuelData: !!fuelData }
     })
     .sort((a, b) => b.miles - a.miles)
 
@@ -144,7 +168,7 @@ export function CarrierIFTA() {
       </div>
 
       <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, paddingBottom:60, display:'flex', flexDirection:'column', gap:16 }}>
-        <AiBanner title={`AI Auto-Calculated: ${Object.keys(autoMilesByState).length} states detected from ${loads.filter(l => ['Delivered','Invoiced','In Transit','Loaded'].includes(l.status)).length} loads this quarter`} sub={totalMiles > 0 ? `${totalMiles.toLocaleString()} total miles tracked · Avg ${avgMpg} MPG · Est. tax $${totalTax.toFixed(2)} · You can override any state manually` : 'No delivered loads this quarter yet — enter mileage manually or deliver loads to auto-calculate'} />
+        <AiBanner title={`AI Auto-Calculated: ${Object.keys(autoMilesByState).length} states from ${loads.filter(l => ['Delivered','Invoiced','In Transit','Loaded'].includes(l.status)).length} loads${totalFuelGallons > 0 ? ` · ${Math.round(totalFuelGallons)} gal fuel logged` : ''}`} sub={totalMiles > 0 ? `${totalMiles.toLocaleString()} miles · Avg ${avgMpg} MPG · Net tax $${totalTax.toFixed(2)}${totalFuelSpend > 0 ? ` · Fuel spend $${totalFuelSpend.toLocaleString()}` : ' · Log fuel expenses with state + gallons for automatic IFTA credits'}` : 'No delivered loads this quarter yet — enter mileage manually or deliver loads to auto-calculate'} />
 
         {/* Report tab */}
         {iftaTab === 'report' && (

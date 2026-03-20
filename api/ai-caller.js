@@ -2,7 +2,7 @@
  * AI Caller Agent — Initiates Twilio outbound calls to brokers
  * Triggered by driver tapping "Book It" or "Call the broker"
  * Uses Twilio REST API to place call, connects to call-handler.js for AI conversation
- * LOCKED TO: Autopilot AI plan ($799/month) only
+ * LOCKED TO: Autonomous Fleet AI plan ($399/truck/month) only
  * Runtime: Vercel Edge
  */
 

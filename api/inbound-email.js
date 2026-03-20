@@ -190,7 +190,7 @@ function detectIntent(subject, body) {
     // Account & Billing
     cancel:     { keywords: ['cancel', 'unsubscribe', 'stop', 'end subscription', 'close account', 'delete account'], category: 'churn', priority: 'urgent', actions: ['follow_up'], escalate: true },
     refund:     { keywords: ['refund', 'money back', 'charge', 'overcharged', 'billing issue', 'dispute'], category: 'billing', priority: 'urgent', actions: ['follow_up'], escalate: true },
-    upgrade:    { keywords: ['upgrade', 'autopilot ai', 'enterprise', 'more trucks', 'scale', 'grow'], category: 'upsell', priority: 'high', actions: ['follow_up'] },
+    upgrade:    { keywords: ['upgrade', 'autonomous fleet', 'enterprise', 'more trucks', 'scale', 'grow'], category: 'upsell', priority: 'high', actions: ['follow_up'] },
 
     // Trucking-specific
     loadboard:  { keywords: ['load board', 'dat', '123loadboard', 'truckstop', 'find loads', 'search loads'], category: 'product', priority: 'medium', actions: [] },
@@ -236,8 +236,7 @@ async function gatherIntelligence(senderEmail, supabaseUrl, serviceKey) {
 
       // Lead scoring for existing customers
       ctx.leadScore = 8
-      if (p.plan === 'autopilot_ai') ctx.leadScore = 10
-      else if (p.plan === 'autopilot') ctx.leadScore = 9
+      if (p.plan === 'autonomous_fleet') ctx.leadScore = 10
       else if (p.subscription_status === 'trialing') ctx.leadScore = 7
     }
 
@@ -325,8 +324,8 @@ ABOUT QIVORI:
 - AI-powered carrier operating system — the "Tesla of trucking software"
 - Built specifically for owner-operators and small fleets (1-10 trucks)
 - Core features: AI Load Board (scores every load 0-99), Smart Dispatch (AI replaces your dispatcher), Fleet GPS, IFTA Auto-Calculator, P&L Dashboard, Compliance Center, Driver Management, Invoicing
-- Plans: Autopilot ($99/mo + $49/truck) — AI-assisted | Autopilot AI ($799/mo + $150/truck) — full AI autonomy, replaces your dispatcher entirely
-- Autopilot AI saves carriers $1,036/month vs traditional dispatcher costs
+- One plan: Autonomous Fleet AI ($399/truck/mo founder pricing, normally $599) — AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher entirely.
+- Save $200/truck vs regular pricing ($599). AI dispatcher works 24/7.
 - 14-day free trial, no credit card required
 - Website: www.qivori.com
 - The AI chat can book loads, submit check calls, find truck stops, check weigh stations, track HOS, generate invoices — all by voice/text while driving
@@ -341,7 +340,7 @@ COMPETITOR INTELLIGENCE (use when prospects ask about alternatives or mention ot
 - Rose Rocket: Enterprise TMS, $100+/user/mo, overkill for owner-operators, complex setup
 - DAT/123Loadboard/Truckstop: Load boards only, not a TMS — Qivori integrates WITH them so you get the best of both
 - Spreadsheets/pen & paper: Most common "competitor" — highlight the hours saved, the loads missed, the money left on the table
-- Qivori advantage: ONLY TMS with AI that can actually replace a dispatcher, AI load scoring, voice-driven from the truck — no one else has this
+- Qivori advantage: ONLY TMS with AI that can actually replace a dispatcher at $399/truck/mo, AI load scoring, voice-driven from the truck — no one else has this
 
 MARKET INTELLIGENCE (reference naturally when relevant):
 - Spot rates have been volatile — this makes AI load scoring more valuable than ever (bad loads cost you money, good loads are harder to find fast)
@@ -349,14 +348,14 @@ MARKET INTELLIGENCE (reference naturally when relevant):
 - Driver shortage continues — fleet management and driver retention tools are critical
 - IFTA quarterly deadlines: Q1 due April 30, Q2 due July 31, Q3 due Oct 31, Q4 due Jan 31
 - ELD mandate fully enforced — compliance is non-negotiable, fines are steep
-- Average dispatcher costs $1,000-1,500/month for small fleets — Qivori Autopilot AI replaces that
+- Average dispatcher costs $1,000-1,500/month for small fleets — Qivori Autonomous Fleet AI replaces that at $399/truck/mo
 - Owner-operator average revenue: $200-250K/year, margins of 5-15% — every dollar saved matters
 - Factoring companies charge 2-5% — Qivori helps with faster invoicing so you can avoid factoring entirely
 
 SOCIAL PROOF & STATS (weave these into responses naturally, don't dump them all at once):
 - "Carriers using Qivori's AI load scoring see an average 12% improvement in RPM"
 - "Our AI processes loads 50x faster than manual searching"
-- "Autopilot AI users save an average of $1,036/month vs traditional dispatcher"
+- "Autonomous Fleet AI users save $200/truck vs regular pricing — and replace their dispatcher entirely"
 - "Average setup time is under 10 minutes"
 - "14-day free trial with full access — most carriers see ROI in the first week"
 
@@ -407,7 +406,7 @@ INTELLIGENCE RULES:
    - Know market conditions (spot rates volatile, capacity tight)
    - Reference regulations when relevant (ELD, IFTA deadlines)
    - Understand pain points (broker delays, fuel costs, finding loads)
-   - Calculate savings for them: "At 3 trucks with a $1,200/mo dispatcher, you're spending $14,400/year. Qivori Autopilot AI at $799 + $450 (3 trucks) = $1,249/mo saves you real money AND works 24/7"
+   - Calculate savings for them: "At 3 trucks with a $1,200/mo dispatcher, you're spending $14,400/year. Qivori Autonomous Fleet AI at $399/truck = $1,197/mo for 3 trucks — saves you real money AND works 24/7"
 
 5. EXISTING CUSTOMER INTELLIGENCE:
    - Trial users: Show what they're missing, push for upgrade

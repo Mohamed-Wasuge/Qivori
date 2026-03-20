@@ -217,7 +217,7 @@ async function generateFollowup(apiKey, tone, followupNumber, senderEmail, subje
 ABOUT QIVORI:
 - AI-powered carrier operating system for owner-operators and small fleets (1-10 trucks)
 - Core features: AI Load Board (scores loads 0-99), Smart Dispatch (AI replaces dispatcher), Fleet GPS, IFTA Auto-Calculator, P&L Dashboard, Compliance Center, Invoicing
-- Plans: Autopilot ($99/mo + $49/truck) | Autopilot AI ($799/mo + $150/truck — replaces dispatcher, saves $1,036/mo)
+- One plan: Autonomous Fleet AI ($399/truck/mo founder pricing, normally $599) — AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher.
 - 14-day free trial, no credit card required
 - Website: www.qivori.com
 

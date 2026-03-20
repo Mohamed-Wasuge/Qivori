@@ -18,7 +18,7 @@ export { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, Dr
 export { CarrierIFTA, CarrierELD, CarrierCSA, CarrierClearinghouse, CarrierDVIR } from './carrier/Compliance'
 export { FleetMap, CarrierFleet, FuelOptimizer, FleetManager, EquipmentManager } from './carrier/Fleet'
 export { RevenueIntel, BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard } from './carrier/Finance'
-export { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings } from './carrier/Settings'
+export { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement } from './carrier/Settings'
 
 // ─── AI DASHBOARD ─────────────────────────────────────────────────────────────
 export function CarrierDashboard() {

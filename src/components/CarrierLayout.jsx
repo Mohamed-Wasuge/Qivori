@@ -18,7 +18,7 @@ import {
   DriverProfiles, BrokerDirectory, ExpenseTracker, FactoringCashflow,
   CommandCenter, AILoadBoard, CashFlowForecaster, CheckCallCenter, DriverScorecard, DATAlertBot,
   PLDashboard, ReceivablesAging, DriverPayReport, CashRunway, QuickBooksExport, CarrierPackage, EquipmentManager,
-  AnalyticsDashboard, ReferralProgram, SMSSettings, InvoicingSettings, RateNegotiation, RateBadge,
+  AnalyticsDashboard, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement, RateNegotiation, RateBadge,
 } from '../pages/CarrierPages'
 import { apiFetch } from '../lib/api'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
@@ -1459,34 +1459,7 @@ function SettingsTab() {
 
         {/* Team */}
         {settingsSec === 'team' && (
-          <>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-              <div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>TEAM & ACCESS</div>
-                <div style={{ fontSize:12, color:'var(--muted)' }}>Manage who can access Qivori and what they can do</div>
-              </div>
-              <button className="btn btn-primary" style={{ fontSize:12 }} onClick={() => showToast('','Invite','Team invitation sent!')}>+ Invite Member</button>
-            </div>
-            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                  {['Name','Email','Role','Actions'].map(h => <th key={h} style={{ padding:'10px 18px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {team.map(m => (
-                    <tr key={m.email} style={{ borderBottom:'1px solid var(--border)' }}>
-                      <td style={{ padding:'14px 18px', fontSize:13, fontWeight:700 }}>{m.name}</td>
-                      <td style={{ padding:'14px 18px', fontSize:12, color:'var(--muted)' }}>{m.email}</td>
-                      <td style={{ padding:'14px 18px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:m.roleC+'15', color:m.roleC }}>{m.role}</span></td>
-                      <td style={{ padding:'14px 18px' }}>
-                        {m.role !== 'Admin' && <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Edit',m.name + ' permissions')}>Edit</button>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <TeamManagement />
         )}
 
         {/* Notifications */}
@@ -2408,6 +2381,9 @@ function BookedLoads() {
   const [parsing, setParsing] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
+  const [signatureModal, setSignatureModal] = useState(null) // { loadId, docId }
+  const sigCanvasRef = useRef(null)
+  const sigDrawing = useRef(false)
   const [form, setForm] = useState({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
 
   const handleDocUpload = useCallback(async (loadId, file, type) => {
@@ -2472,6 +2448,80 @@ function BookedLoads() {
       showToast('', doc.name, 'No preview available')
     }
   }
+
+  const signDoc = (loadId, docId) => setSignatureModal({ loadId, docId })
+
+  const initSigCanvas = useCallback((canvas) => {
+    if (!canvas) return
+    sigCanvasRef.current = canvas
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#1a1a2e'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }, [])
+
+  const clearSigCanvas = useCallback(() => {
+    const canvas = sigCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#1a1a2e'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }, [])
+
+  const getSigPos = useCallback((e, canvas) => {
+    const rect = canvas.getBoundingClientRect()
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    return { x: clientX - rect.left, y: clientY - rect.top }
+  }, [])
+
+  const onSigDown = useCallback((e) => {
+    e.preventDefault()
+    const canvas = sigCanvasRef.current
+    if (!canvas) return
+    sigDrawing.current = true
+    const ctx = canvas.getContext('2d')
+    const pos = getSigPos(e, canvas)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+  }, [getSigPos])
+
+  const onSigMove = useCallback((e) => {
+    e.preventDefault()
+    if (!sigDrawing.current) return
+    const canvas = sigCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const pos = getSigPos(e, canvas)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+  }, [getSigPos])
+
+  const onSigUp = useCallback((e) => {
+    e.preventDefault()
+    sigDrawing.current = false
+  }, [])
+
+  const saveSignature = useCallback(() => {
+    if (!signatureModal || !sigCanvasRef.current) return
+    const dataUrl = sigCanvasRef.current.toDataURL('image/png')
+    const { loadId, docId } = signatureModal
+    setLoadDocs(prev => ({
+      ...prev,
+      [loadId]: (prev[loadId] || []).map(doc =>
+        doc.id === docId ? { ...doc, signed: true, signatureData: dataUrl } : doc
+      )
+    }))
+    setSignatureModal(null)
+    showToast('', 'Signature Saved', 'Document signed successfully')
+  }, [signatureModal, showToast])
 
   const handleFile = useCallback(async (file) => {
     if (!file) return
@@ -2935,6 +2985,8 @@ function BookedLoads() {
                           <div style={{ fontSize: 10, color: 'var(--muted)' }}>{doc.size} · {doc.uploadedAt}</div>
                         </div>
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: (DOC_COLORS[doc.type] || 'var(--muted)') + '15', color: DOC_COLORS[doc.type] || 'var(--muted)', border: '1px solid ' + (DOC_COLORS[doc.type] || 'var(--muted)') + '30', whiteSpace: 'nowrap' }}>{doc.type}</span>
+                        {doc.signed && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'var(--success, #22c55e)' + '20', color: 'var(--success, #22c55e)', border: '1px solid var(--success, #22c55e)' + '40', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 3 }}><Ic icon={CheckCircle} size={11} /> Signed</span>}
+                        {doc.type === 'Rate Con' && !doc.signed && <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--accent)' }} onClick={() => signDoc(load.id, doc.id)}>Sign</button>}
                         <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => viewDoc(doc)}>View</button>
                         <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 13, padding: '0 4px' }} onClick={() => removeDoc(load.id, doc.id)}>✕</button>
                       </div>
@@ -2946,6 +2998,36 @@ function BookedLoads() {
           </div>
         )
       })}
+
+      {/* E-Signature Modal */}
+      {signatureModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }} onClick={() => setSignatureModal(null)}>
+          <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', padding: 24, width: 460, maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Sign Document</div>
+              <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18 }} onClick={() => setSignatureModal(null)}>✕</button>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Draw your signature below using mouse or touch</div>
+            <canvas
+              ref={initSigCanvas}
+              width={410}
+              height={180}
+              style={{ width: '100%', height: 180, borderRadius: 10, border: '1px solid var(--border)', cursor: 'crosshair', touchAction: 'none' }}
+              onMouseDown={onSigDown}
+              onMouseMove={onSigMove}
+              onMouseUp={onSigUp}
+              onMouseLeave={onSigUp}
+              onTouchStart={onSigDown}
+              onTouchMove={onSigMove}
+              onTouchEnd={onSigUp}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 18px' }} onClick={clearSigCanvas}>Clear</button>
+              <button className="btn" style={{ fontSize: 12, padding: '8px 22px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }} onClick={saveSignature}>Save Signature</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -582,6 +582,89 @@ export function ExpenseTracker() {
   const [newExp, setNewExp] = useState({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'', pricePerGal:'' })
   const [scanning, setScanning] = useState(false)
   const [scanDrag, setScanDrag] = useState(false)
+  const [csvPreview, setCsvPreview] = useState(null)
+  const csvFileRef = useRef(null)
+
+  // ─── CSV Import ───
+  const parseCsvLine = (line) => {
+    const fields = []
+    let cur = '', inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') { inQuotes = !inQuotes; continue }
+      if (ch === ',' && !inQuotes) { fields.push(cur.trim()); cur = ''; continue }
+      cur += ch
+    }
+    fields.push(cur.trim())
+    return fields
+  }
+
+  const mapCsvHeader = (h) => {
+    const low = (h || '').trim().toLowerCase()
+    if (['date'].includes(low)) return 'date'
+    if (['amount','total'].includes(low)) return 'amount'
+    if (['category','type','cat'].includes(low)) return 'cat'
+    if (['description','notes','memo','note'].includes(low)) return 'notes'
+    if (['driver'].includes(low)) return 'driver'
+    if (['state'].includes(low)) return 'state'
+    if (['gallons'].includes(low)) return 'gallons'
+    return null
+  }
+
+  const matchCategory = (raw) => {
+    if (!raw) return 'Other'
+    const low = raw.toLowerCase()
+    const match = EXPENSE_CATS.find(c => c.toLowerCase() === low)
+    if (match) return match
+    // partial match
+    const partial = EXPENSE_CATS.find(c => low.includes(c.toLowerCase()) || c.toLowerCase().includes(low))
+    return partial || 'Other'
+  }
+
+  const handleCsvFile = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target.result
+      const lines = text.split(/\r?\n/).filter(l => l.trim())
+      if (lines.length < 2) { showToast('', 'CSV Error', 'File must have a header row and at least one data row'); return }
+      const headers = parseCsvLine(lines[0])
+      const mapping = headers.map(mapCsvHeader)
+      if (!mapping.some(m => m === 'amount')) { showToast('', 'CSV Error', 'No "Amount" or "Total" column found in header'); return }
+      const parsed = []
+      for (let i = 1; i < lines.length; i++) {
+        const vals = parseCsvLine(lines[i])
+        if (vals.length === 0 || vals.every(v => !v)) continue
+        const row = { date: '', cat: 'Other', amount: '', notes: '', driver: '', state: '', gallons: '' }
+        mapping.forEach((field, idx) => {
+          if (field && vals[idx]) row[field] = vals[idx]
+        })
+        if (row.cat) row.cat = matchCategory(row.cat)
+        const amt = parseFloat(row.amount)
+        if (isNaN(amt) || amt <= 0) continue
+        row.amount = amt
+        parsed.push(row)
+      }
+      if (parsed.length === 0) { showToast('', 'CSV Error', 'No valid expense rows found'); return }
+      setCsvPreview(parsed)
+    }
+    reader.readAsText(file)
+    if (csvFileRef.current) csvFileRef.current.value = ''
+  }
+
+  const importCsvExpenses = () => {
+    if (!csvPreview || csvPreview.length === 0) return
+    csvPreview.forEach(row => {
+      const expData = { date: row.date, cat: row.cat, amount: row.amount, notes: row.notes || '' }
+      if (row.driver) expData.driver = row.driver
+      if (row.state) expData.state = row.state.toUpperCase().trim()
+      if (row.gallons) expData.gallons = parseFloat(row.gallons)
+      ctxAddExpense(expData)
+    })
+    const count = csvPreview.length
+    setCsvPreview(null)
+    showToast('', 'CSV Imported', `${count} expense${count !== 1 ? 's' : ''} added successfully`)
+  }
 
   const filtered = filterCat === 'All' ? expenses : expenses.filter(e => e.cat === filterCat)
   const totalBycat = EXPENSE_CATS.map(c => ({ cat: c, total: expenses.filter(e => e.cat === c).reduce((s,e) => s+e.amount, 0) })).filter(x => x.total > 0)
@@ -698,8 +781,53 @@ export function ExpenseTracker() {
             </button>
           ))}
         </div>
+        <input ref={csvFileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleCsvFile(e.target.files[0])} />
+        <button className="btn" style={{ fontSize: 12, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontWeight: 700, padding: '6px 14px', borderRadius: 8 }} onClick={() => csvFileRef.current?.click()}><Ic icon={Download} /> Import CSV</button>
         <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => setShowForm(s => !s)}>{showForm ? '✕ Cancel' : '+ Add Expense'}</button>
       </div>
+
+      {/* CSV Preview */}
+      {csvPreview && (
+        <div style={{ background: 'var(--surface)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}><Ic icon={FileText} /> CSV Preview</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{csvPreview.length} expense{csvPreview.length !== 1 ? 's' : ''} found</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" style={{ fontSize: 11, background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontWeight: 700, padding: '5px 12px', borderRadius: 8 }} onClick={() => setCsvPreview(null)}>Cancel</button>
+              <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={importCsvExpenses}><Ic icon={Check} /> Import All ({csvPreview.length})</button>
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+              <thead>
+                <tr>
+                  {['#','Date','Category','Amount','Notes','Driver','State'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '6px 10px', fontSize: 10, color: 'var(--muted)', fontWeight: 700, borderBottom: '1px solid var(--border)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {csvPreview.slice(0, 3).map((row, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'var(--muted)' }}>{i + 1}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12 }}>{row.date || '—'}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: CAT_COLORS[row.cat] || 'var(--muted)' }}>{React.createElement(CAT_ICONS[row.cat] || Paperclip, {size:11})} {row.cat}</span></td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700 }}>${row.amount.toLocaleString()}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12, color: 'var(--muted)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.notes || '—'}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12 }}>{row.driver || '—'}</td>
+                    <td style={{ padding: '8px 10px', fontSize: 12 }}>{row.state || '—'}</td>
+                  </tr>
+                ))}
+                {csvPreview.length > 3 && (
+                  <tr><td colSpan={7} style={{ padding: '8px 10px', fontSize: 11, color: 'var(--muted)', textAlign: 'center', fontStyle: 'italic' }}>...and {csvPreview.length - 3} more expense{csvPreview.length - 3 !== 1 ? 's' : ''}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Add form */}
       {showForm && (

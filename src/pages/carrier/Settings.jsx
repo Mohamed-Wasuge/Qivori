@@ -1150,3 +1150,180 @@ export function InvoicingSettings() {
     </div>
   )
 }
+
+// ─── TEAM MANAGEMENT ────────────────────────────────────────────────────────
+export function TeamManagement() {
+  const { showToast } = useApp()
+  const { company, updateCompany } = useCarrier()
+
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState('Dispatcher')
+  const [sending, setSending] = useState(false)
+
+  const ROLES = [
+    { key:'Owner',      color:'#f0a500', desc:'Full access — billing, settings, team, all data' },
+    { key:'Dispatcher', color:'#3b82f6', desc:'Manage loads, dispatch, track shipments, view rates' },
+    { key:'Accountant', color:'#8b5cf6', desc:'Invoicing, payments, expenses, financial reports' },
+    { key:'Driver',     color:'#22c55e', desc:'View assigned loads, update status, upload PODs' },
+  ]
+
+  const members = company?.team_members || []
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return showToast('', 'Error', 'Email is required')
+    if (members.find(m => m.email === inviteEmail.trim())) return showToast('', 'Error', 'This email is already on the team')
+
+    setSending(true)
+    const newMember = {
+      email: inviteEmail.trim(),
+      name: inviteName.trim() || inviteEmail.trim().split('@')[0],
+      role: inviteRole,
+      status: 'pending',
+      invited_at: new Date().toISOString(),
+    }
+    const updated = [...members, newMember]
+    try {
+      await updateCompany({ team_members: updated })
+      showToast('', 'Invite Sent', `${newMember.name} invited as ${inviteRole}`)
+      setInviteEmail('')
+      setInviteName('')
+      setInviteRole('Dispatcher')
+    } catch {
+      showToast('', 'Error', 'Failed to send invite')
+    }
+    setSending(false)
+  }
+
+  const removeMember = async (email) => {
+    const updated = members.filter(m => m.email !== email)
+    try {
+      await updateCompany({ team_members: updated })
+      showToast('', 'Removed', 'Team member removed')
+    } catch {
+      showToast('', 'Error', 'Failed to remove member')
+    }
+  }
+
+  const roleColor = (role) => ROLES.find(r => r.key === role)?.color || 'var(--muted)'
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>TEAM</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Manage who has access to your Qivori account</div>
+      </div>
+
+      {/* Invite New Member */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={UserPlus} size={14} /> Invite Team Member</div>
+        </div>
+        <div style={{ padding:20, display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'flex', gap:8 }}>
+            <input
+              value={inviteName}
+              onChange={e => setInviteName(e.target.value)}
+              placeholder="Name"
+              style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'12px 14px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }}
+            />
+            <input
+              value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)}
+              placeholder="Email address"
+              style={{ flex:2, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'12px 14px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }}
+            />
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value)}
+              style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'12px 14px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', cursor:'pointer' }}
+            >
+              {ROLES.map(r => (
+                <option key={r.key} value={r.key}>{r.key}</option>
+              ))}
+            </select>
+            <button
+              className="btn btn-primary"
+              style={{ padding:'12px 24px', fontSize:13, fontWeight:700, whiteSpace:'nowrap' }}
+              onClick={handleInvite}
+              disabled={sending}
+            >
+              <Ic icon={Send} size={12} /> {sending ? 'Sending...' : 'Send Invite'}
+            </button>
+          </div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>
+            An invite email will be sent. They can join your team by creating a Qivori account.
+          </div>
+        </div>
+      </div>
+
+      {/* Team Members List */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={Users} size={14} /> Team Members ({members.length})</div>
+        </div>
+        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:8 }}>
+          {members.length === 0 && (
+            <div style={{ textAlign:'center', padding:24, color:'var(--muted)', fontSize:12 }}>
+              No team members yet. Invite someone above to get started.
+            </div>
+          )}
+          {members.map((m, i) => (
+            <div key={m.email + i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background:'var(--surface2)', borderRadius:10, transition:'all 0.15s' }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:roleColor(m.role) + '18', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:14, fontWeight:700, color:roleColor(m.role) }}>
+                {(m.name || m.email)[0].toUpperCase()}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.name || m.email}</div>
+                <div style={{ fontSize:11, color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.email}</div>
+              </div>
+              <span style={S.badge(roleColor(m.role))}>{m.role}</span>
+              {m.status === 'pending' ? (
+                <span style={S.badge('var(--accent)')}>Pending</span>
+              ) : (
+                <span style={S.badge('var(--success)')}><Ic icon={Check} size={10} /> Active</span>
+              )}
+              <button
+                className="btn btn-ghost"
+                style={{ fontSize:11, padding:'4px 10px', color:'var(--danger, #ef4444)' }}
+                onClick={() => removeMember(m.email)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Role Permissions */}
+      <div style={S.panel}>
+        <div style={S.panelHead}>
+          <div style={S.panelTitle}><Ic icon={Shield} size={14} /> Role Permissions</div>
+        </div>
+        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+          {ROLES.map(r => (
+            <div key={r.key} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background:'var(--surface2)', borderRadius:10 }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:r.color + '12', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Ic icon={Shield} size={16} color={r.color} />
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:r.color }}>{r.key}</div>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>{r.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div style={{ background:'rgba(77,142,240,0.06)', border:'1px solid rgba(77,142,240,0.2)', borderRadius:12, padding:'14px 18px', display:'flex', gap:12 }}>
+        <Ic icon={Shield} size={18} color="var(--accent2)" />
+        <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>
+          Only Owners can manage team members and billing. Dispatchers, Accountants, and Drivers will only see the parts of Qivori relevant to their role. All activity is logged for security.
+        </div>
+      </div>
+    </div>
+  )
+}

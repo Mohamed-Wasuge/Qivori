@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as db from '../lib/database'
+import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
 import {
@@ -199,6 +200,59 @@ export function CarrierProvider({ children }) {
 
     init()
   }, [demoMode])
+
+  // ─── Real-time subscriptions ──────────────────────────────────
+  useEffect(() => {
+    if (demoMode || !useDb) return
+
+    const channels = []
+
+    // Subscribe to loads changes
+    const loadsChannel = supabase.channel('realtime-loads')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loads' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setLoads(prev => [normalizeLoad(payload.new), ...prev.filter(l => l.id !== payload.new.id)])
+        } else if (payload.eventType === 'UPDATE') {
+          setLoads(prev => prev.map(l => l.id === payload.new.id ? normalizeLoad(payload.new) : l))
+        } else if (payload.eventType === 'DELETE') {
+          setLoads(prev => prev.filter(l => l.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+    channels.push(loadsChannel)
+
+    // Subscribe to invoices changes
+    const invoicesChannel = supabase.channel('realtime-invoices')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setInvoices(prev => [normalizeInvoice(payload.new), ...prev.filter(i => i.id !== payload.new.id)])
+        } else if (payload.eventType === 'UPDATE') {
+          setInvoices(prev => prev.map(i => i.id === payload.new.id ? normalizeInvoice(payload.new) : i))
+        } else if (payload.eventType === 'DELETE') {
+          setInvoices(prev => prev.filter(i => i.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+    channels.push(invoicesChannel)
+
+    // Subscribe to expenses changes
+    const expensesChannel = supabase.channel('realtime-expenses')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setExpenses(prev => [normalizeExpense(payload.new), ...prev.filter(e => e.id !== payload.new.id)])
+        } else if (payload.eventType === 'UPDATE') {
+          setExpenses(prev => prev.map(e => e.id === payload.new.id ? normalizeExpense(payload.new) : e))
+        } else if (payload.eventType === 'DELETE') {
+          setExpenses(prev => prev.filter(e => e.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+    channels.push(expensesChannel)
+
+    return () => {
+      channels.forEach(ch => supabase.removeChannel(ch))
+    }
+  }, [demoMode, useDb])
 
   // ─── Load operations ─────────────────────────────────────────
   const addLoad = useCallback(async (load) => {

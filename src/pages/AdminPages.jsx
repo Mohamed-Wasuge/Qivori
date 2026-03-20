@@ -2160,7 +2160,11 @@ export function DemoRequests() {
     const q = search.toLowerCase()
     return (r.email || '').toLowerCase().includes(q) ||
            (r.name || '').toLowerCase().includes(q) ||
-           (r.company || '').toLowerCase().includes(q)
+           (r.company || '').toLowerCase().includes(q) ||
+           (r.current_eld || '').toLowerCase().includes(q) ||
+           (r.factoring_company || '').toLowerCase().includes(q) ||
+           (r.load_boards || '').toLowerCase().includes(q) ||
+           (r.pain_points || '').toLowerCase().includes(q)
   })
 
   const formatDate = (d) => {
@@ -2175,8 +2179,8 @@ export function DemoRequests() {
   }
 
   const handleExportCSV = () => {
-    const csv = ['Name,Email,Phone,Company,Source,Converted,Requested At']
-    requests.forEach(r => csv.push(`"${r.name || ''}","${r.email}","${r.phone || ''}","${r.company || ''}","${r.source || ''}","${r.converted ? 'Yes' : 'No'}","${r.created_at}"`))
+    const csv = ['Name,Email,Phone,Company,Trucks,ELD,Factoring,Load Boards,Pain Points,Source,Converted,Requested At']
+    requests.forEach(r => csv.push(`"${r.name || ''}","${r.email}","${r.phone || ''}","${r.company || ''}","${r.truck_count || ''}","${r.current_eld || ''}","${r.factoring_company || ''}","${r.load_boards || ''}","${(r.pain_points || '').replace(/"/g, '""')}","${r.source || ''}","${r.converted ? 'Yes' : 'No'}","${r.created_at}"`))
     const blob = new Blob([csv.join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = 'qivori-demo-requests.csv'; a.click()
@@ -2243,6 +2247,7 @@ export function DemoRequests() {
             No demo requests yet. Share qivori.com to start collecting leads!
           </div>
         ) : (
+          <div style={{ overflowX: 'auto' }}>
           <table>
             <thead>
               <tr>
@@ -2250,7 +2255,11 @@ export function DemoRequests() {
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Company</th>
-                <th>Source</th>
+                <th>Trucks</th>
+                <th>ELD</th>
+                <th>Factoring</th>
+                <th>Load Boards</th>
+                <th>Pain Points</th>
                 <th>Requested</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -2263,7 +2272,11 @@ export function DemoRequests() {
                   <td><strong style={{ fontSize: 12 }}>{r.email}</strong></td>
                   <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.phone || '—'}</td>
                   <td style={{ fontSize: 12 }}>{r.company || '—'}</td>
-                  <td><span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', fontWeight: 700 }}>{r.source || 'landing'}</span></td>
+                  <td style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{r.truck_count || '—'}</td>
+                  <td style={{ fontSize: 11 }}>{r.current_eld ? <span style={{ padding: '2px 8px', borderRadius: 6, background: 'rgba(59,130,246,0.1)', color: 'var(--accent2)', fontWeight: 700, fontSize: 10 }}>{r.current_eld}</span> : '—'}</td>
+                  <td style={{ fontSize: 11 }}>{r.factoring_company ? <span style={{ padding: '2px 8px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', fontWeight: 700, fontSize: 10 }}>{r.factoring_company}</span> : '—'}</td>
+                  <td style={{ fontSize: 11 }}>{r.load_boards ? <span style={{ padding: '2px 8px', borderRadius: 6, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', fontWeight: 700, fontSize: 10 }}>{r.load_boards}</span> : '—'}</td>
+                  <td style={{ fontSize: 11, color: 'var(--muted)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.pain_points || ''}>{r.pain_points || '—'}</td>
                   <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(r.created_at)}</td>
                   <td>
                     <span style={{
@@ -2290,6 +2303,7 @@ export function DemoRequests() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

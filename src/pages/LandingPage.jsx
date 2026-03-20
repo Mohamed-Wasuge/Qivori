@@ -258,12 +258,7 @@ const PLANS = [
   },
 ]
 
-const TESTIMONIALS = [
-  { name: 'Marcus T.', role: 'Owner-Operator, Atlanta GA', truck: 'Owner-Operator', text: 'Qivori cut my daily workload in half. The AI surfaces loads I would have missed and handles the busywork so I can focus on driving.', rating: 5 },
-  { name: 'Rosa M.', role: 'Fleet Owner, 5 Trucks, Dallas TX', truck: '5 Trucks', text: 'My team operates way more efficiently now. Dispatch is smoother, compliance is organized, and our revenue is up 23% since switching.', rating: 5 },
-  { name: 'James K.', role: 'Owner-Operator, Chicago IL', truck: 'Owner-Operator', text: 'The IFTA calculator alone saves me hours every quarter. And the rate insights helped me negotiate $400 more on my last load.', rating: 5 },
-  { name: 'Darrell W.', role: 'Fleet Owner, Houston TX, 3 Trucks', truck: '3 Trucks', text: 'Finally a platform that\'s actually built for small fleets. Everything is clear, simple, and I can manage it all from my phone.', rating: 5 },
-]
+const TESTIMONIALS = []
 
 const HOW_IT_WORKS = [
   { step: '01', title: 'Sign Up in 60 Seconds', desc: 'Create your account and add your MC number. No credit card, no setup fees, no long-term contracts.', icon: Users },
@@ -631,10 +626,10 @@ export default function LandingPage({ onGetStarted }) {
       <section style={{ padding: '32px 40px', background: 'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(240,165,0,0.01))', borderTop: '1px solid rgba(240,165,0,0.1)', borderBottom: '1px solid rgba(240,165,0,0.1)' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
           {[
-            { value: '500+', label: 'Loads Managed' },
-            { value: '99.9%', label: 'Uptime' },
-            { value: '$2M+', label: 'Revenue Tracked' },
-            { value: '4.9\u2605', label: 'Rating' },
+            { value: '50', label: 'Founder Spots Left' },
+            { value: '$399', label: 'Per Truck / Month' },
+            { value: '14', label: 'Day Free Trial' },
+            { value: '$0', label: 'No Credit Card Required' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)', lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
@@ -834,29 +829,28 @@ export default function LandingPage({ onGetStarted }) {
       <section className="lp-section" style={{ padding: '80px 40px', maxWidth: 960, margin: '0 auto' }}>
         <FadeIn>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.testimonials')}</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>EARLY ACCESS</div>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-              TRUSTED BY OWNER-OPERATORS NATIONWIDE
+              BE ONE OF THE FIRST 50
             </h2>
+            <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
+              We're opening Qivori to the first 50 trucks at founder pricing. Help shape the platform, lock in $399/truck forever, and get direct access to our team.
+            </p>
           </div>
         </FadeIn>
-        <div className="lp-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16 }}>
-          {TESTIMONIALS.map((tm, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, maxWidth: 700, margin: '0 auto' }}>
+          {[
+            { icon: Zap, title: 'Founder Pricing Locked', desc: '$399/truck/mo forever. Price goes to $599 after the first 50 trucks.' },
+            { icon: Bot, title: 'AI That Calls Brokers', desc: 'Your AI dispatcher finds loads, calls brokers, negotiates rates, and books — hands-free.' },
+            { icon: Shield, title: 'Direct Founder Access', desc: 'Work directly with our team. Your feedback shapes the product. Priority support.' },
+          ].map((item, i) => (
             <FadeIn key={i} delay={i * 0.1}>
-              <div style={{ background: '#16161e', border: '1px solid #2a2a35', borderRadius: 16, padding: '24px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
-                  {Array.from({ length: tm.rating }).map((_, j) => <Ic key={j} icon={Star} size={14} color="#f0a500" style={{ fill: '#f0a500' }} />)}
+              <div style={{ background: '#16161e', border: '1px solid #2a2a35', borderRadius: 16, padding: '24px', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <Ic icon={item.icon} size={22} color="var(--accent)" />
                 </div>
-                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.65, flex: 1, margin: 0 }}>"{tm.text}"</p>
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #2a2a35', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, color: 'var(--accent)' }}>
-                    {tm.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{tm.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tm.role}</div>
-                  </div>
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>{item.title}</div>
+                <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>{item.desc}</p>
               </div>
             </FadeIn>
           ))}

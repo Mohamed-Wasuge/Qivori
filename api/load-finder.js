@@ -291,34 +291,49 @@ export default async function handler(req) {
       origin: `${load.origin_city || ''}, ${load.origin_state || ''}`.trim(),
       destination: `${load.destination_city || ''}, ${load.destination_state || ''}`.trim(),
       rate: load.rate || 0,
-      miles: load.miles || 0,
+      distance_miles: load.miles || 0,
       rate_per_mile: load.rate && load.miles ? +(load.rate / load.miles).toFixed(2) : 0,
       weight: load.weight || 0,
       equipment_type: load.equipment_type || 'unknown',
       broker_name: load.broker_name || 'Unknown',
       broker_phone: load.broker_phone,
-      broker_mc: load.broker_mc || null,
-      match_score: load.match_score,
-      match_reasons: load.match_reasons,
-      status: 'pending_call',
-      found_at: new Date().toISOString()
+      score: load.match_score,
+      score_reasons: load.match_reasons,
+      status: load.match_score >= 70 && load.broker_phone ? 'pending_call' : 'new',
     }));
 
     const inserted = await supabaseInsert('load_matches', matches);
 
-    // 6. Trigger AI caller for top matches
-    const topMatches = qualifiedLoads.slice(0, 5);
-    const callerUrl = `${new URL(req.url).origin}/api/ai-caller`;
+    // 6. Trigger AI caller for top matches (score >= 70 with broker phone)
+    const callableLoads = qualifiedLoads
+      .filter(l => l.match_score >= 70 && l.broker_phone)
+      .slice(0, 5);
 
-    // Fire-and-forget call to ai-caller
-    fetch(callerUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.CRON_SECRET}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ matchIds: topMatches.map(m => m.id || m.load_id) })
-    }).catch(() => {});
+    if (callableLoads.length > 0) {
+      const callerUrl = `${new URL(req.url).origin}/api/ai-caller`;
+      const batchLoads = callableLoads.map(l => ({
+        load_id: String(l.id),
+        origin: `${l.origin_city || ''}, ${l.origin_state || ''}`.trim(),
+        destination: `${l.destination_city || ''}, ${l.destination_state || ''}`.trim(),
+        rate: l.rate || 0,
+        equipment_type: l.equipment_type || 'dry van',
+        broker_name: l.broker_name || 'Unknown',
+        broker_phone: l.broker_phone,
+        broker_mc: l.broker_mc || '',
+        match_score: l.match_score,
+        source: l.source,
+      }));
+
+      // Fire-and-forget batch call to ai-caller
+      fetch(callerUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ batchLoads })
+      }).catch(() => {});
+    }
 
     return Response.json({
       ok: true,
@@ -326,12 +341,14 @@ export default async function handler(req) {
       internal: internalLoads.length,
       external: externalLoads.length,
       qualified: qualifiedLoads.length,
-      top_matches: topMatches.map(m => ({
+      calls_triggered: callableLoads.length,
+      top_matches: qualifiedLoads.slice(0, 10).map(m => ({
         origin: `${m.origin_city}, ${m.origin_state}`,
         destination: `${m.destination_city}, ${m.destination_state}`,
         rate: m.rate,
         score: m.match_score,
-        broker: m.broker_name
+        broker: m.broker_name,
+        will_call: m.match_score >= 70 && !!m.broker_phone,
       }))
     });
 

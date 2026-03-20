@@ -70,8 +70,9 @@ LOAD DETAILS:
 - CSA Score: ${context.csaScore}
 - Pickup: ${context.pickupDate}
 
-MINIMUM ACCEPTABLE RATE: $${Math.round(Number(context.rate) * 0.9)} (90% of posted)
-If broker offers below this, politely decline and counter at posted rate.
+MINIMUM ACCEPTABLE RATE: Will be determined dynamically per call.
+If broker offers below your carrier's minimum, politely decline and counter at posted rate.
+Be flexible but firm — your carrier has standards.
 
 CONVERSATION STAGE: ${context.stage}
 Keep your response to 1-3 sentences max. This is a phone call, not an essay.`;
@@ -132,6 +133,18 @@ async function parseForm(req) {
   return obj;
 }
 
+// — Fetch user's negotiation settings —
+async function getNegotiationSettings(userId) {
+  if (!userId || !supabaseUrl || !supabaseKey) return null;
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/negotiation_settings?user_id=eq.${userId}&limit=1`, {
+      headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+    });
+    const data = await res.json();
+    return data?.[0] || null;
+  } catch { return null; }
+}
+
 // — Main handler —
 export default async function handler(req) {
   if (req.method !== 'POST' && req.method !== 'GET') {
@@ -153,6 +166,7 @@ export default async function handler(req) {
     carrierDOT: url.searchParams.get('carrierDOT') || '',
     csaScore: url.searchParams.get('csaScore') || 'satisfactory',
     pickupDate: url.searchParams.get('pickupDate') || 'tomorrow morning',
+    userId: url.searchParams.get('userId') || '',
     stage: stage
   };
 
@@ -200,7 +214,7 @@ export default async function handler(req) {
         await supabaseInsert('call_transcripts', {
           call_sid: callSid, speaker: 'ai_alex', text: response, stage: 'unavailable', created_at: new Date().toISOString()
         });
-        await supabaseUpdate('call_logs', `call_sid=eq.${callSid}`, { status: 'load_unavailable', completed_at: new Date().toISOString() });
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, { call_status: 'load_unavailable', ended_at: new Date().toISOString() });
 
         return twimlResponse(`${say(response)}<Hangup/>`);
       } else {
@@ -224,7 +238,18 @@ export default async function handler(req) {
 
       const lower = brokerSaid.toLowerCase();
       const postedRate = Number(context.rate);
-      const minRate = Math.round(postedRate * 0.9);
+
+      // Fetch user's negotiation settings — fall back to 90% of posted rate
+      const negSettings = context.userId ? await getNegotiationSettings(context.userId) : null;
+      let minRate;
+      if (negSettings?.min_rate_per_mile && context.rate) {
+        // Use user's min $/mile if set — convert to total rate using estimated miles
+        const estMiles = postedRate / 2.50; // rough estimate
+        const minRpm = negSettings.min_rate_per_mile;
+        minRate = Math.round(Math.max(minRpm * estMiles, postedRate * 0.85));
+      } else {
+        minRate = Math.round(postedRate * 0.9);
+      }
 
       // Detect confirmation
       if (lower.includes('yes') || lower.includes('confirm') || lower.includes('deal') || lower.includes('sounds good') || lower.includes('works') || lower.includes('let\'s do it') || lower.includes('book it') || lower.includes('that works')) {
@@ -303,11 +328,12 @@ export default async function handler(req) {
         });
 
         // Update call log as booked
-        await supabaseUpdate('call_logs', `call_sid=eq.${callSid}`, {
-          status: 'booked',
-          rate_agreed: Number(agreedRate),
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, {
+          call_status: 'booked',
+          outcome: 'booked',
+          agreed_rate: Number(agreedRate),
           broker_email: brokerEmail,
-          completed_at: new Date().toISOString()
+          ended_at: new Date().toISOString()
         });
 
         // Trigger rate confirmation email (fire-and-forget)
@@ -341,7 +367,7 @@ export default async function handler(req) {
       const recordingSid = form.RecordingSid || '';
 
       if (callSid && recordingUrl) {
-        await supabaseUpdate('call_logs', `call_sid=eq.${callSid}`, {
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, {
           recording_url: recordingUrl,
           recording_sid: recordingSid
         });
@@ -357,12 +383,12 @@ export default async function handler(req) {
       const duration = form.CallDuration || '0';
 
       if (callSid) {
-        const update = { twilio_status: status, call_duration: Number(duration) };
+        const update = { call_duration: Number(duration) };
         if (status === 'completed' || status === 'busy' || status === 'no-answer' || status === 'failed') {
-          update.completed_at = new Date().toISOString();
-          if (status !== 'completed') update.status = status;
+          update.ended_at = new Date().toISOString();
+          if (status !== 'completed') update.call_status = status;
         }
-        await supabaseUpdate('call_logs', `call_sid=eq.${callSid}`, update);
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, update);
       }
       return new Response('OK');
     }
@@ -376,7 +402,7 @@ export default async function handler(req) {
       if (amdResult === 'machine_start' || amdResult === 'machine_end_beep') {
         // Leave a voicemail
         const voicemail = `Hi, this is Alex from Qivori Dispatch. I'm calling about a load from ${context.origin} to ${context.destination}. If that's still available, please give us a call back. Thanks.`;
-        await supabaseUpdate('call_logs', `call_sid=eq.${callSid}`, { status: 'voicemail', amd_result: amdResult });
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, { call_status: 'voicemail', outcome: 'voicemail' });
         return twimlResponse(`${say(voicemail)}<Hangup/>`);
       }
       return new Response('OK');

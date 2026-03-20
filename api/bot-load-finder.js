@@ -203,7 +203,7 @@ function buildMatchEmail(firstName, load, match, rateStr) {
 </div>
 <p style="text-align:center;font-size:11px;color:#4a5570;margin-top:20px;">
 Qivori AI scans loads and matches them to your lane, equipment, and safety profile.<br/>
-Replaces your dispatcher — save $1,036/month vs traditional dispatcher costs.
+Your AI-powered dispatch assistant — finding the best loads so your team can focus on driving.
 </p>
 </div></body></html>`
 }

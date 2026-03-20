@@ -47,14 +47,15 @@ async function supabaseUpdate(table, id, data) {
   });
 }
 
-// — Check if user is on Autopilot AI plan —
+// — Check if user has active subscription —
 async function checkPlanAccess(userId) {
   if (!userId) return { allowed: false, reason: 'No user ID' };
-  const users = await supabaseQuery('users', `id=eq.${userId}&select=subscription_plan,subscription_status`);
+  const users = await supabaseQuery('profiles', `id=eq.${userId}&select=plan,subscription_status`);
   const user = users?.[0];
   if (!user) return { allowed: false, reason: 'User not found' };
-  if (user.subscription_plan !== 'truck_autopilot_ai' && user.subscription_plan !== 'autopilot_ai') {
-    return { allowed: false, reason: 'AI Broker Calling requires the Autopilot AI plan ($799/mo). Upgrade to unlock.' };
+  const validPlans = ['autonomous_fleet', 'autopilot_ai', 'truck_autopilot_ai'];
+  if (!validPlans.includes(user.plan)) {
+    return { allowed: false, reason: 'AI Broker Calling requires an active Qivori subscription. Start your free trial to unlock.' };
   }
   if (user.subscription_status !== 'active' && user.subscription_status !== 'trialing') {
     return { allowed: false, reason: 'Subscription is not active' };
@@ -89,6 +90,7 @@ async function initiateCall(brokerPhone, callbackUrl, loadData) {
     carrierDOT: loadData.carrier_dot || '',
     csaScore: loadData.csa_score || 'satisfactory',
     pickupDate: loadData.pickup_date || 'tomorrow morning',
+    userId: loadData.user_id || '',
   });
 
   const twimlUrl = `${callbackUrl}?stage=greeting&${params.toString()}`;
@@ -146,13 +148,46 @@ export default async function handler(req) {
 
   try {
     const body = await req.json();
-    const { loadId, userId, brokerPhone, loadData } = body;
+    const { loadId, userId, brokerPhone, loadData, batchLoads } = body;
 
-    // — Plan gating: Autopilot AI only —
+    // — Handle batch calls from load-finder (service-to-service) —
+    if (batchLoads && Array.isArray(batchLoads) && isAuthorized(req)) {
+      const results = [];
+      for (const bl of batchLoads.slice(0, 5)) { // max 5 calls per batch
+        try {
+          if (!bl.broker_phone) continue;
+          const origin = new URL(req.url).origin;
+          const callbackUrl = `${origin}/api/call-handler`;
+          const callResult = await initiateCall(bl.broker_phone, callbackUrl, bl);
+          await supabaseInsert('call_logs', {
+            twilio_call_sid: callResult.sid,
+            load_id: bl.load_id || bl.id || null,
+            user_id: bl.user_id || null,
+            broker_phone: bl.broker_phone,
+            broker_name: bl.broker_name || 'Unknown',
+            call_status: 'initiated',
+            notes: JSON.stringify({
+              source: 'load_finder',
+              origin: bl.origin || `${bl.origin_city || ''}, ${bl.origin_state || ''}`,
+              destination: bl.destination || `${bl.destination_city || ''}, ${bl.destination_state || ''}`,
+              rate: bl.rate || 0,
+              match_score: bl.match_score,
+              equipment: bl.equipment_type,
+            }),
+          });
+          results.push({ loadId: bl.load_id || bl.id, callSid: callResult.sid, status: 'initiated' });
+        } catch (e) {
+          results.push({ loadId: bl.load_id || bl.id, error: e.message });
+        }
+      }
+      return Response.json({ ok: true, batch: true, results }, { headers: { 'Access-Control-Allow-Origin': '*' } });
+    }
+
+    // — Plan gating for user-initiated calls —
     if (userId) {
       const access = await checkPlanAccess(userId);
       if (!access.allowed) {
-        return Response.json({ ok: false, error: access.reason, planRequired: 'autopilot_ai' }, {
+        return Response.json({ ok: false, error: access.reason, planRequired: 'autonomous_fleet' }, {
           status: 403,
           headers: { 'Access-Control-Allow-Origin': '*' }
         });
@@ -195,22 +230,21 @@ export default async function handler(req) {
 
     // — Log the call —
     const callLog = {
-      call_sid: callResult.sid,
+      twilio_call_sid: callResult.sid,
       load_id: loadId || load.id || null,
       user_id: userId || null,
       broker_phone: phone,
       broker_name: load.broker_name || 'Unknown',
-      origin: load.origin || `${load.origin_city || ''}, ${load.origin_state || ''}`,
-      destination: load.destination || `${load.destination_city || ''}, ${load.destination_state || ''}`,
-      rate_posted: load.rate || 0,
-      status: 'initiated',
-      call_data: {
+      call_status: 'initiated',
+      notes: JSON.stringify({
+        origin: load.origin || `${load.origin_city || ''}, ${load.origin_state || ''}`,
+        destination: load.destination || `${load.destination_city || ''}, ${load.destination_state || ''}`,
+        rate: load.rate || 0,
         equipment: load.equipment_type,
         carrier_name: load.carrier_name,
         carrier_mc: load.carrier_mc,
         pickup_date: load.pickup_date
-      },
-      initiated_at: new Date().toISOString()
+      }),
     };
 
     await supabaseInsert('call_logs', callLog);

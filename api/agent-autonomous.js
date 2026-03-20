@@ -394,9 +394,28 @@ export default async function handler(req) {
     // 4. Save all decisions
     await saveDecisions(runId, decisions)
 
-    // 5. Execute auto-actionable items
+    // 5. Execute auto-actionable items (with guardrails)
     const actionResults = []
+    let emailsSent = 0
+    const MAX_EMAILS_PER_RUN = 5 // hard cap — never send more than 5 emails per run
+
+    // Check how many emails were sent in last 24h to prevent spam
+    let recentEmailCount = 0
+    try {
+      const recentEmails = await supabaseGet(`agent_actions?action_type=eq.email_sent&status=eq.completed&created_at=gte.${new Date(Date.now() - 86400000).toISOString()}&select=id`)
+      recentEmailCount = Array.isArray(recentEmails) ? recentEmails.length : 0
+    } catch { /* continue */ }
+    const DAILY_EMAIL_CAP = 15 // max 15 autonomous emails per day across all runs
+
     for (const action of actions) {
+      // Enforce email cap
+      if (action.type === 'email_sent') {
+        if (emailsSent >= MAX_EMAILS_PER_RUN || recentEmailCount + emailsSent >= DAILY_EMAIL_CAP) {
+          actionResults.push({ ...action, result: { type: action.type, status: 'skipped', details: { reason: 'Email cap reached' } } })
+          continue
+        }
+        emailsSent++
+      }
       const result = await executeAction(action, data)
       actionResults.push({ ...action, result })
     }

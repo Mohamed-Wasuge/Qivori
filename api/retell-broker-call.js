@@ -31,7 +31,7 @@ export default async function handler(req) {
       headers: { Authorization: 'Bearer ' + RETELL_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         agent_id: process.env.RETELL_AGENT_ID || 'broker_call_agent',
-        from_number: process.env.TWILIO_FROM_NUMBER,
+        from_number: process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER,
         to_number: '+1' + phone,
         metadata: { loadId, brokerName, brokerEmail, carrierName, origin, destination, equipmentType, postedRate, minRate },
         retell_llm_dynamic_variables: {

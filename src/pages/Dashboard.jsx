@@ -50,8 +50,11 @@ export default function Dashboard() {
   const totalPaid = paidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0)
 
   // MRR estimate based on active subscriptions
-  const planPrices = { solo: 99, fleet: 299, enterprise: 599, growing: 599 }
-  const mrr = activeUsers.reduce((sum, u) => sum + (planPrices[u.plan] || 0), 0)
+  const planPrices = { autonomous_fleet: 399, autopilot: 399, autopilot_ai: 399, solo: 399, fleet: 399, enterprise: 399, growing: 399, pro: 399 }
+  const mrr = activeUsers.reduce((sum, u) => {
+    const truckCount = parseInt(u.truck_count) || 1
+    return sum + ((planPrices[u.plan] || 399) * truckCount)
+  }, 0)
 
   // Churn rate (users who cancelled / total who ever subscribed)
   const cancelledUsers = profiles.filter(p => p.status === 'cancelled' || p.status === 'suspended')

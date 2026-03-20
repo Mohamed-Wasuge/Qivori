@@ -579,7 +579,7 @@ export function ExpenseTracker() {
   const { expenses, addExpense: ctxAddExpense } = useCarrier()
   const [showForm, setShowForm] = useState(false)
   const [filterCat, setFilterCat] = useState('All')
-  const [newExp, setNewExp] = useState({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'' })
+  const [newExp, setNewExp] = useState({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'', pricePerGal:'' })
   const [scanning, setScanning] = useState(false)
   const [scanDrag, setScanDrag] = useState(false)
 
@@ -591,6 +591,7 @@ export function ExpenseTracker() {
     if (!newExp.amount || !newExp.cat) return
     const expData = { ...newExp, amount: parseFloat(newExp.amount) }
     if (newExp.gallons) expData.gallons = parseFloat(newExp.gallons)
+    if (newExp.pricePerGal) expData.price_per_gal = parseFloat(newExp.pricePerGal)
     if (newExp.state) expData.state = newExp.state.toUpperCase().trim()
     // Auto-link: if fuel expense has load, find matching truck/driver
     if (newExp.cat === 'Fuel' && newExp.load) {
@@ -604,7 +605,7 @@ export function ExpenseTracker() {
       }
     }
     ctxAddExpense(expData)
-    setNewExp({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'' })
+    setNewExp({ date:'', cat:'Fuel', amount:'', load:'', notes:'', driver:'', state:'', gallons:'', pricePerGal:'' })
     setShowForm(false)
     showToast('', 'Expense Added', `${newExp.cat} · $${newExp.amount}${expData.state ? ' · ' + expData.state : ''}${expData.gallons ? ' · ' + expData.gallons + ' gal' : ''}`)
   }
@@ -728,6 +729,11 @@ export function ExpenseTracker() {
               <div>
                 <label style={{ fontSize: 11, color: 'var(--accent)', display: 'block', marginBottom: 4 }}>Gallons <span style={{ color:'var(--muted)' }}>(for IFTA)</span></label>
                 <input type="number" placeholder="85.2" value={newExp.gallons} onChange={e => setNewExp(x => ({ ...x, gallons: e.target.value }))}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--accent)', display: 'block', marginBottom: 4 }}>$/Gallon <span style={{ color:'var(--muted)' }}>(you paid)</span></label>
+                <input type="number" step="0.01" placeholder="3.45" value={newExp.pricePerGal} onChange={e => setNewExp(x => ({ ...x, pricePerGal: e.target.value }))}
                   style={{ width: '100%', background: 'var(--surface2)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
               </div>
               <div>

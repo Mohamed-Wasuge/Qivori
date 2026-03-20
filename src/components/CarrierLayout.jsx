@@ -946,6 +946,7 @@ function SettingsTab() {
   const [company, setCompany] = useState(ctxCompany || { name:'', mc:'', dot:'', address:'', phone:'', email:'', ein:'' })
   const [billing, setBilling] = useState({ factoringRate:'2.5', payDefault:'28%', fastpayEnabled:true, autoInvoice:true })
   const [fuelCard, setFuelCard] = useState(ctxCompany?.fuel_card_provider || '')
+  const [tollTransponder, setTollTransponder] = useState(ctxCompany?.toll_transponder || '')
   const [integrations] = useState([
     { name:'Samsara ELD',      status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Samsara ELD to sync device data' },
     { name:'Motive ELD',       status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Motive (KeepTruckin) ELD' },
@@ -1244,6 +1245,19 @@ function SettingsTab() {
                     style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>
                     <option value="">Select your fuel card...</option>
                     {['EFS (WEX/Fleet One)', 'Comdata', 'TCS Fuel Card', 'Pilot RoadRunner', 'Loves Fleet Card', 'RTS Fuel Card', 'Mudflap', 'AtoB', 'Coast', 'Fuelman', 'Voyager', 'Pacific Pride', 'CFN', 'T-Chek', 'MultiService', 'I don\'t use a fuel card', 'Other'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Toll Transponder */}
+              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:44, height:44, borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={Route} size={22} /></div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>Toll Transponder</div>
+                  <select value={tollTransponder} onChange={e => { setTollTransponder(e.target.value); updateCompany({ toll_transponder: e.target.value }); showToast('', 'Saved', e.target.value || 'Toll transponder cleared') }}
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>
+                    <option value="">Select your toll transponder...</option>
+                    {['Bestpass', 'PrePass', 'E-ZPass', 'SunPass (FL)', 'TxTag (TX)', 'I-PASS (IL)', 'Peach Pass (GA)', 'PikePass (OK)', 'Good To Go (WA)', 'FasTrak (CA)', 'I don\'t use a transponder', 'Other'].map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
               </div>

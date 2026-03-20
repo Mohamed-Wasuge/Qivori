@@ -95,6 +95,19 @@ BROKER COMMUNICATION (when driver needs scripts):
 - "If you can come up to $X, we can lock it in."
 - "We'd need more in it to move on this."
 
+TOLL AWARENESS:
+When evaluating routes, factor in toll costs:
+- NJ Turnpike: $40-80 (full length, truck)
+- PA Turnpike: $50-110 (full length)
+- Ohio Turnpike (I-80/90): $30-50
+- Indiana Toll Road: $20-40
+- IL Tollway (I-88/I-294): $15-35
+- FL Turnpike: $20-45
+- NY Thruway: $25-60
+- Kansas Turnpike: $15-25
+If a load runs through a toll corridor and driver logged no toll expense, ask: "Did you take the free route? That lane usually runs $X in tolls."
+Compare: toll route (faster, fewer miles) vs free route (more miles, more fuel, more time). Calculate the real cost difference.
+
 BACKHAUL & RELOAD THINKING:
 The best load isn't always the highest rate. Consider:
 - Shorter deadhead vs higher rate with 200mi deadhead

@@ -1,6 +1,6 @@
 // Qivori AI — Service Worker
 // Cache versioning: bump CACHE_VERSION to force update
-const CACHE_VERSION = 3
+const CACHE_VERSION = 4
 const STATIC_CACHE = `qivori-static-v${CACHE_VERSION}`
 const RUNTIME_CACHE = `qivori-runtime-v${CACHE_VERSION}`
 const OFFLINE_URL = '/offline.html'
@@ -80,9 +80,14 @@ self.addEventListener('fetch', (event) => {
 })
 
 // Cache-first for static assets (JS, CSS, images, fonts)
+// But always fetch fresh for hashed Vite bundles (they have new hashes on each build)
 async function cacheFirstForStatic(request) {
-  const cached = await caches.match(request)
-  if (cached) return cached
+  const url = new URL(request.url)
+  const isHashedAsset = url.pathname.includes('/assets/') && /[-_][A-Za-z0-9]{8,}\.(js|css)$/.test(url.pathname)
+  if (!isHashedAsset) {
+    const cached = await caches.match(request)
+    if (cached) return cached
+  }
 
   try {
     const response = await fetch(request)

@@ -2,16 +2,16 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import * as db from '../lib/database'
 import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
+import {
+  DEMO_LOADS,
+  DEMO_INVOICES,
+  DEMO_EXPENSES,
+  DEMO_DRIVERS,
+  DEMO_VEHICLES,
+  DEMO_COMPANY,
+} from '../data/demoData'
 
 const CarrierContext = createContext(null)
-
-// ─── Demo sample data ────────────────────────────────────────
-const DEMO_LOADS = []
-const DEMO_INVOICES = []
-const DEMO_EXPENSES = []
-const DEMO_DRIVERS = []
-const DEMO_VEHICLES = []
-const DEMO_COMPANY = {}
 
 // ─── Compatibility layer ─────────────────────────────────────
 // Actual DB loads table: id, load_id, origin, destination, rate, broker_id,
@@ -129,7 +129,16 @@ function normalizeCompany(c) {
 
 // ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
-  const { demoMode } = useApp() || {}
+  const { demoMode, showToast } = useApp() || {}
+
+  // Helper: block write operations in demo mode
+  const demoGuard = useCallback((label) => {
+    if (demoMode) {
+      showToast?.('', 'Demo Mode', 'Sign up to ' + (label || 'save changes'))
+      return true // blocked
+    }
+    return false
+  }, [demoMode, showToast])
   const [loads, setLoads] = useState([])
   const [invoices, setInvoices] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -193,6 +202,7 @@ export function CarrierProvider({ children }) {
 
   // ─── Load operations ─────────────────────────────────────────
   const addLoad = useCallback(async (load) => {
+    if (demoGuard('add loads')) return null
     if (useDb) {
       try {
         const newLoad = await db.createLoad(load)
@@ -209,9 +219,10 @@ export function CarrierProvider({ children }) {
     const newLoad = normalizeLoad({ ...load, id: fakeId, load_number: num, status: 'Rate Con Received' })
     setLoads(ls => [newLoad, ...ls])
     return newLoad
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   const removeLoad = useCallback(async (loadId) => {
+    if (demoGuard('delete loads')) return
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
@@ -220,9 +231,10 @@ export function CarrierProvider({ children }) {
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
     // Also remove any linked invoices
     setInvoices(invs => invs.filter(i => i.loadId !== loadId && i.load_number !== loadId))
-  }, [loads, useDb])
+  }, [loads, useDb, demoGuard])
 
   const updateLoadStatus = useCallback(async (loadId, newStatus) => {
+    if (demoGuard('update load status')) return
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
 
@@ -304,9 +316,10 @@ export function CarrierProvider({ children }) {
 
       return updated
     }))
-  }, [loads, useDb])
+  }, [loads, useDb, demoGuard])
 
   const advanceStop = useCallback(async (loadId) => {
+    if (demoGuard('advance stops')) return
     setLoads(ls => ls.map(l => {
       const match = l.loadId === loadId || l.load_number === loadId
       if (!match) return l
@@ -335,6 +348,7 @@ export function CarrierProvider({ children }) {
 
   // ─── Invoice operations ───────────────────────────────────────
   const updateInvoiceStatus = useCallback(async (invoiceId, status) => {
+    if (demoGuard('update invoices')) return
     const inv = invoices.find(i => i.id === invoiceId || i.invoice_number === invoiceId || i._dbId === invoiceId)
 
     if (useDb && inv && inv._dbId && !String(inv._dbId).startsWith('mock') && !String(inv._dbId).startsWith('local')) {
@@ -357,10 +371,11 @@ export function CarrierProvider({ children }) {
         return match ? normalizeLoad({ ...l, status: 'Invoiced' }) : l
       }))
     }
-  }, [invoices, useDb])
+  }, [invoices, useDb, demoGuard])
 
   // ─── Expense operations ───────────────────────────────────────
   const addExpense = useCallback(async (exp) => {
+    if (demoGuard('add expenses')) return null
     if (useDb) {
       try {
         const newExp = await db.createExpense(exp)
@@ -373,10 +388,11 @@ export function CarrierProvider({ children }) {
     const fakeExp = normalizeExpense({ ...exp, id: 'local-exp-' + Date.now() })
     setExpenses(es => [fakeExp, ...es])
     return fakeExp
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   // ─── Check calls ──────────────────────────────────────────────
   const logCheckCall = useCallback(async (loadNumber, call) => {
+    if (demoGuard('log check calls')) return
     const load = loads.find(l => l.loadId === loadNumber || l.load_number === loadNumber)
 
     if (useDb && load && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
@@ -397,10 +413,11 @@ export function CarrierProvider({ children }) {
       const id = 'local-cc-' + Date.now()
       return { ...cc, [loadNumber]: [{ ...call, id, ts: Date.now(), called_at: new Date().toISOString() }, ...existing] }
     })
-  }, [loads, useDb])
+  }, [loads, useDb, demoGuard])
 
   // ─── Driver operations ──────────────────────────────────────────
   const addDriver = useCallback(async (driver) => {
+    if (demoGuard('add drivers')) return null
     if (useDb) {
       try {
         const newDriver = await db.createDriver(driver)
@@ -411,24 +428,27 @@ export function CarrierProvider({ children }) {
     const fake = { ...driver, id: 'local-drv-' + Date.now() }
     setDrivers(ds => [fake, ...ds])
     return fake
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   const editDriver = useCallback(async (id, updates) => {
+    if (demoGuard('edit drivers')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.updateDriver(id, updates) } catch { /* error handled gracefully */ }
     }
     setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   const removeDriver = useCallback(async (id) => {
+    if (demoGuard('remove drivers')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteDriver(id) } catch { /* error handled gracefully */ }
     }
     setDrivers(ds => ds.filter(d => d.id !== id))
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   // ─── Vehicle operations ─────────────────────────────────────────
   const addVehicle = useCallback(async (vehicle) => {
+    if (demoGuard('add vehicles')) return null
     let result
     if (useDb) {
       try {
@@ -452,16 +472,18 @@ export function CarrierProvider({ children }) {
       return vs
     })
     return result
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   const editVehicle = useCallback(async (id, updates) => {
+    if (demoGuard('edit vehicles')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.updateVehicle(id, updates) } catch { /* error handled gracefully */ }
     }
     setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   const removeVehicle = useCallback(async (id) => {
+    if (demoGuard('remove vehicles')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteVehicle(id) } catch { /* error handled gracefully */ }
     }
@@ -476,10 +498,11 @@ export function CarrierProvider({ children }) {
       }).catch(() => { /* error handled gracefully */ })
       return updated
     })
-  }, [useDb])
+  }, [useDb, demoGuard])
 
   // ─── Company operations ───────────────────────────────────────
   const updateCompany = useCallback(async (updates) => {
+    if (demoGuard('update company info')) return
     const merged = { ...company, ...updates }
     setCompany(normalizeCompany(merged))
     if (useDb) {
@@ -489,7 +512,7 @@ export function CarrierProvider({ children }) {
         /* error handled gracefully */
       }
     }
-  }, [company, useDb])
+  }, [company, useDb, demoGuard])
 
   // ─── Reset (clears all local data) ──────────────────────────────
   const resetData = useCallback(() => {
@@ -519,7 +542,7 @@ export function CarrierProvider({ children }) {
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,
       logCheckCall, updateCompany, resetData,
-      dataReady, useDb,
+      dataReady, useDb, demoMode,
     }}>
       {children}
     </CarrierContext.Provider>

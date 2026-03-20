@@ -5,9 +5,11 @@
  * Runtime: Vercel Edge | Schedule: Daily at 8 AM UTC
  */
 
+import { sendSMS } from './_lib/sms.js';
+
 export const config = { runtime: 'edge' };
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
@@ -55,6 +57,176 @@ async function supabaseInsert(table, data) {
     body: JSON.stringify(data)
   });
   return res.json();
+}
+
+async function supabaseUpdate(table, filter, data) {
+  const res = await fetch(`${supabaseUrl}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(data)
+  });
+  return res.json();
+}
+
+// — Generate a short alert code (e.g. "L1A3B") for SMS reply matching —
+function generateAlertCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'L';
+  for (let i = 0; i < 4; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+// — Format load data into SMS message —
+function formatLoadSMS(load, alertCode) {
+  const origin = `${load.origin_city || ''}${load.origin_city && load.origin_state ? ', ' : ''}${load.origin_state || ''}`.trim();
+  const dest = `${load.destination_city || ''}${load.destination_city && load.destination_state ? ', ' : ''}${load.destination_state || ''}`.trim();
+  const rate = load.rate ? `$${Number(load.rate).toLocaleString()}` : 'TBD';
+  const rpm = load.rate && load.miles ? `$${(load.rate / load.miles).toFixed(2)}` : '?';
+  const miles = load.miles ? `${load.miles}mi` : '?mi';
+  const equip = load.equipment_type || 'Dry Van';
+  const pickup = load.pickup_date
+    ? new Date(load.pickup_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : 'ASAP';
+
+  return `🚛 Qivori Load Alert\n${origin} → ${dest}\n${rate} (${rpm}/mi) · ${miles}\n${equip} · Pickup: ${pickup}\nReply YES ${alertCode} to book or DETAILS ${alertCode} for more`;
+}
+
+// — Send SMS load alerts to carriers with score >= threshold —
+async function sendLoadAlerts(qualifiedLoads, reqUrl) {
+  const SMS_MAX_PER_RUN = 3;
+  const alertsSent = [];
+
+  // Get all carriers/users who have SMS alerts enabled
+  let carriers = [];
+  try {
+    // First check sms_preferences for users with alerts enabled
+    const prefs = await supabaseQuery('sms_preferences', 'alerts_enabled=eq.true&select=user_id,phone,min_score,max_per_day');
+    if (Array.isArray(prefs) && prefs.length > 0) {
+      carriers = prefs;
+    }
+  } catch (e) {
+    console.error('SMS prefs fetch error:', e);
+  }
+
+  // Fallback: if no sms_preferences rows, check profiles for users with phone numbers
+  if (carriers.length === 0) {
+    try {
+      const profiles = await supabaseQuery('profiles',
+        'phone=not.is.null&sms_opted_out=not.eq.true&select=id,phone'
+      );
+      if (Array.isArray(profiles)) {
+        carriers = profiles.map(p => ({
+          user_id: p.id,
+          phone: p.phone,
+          min_score: 70,
+          max_per_day: 10,
+        }));
+      }
+    } catch (e) {
+      console.error('Profiles fetch error:', e);
+    }
+  }
+
+  if (carriers.length === 0) {
+    return alertsSent;
+  }
+
+  // Filter loads to score >= 70 (SMS-worthy)
+  const smsLoads = qualifiedLoads
+    .filter(l => l.match_score >= 70)
+    .slice(0, SMS_MAX_PER_RUN);
+
+  if (smsLoads.length === 0) return alertsSent;
+
+  const statusCallbackUrl = reqUrl
+    ? `${new URL(reqUrl).origin}/api/sms-webhook?type=status`
+    : undefined;
+
+  for (const carrier of carriers) {
+    if (!carrier.phone) continue;
+
+    const minScore = carrier.min_score || 70;
+    let sentForCarrier = 0;
+
+    // Check how many alerts already sent today for this carrier
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const existing = await supabaseQuery('sms_load_alerts',
+        `user_id=eq.${carrier.user_id}&created_at=gte.${today}T00:00:00Z&select=id`
+      );
+      const todayCount = Array.isArray(existing) ? existing.length : 0;
+      const maxPerDay = carrier.max_per_day || 10;
+      if (todayCount >= maxPerDay) continue; // daily limit reached
+    } catch (e) {
+      // Continue anyway
+    }
+
+    for (const load of smsLoads) {
+      if (load.match_score < minScore) continue;
+      if (sentForCarrier >= SMS_MAX_PER_RUN) break;
+
+      const alertCode = generateAlertCode();
+      const message = formatLoadSMS(load, alertCode);
+
+      // Send the SMS
+      const smsResult = await sendSMS(carrier.phone, message, {
+        statusCallback: statusCallbackUrl,
+      });
+
+      // Store the alert in Supabase regardless of send success (for tracking)
+      const alertRecord = {
+        user_id: carrier.user_id,
+        load_id: String(load.id),
+        phone: carrier.phone,
+        message_sid: smsResult.messageId || null,
+        alert_code: alertCode,
+        load_data: {
+          origin_city: load.origin_city,
+          origin_state: load.origin_state,
+          destination_city: load.destination_city,
+          destination_state: load.destination_state,
+          rate: load.rate,
+          miles: load.miles,
+          equipment_type: load.equipment_type,
+          broker_name: load.broker_name,
+          broker_phone: load.broker_phone,
+          broker_mc: load.broker_mc,
+          weight: load.weight,
+          pickup_date: load.pickup_date,
+          match_score: load.match_score,
+          match_reasons: load.match_reasons,
+          source: load.source,
+          commodity: load.commodity || load.raw?.commodity,
+        },
+        status: smsResult.ok ? 'sent' : 'failed',
+      };
+
+      try {
+        await supabaseInsert('sms_load_alerts', alertRecord);
+      } catch (e) {
+        console.error('Failed to store SMS alert:', e);
+      }
+
+      if (smsResult.ok) {
+        sentForCarrier++;
+        alertsSent.push({
+          phone: carrier.phone.slice(0, 5) + '****' + carrier.phone.slice(-2),
+          load_id: String(load.id),
+          alert_code: alertCode,
+          score: load.match_score,
+        });
+      }
+    }
+  }
+
+  return alertsSent;
 }
 
 // — Fetch internal loads from Supabase —
@@ -335,6 +507,14 @@ export default async function handler(req) {
       }).catch(() => {});
     }
 
+    // 7. Send SMS load alerts for top matches (score >= 70)
+    let smsAlerts = [];
+    try {
+      smsAlerts = await sendLoadAlerts(qualifiedLoads, req.url);
+    } catch (e) {
+      console.error('SMS alert error:', e);
+    }
+
     return Response.json({
       ok: true,
       total_found: allLoads.length,
@@ -342,6 +522,8 @@ export default async function handler(req) {
       external: externalLoads.length,
       qualified: qualifiedLoads.length,
       calls_triggered: callableLoads.length,
+      sms_alerts_sent: smsAlerts.length,
+      sms_alerts: smsAlerts,
       top_matches: qualifiedLoads.slice(0, 10).map(m => ({
         origin: `${m.origin_city}, ${m.origin_state}`,
         destination: `${m.destination_city}, ${m.destination_state}`,

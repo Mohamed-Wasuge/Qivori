@@ -333,10 +333,16 @@ export default function LandingPage({ onGetStarted }) {
       }
       trackDemoRequest(demoForm.email)
       setDemoLoading(false)
-      setDemoSent(true)
+      setDemoModal(false)
+      // Enter demo mode after collecting lead info
+      trackDemoEnter()
+      enterDemo('carrier')
     } catch {
-      setDemoError('Network error. Please try again.')
+      // Even if API fails, still let them in — we'll capture the lead next time
       setDemoLoading(false)
+      setDemoModal(false)
+      trackDemoEnter()
+      enterDemo('carrier')
     }
   }
 
@@ -545,7 +551,7 @@ export default function LandingPage({ onGetStarted }) {
             </button>
             <button onClick={() => setDemoModal(true)}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: '16px 36px', color: 'var(--accent)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <Ic icon={Monitor} size={16} /> {t('landing.tryDemo')}
+              <Ic icon={Monitor} size={16} /> Try Demo
             </button>
             <button onClick={onGetStarted}
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '16px 36px', color: 'var(--text)', fontSize: 16, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>

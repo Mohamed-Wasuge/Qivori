@@ -1,4 +1,5 @@
 import { sendSMS } from './_lib/sms.js'
+import { handleLoadReply, parseLoadCommand } from './sms-load-reply.js'
 
 export const config = { runtime: 'edge' }
 
@@ -267,20 +268,34 @@ export default async function handler(req) {
 
     const upperBody = body.toUpperCase()
 
-    // Handle STOP (opt-out)
+    // Check if this is a load alert reply (YES, DETAILS, MORE, BOOK, etc.)
+    const loadCommand = parseLoadCommand(body)
+    if (loadCommand) {
+      try {
+        const loadReply = await handleLoadReply(from, body)
+        if (loadReply) {
+          return twiml(loadReply)
+        }
+      } catch (e) {
+        console.error('Load reply handler error:', e)
+        // Fall through to normal handling
+      }
+    }
+
+    // Handle STOP (opt-out) — only if not already handled by load reply
     if (upperBody === 'STOP' || upperBody === 'STOPALL' || upperBody === 'UNSUBSCRIBE' || upperBody === 'CANCEL' || upperBody === 'END' || upperBody === 'QUIT') {
       await setOptOut(from, true)
       return twiml('You have been unsubscribed from Qivori SMS notifications. Reply START to re-subscribe.')
     }
 
-    // Handle START (opt-in)
-    if (upperBody === 'START' || upperBody === 'YES' || upperBody === 'UNSTOP') {
+    // Handle START (opt-in) — only bare START without alert code
+    if (upperBody === 'START' || upperBody === 'UNSTOP') {
       await setOptOut(from, false)
       return twiml('Welcome back! You are now subscribed to Qivori SMS notifications. Reply STOP to unsubscribe.')
     }
 
     // Handle HELP
-    if (upperBody === 'HELP' || upperBody === 'INFO') {
+    if (upperBody === 'HELP') {
       return twiml('Qivori AI - Trucking assistant. Reply with any question about loads, rates, or compliance. STOP to unsubscribe. Visit qivori.com')
     }
 

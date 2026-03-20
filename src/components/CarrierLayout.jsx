@@ -3933,7 +3933,7 @@ function CarrierLayoutInner() {
       {/* Demo banner */}
       {demoMode && (
         <div style={{ background:'linear-gradient(90deg, #f0a500, #e09000)', padding:'8px 16px', display:'flex', alignItems:'center', justifyContent:'center', gap:16, flexShrink:0 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#000' }}>You're exploring Qivori in demo mode — sample data shown</span>
+          <span style={{ fontSize:13, fontWeight:700, color:'#000' }}>You're in demo mode — sign up to unlock your dashboard</span>
           <button onClick={goToLogin} style={{ background:'#000', color:'#f0a500', border:'none', borderRadius:8, padding:'6px 16px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
             Sign Up Free
           </button>

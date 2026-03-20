@@ -22,11 +22,11 @@ CREATE INDEX IF NOT EXISTS idx_qb_connections_realm_id ON quickbooks_connections
 
 ALTER TABLE quickbooks_connections ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Users can read own QB connection"
+CREATE POLICY "Users can read own QB connection"
   ON quickbooks_connections FOR SELECT
   USING (user_id = auth.uid());
 
-CREATE POLICY IF NOT EXISTS "Service role full access on qb_connections"
+CREATE POLICY "Service role full access on qb_connections"
   ON quickbooks_connections FOR ALL
   USING (true)
   WITH CHECK (true);
@@ -55,11 +55,11 @@ CREATE INDEX IF NOT EXISTS idx_qb_sync_log_created_at ON quickbooks_sync_log(cre
 
 ALTER TABLE quickbooks_sync_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Users can read own QB sync logs"
+CREATE POLICY "Users can read own QB sync logs"
   ON quickbooks_sync_log FOR SELECT
   USING (user_id = auth.uid());
 
-CREATE POLICY IF NOT EXISTS "Service role full access on qb_sync_log"
+CREATE POLICY "Service role full access on qb_sync_log"
   ON quickbooks_sync_log FOR ALL
   USING (true)
   WITH CHECK (true);

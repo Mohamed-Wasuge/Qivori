@@ -599,8 +599,26 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={{ background:'linear-gradient(135deg,rgba(34,197,94,0.05),rgba(77,142,240,0.03))', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center' }}>
               <Bot size={20} color="var(--success)" />
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>No HOS data yet</div>
-                <div style={{ fontSize:12, color:'var(--muted)' }}>Add drivers and connect ELD to begin tracking</div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:2 }}>Connect Your ELD Provider</div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>Link Samsara or Motive to auto-sync HOS, vehicles, and DVIRs</div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                {['Samsara','Motive'].map(p => (
+                  <button key={p} onClick={() => {
+                    const key = prompt(`Enter your ${p} API key:`)
+                    if (!key) return
+                    fetch('/api/eld-connect', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ provider: p.toLowerCase(), api_key: key, user_id: user?.id })
+                    }).then(r => r.json()).then(d => {
+                      if (d.ok || d.status === 'connected') showToast('', `${p} Connected`, 'ELD data will sync shortly')
+                      else showToast('', 'Connection Failed', d.error || 'Check your API key')
+                    }).catch(() => showToast('', 'Error', 'Could not connect'))
+                  }} className="btn btn-ghost" style={{ fontSize:11, border:'1px solid var(--border)', borderRadius:8, padding:'8px 14px' }}>
+                    Connect {p}
+                  </button>
+                ))}
               </div>
             </div>
 

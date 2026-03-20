@@ -1759,9 +1759,60 @@ export function CashRunway() {
 
 // ─── 5. QuickBooks Export ─────────────────────────────────────────────────────
 export function QuickBooksExport() {
-  const { loads, invoices, expenses } = useCarrier()
+  const { loads, invoices, expenses, user } = useCarrier()
   const [connected, setConnected] = useState(false)
+  const [companyName, setCompanyName] = useState('')
+  const [loading, setLoading] = useState(false)
   const [exported, setExported] = useState({})
+
+  // Check QB connection status on mount
+  useEffect(() => {
+    if (!user?.id) return
+    fetch('/api/quickbooks-auth', {
+      headers: { 'Authorization': `Bearer ${user.access_token || ''}` }
+    }).then(r => r.json()).then(data => {
+      if (data.connected) {
+        setConnected(true)
+        setCompanyName(data.company_name || '')
+      }
+    }).catch(() => {})
+  }, [user?.id])
+
+  const handleConnect = async () => {
+    if (connected) {
+      setLoading(true)
+      try {
+        await fetch('/api/quickbooks-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token || ''}` },
+          body: JSON.stringify({ action: 'disconnect' })
+        })
+        setConnected(false)
+        setCompanyName('')
+      } catch {}
+      setLoading(false)
+    } else {
+      setLoading(true)
+      try {
+        const res = await fetch(`/api/quickbooks-auth?action=authorize&user_id=${user.id}`)
+        const data = await res.json()
+        if (data.url) window.location.href = data.url
+      } catch {}
+      setLoading(false)
+    }
+  }
+
+  const handleSync = async () => {
+    setLoading(true)
+    try {
+      await fetch('/api/quickbooks-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.access_token || ''}` },
+        body: JSON.stringify({ user_id: user.id })
+      })
+    } catch {}
+    setLoading(false)
+  }
 
   const QB_MAPPING = [
     { qivori:'Gross Revenue',  qb:'Income:Freight Revenue',           type:'Income'  },
@@ -1817,17 +1868,24 @@ export function QuickBooksExport() {
         display:'flex', alignItems:'center', gap:16 }}>
         <div style={{ fontSize:32 }}><CheckCircle size={32} /></div>
         <div style={{ flex:1 }}>
-          <div style={{ fontWeight:700, marginBottom:4 }}>{connected ? 'QuickBooks Online Connected' : 'QuickBooks Online Integration'}</div>
+          <div style={{ fontWeight:700, marginBottom:4 }}>{connected ? `QuickBooks Online Connected${companyName ? ` — ${companyName}` : ''}` : 'QuickBooks Online Integration'}</div>
           <div style={{ fontSize:12, color:'var(--muted)' }}>
             {connected
               ? 'Auto-sync enabled — transactions push to QuickBooks automatically every night at 2 AM.'
               : 'Connect QuickBooks Online to sync invoices and expenses automatically, or use CSV export below.'}
           </div>
         </div>
-        <button onClick={() => setConnected(c => !c)}
+        {connected && (
+          <button onClick={handleSync} disabled={loading}
+            style={{ padding:'10px 16px', fontSize:13, fontWeight:700, borderRadius:8, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+              background:'rgba(34,197,94,0.15)', color:'var(--success)', opacity: loading ? 0.5 : 1 }}>
+            Sync Now
+          </button>
+        )}
+        <button onClick={handleConnect} disabled={loading}
           style={{ padding:'10px 20px', fontSize:13, fontWeight:700, borderRadius:8, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-            background: connected ? 'rgba(239,68,68,0.15)' : 'var(--accent3)', color: connected ? 'var(--danger)' : '#fff' }}>
-          {connected ? 'Disconnect' : <><Paperclip size={13} /> Connect QuickBooks</>}
+            background: connected ? 'rgba(239,68,68,0.15)' : 'var(--accent3)', color: connected ? 'var(--danger)' : '#fff', opacity: loading ? 0.5 : 1 }}>
+          {loading ? '...' : connected ? 'Disconnect' : <><Paperclip size={13} /> Connect QuickBooks</>}
         </button>
       </div>
 

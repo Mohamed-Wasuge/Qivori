@@ -32,7 +32,7 @@
   ],
   "rewrites": [
     { "source": "/ref/:code", "destination": "/?ref=:code" },
-    { "source": "/((?!api/|google).*)", "destination": "/" }
+    { "source": "/((?!api/|assets/|google).*)", "destination": "/" }
   ],
   "crons": [
     { "path": "/api/lifecycle-cron", "schedule": "0 8 * * *" },

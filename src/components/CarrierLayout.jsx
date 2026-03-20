@@ -5,7 +5,7 @@ import {
   Search, Bell, Moon, Eye, Zap, Wrench, CreditCard, BarChart2, AlertTriangle,
   TrendingUp, TrendingDown, ChevronLeft, ClipboardList, CheckCircle, Map, DollarSign, Droplets, FileCheck, Star, UserPlus,
   User, Building2, Plug, Palette, Scale, Package, MapPin, Smartphone, FileText, AlertCircle, Fuel,
-  Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2, Target
+  Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2, Target, Route
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { CarrierProvider, useCarrier } from '../context/CarrierContext'

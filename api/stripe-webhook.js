@@ -2,7 +2,7 @@ import { sendEmail, sendAdminEmail, sendAdminSMS, logEmail, logRevenueEvent, TEM
 
 export const config = { runtime: 'edge' }
 
-const PLAN_NAMES = { pro: 'Pro', autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI', fleet: 'Fleet', basic: 'Autopilot', solo: 'Autopilot', growing: 'Autopilot', enterprise: 'Autopilot AI' }
+const PLAN_NAMES = { autonomous_fleet: 'Autonomous Fleet AI', autopilot_ai: 'Autonomous Fleet AI', autopilot: 'Autonomous Fleet AI', pro: 'Autonomous Fleet AI', fleet: 'Autonomous Fleet AI', basic: 'Autonomous Fleet AI', solo: 'Autonomous Fleet AI', growing: 'Autonomous Fleet AI', enterprise: 'Autonomous Fleet AI' }
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
@@ -75,6 +75,7 @@ export default async function handler(req) {
           await updateProfile(supabaseUrl, supabaseServiceKey, customerEmail, {
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
+            plan: planId,
             subscription_plan: planId,
             subscription_status: subscription.status,
             trial_ends_at: trialEnd,
@@ -116,14 +117,11 @@ export default async function handler(req) {
         const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null
         const prevAttrs = event.data.previous_attributes || {}
 
-        // Sync truck count from subscription items
-        const truckItem = subscription.items?.data?.find(item =>
-          item.price?.id === process.env.STRIPE_PRICE_TRUCK_AUTOPILOT ||
-          item.price?.id === process.env.STRIPE_PRICE_TRUCK_AUTOPILOT_AI
-        )
-        const truckCount = truckItem ? truckItem.quantity + 1 : 1
+        // Sync truck count from subscription metadata
+        const truckCount = parseInt(subscription.metadata?.truck_count) || 1
 
         await updateProfileByCustomer(supabaseUrl, supabaseServiceKey, customerId, {
+          plan: planId,
           subscription_plan: planId,
           subscription_status: subscription.status,
           trial_ends_at: trialEnd,

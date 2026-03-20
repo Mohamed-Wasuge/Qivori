@@ -3122,16 +3122,14 @@ export default function CarrierLayout() {
 // ── CRM Sidebar nav (flat, no nesting) ──────────────────────────────────────
 const NAV = [
   { id:'dashboard',   icon: Monitor,      label:'Dashboard',      i18nKey:'nav.dashboard'    },
+  { id:'load-board',   icon: Zap,          label:'Find Loads',     i18nKey:'nav.aiLoadBoard'  },
   { id:'loads',        icon: Package,      label:'My Loads',       i18nKey:'nav.loads'        },
   { id:'drivers',      icon: Users,        label:'Drivers',        i18nKey:'nav.drivers'      },
   { id:'fleet',        icon: Truck,        label:'My Fleet',       i18nKey:'nav.fleet'        },
   { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
   { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
-  { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
   { id:'_divider' },
-  { id:'analytics',    icon: BarChart2,    label:'Analytics',      i18nKey:'nav.analytics'    },
-  { id:'load-board',   icon: Zap,          label:'Find Loads',     i18nKey:'nav.aiLoadBoard'  },
-  { id:'referrals',    icon: UserPlus,     label:'Referrals',      i18nKey:'nav.referrals'    },
+  { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 
 // ── Hub sub-tab wrapper ─────────────────────────────────────────────────────

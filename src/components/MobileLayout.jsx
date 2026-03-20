@@ -265,7 +265,7 @@ function MobileAI() {
 
   // ── PROACTIVE LOAD FINDING AGENT ─────────────────────────────────────
   // Trigger: driver within ~60min of delivery destination
-  // Requires Autopilot AI plan ($799) and connected load board
+  // Requires Autonomous Fleet AI plan ($399/truck) and connected load board
   useEffect(() => {
     if (!subscription?.plan || subscription.plan !== 'autopilot') return
     if (!subscription?.isActive) return
@@ -1499,7 +1499,7 @@ function MobileAI() {
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { autopilot: '$149/mo', autopilot_ai: '$799/mo' }
+      const planPrices = { autonomous_fleet: '$399/truck/mo', autopilot: '$399/truck/mo', autopilot_ai: '$399/truck/mo' }
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`

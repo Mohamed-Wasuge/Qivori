@@ -236,7 +236,7 @@ const es = {
   'landing.moneyOnTable': 'DINERO?',
   'landing.finalCtaDesc': 'Unete a propietarios-operadores y flotas pequenas usando Qivori para encontrar mejores cargas, operar mas eficiente y cobrar mas rapido.',
   'landing.startFreeNoCard': 'Comienza Gratis \u2014 Sin Tarjeta',
-  'landing.trialInfo': '14 dias gratis \u00b7 Luego desde $99/mes \u00b7 Cancela cuando quieras',
+  'landing.trialInfo': '14 dias gratis \u00b7 $399/camion/mes \u00b7 Cancela cuando quieras',
   'landing.searchLoads': 'O busca 2,000+ cargas gratis',
 
   // ── Pagina Principal: Footer ──

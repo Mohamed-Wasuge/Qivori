@@ -281,7 +281,7 @@ export default function LandingPage({ onGetStarted }) {
   const [founderCount, setFounderCount] = useState(0)
   const [demoModal, setDemoModal] = useState(false)
   const [videoModal, setVideoModal] = useState(false)
-  const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '', _hp: '' })
+  const [demoForm, setDemoForm] = useState({ name: '', email: '', phone: '', company: '', truckCount: '', currentELD: '', factoringCompany: '', loadBoards: '', painPoints: '', _hp: '' })
   const [demoLoading, setDemoLoading] = useState(false)
   const [demoSent, setDemoSent] = useState(false)
   const [demoError, setDemoError] = useState('')
@@ -1220,7 +1220,7 @@ export default function LandingPage({ onGetStarted }) {
       {(demoModal || demoSent) && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
           onClick={(e) => { if (e.target === e.currentTarget) { setDemoModal(false); setDemoSent(false) } }}>
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:20, padding:32, maxWidth:420, width:'100%', position:'relative' }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:20, padding:32, maxWidth:420, width:'100%', position:'relative', maxHeight:'90vh', overflowY:'auto' }}>
             <button onClick={() => { setDemoModal(false); setDemoSent(false) }} style={{ position:'absolute', top:16, right:16, background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:18 }}><Ic icon={X} size={18} /></button>
 
             {demoSent ? (
@@ -1262,6 +1262,7 @@ export default function LandingPage({ onGetStarted }) {
                     { key:'email', label:'Email *', ph:'john@trucking.com', type:'email', required: true },
                     { key:'phone', label:'Phone *', ph:'(555) 123-4567', type:'tel', required: true },
                     { key:'company', label:'Company *', ph:'Your Trucking LLC', required: true },
+                    { key:'truckCount', label:'How many trucks?', ph:'1-3', required: false },
                   ].map(f => (
                     <div key={f.key}>
                       <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
@@ -1271,6 +1272,29 @@ export default function LandingPage({ onGetStarted }) {
                         style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
                     </div>
                   ))}
+                  <div style={{ borderTop:'1px solid var(--border)', paddingTop:12, marginTop:4 }}>
+                    <div style={{ fontSize:11, color:'var(--accent)', fontWeight:700, marginBottom:8, letterSpacing:1, textTransform:'uppercase' }}>Help us build for you</div>
+                  </div>
+                  {[
+                    { key:'currentELD', label:'Current ELD Provider', ph:'Samsara, Motive, KeepTruckin, None...' },
+                    { key:'factoringCompany', label:'Factoring Company', ph:'OTR Solutions, Triumph, RTS, None...' },
+                    { key:'loadBoards', label:'Load Boards You Use', ph:'DAT, 123Loadboard, Truckstop, None...' },
+                  ].map(f => (
+                    <div key={f.key}>
+                      <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
+                      <input value={demoForm[f.key]} onChange={e => { setDemoError(''); setDemoForm(p => ({ ...p, [f.key]: e.target.value })) }}
+                        placeholder={f.ph} type="text"
+                        onKeyDown={e => e.key === 'Enter' && handleDemoSubmit()}
+                        style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                    </div>
+                  ))}
+                  <div>
+                    <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Biggest pain point right now?</label>
+                    <textarea value={demoForm.painPoints} onChange={e => { setDemoError(''); setDemoForm(p => ({ ...p, painPoints: e.target.value })) }}
+                      placeholder="Finding loads, cash flow, compliance, dispatching..."
+                      rows={2}
+                      style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box', resize:'none' }} />
+                  </div>
                   {/* Honeypot — hidden from real users, bots will fill it */}
                   <input name="website" value={demoForm._hp} onChange={e => setDemoForm(p => ({ ...p, _hp: e.target.value }))}
                     tabIndex={-1} autoComplete="off" aria-hidden="true"

@@ -148,8 +148,8 @@ export function Payments() {
     })()
   }, [])
 
-  const planPrices = { autopilot: 149, autopilot_ai: 799 }
-  const planLabels = { autopilot: 'Autopilot ($149)', autopilot_ai: 'Autopilot AI ($799)' }
+  const planPrices = { autonomous_fleet: 399, autopilot: 399, autopilot_ai: 399 }
+  const planLabels = { autonomous_fleet: 'Autonomous Fleet AI ($399)', autopilot: 'Autonomous Fleet AI ($399)', autopilot_ai: 'Autonomous Fleet AI ($399)' }
   const activeUsers = profiles.filter(p => p.status === 'active')
   const trialUsers = profiles.filter(p => p.status === 'trial')
   const failedUsers = profiles.filter(p => p.status === 'failed')

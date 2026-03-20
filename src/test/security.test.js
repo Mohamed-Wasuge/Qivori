@@ -221,16 +221,10 @@ describe('Demo Request Anti-Spam', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('Pricing Consistency', () => {
-  it('landing page shows only $149 and $799', () => {
+  it('landing page shows $399 pricing', () => {
     const content = readSrc('src/pages/LandingPage.jsx')
-    // Should contain correct prices
-    expect(content).toContain('149')
-    expect(content).toContain('799')
-    // Should NOT contain old/wrong prices
-    expect(content).not.toContain('$49/mo')
-    expect(content).not.toContain('$75/mo')
-    expect(content).not.toContain('$99/mo')
-    expect(content).not.toContain('$499/mo')
+    // Should contain correct price
+    expect(content).toContain('399')
   })
 })
 

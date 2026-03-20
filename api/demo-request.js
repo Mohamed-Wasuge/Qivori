@@ -91,7 +91,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { name, email, phone, company, _hp, recaptchaToken } = await req.json()
+    const { name, email, phone, company, truckCount, currentELD, factoringCompany, loadBoards, painPoints, _hp, recaptchaToken } = await req.json()
 
     // Honeypot — if hidden field is filled, silently accept (bot thinks it worked)
     if (_hp) {
@@ -143,6 +143,11 @@ export default async function handler(req) {
           email,
           phone: phone || '',
           company: company || '',
+          truck_count: truckCount || '',
+          current_eld: currentELD || '',
+          factoring_company: factoringCompany || '',
+          load_boards: loadBoards || '',
+          pain_points: painPoints || '',
           source: 'landing_page',
           created_at: new Date().toISOString(),
         }),
@@ -194,6 +199,11 @@ Qivori AI · Replaces your dispatcher — save $1,036/month<br/>
           <p><strong>Email:</strong> ${email}</p>
           <p><strong>Phone:</strong> ${phone || '—'}</p>
           <p><strong>Company:</strong> ${company || '—'}</p>
+          <p><strong>Trucks:</strong> ${truckCount || '—'}</p>
+          <p><strong>ELD:</strong> ${currentELD || '—'}</p>
+          <p><strong>Factoring:</strong> ${factoringCompany || '—'}</p>
+          <p><strong>Load Boards:</strong> ${loadBoards || '—'}</p>
+          <p><strong>Pain Points:</strong> ${painPoints || '—'}</p>
           <p><strong>Time:</strong> ${new Date().toISOString()}</p>
         </div>`
       ).catch(() => {})

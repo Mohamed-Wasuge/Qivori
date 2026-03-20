@@ -556,13 +556,12 @@ function BillingTab() {
   const { invoices, vehicles, unpaidInvoices, totalRevenue, totalExpenses } = useCarrier()
 
   const truckCount = vehicles.length || profile?.truck_count || 1
-  const planName = { autopilot: 'Autopilot', autopilot_ai: 'Autopilot AI' }[subscription?.plan] || 'No Plan'
-  const planPrice = { autopilot: 149, autopilot_ai: 799 }[subscription?.plan] || 0
-  const perTruck = subscription?.plan === 'autopilot_ai' ? 150 : 0
-  const extraTrucks = Math.max(0, truckCount - 1)
-  const totalMonthly = planPrice + (extraTrucks * perTruck)
+  const planName = 'Autonomous Fleet AI'
+  const planPrice = 399
+  const totalMonthly = planPrice * truckCount
 
-  const isFreeTier = !subscription?.plan || !['autopilot', 'autopilot_ai'].includes(subscription?.plan)
+  const validPlans = ['autonomous_fleet', 'autopilot_ai', 'autopilot']
+  const isFreeTier = !subscription?.plan || !validPlans.includes(subscription?.plan)
   const statusLabel = subscription?.isTrial ? 'TRIAL' : subscription?.isActive ? 'ACTIVE' : subscription?.status === 'past_due' ? 'PAST DUE' : isFreeTier ? 'FREE TIER' : 'INACTIVE'
   const statusColor = { Unpaid:'var(--warning)', Paid:'var(--success)', Factored:'var(--accent2)', Overdue:'var(--danger)' }
   const badgeColor = subscription?.isTrial ? 'var(--accent)' : subscription?.isActive ? 'var(--success)' : isFreeTier ? 'var(--accent2)' : 'var(--danger)'
@@ -577,8 +576,8 @@ function BillingTab() {
         </div>
         <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 16 }}>
           {[
-            { label: 'Base Plan', price: `$${planPrice}/mo`, note: planName, color: 'var(--accent)' },
-            { label: 'Per Truck', price: `$${perTruck}/truck`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''} (${extraTrucks} extra) = $${extraTrucks * perTruck}/mo`, color: 'var(--accent2)' },
+            { label: 'Plan', price: planName, note: 'Everything included', color: 'var(--accent)' },
+            { label: 'Per Truck', price: `$${planPrice}/mo`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''}`, color: 'var(--accent2)' },
             { label: 'Total Monthly', price: `$${totalMonthly}/mo`, note: profile?.current_period_end ? `Next: ${new Date(profile.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '', color: 'var(--success)', bold: true },
           ].map(item => (
             <div key={item.label} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
@@ -660,10 +659,10 @@ function SubscriptionSettings() {
   useEffect(() => {
     if (demoMode) {
       setSubData({
-        plan: 'autopilot', status: 'trialing', trialDaysLeft: 11,
+        plan: 'autonomous_fleet', status: 'trialing', trialDaysLeft: 11,
         trialEndsAt: new Date(Date.now() + 11 * 86400000).toISOString(),
         currentPeriodEnd: new Date(Date.now() + 11 * 86400000).toISOString(),
-        amount: 14900, truckCount: 1,
+        amount: 39900, truckCount: 1,
       })
       setLoading(false)
       return
@@ -685,8 +684,9 @@ function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    autopilot:    { name: 'Autopilot',    price: '$149/mo',  color: '#f0a500', tier: 1 },
-    autopilot_ai: { name: 'Autopilot AI', price: '$799/mo', color: '#f0a500', tier: 2 },
+    autonomous_fleet: { name: 'Autonomous Fleet AI', price: '$399/truck/mo', color: '#f0a500', tier: 2 },
+    autopilot_ai:     { name: 'Autonomous Fleet AI', price: '$399/truck/mo', color: '#f0a500', tier: 2 },
+    autopilot:        { name: 'Autonomous Fleet AI', price: '$399/truck/mo', color: '#f0a500', tier: 2 },
   }
 
   const STATUS_BADGES = {
@@ -697,14 +697,8 @@ function SubscriptionSettings() {
     inactive: { label: 'FREE TIER',  bg: 'rgba(44,184,150,0.1)',  color: 'var(--accent2)',   border: 'rgba(44,184,150,0.2)' },
   }
 
-  const handleUpgrade = (planId) => {
-    if (planId === 'autopilot_ai') {
-      // Show truck picker for Autopilot AI
-      setTruckPicker({ planId, trucks: Math.max(subData?.truckCount || 1, 1) })
-    } else {
-      // Autopilot is 1 truck only — go straight to checkout
-      goToCheckout(planId, 1)
-    }
+  const handleUpgrade = () => {
+    setTruckPicker({ planId: 'autonomous_fleet', trucks: Math.max(subData?.truckCount || 1, 1) })
   }
 
   const goToCheckout = async (planId, trucks) => {
@@ -826,96 +820,55 @@ function SubscriptionSettings() {
                 <Ic icon={CreditCard} size={14} />Manage Subscription
               </button>
             )}
-            {(plan.tier < 2) && (
-              <button onClick={() => handleUpgrade('autopilot_ai')} disabled={upgradeLoading}
+            {!subData?.isActive && !subscription?.isActive && (
+              <button onClick={handleUpgrade} disabled={upgradeLoading}
                 style={{ padding: '10px 20px', fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 10, background: 'var(--accent)', color: '#000', cursor: upgradeLoading ? 'wait' : 'pointer', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Ic icon={Zap} size={14} />
-                {upgradeLoading ? 'Loading...' : 'Upgrade Plan'}
+                {upgradeLoading ? 'Loading...' : 'Start Free Trial'}
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Available Plans */}
+      {/* Plan Details */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Available Plans</div>
-        <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, maxWidth: 700 }}>
-          {[
-            { id: 'autopilot', name: 'Autopilot', sub: 'AI-assisted dispatching', price: '$149', priceSub: '/mo · 1 truck', color: 'var(--accent)', features: [
-              'AI Load Board & Scoring',
-              'Smart Dispatch Suggestions',
-              'Fleet Map & GPS Tracking',
-              'P&L Dashboard',
-              'IFTA Auto-Filing',
-              'Invoicing & Factoring',
-              'Fuel Optimizer',
-              'Compliance Dashboard',
-              'Carrier Package',
-              'Document OCR (snap rate con, BOL)',
-              'Rate Check (market comparison)',
-              'Expense Tracking',
-            ], cta: 'Start Free Trial' },
-            { id: 'autopilot_ai', name: 'Autopilot AI', sub: 'Full AI autonomy', price: '$799', priceSub: '/mo + $150/truck', color: '#f0a500', popular: true, founder: true, fullPrice: '$1,200', features: [
-              'Everything in Autopilot',
-              'AI auto-dispatches for you',
-              'Proactive Load Finding Agent',
-              'Voice AI Chatbot (hands-free)',
-              'Auto-booking & broker calls',
-              'Rate Negotiation AI + counter scripts',
-              'HOS Tracking & Safety Alerts',
-              'Weather on Route',
-              'SMS & Push Notifications',
-              'Weekly AI Intelligence Report',
-              'Driver Scorecards & Settlement',
-              'Dedicated Support',
-            ], cta: 'Claim Founder Pricing' },
-          ].map(p => {
-            const isCurrent = subData?.plan === p.id
-            return (
-              <div key={p.id} style={{
-                padding: 20, borderRadius: 12, display: 'flex', flexDirection: 'column',
-                border: isCurrent ? `2px solid ${p.color}` : p.popular ? `2px solid ${p.color}40` : '1px solid var(--border)',
-                background: isCurrent ? `${p.color}08` : 'var(--surface2)',
-                position: 'relative', transition: 'all 0.15s',
-              }}>
-                {p.popular && !isCurrent && (
-                  <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, padding: '2px 12px', borderRadius: '0 0 6px 6px', background: p.color, color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
-                )}
-                <div style={{ marginTop: p.popular && !isCurrent ? 8 : 0, marginBottom: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: p.color }}>{p.name}</div>
-                    {isCurrent && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: `${p.color}18`, color: p.color }}>CURRENT</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{p.sub}</div>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan — Autonomous Fleet AI</div>
+        <div style={{ padding: 20, maxWidth: 500 }}>
+          <div style={{ position: 'relative', padding: 20, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
+            <div style={{ position: 'absolute', top: -1, right: 16, fontSize: 9, fontWeight: 800, padding: '2px 12px', borderRadius: '0 0 6px 6px', background: '#f0a500', color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>Autonomous Fleet AI</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>Everything included · Per truck · No upsells</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: 'var(--muted)', textDecoration: 'line-through', marginRight: 2 }}>$599</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--text)' }}>$399</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>/truck/mo</span>
+            </div>
+            <div style={{ fontSize: 10, marginBottom: 16 }}>
+              <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $200/truck</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+              {['AI Load Board & Scoring', 'AI-Powered Dispatch', 'Proactive Load Finding Agent', 'Voice AI Assistant',
+                'Fleet Map & GPS Tracking', 'P&L Dashboard & Analytics', 'IFTA Auto-Filing', 'Invoicing & Auto-Factoring',
+                'Fuel Optimizer', 'Full Compliance Suite', 'HR & DQ File Management', 'Driver Portal & Scorecards',
+                'Smart Document Handling', 'Dedicated Support'].map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text)' }}>
+                  <span style={{ color: '#f0a500', fontSize: 12, flexShrink: 0 }}>{'\u2713'}</span>
+                  <span>{f}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 16 }}>
-                  {p.founder && <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: 'var(--muted)', textDecoration: 'line-through', marginRight: 2 }}>{p.fullPrice}</span>}
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--text)' }}>{p.price}</span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.priceSub}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, marginBottom: 18 }}>
-                  {p.features.map((f, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text)' }}>
-                      <span style={{ color: p.color, fontSize: 12, flexShrink: 0 }}>{'\u2713'}</span>
-                      <span>{f}</span>
-                    </div>
-                  ))}
-                </div>
-                {!isCurrent && (
-                  <button onClick={() => handleUpgrade(p.id)}
-                    disabled={upgradeLoading}
-                    style={{ width: '100%', padding: '12px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s',
-                      border: 'none', background: p.color, color: '#000' }}>
-                    {upgradeLoading ? 'Loading...' : p.cta}
-                  </button>
-                )}
-              </div>
-            )
-          })}
+              ))}
+            </div>
+            {!subData?.isActive && !subscription?.isActive && (
+              <button onClick={handleUpgrade} disabled={upgradeLoading}
+                style={{ width: '100%', padding: '12px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                  border: 'none', background: '#f0a500', color: '#000' }}>
+                {upgradeLoading ? 'Loading...' : 'Start Free Trial'}
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
-          14-day free trial on all plans · No credit card required · Cancel anytime
+          14-day free trial · No credit card required · Cancel anytime
         </div>
       </div>
 
@@ -928,7 +881,7 @@ function SubscriptionSettings() {
             boxShadow:'0 24px 80px rgba(0,0,0,0.6)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>AUTOPILOT AI</div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>AUTONOMOUS FLEET AI</div>
                 <div style={{ fontSize:12, color:'var(--muted)' }}>How many trucks do you operate?</div>
               </div>
               <button onClick={() => setTruckPicker(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:20 }}>✕</button>
@@ -951,24 +904,22 @@ function SubscriptionSettings() {
             {/* Price breakdown */}
             <div style={{ background:'var(--surface2)', borderRadius:12, padding:16, marginBottom:20 }}>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                <span style={{ color:'var(--muted)' }}>Base plan (Autopilot AI)</span>
-                <span style={{ fontWeight:700 }}>$799/mo</span>
+                <span style={{ color:'var(--muted)' }}>Autonomous Fleet AI ({truckPicker.trucks} truck{truckPicker.trucks !== 1 ? 's' : ''} × $399)</span>
+                <span style={{ fontWeight:700 }}>${(truckPicker.trucks * 399).toLocaleString()}/mo</span>
               </div>
-              {truckPicker.trucks > 1 && (
-                <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13, borderTop:'1px solid var(--border)' }}>
-                  <span style={{ color:'var(--muted)' }}>Additional trucks ({truckPicker.trucks - 1} × $150)</span>
-                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 150).toLocaleString()}/mo</span>
-                </div>
-              )}
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
+                <span>Founder pricing (normally $599/truck)</span>
+                <span style={{ color:'#ef4444', fontWeight:700 }}>Save ${(truckPicker.trucks * 200).toLocaleString()}/mo</span>
+              </div>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
                 <span style={{ fontWeight:800 }}>Total</span>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
-                  ${(799 + (truckPicker.trucks - 1) * 150).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                  ${(truckPicker.trucks * 399).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
                 </span>
               </div>
             </div>
 
-            <button onClick={() => goToCheckout('autopilot_ai', truckPicker.trucks)} disabled={upgradeLoading}
+            <button onClick={() => goToCheckout('autonomous_fleet', truckPicker.trucks)} disabled={upgradeLoading}
               style={{ width:'100%', padding:'14px', fontSize:14, fontWeight:700, border:'none', borderRadius:10,
                 background:'var(--accent)', color:'#000', cursor: upgradeLoading ? 'wait' : 'pointer',
                 fontFamily:"'DM Sans',sans-serif" }}>

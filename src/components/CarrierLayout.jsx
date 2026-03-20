@@ -945,12 +945,13 @@ function SettingsTab() {
   const { company: ctxCompany, updateCompany } = useCarrier()
   const [company, setCompany] = useState(ctxCompany || { name:'', mc:'', dot:'', address:'', phone:'', email:'', ein:'' })
   const [billing, setBilling] = useState({ factoringRate:'2.5', payDefault:'28%', fastpayEnabled:true, autoInvoice:true })
+  const [fuelCard, setFuelCard] = useState(ctxCompany?.fuel_card_provider || '')
   const [integrations] = useState([
     { name:'Samsara ELD',      status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Samsara ELD to sync device data' },
-    { name:'Comdata Fuel Card', status:'Not connected', statusC:'var(--muted)', icon: Fuel, desc:'Connect your Comdata fuel card for transaction tracking' },
+    { name:'Motive ELD',       status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Motive (KeepTruckin) ELD' },
     { name:'QuickBooks Online', status:'Not connected', statusC:'var(--muted)', icon: BarChart2, desc:'Connect to auto-sync expenses & invoices' },
     { name:'DAT Load Board',    status:'Not connected', statusC:'var(--muted)', icon: Truck, desc:'Connect to pull spot rates on your lanes' },
-    { name:'FourKites TMS',     status:'Not connected', statusC:'var(--muted)', icon: Map, desc:'Real-time shipment visibility platform' },
+    { name:'123Loadboard',      status:'Not connected', statusC:'var(--muted)', icon: Truck, desc:'Connect to search and book loads' },
   ])
   const [team] = useState([
     { name:'You (Owner)',     email: company.email || '', role:'Admin',    roleC:'var(--accent)' },
@@ -1234,6 +1235,19 @@ function SettingsTab() {
               <div style={{ fontSize:12, color:'var(--muted)' }}>Connect your ELD, fuel card, accounting, and load board</div>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {/* Fuel Card Provider */}
+              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:44, height:44, borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={Fuel} size={22} /></div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>Fuel Card</div>
+                  <select value={fuelCard} onChange={e => { setFuelCard(e.target.value); updateCompany({ fuel_card_provider: e.target.value }); showToast('', 'Saved', e.target.value || 'Fuel card cleared') }}
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>
+                    <option value="">Select your fuel card...</option>
+                    {['EFS (WEX/Fleet One)', 'Comdata', 'TCS Fuel Card', 'Pilot RoadRunner', 'Loves Fleet Card', 'RTS Fuel Card', 'Mudflap', 'AtoB', 'Coast', 'Fuelman', 'Voyager', 'Pacific Pride', 'CFN', 'T-Chek', 'MultiService', 'I don\'t use a fuel card', 'Other'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
               {integrations.map(int => (
                 <div key={int.name} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 20px', display:'flex', alignItems:'center', gap:14 }}>
                   <div style={{ width:44, height:44, borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={int.icon} size={22} /></div>

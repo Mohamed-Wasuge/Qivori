@@ -267,11 +267,15 @@ function OverviewTab({ onTabChange }) {
             {getGreeting()}! Here's your day:
           </div>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.7 }}>
-            {activeLoads.length} load{activeLoads.length !== 1 ? 's' : ''} active
-            {inTransitCount > 0 && <>, <span style={{ color:'var(--success)' }}>{inTransitCount} in transit</span></>}
-            {unpaidInvoices.length > 0 && <> · <span style={{ color:'var(--accent)' }}>{unpaidInvoices.length} invoice{unpaidInvoices.length !== 1 ? 's' : ''} awaiting payment</span></>}
-            {totalRevenue > 0 && <> · <span style={{ color:'var(--accent)' }}>{fmtMoney(totalRevenue)} revenue MTD</span></>}
-            {activeLoads.length === 0 && drivers.length === 0 && <span>Qivori AI is ready — let's get your first truck and driver set up so AI can start finding loads.</span>}
+            {activeLoads.length === 0 && drivers.length === 0
+              ? <>Qivori AI is ready — let's get your first truck and driver set up so AI can start finding loads.</>
+              : <>
+                  {activeLoads.length} load{activeLoads.length !== 1 ? 's' : ''} active
+                  {inTransitCount > 0 && <>, <span style={{ color:'var(--success)' }}>{inTransitCount} in transit</span></>}
+                  {unpaidInvoices.length > 0 && <> · <span style={{ color:'var(--accent)' }}>{unpaidInvoices.length} invoice{unpaidInvoices.length !== 1 ? 's' : ''} awaiting payment</span></>}
+                  {totalRevenue > 0 && <> · <span style={{ color:'var(--accent)' }}>{fmtMoney(totalRevenue)} revenue MTD</span></>}
+                </>
+            }
           </div>
         </div>
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>

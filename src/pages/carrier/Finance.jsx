@@ -1426,9 +1426,9 @@ export function PLDashboard() {
 
       <div style={S.grid(4)}>
         {[
-          { label:'GROSS REVENUE', val:`$${revenue.toLocaleString()}`, color:'var(--accent)', icon: DollarSign },
-          { label:'TOTAL EXPENSES', val:`$${totalExp.toLocaleString()}`, color:'var(--danger)', icon: TrendingDown },
-          { label:'NET INCOME', val:`$${net.toLocaleString()}`, color: net>=0 ? 'var(--success)' : 'var(--danger)', icon: BarChart2 },
+          { label:'WHAT YOU EARNED', val:`$${revenue.toLocaleString()}`, color:'var(--accent)', icon: DollarSign },
+          { label:'WHAT IT COST', val:`$${totalExp.toLocaleString()}`, color:'var(--danger)', icon: TrendingDown },
+          { label:'WHAT YOU KEPT', val:`$${net.toLocaleString()}`, color: net>=0 ? 'var(--success)' : 'var(--danger)', icon: BarChart2 },
           { label:'NET MARGIN', val:`${margin}%`, color: parseFloat(margin)>=20 ? 'var(--success)' : 'var(--warning)', icon: TrendingUp },
         ].map(k => (
           <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'18px 20px' }}>
@@ -1437,6 +1437,12 @@ export function PLDashboard() {
           </div>
         ))}
       </div>
+
+      {revenue === 0 && (
+        <div style={{ textAlign:'center', fontSize:12, color:'var(--muted)', padding:'4px 0 8px', lineHeight:1.5 }}>
+          Qivori tracks every dollar automatically — no spreadsheets needed.
+        </div>
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16 }}>
         <div style={S.panel}>

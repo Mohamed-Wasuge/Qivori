@@ -271,7 +271,7 @@ function OverviewTab({ onTabChange }) {
             {inTransitCount > 0 && <>, <span style={{ color:'var(--success)' }}>{inTransitCount} in transit</span></>}
             {unpaidInvoices.length > 0 && <> · <span style={{ color:'var(--accent)' }}>{unpaidInvoices.length} invoice{unpaidInvoices.length !== 1 ? 's' : ''} awaiting payment</span></>}
             {totalRevenue > 0 && <> · <span style={{ color:'var(--accent)' }}>{fmtMoney(totalRevenue)} revenue MTD</span></>}
-            {activeLoads.length === 0 && drivers.length === 0 && <span>No loads or drivers yet — complete the setup below to get rolling.</span>}
+            {activeLoads.length === 0 && drivers.length === 0 && <span>Qivori AI is ready — let's get your first truck and driver set up so AI can start finding loads.</span>}
           </div>
         </div>
         <div style={{ display:'flex', gap:6, flexShrink:0 }}>
@@ -291,10 +291,10 @@ function OverviewTab({ onTabChange }) {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:10 }}>
             {[
-              { icon: Truck, label:'Add your first truck', color:'var(--accent)', tab:'fleet', done: vehicles.length > 0 },
-              { icon: Users, label:'Add your first driver', color:'var(--accent2)', tab:'drivers', done: drivers.length > 0 },
-              { icon: Package, label:'Post your first load', color:'var(--accent3)', tab:'loads', done: loads.length > 0 },
-              { icon: Radio, label:'Connect your ELD', color:'var(--accent4)', tab:'compliance', done: false },
+              { icon: Truck, label:'Add Your Truck', desc:'Tell Qivori what you run so AI can match the right loads', color:'var(--accent)', tab:'fleet', done: vehicles.length > 0 },
+              { icon: Users, label:'Add Your Driver', desc:'Qivori needs driver info to dispatch loads and track compliance', color:'var(--accent2)', tab:'drivers', done: drivers.length > 0 },
+              { icon: Package, label:'Find Your First Load', desc:'Let AI scan DAT & 123Loadboard for the best loads on your lanes', color:'var(--accent3)', tab:'loads', done: loads.length > 0 },
+              { icon: Radio, label:'Connect Your ELD', desc:'Automatic HOS tracking, location updates, and dispatch coordination', color:'var(--accent4)', tab:'compliance', done: false },
             ].map((step, i) => (
               <div key={i} onClick={() => onTabChange(step.tab)}
                 style={{
@@ -316,8 +316,8 @@ function OverviewTab({ onTabChange }) {
                 <div style={{ fontSize:12, fontWeight:700, color: step.done ? 'var(--success)' : 'var(--text)', marginBottom:2 }}>
                   {step.done ? 'Completed' : step.label}
                 </div>
-                <div style={{ fontSize:10, color:'var(--muted)' }}>
-                  {step.done ? 'Done' : 'Click to start'}
+                <div style={{ fontSize:10, color:'var(--muted)', lineHeight:1.4 }}>
+                  {step.done ? 'Done' : step.desc}
                 </div>
               </div>
             ))}
@@ -338,11 +338,11 @@ function OverviewTab({ onTabChange }) {
       {/* ── KPI CARDS — trading terminal style ─────────────────────── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
         {[
-          { label:'REVENUE MTD', value: fmtMoney(animRevenue), raw: totalRevenue, color:'var(--accent)', icon: DollarSign, click:() => onTabChange('financials') },
-          { label:'NET PROFIT', value: fmtMoney(animProfit), raw: totalRevenue - totalExpenses, color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, click:() => onTabChange('financials') },
-          { label:'ACTIVE LOADS', value: String(animActiveLoads), raw: activeLoads.length, color:'var(--accent2)', icon: Package, sub: inTransitCount > 0 ? `${inTransitCount} in transit` : 'None moving', click:() => onTabChange('loads') },
-          { label:'FLEET UTIL', value: `${animUtil}%`, raw: utilPct, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : utilPct > 0 ? 'var(--warning)' : 'var(--muted)', icon: Truck, sub: `${fleetRows.filter(f=>f.active).length}/${fleetSize} active`, click:() => onTabChange('fleet') },
-          { label:'AVG RPM', value: `$${avgRPM}`, raw: parseFloat(avgRPM), color:'var(--accent3)', icon: BarChart2, sub: 'Per mile rate', click:() => onTabChange('financials') },
+          { label:'REVENUE MTD', value: fmtMoney(animRevenue), raw: totalRevenue, color:'var(--accent)', icon: DollarSign, sub: totalRevenue === 0 ? 'Book your first load to start tracking' : undefined, click:() => onTabChange('financials') },
+          { label:'NET PROFIT', value: fmtMoney(animProfit), raw: totalRevenue - totalExpenses, color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, sub: totalRevenue === 0 ? 'Tracked per load automatically' : undefined, click:() => onTabChange('financials') },
+          { label:'ACTIVE LOADS', value: String(animActiveLoads), raw: activeLoads.length, color:'var(--accent2)', icon: Package, sub: activeLoads.length === 0 ? 'AI is ready to find loads on your lanes' : inTransitCount > 0 ? `${inTransitCount} in transit` : 'None moving', click:() => onTabChange('loads') },
+          { label:'FLEET UTIL', value: `${animUtil}%`, raw: utilPct, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : utilPct > 0 ? 'var(--warning)' : 'var(--muted)', icon: Truck, sub: fleetSize === 0 ? 'Add trucks to see utilization' : `${fleetRows.filter(f=>f.active).length}/${fleetSize} active`, click:() => onTabChange('fleet') },
+          { label:'AVG RPM', value: `$${avgRPM}`, raw: parseFloat(avgRPM), color:'var(--accent3)', icon: BarChart2, sub: parseFloat(avgRPM) === 0 ? 'Rate per mile tracked in real-time' : 'Per mile rate', click:() => onTabChange('financials') },
         ].map(k => (
           <div key={k.label} onClick={k.click}
             style={{
@@ -391,6 +391,11 @@ function OverviewTab({ onTabChange }) {
             )
           })}
         </div>
+        {loads.length === 0 && (
+          <div style={{ padding:'6px 14px 12px', textAlign:'center', fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+            Your load pipeline tracks every load from booking to payment. Qivori handles invoicing and settlement automatically — you just drive.
+          </div>
+        )}
       </div>
 
       {/* ── MIDDLE: Active Loads + Fleet ────────────────────────── */}
@@ -404,9 +409,9 @@ function OverviewTab({ onTabChange }) {
               <div style={{ width:40, height:40, borderRadius:10, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
                 <Ic icon={Package} size={18} color="var(--accent)" />
               </div>
-              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>No active loads</div>
-              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10 }}>Book a load to get started</div>
-              <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => onTabChange('load-board')}>Open Load Board</button>
+              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>No active loads yet</div>
+              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10, lineHeight:1.5, maxWidth:280, margin:'0 auto 10px' }}>Once you add a truck and driver, Qivori AI will start finding the highest-paying loads on your lanes.</div>
+              <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => onTabChange('load-board')}>Find Loads</button>
             </div>
           ) : activeLoads.slice(0,5).map(load => {
             const sc = STATUS_DOT[load.status] || 'var(--muted)'
@@ -445,9 +450,9 @@ function OverviewTab({ onTabChange }) {
               <div style={{ width:40, height:40, borderRadius:10, background:'rgba(44,184,150,0.08)', border:'1px solid rgba(44,184,150,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
                 <Ic icon={Truck} size={18} color="var(--success)" />
               </div>
-              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>No fleet added</div>
-              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10 }}>Add trucks and drivers to start</div>
-              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => onTabChange('fleet')}>Set Up Fleet</button>
+              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>No fleet added yet</div>
+              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10, lineHeight:1.5, maxWidth:280, margin:'0 auto 10px' }}>Add your first truck so Qivori knows what equipment you run. We'll match loads to your truck type, location, and preferred lanes.</div>
+              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => onTabChange('fleet')}>Add Truck</button>
             </div>
           ) : fleetRows.map(t => (
             <div key={t.unit} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}>
@@ -475,7 +480,7 @@ function OverviewTab({ onTabChange }) {
         <div style={pan}>
           {panHead('ALERTS', AlertTriangle, alerts.length > 0 && <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => setDismissed(generatedAlerts.map((_,i)=>i))}>Clear</button>)}
           {alerts.length === 0
-            ? <div style={{ padding:24, textAlign:'center', color:'var(--success)', fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}><Ic icon={CheckCircle} size={13} color="var(--success)" /> All clear</div>
+            ? <div style={{ padding:20, textAlign:'center', fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>No alerts right now. Qivori monitors insurance expiry, CDL renewals, HOS violations, and load deadlines — you'll see alerts here when something needs attention.</div>
             : alerts.map((a, i) => (
               <div key={i} style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:8, alignItems:'flex-start' }}>
                 <Ic icon={a.icon} size={14} color={a.color} style={{ flexShrink:0, marginTop:1 }} />
@@ -496,7 +501,7 @@ function OverviewTab({ onTabChange }) {
               ...activeLoads.slice(0,2).map(l => ({ icon:Package, color:'var(--accent2)', text:`${l.loadId} ${l.status}`, time: l.pickup ? l.pickup.split(' · ')[0] : '' })),
             ].slice(0,5)
             if (activity.length === 0) return (
-              <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:11 }}>Activity appears as you operate</div>
+              <div style={{ padding:20, textAlign:'center', color:'var(--muted)', fontSize:11, lineHeight:1.5 }}>Your AI activity feed will show loads found, calls made, rate negotiations, and bookings — all in real time.</div>
             )
             return activity.map((a, i) => (
               <div key={i} style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:8, alignItems:'center' }}>
@@ -535,6 +540,10 @@ function OverviewTab({ onTabChange }) {
         @keyframes qv-pulse {
           0%, 100% { opacity:1; box-shadow: 0 0 4px currentColor; }
           50% { opacity:0.6; box-shadow: 0 0 12px currentColor; }
+        }
+        @keyframes qv-ai-pulse {
+          0%, 100% { opacity:1; box-shadow: 0 0 6px var(--accent); transform: scale(1); }
+          50% { opacity:0.5; box-shadow: 0 0 14px var(--accent); transform: scale(1.3); }
         }
       `}</style>
     </div>
@@ -3158,15 +3167,15 @@ export default function CarrierLayout() {
 // ── CRM Sidebar nav (flat, no nesting) ──────────────────────────────────────
 const NAV = [
   { id:'dashboard',   icon: Monitor,      label:'Dashboard',      i18nKey:'nav.dashboard'    },
-  { id:'loads',        icon: Package,      label:'Loads',          i18nKey:'nav.loads'        },
+  { id:'loads',        icon: Package,      label:'My Loads',       i18nKey:'nav.loads'        },
   { id:'drivers',      icon: Users,        label:'Drivers',        i18nKey:'nav.drivers'      },
-  { id:'fleet',        icon: Truck,        label:'Fleet',          i18nKey:'nav.fleet'        },
-  { id:'financials',   icon: DollarSign,   label:'Financials',     i18nKey:'nav.financials'   },
-  { id:'compliance',   icon: Shield,       label:'Compliance',     i18nKey:'nav.compliance'   },
+  { id:'fleet',        icon: Truck,        label:'My Fleet',       i18nKey:'nav.fleet'        },
+  { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
+  { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
   { id:'_divider' },
   { id:'analytics',    icon: BarChart2,    label:'Analytics',      i18nKey:'nav.analytics'    },
-  { id:'load-board',   icon: Zap,          label:'AI Load Board',  i18nKey:'nav.aiLoadBoard'  },
+  { id:'load-board',   icon: Zap,          label:'Find Loads',     i18nKey:'nav.aiLoadBoard'  },
   { id:'referrals',    icon: UserPlus,     label:'Referrals',      i18nKey:'nav.referrals'    },
 ]
 
@@ -4029,7 +4038,7 @@ function CarrierLayoutInner() {
 
         {/* AI status pill */}
         <div className="ai-status" style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'5px 12px' }}>
-          <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 6px var(--accent)' }}/>
+          <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 6px var(--accent)', animation:'qv-ai-pulse 2s ease-in-out infinite' }}/>
           <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)' }}>AI ACTIVE</span>
         </div>
 

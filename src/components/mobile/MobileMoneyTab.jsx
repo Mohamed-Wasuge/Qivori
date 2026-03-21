@@ -90,6 +90,39 @@ export default function MobileMoneyTab({ initialSubTab }) {
     showToast?.('success', 'Invoice Paid', inv.invoice_number || inv.id)
   }
 
+  const sendInvoice = async (inv) => {
+    const email = inv.broker_email || inv.email
+    if (!email) {
+      showToast?.('error', 'No Email', 'No broker email on file for this invoice')
+      return
+    }
+    haptic()
+    try {
+      const res = await apiFetch('/api/send-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: email,
+          invoiceNumber: inv.invoice_number || inv.id,
+          loadNumber: inv.load_number || inv.loadId || '',
+          route: inv.route || '',
+          amount: inv.amount || 0,
+          dueDate: inv.due_date || 'Net 30',
+          brokerName: inv.broker || '',
+        }),
+      })
+      if (res.ok) {
+        haptic('success')
+        showToast?.('success', 'Invoice Sent', `Sent to ${email}`)
+        updateInvoiceStatus(inv.id || inv.invoice_number || inv._dbId, 'Sent')
+      } else {
+        showToast?.('error', 'Send Failed', 'Could not send invoice')
+      }
+    } catch (err) {
+      showToast?.('error', 'Error', err.message)
+    }
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -157,6 +190,10 @@ export default function MobileMoneyTab({ initialSubTab }) {
                   </div>
                   {!isPaid && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button onClick={() => sendInvoice(inv)}
+                        style={{ flex: 1, padding: '8px', background: 'var(--accent)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                        <Ic icon={Send} size={12} color="#000" /> Send Invoice
+                      </button>
                       <button onClick={() => markPaid(inv)}
                         style={{ flex: 1, padding: '8px', background: 'var(--success)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                         <Ic icon={CheckCircle} size={12} color="#000" /> Mark Paid

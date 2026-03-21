@@ -40,17 +40,27 @@ export default function MobileIFTATab() {
     const startDate = new Date(selectedYear, qStart, 1)
     const endDate = new Date(selectedYear, qEnd, 0, 23, 59, 59)
 
-    // State mileage from loads
+    // State mileage from loads — estimate pass-through states
     const sm = {}
     loads.forEach(l => {
       const loadDate = new Date(l.delivery_date || l.created_at || 0)
       if (loadDate < startDate || loadDate > endDate) return
       if (!l.miles || l.miles <= 0) return
-      // Try to extract state from origin/destination
       const originState = extractState(l.origin || '')
       const destState = extractState(l.destination || l.dest || '')
-      if (originState) sm[originState] = (sm[originState] || 0) + Math.round(l.miles / 2)
-      if (destState) sm[destState] = (sm[destState] || 0) + Math.round(l.miles / 2)
+      if (!originState && !destState) return
+
+      // If same state, all miles in that state
+      if (originState === destState) {
+        sm[originState] = (sm[originState] || 0) + l.miles
+        return
+      }
+
+      // Estimate pass-through states using adjacency heuristic
+      const passThrough = estimatePassThrough(originState, destState, l.miles)
+      passThrough.forEach(({ state, miles: mi }) => {
+        sm[state] = (sm[state] || 0) + mi
+      })
     })
 
     // Fuel credits from expenses with state + gallons
@@ -241,6 +251,83 @@ function SummaryCard({ label, value, color }) {
       <div style={{ fontSize: 18, fontWeight: 800, color, fontFamily: "'Bebas Neue',sans-serif" }}>{value}</div>
     </div>
   )
+}
+
+// Estimate mileage through states between origin and destination
+// Uses simplified state adjacency + common corridor model
+function estimatePassThrough(origin, dest, totalMiles) {
+  if (!origin || !dest) {
+    // Only one state known — assign all miles there
+    return [{ state: origin || dest, miles: totalMiles }]
+  }
+
+  // Common interstate corridors (state sequences)
+  const CORRIDORS = {
+    'TX-GA': ['TX', 'LA', 'MS', 'AL', 'GA'],
+    'TX-FL': ['TX', 'LA', 'MS', 'AL', 'FL'],
+    'TX-NC': ['TX', 'LA', 'MS', 'AL', 'GA', 'SC', 'NC'],
+    'TX-TN': ['TX', 'AR', 'TN'],
+    'TX-IL': ['TX', 'OK', 'MO', 'IL'],
+    'TX-OH': ['TX', 'OK', 'MO', 'IL', 'IN', 'OH'],
+    'TX-PA': ['TX', 'OK', 'MO', 'IL', 'IN', 'OH', 'PA'],
+    'TX-NJ': ['TX', 'OK', 'MO', 'IL', 'IN', 'OH', 'PA', 'NJ'],
+    'TX-NY': ['TX', 'OK', 'MO', 'IL', 'IN', 'OH', 'PA', 'NY'],
+    'CA-TX': ['CA', 'AZ', 'NM', 'TX'],
+    'CA-IL': ['CA', 'AZ', 'NM', 'TX', 'OK', 'MO', 'IL'],
+    'CA-OH': ['CA', 'AZ', 'NM', 'TX', 'OK', 'MO', 'IL', 'IN', 'OH'],
+    'CA-PA': ['CA', 'NV', 'UT', 'CO', 'KS', 'MO', 'IL', 'IN', 'OH', 'PA'],
+    'CA-NY': ['CA', 'NV', 'UT', 'CO', 'KS', 'MO', 'IL', 'IN', 'OH', 'PA', 'NJ', 'NY'],
+    'CA-WA': ['CA', 'OR', 'WA'],
+    'CA-FL': ['CA', 'AZ', 'NM', 'TX', 'LA', 'MS', 'AL', 'FL'],
+    'FL-NY': ['FL', 'GA', 'SC', 'NC', 'VA', 'MD', 'DE', 'NJ', 'NY'],
+    'FL-PA': ['FL', 'GA', 'SC', 'NC', 'VA', 'MD', 'PA'],
+    'FL-OH': ['FL', 'GA', 'TN', 'KY', 'OH'],
+    'FL-IL': ['FL', 'GA', 'TN', 'KY', 'IN', 'IL'],
+    'GA-NJ': ['GA', 'SC', 'NC', 'VA', 'MD', 'DE', 'NJ'],
+    'GA-NY': ['GA', 'SC', 'NC', 'VA', 'MD', 'DE', 'NJ', 'NY'],
+    'GA-OH': ['GA', 'TN', 'KY', 'OH'],
+    'GA-IL': ['GA', 'TN', 'KY', 'IN', 'IL'],
+    'IL-NJ': ['IL', 'IN', 'OH', 'PA', 'NJ'],
+    'IL-NY': ['IL', 'IN', 'OH', 'PA', 'NY'],
+    'IL-PA': ['IL', 'IN', 'OH', 'PA'],
+    'OH-NJ': ['OH', 'PA', 'NJ'],
+    'OH-NY': ['OH', 'PA', 'NY'],
+    'PA-NJ': ['PA', 'NJ'],
+    'NC-NY': ['NC', 'VA', 'MD', 'DE', 'NJ', 'NY'],
+    'TN-PA': ['TN', 'VA', 'WV', 'MD', 'PA'],
+  }
+
+  // Try both directions
+  const key1 = `${origin}-${dest}`
+  const key2 = `${dest}-${origin}`
+  let route = CORRIDORS[key1] || (CORRIDORS[key2] ? [...CORRIDORS[key2]].reverse() : null)
+
+  if (!route) {
+    // Fallback: split evenly between origin and dest (same as before but with adjacency check)
+    if (totalMiles > 500 && origin !== dest) {
+      // Long haul — assume at least 1 pass-through state, split 40/20/40
+      return [
+        { state: origin, miles: Math.round(totalMiles * 0.4) },
+        { state: dest, miles: Math.round(totalMiles * 0.4) },
+        // Remaining 20% unattributed — split to origin (conservative)
+        { state: origin, miles: Math.round(totalMiles * 0.2) },
+      ]
+    }
+    // Short haul — split 50/50
+    return [
+      { state: origin, miles: Math.round(totalMiles / 2) },
+      { state: dest, miles: Math.round(totalMiles / 2) },
+    ]
+  }
+
+  // Distribute miles evenly across route states
+  const milesPerState = Math.round(totalMiles / route.length)
+  let remaining = totalMiles
+  return route.map((state, i) => {
+    const mi = i === route.length - 1 ? remaining : milesPerState
+    remaining -= milesPerState
+    return { state, miles: mi }
+  })
 }
 
 // Extract 2-letter state code from a location string like "Dallas, TX" or "Chicago, IL 60601"

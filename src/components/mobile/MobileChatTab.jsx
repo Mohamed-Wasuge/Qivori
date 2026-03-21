@@ -32,7 +32,12 @@ export default function MobileChatTab() {
 
   const dataReady = ctx.dataReady !== false
 
-  const [messages, setMessages] = useState([])
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('qivori_chat_history')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
@@ -73,6 +78,17 @@ export default function MobileChatTab() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, loading])
+
+  // Persist chat history to localStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        // Keep last 50 messages to avoid localStorage bloat
+        const toSave = messages.slice(-50)
+        localStorage.setItem('qivori_chat_history', JSON.stringify(toSave))
+      } catch { /* storage full — ignore */ }
+    }
+  }, [messages])
 
   // Fetch live load board data for AI context
   useEffect(() => {

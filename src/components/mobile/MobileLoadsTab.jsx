@@ -3,7 +3,7 @@ import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
   Package, Truck, ChevronRight, ChevronDown, ScanLine, Camera, Plus,
-  MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X
+  MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X, FileText
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
 import { apiFetch } from '../../lib/api'
@@ -21,6 +21,8 @@ export default function MobileLoadsTab() {
   const [expandedId, setExpandedId] = useState(null)
   const [scanning, setScanning] = useState(false)
   const rateConRef = useRef(null)
+  const [showAddLoad, setShowAddLoad] = useState(false)
+  const [newLoad, setNewLoad] = useState({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '' })
 
   const filtered = filter === 'All'
     ? loads
@@ -90,6 +92,32 @@ export default function MobileLoadsTab() {
     }
   }
 
+  const saveNewLoad = async () => {
+    if (!newLoad.origin || !newLoad.destination) { showToast?.('error', 'Error', 'Origin and destination required'); return }
+    const miles = parseInt(newLoad.miles) || 0
+    const rate = parseFloat(newLoad.rate) || 0
+    await addLoad({
+      origin: newLoad.origin,
+      destination: newLoad.destination,
+      miles,
+      rate,
+      rate_per_mile: miles > 0 ? (rate / miles).toFixed(2) : 0,
+      equipment: newLoad.equipment,
+      broker_name: newLoad.broker,
+      weight: newLoad.weight,
+      commodity: newLoad.commodity,
+      pickup_date: newLoad.pickup,
+      delivery_date: newLoad.delivery,
+      reference_number: newLoad.refNum,
+      status: 'Booked',
+      load_type: 'FTL',
+    })
+    haptic('success')
+    showToast?.('success', 'Load Added', `${newLoad.origin} → ${newLoad.destination}`)
+    setNewLoad({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '' })
+    setShowAddLoad(false)
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -99,6 +127,11 @@ export default function MobileLoadsTab() {
           <div style={{ fontSize: 16, fontWeight: 700 }}>Loads</div>
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
         </div>
+        <button onClick={() => { haptic(); setShowAddLoad(v => !v) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <Ic icon={Plus} size={14} color="var(--accent)" />
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Add Load</span>
+        </button>
         <button onClick={() => rateConRef.current?.click()}
           disabled={scanning}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
@@ -125,6 +158,45 @@ export default function MobileLoadsTab() {
           )
         })}
       </div>
+
+      {showAddLoad && (
+        <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>New Load</span>
+            <button onClick={() => setShowAddLoad(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+              <Ic icon={X} size={16} color="var(--muted)" />
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input placeholder="Origin (e.g. Dallas, TX)" value={newLoad.origin} onChange={e => setNewLoad(x => ({ ...x, origin: e.target.value }))}
+              style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Destination (e.g. Atlanta, GA)" value={newLoad.destination} onChange={e => setNewLoad(x => ({ ...x, destination: e.target.value }))}
+              style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input type="number" placeholder="Miles" value={newLoad.miles} onChange={e => setNewLoad(x => ({ ...x, miles: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input type="number" placeholder="Rate ($)" value={newLoad.rate} onChange={e => setNewLoad(x => ({ ...x, rate: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Broker" value={newLoad.broker} onChange={e => setNewLoad(x => ({ ...x, broker: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <select value={newLoad.equipment} onChange={e => setNewLoad(x => ({ ...x, equipment: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
+              {['Dry Van', 'Reefer', 'Flatbed', 'Stepdeck', 'Power Only'].map(eq => <option key={eq} value={eq}>{eq}</option>)}
+            </select>
+            <input type="date" placeholder="Pickup" value={newLoad.pickup} onChange={e => setNewLoad(x => ({ ...x, pickup: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input type="date" placeholder="Delivery" value={newLoad.delivery} onChange={e => setNewLoad(x => ({ ...x, delivery: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Weight (lbs)" value={newLoad.weight} onChange={e => setNewLoad(x => ({ ...x, weight: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Ref #" value={newLoad.refNum} onChange={e => setNewLoad(x => ({ ...x, refNum: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+          </div>
+          <button onClick={saveNewLoad}
+            style={{ width: '100%', marginTop: 10, padding: '10px', background: 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>
+            Book Load
+          </button>
+        </div>
+      )}
 
       {/* Load cards */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
@@ -208,6 +280,23 @@ export default function MobileLoadsTab() {
                         <span style={{ fontWeight: 600 }}>{v}</span>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Documents */}
+                  <div style={{ padding: '0 14px 10px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 6 }}>DOCUMENTS</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {['Rate Con', 'BOL', 'Signed BOL', 'POD'].map(docType => {
+                        const docKey = docType.toLowerCase().replace(/\s/g, '_')
+                        const hasDoc = load.documents?.[docKey] || load[docKey + '_url']
+                        return (
+                          <div key={docType} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: hasDoc ? 'rgba(0,212,170,0.08)' : 'var(--bg)', border: `1px solid ${hasDoc ? 'rgba(0,212,170,0.2)' : 'var(--border)'}`, borderRadius: 8, fontSize: 10, fontWeight: 600, color: hasDoc ? 'var(--success)' : 'var(--muted)' }}>
+                            <Ic icon={hasDoc ? CheckCircle : FileText} size={10} />
+                            {docType}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
 
                   {/* Action buttons */}

@@ -557,6 +557,12 @@ function CarrierLayoutInner() {
                     {React.createElement(item.icon, { size:15, color: isActive ? 'var(--accent)' : undefined })}
                   </span>
                   <span style={{ fontSize:12, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text)', flex:1 }}>{item.i18nKey ? t(item.i18nKey) : item.label}</span>
+                  {item.id === 'loads' && activeLoads.length > 0 && (
+                    <span style={{ fontSize:9, fontWeight:700, background:'var(--accent)', color:'#000', borderRadius:10, padding:'1px 6px', minWidth:16, textAlign:'center' }}>{activeLoads.length}</span>
+                  )}
+                  {item.id === 'financials' && unpaidInvoices.length > 0 && (
+                    <span style={{ fontSize:9, fontWeight:700, background:'var(--error, #ef4444)', color:'#fff', borderRadius:10, padding:'1px 6px', minWidth:16, textAlign:'center' }}>{unpaidInvoices.length}</span>
+                  )}
                 </div>
               )
             })}

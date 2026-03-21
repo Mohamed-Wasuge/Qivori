@@ -2006,7 +2006,15 @@ export default function MobileChatTab({ onNavigate }) {
 
       {/* ── CHAT HEADER BAR ────────────────────────── */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 4px', position: 'relative' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Q</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Q</div>
+          {messages.length > 0 && (
+            <button onClick={() => { setMessages([]); setShowQuickActions(true); try { localStorage.removeItem('qivori_chat_history') } catch {} }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: 'var(--muted)', transition: 'all 0.2s' }}>
+              <Ic icon={Plus} size={11} color="var(--muted)" /> New
+            </button>
+          )}
+        </div>
         <div ref={langPickerRef} style={{ position: 'relative' }}>
           <button
             onClick={() => { haptic?.('light'); setShowLangPicker(v => !v) }}
@@ -2192,11 +2200,8 @@ export default function MobileChatTab({ onNavigate }) {
                 </button>
               ))}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, paddingBottom: 8 }}>
-              <button onClick={startRetellCall} disabled={callConnecting}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 20, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: 'var(--muted)', transition: 'all 0.2s' }}>
-                <Ic icon={Phone} size={12} color="var(--accent)" /> Call Q hands-free
-              </button>
+            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingBottom: 8 }}>
+              Type or tap the mic to talk to Q
             </div>
           </div>
         )}

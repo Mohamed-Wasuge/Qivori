@@ -1961,73 +1961,75 @@ export default function MobileChatTab({ onNavigate, initialMessage, isOverlay })
         </div>
       )}
 
-      {/* ── CHAT HEADER BAR ────────────────────────── */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 4px', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Q</div>
-          {messages.length > 0 && (
-            <button onClick={() => { setMessages([]); setShowQuickActions(true); try { localStorage.removeItem('qivori_chat_history') } catch {} }}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: 'var(--muted)', transition: 'all 0.2s' }}>
-              <Ic icon={Plus} size={11} color="var(--muted)" /> New
+      {/* ── CHAT HEADER BAR (hidden in overlay — shell provides its own) ── */}
+      {!isOverlay && (
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 4px', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Q</div>
+            {messages.length > 0 && (
+              <button onClick={() => { setMessages([]); setShowQuickActions(true); try { localStorage.removeItem('qivori_chat_history') } catch {} }}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 11, fontWeight: 600, color: 'var(--muted)', transition: 'all 0.2s' }}>
+                <Ic icon={Plus} size={11} color="var(--muted)" /> New
+              </button>
+            )}
+          </div>
+          <div ref={langPickerRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => { haptic?.('light'); setShowLangPicker(v => !v) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 10px', background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 8, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+              }}
+            >
+              <Globe size={14} color="var(--accent)" />
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {currentLang || 'en'}
+              </span>
             </button>
-          )}
+            {showLangPicker && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 10, padding: '6px 0', zIndex: 9999,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)', minWidth: 160,
+                maxHeight: 320, overflowY: 'auto',
+              }}>
+                {[
+                  { code: 'en', label: 'English' },
+                  { code: 'es', label: 'Español' },
+                  { code: 'fr', label: 'Français' },
+                  { code: 'pt', label: 'Português' },
+                  { code: 'so', label: 'Soomaali' },
+                  { code: 'am', label: 'አማርኛ' },
+                  { code: 'ar', label: 'العربية' },
+                  { code: 'hi', label: 'हिन्दी' },
+                  { code: 'zh', label: '中文' },
+                  { code: 'ru', label: 'Русский' },
+                  { code: 'ko', label: '한국어' },
+                  { code: 'vi', label: 'Tiếng Việt' },
+                ].map(lang => (
+                  <button
+                    key={lang.code}
+                    onClick={() => { setLanguage(lang.code); setShowLangPicker(false); haptic?.('light') }}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      width: '100%', padding: '9px 14px', background: 'none', border: 'none',
+                      cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'left',
+                      color: currentLang === lang.code ? 'var(--accent)' : 'var(--text)',
+                      fontWeight: currentLang === lang.code ? 700 : 400,
+                      fontSize: 13,
+                    }}
+                  >
+                    <span>{lang.label}</span>
+                    <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{lang.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <div ref={langPickerRef} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { haptic?.('light'); setShowLangPicker(v => !v) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '5px 10px', background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 8, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
-            }}
-          >
-            <Globe size={14} color="var(--accent)" />
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              {currentLang || 'en'}
-            </span>
-          </button>
-          {showLangPicker && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 4,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, padding: '6px 0', zIndex: 9999,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)', minWidth: 160,
-              maxHeight: 320, overflowY: 'auto',
-            }}>
-              {[
-                { code: 'en', label: 'English' },
-                { code: 'es', label: 'Español' },
-                { code: 'fr', label: 'Français' },
-                { code: 'pt', label: 'Português' },
-                { code: 'so', label: 'Soomaali' },
-                { code: 'am', label: 'አማርኛ' },
-                { code: 'ar', label: 'العربية' },
-                { code: 'hi', label: 'हिन्दी' },
-                { code: 'zh', label: '中文' },
-                { code: 'ru', label: 'Русский' },
-                { code: 'ko', label: '한국어' },
-                { code: 'vi', label: 'Tiếng Việt' },
-              ].map(lang => (
-                <button
-                  key={lang.code}
-                  onClick={() => { setLanguage(lang.code); setShowLangPicker(false); haptic?.('light') }}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    width: '100%', padding: '9px 14px', background: 'none', border: 'none',
-                    cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'left',
-                    color: currentLang === lang.code ? 'var(--accent)' : 'var(--text)',
-                    fontWeight: currentLang === lang.code ? 700 : 400,
-                    fontSize: 13,
-                  }}
-                >
-                  <span>{lang.label}</span>
-                  <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{lang.code}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* ── PWA INSTALL BANNER ──────────────────────── */}
       {showInstallBanner && (
@@ -2128,27 +2130,27 @@ export default function MobileChatTab({ onNavigate, initialMessage, isOverlay })
       {/* ── CHAT MESSAGES ───────────────────────────── */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}>
 
-        {/* Empty state — Q welcome */}
-        {messages.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '0 20px', animation: 'fadeInUp 0.4s ease' }}>
-            {/* Q mark */}
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 0 40px rgba(240,165,0,0.2), 0 4px 20px rgba(240,165,0,0.15)', animation: 'pulseGlowAmber 3s ease-in-out infinite' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+        {/* Empty state — Q welcome (skip if initialMessage is about to fire) */}
+        {messages.length === 0 && !initialMessage && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '0 20px', animation: 'fadeInUp 0.3s ease' }}>
+            {/* Q mark — smaller in overlay since header already shows Q */}
+            <div style={{ width: isOverlay ? 48 : 64, height: isOverlay ? 48 : 64, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, boxShadow: '0 0 30px rgba(240,165,0,0.15)', animation: 'pulseGlowAmber 3s ease-in-out infinite' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: isOverlay ? 24 : 32, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4, fontFamily: "'DM Sans',sans-serif" }}>
-              {`Hey, ${driverName}`}
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, fontFamily: "'DM Sans',sans-serif" }}>
+              What can I do?
             </div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24, textAlign: 'center', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20, textAlign: 'center', lineHeight: 1.5 }}>
               {activeLoads.length > 0
                 ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
-                : 'What do you need?'}
+                : 'Ask me anything or try one of these'}
             </div>
 
             {/* Suggestion grid — 2 columns */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%', maxWidth: 360 }}>
               {suggestions.slice(0, 4).map((s, idx) => (
                 <button key={s.text} onClick={() => sendMessage(s.text)}
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 12px', fontSize: 12, color: 'var(--text)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.15s ease', animation: `fadeInUp 0.3s ease ${idx * 0.06}s both` }}>
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 12px', fontSize: 12, color: 'var(--text)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.15s ease', animation: `fadeInUp 0.25s ease ${idx * 0.05}s both` }}>
                   <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(240,165,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Ic icon={s.icon} size={16} color="var(--accent)" />
                   </div>

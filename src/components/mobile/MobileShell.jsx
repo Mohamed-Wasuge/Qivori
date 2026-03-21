@@ -45,6 +45,8 @@ export default function MobileShell() {
   const openQ = useCallback((msg) => {
     setChatInitMsg(msg || null)
     setChatOpen(true)
+    // Clear after a tick so it doesn't re-fire on next open
+    if (msg) setTimeout(() => setChatInitMsg(null), 500)
   }, [])
 
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
@@ -122,16 +124,18 @@ export default function MobileShell() {
         }}>
           {/* Overlay header */}
           <div style={{
-            height: 50, flexShrink: 0, display: 'flex', alignItems: 'center',
+            flexShrink: 0, display: 'flex', alignItems: 'center',
             padding: '0 16px', gap: 12, background: 'var(--surface)',
             borderBottom: '1px solid var(--border)',
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            minHeight: 50,
           }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>Q</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Your AI copilot</div>
+              <div style={{ fontSize: 10, color: 'var(--success)' }}>Online</div>
             </div>
             <button onClick={() => setChatOpen(false)}
               style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -141,7 +145,7 @@ export default function MobileShell() {
 
           {/* Chat content */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <MobileChatTab onNavigate={handleNavigate} initialMessage={chatInitMsg} isOverlay />
+            <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} isOverlay />
           </div>
         </div>
       )}

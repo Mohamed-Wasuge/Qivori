@@ -198,12 +198,17 @@ export default function MobileChatTab({ onNavigate }) {
   }
 
   // Build context for AI
+  const driverName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
+
   const buildContext = useCallback(() => {
     const active = loads.filter(l => !['Delivered', 'Invoiced'].includes(l.status))
     const unpaid = invoices.filter(i => i.status !== 'Paid')
     const netProfit = totalRevenue - totalExpenses
     return [
+      `DRIVER NAME: ${profile?.full_name || user?.user_metadata?.full_name || 'Driver'}`,
+      `DRIVER EMAIL: ${user?.email || 'unknown'}`,
       `CARRIER: ${company?.name || 'Unknown'}`,
+      `MC#: ${company?.mc_number || 'N/A'} | DOT#: ${company?.dot_number || 'N/A'}`,
       `Revenue MTD: $${totalRevenue.toLocaleString()} | Expenses: $${totalExpenses.toLocaleString()} | Net: $${netProfit.toLocaleString()}`,
       `Active loads (${active.length}): ${active.map(l => `${l.load_id || l.id} ${l.origin}\u2192${l.destination} $${Number(l.rate || 0).toLocaleString()} [${l.status}]`).join(' | ') || 'none'}`,
       `Total loads: ${loads.length}`,
@@ -211,7 +216,7 @@ export default function MobileChatTab({ onNavigate }) {
       `Recent expenses: ${expenses.slice(0, 5).map(e => `${e.category} $${e.amount} ${e.merchant || ''}`).join(', ') || 'none'}`,
       gpsLocation ? `Driver current location: ${gpsLocation}` : '',
     ].filter(Boolean).join('\n')
-  }, [loads, invoices, expenses, totalRevenue, totalExpenses, company, gpsLocation])
+  }, [loads, invoices, expenses, totalRevenue, totalExpenses, company, gpsLocation, profile, user])
 
   // Build load board context for AI
   const buildLoadBoard = useCallback(() => {

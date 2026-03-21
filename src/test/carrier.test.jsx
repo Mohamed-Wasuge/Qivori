@@ -20,6 +20,11 @@ vi.mock('../lib/supabase', () => ({
       signOut: vi.fn(),
       resetPasswordForEmail: vi.fn(),
     },
+    channel: vi.fn().mockReturnValue({
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn().mockReturnValue({ unsubscribe: vi.fn() }),
+    }),
+    removeChannel: vi.fn(),
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
         order: vi.fn().mockReturnValue({ data: [], error: null }),

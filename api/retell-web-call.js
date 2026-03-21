@@ -15,7 +15,8 @@ export default async function handler(req) {
   }
 
   const RETELL_API_KEY = process.env.RETELL_API_KEY
-  const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID
+  // Use driver chat agent for web calls, fall back to broker agent
+  const RETELL_AGENT_ID = process.env.RETELL_DRIVER_AGENT_ID || process.env.RETELL_AGENT_ID
   if (!RETELL_API_KEY || !RETELL_AGENT_ID) {
     return Response.json({ error: 'Retell not configured' }, { status: 500, headers: corsHeaders(req) })
   }

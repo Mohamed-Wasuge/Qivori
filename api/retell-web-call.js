@@ -24,6 +24,23 @@ export default async function handler(req) {
     const body = await req.json().catch(() => ({}))
     const driverName = body.driverName || 'Driver'
     const context = body.context || ''
+    const language = body.language || 'en'
+
+    // Map language codes to Retell-compatible language names
+    const langMap = {
+      en: 'english',
+      es: 'spanish',
+      fr: 'french',
+      pt: 'portuguese',
+      so: 'somali',
+      am: 'amharic',
+      ar: 'arabic',
+      hi: 'hindi',
+      zh: 'chinese',
+      ru: 'russian',
+      ko: 'korean',
+      vi: 'vietnamese',
+    }
 
     const res = await fetch('https://api.retellai.com/v2/create-web-call', {
       method: 'POST',
@@ -36,10 +53,12 @@ export default async function handler(req) {
         metadata: {
           user_id: user.id,
           driver_name: driverName,
+          language: language,
         },
         retell_llm_dynamic_variables: {
           driver_name: driverName,
           context: context,
+          language: langMap[language] || 'english',
         },
       }),
     })

@@ -881,6 +881,7 @@ export default function MobileChatTab({ onNavigate }) {
         body: JSON.stringify({
           driverName: driverName || 'Driver',
           context: buildContext(),
+          language: currentLang || 'en',
         }),
       })
       if (!res.ok) {

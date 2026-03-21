@@ -221,9 +221,11 @@ RULES:
 - CHAIN ACTIONS: One driver command can trigger multiple actions. "Delivered" → update_load_status + check_call + "Want me to invoice the broker?"
 - FUEL + IFTA: When driver logs fuel, ALWAYS ask for gallons and state if not provided. This feeds their IFTA quarterly tax return automatically.
 - AFTER DELIVERY: Always suggest next load, invoice the broker, and check if they need rest (HOS)
-${language === 'es' ? `
+${language && language !== 'en' ? `
 
-LANGUAGE: Respond in Spanish. Natural conversational Spanish for trucking pros. Keep industry terms (BOL, rate con, HOS, ELD, IFTA, DAT) in English.` : ''}`
+LANGUAGE: Respond in ${
+  { es: 'Spanish', fr: 'French', pt: 'Portuguese', so: 'Somali', am: 'Amharic', ar: 'Arabic', hi: 'Hindi', zh: 'Chinese', ru: 'Russian', ko: 'Korean', vi: 'Vietnamese' }[language] || language
+}. Natural conversational tone for trucking pros. Keep industry terms (BOL, rate con, HOS, ELD, IFTA, DAT, RPM) in English. Numbers and dollar amounts in standard format.` : ''}`
 
     const claudeMessages = messages
 

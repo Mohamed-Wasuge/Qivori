@@ -266,10 +266,16 @@ export function AppProvider({ children }) {
       setUser(null)
       setProfile(null)
       setView('landing')
+      try { localStorage.removeItem('qivori_chat_history') } catch {}
       showToast('', 'Demo Ended', 'Sign up to get started!')
       return
     }
     await supabase.auth.signOut()
+    // Clear chat history and session data
+    try {
+      localStorage.removeItem('qivori_chat_history')
+      localStorage.removeItem('qivori_hos_start')
+    } catch {}
     setUser(null)
     setProfile(null)
     setView('landing')

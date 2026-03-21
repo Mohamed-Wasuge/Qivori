@@ -371,6 +371,7 @@ function OverviewTab({ onTabChange }) {
 
       {/* ── REVENUE GOAL TRACKER ────────────────────────────────── */}
       {(() => {
+        try {
         const weeklyGoal = company?.revenue_goal_weekly || 0
         const monthlyGoal = company?.revenue_goal_monthly || 0
         const goalType = company?.revenue_goal_type || 'weekly'
@@ -540,6 +541,7 @@ function OverviewTab({ onTabChange }) {
             )}
           </div>
         )
+        } catch(e) { return <div style={{ color:'red', padding:16 }}>Revenue Goal Error: {String(e)}</div> }
       })()}
 
       {/* ── PIPELINE BAR ──────────────────────────────────────────── */}

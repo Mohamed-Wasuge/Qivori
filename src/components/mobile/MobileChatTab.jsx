@@ -787,6 +787,8 @@ export default function MobileChatTab() {
     const u = new SpeechSynthesisUtterance('')
     u.volume = 0
     window.speechSynthesis.speak(u)
+    // Preload voices (iOS loads them lazily)
+    window.speechSynthesis.getVoices()
     ttsUnlockedRef.current = true
   }, [])
 
@@ -821,11 +823,18 @@ export default function MobileChatTab() {
       remaining = remaining.slice(splitAt + 1).trim()
     }
 
+    // Select a male voice for Alex
+    const voices = window.speechSynthesis.getVoices()
+    const maleVoice = voices.find(v => /\b(Daniel|James|Aaron|David|Fred|Alex|Tom|Guy|Reed|Evan|Rishi)\b/i.test(v.name) && v.lang.startsWith('en'))
+      || voices.find(v => /male/i.test(v.name) && v.lang.startsWith('en'))
+      || voices.find(v => v.lang.startsWith('en-US'))
+
     let resumeInterval = null
     chunks.forEach((chunk, i) => {
       const utterance = new SpeechSynthesisUtterance(chunk)
-      utterance.rate = 1.1
-      utterance.pitch = 1.0
+      if (maleVoice) utterance.voice = maleVoice
+      utterance.rate = 1.05
+      utterance.pitch = 0.9
       utterance.volume = 1.0
       utterance.lang = 'en-US'
       if (i === 0) utterance.onstart = () => {
@@ -1642,7 +1651,7 @@ export default function MobileChatTab() {
     }
 
     // Nearest truck stop
-    if (/\b(nearest|closest|find\s*(me\s*)?(a\s*)?)(truck\s*stop|fuel|gas\s*station|love'?s|pilot|petro|ta\b|flying\s*j)\b/.test(lowerText) || /\bnear(by|est)?\s*truck\s*stop\b/.test(lowerText)) {
+    if (/\b(nearest|closest|find\s*(me\s*)?(a\s*)?)(truck\s*stop|fuel|gas\s*station|loves|love'?s|pilot|petro|ta\b|flying\s*j)\b/.test(lowerText) || /\bnear(by|est)?\s*truck\s*stop\b/.test(lowerText)) {
       await executeAction({ type: 'search_nearby', query: 'truck stop' })
       setLoading(false)
       return

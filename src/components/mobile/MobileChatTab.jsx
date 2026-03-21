@@ -792,8 +792,29 @@ export default function MobileChatTab() {
     ttsUnlockedRef.current = true
   }, [])
 
-  const speak = useCallback((text, onDone) => {
-    if (!speakerOn || !text || !window.speechSynthesis) { onDone?.(); return }
+  // AI TTS via OpenAI — sounds like a real human male
+  const speakWithAI = useCallback(async (text, onDone) => {
+    try {
+      const res = await apiFetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (!res.ok || res.status === 204) return false
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.onplay = () => setSpeaking(true)
+      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); onDone?.() }
+      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); onDone?.() }
+      await audio.play()
+      return true
+    } catch { return false }
+  }, [])
+
+  // Browser TTS fallback
+  const speakWithBrowser = useCallback((text, onDone) => {
+    if (!window.speechSynthesis) { onDone?.(); return }
     window.speechSynthesis.cancel()
     const clean = text
       .replace(/```[\s\S]*?```/g, '')
@@ -811,10 +832,7 @@ export default function MobileChatTab() {
     const chunks = []
     let remaining = clean
     while (remaining.length > 0) {
-      if (remaining.length <= 180) {
-        chunks.push(remaining)
-        break
-      }
+      if (remaining.length <= 180) { chunks.push(remaining); break }
       let splitAt = remaining.lastIndexOf('. ', 180)
       if (splitAt < 50) splitAt = remaining.lastIndexOf(', ', 180)
       if (splitAt < 50) splitAt = remaining.lastIndexOf(' ', 180)
@@ -822,27 +840,17 @@ export default function MobileChatTab() {
       chunks.push(remaining.slice(0, splitAt + 1))
       remaining = remaining.slice(splitAt + 1).trim()
     }
-
-    // Select a male voice for Alex
     const voices = window.speechSynthesis.getVoices()
-    const maleVoice = voices.find(v => /\b(Daniel|James|Aaron|David|Fred|Alex|Tom|Guy|Reed|Evan|Rishi)\b/i.test(v.name) && v.lang.startsWith('en'))
-      || voices.find(v => /male/i.test(v.name) && v.lang.startsWith('en'))
+    const maleVoice = voices.find(v => /\b(Daniel|James|Aaron|David|Alex)\b/i.test(v.name) && v.lang.startsWith('en'))
       || voices.find(v => v.lang.startsWith('en-US'))
-
     let resumeInterval = null
     chunks.forEach((chunk, i) => {
       const utterance = new SpeechSynthesisUtterance(chunk)
       if (maleVoice) utterance.voice = maleVoice
-      utterance.rate = 1.05
-      utterance.pitch = 0.9
-      utterance.volume = 1.0
-      utterance.lang = 'en-US'
+      utterance.rate = 1.05; utterance.pitch = 0.9; utterance.volume = 1.0; utterance.lang = 'en-US'
       if (i === 0) utterance.onstart = () => {
         setSpeaking(true)
-        resumeInterval = setInterval(() => {
-          window.speechSynthesis.pause()
-          window.speechSynthesis.resume()
-        }, 10000)
+        resumeInterval = setInterval(() => { window.speechSynthesis.pause(); window.speechSynthesis.resume() }, 10000)
       }
       if (i === chunks.length - 1) {
         utterance.onend = () => { setSpeaking(false); clearInterval(resumeInterval); onDone?.() }
@@ -850,7 +858,14 @@ export default function MobileChatTab() {
       }
       window.speechSynthesis.speak(utterance)
     })
-  }, [speakerOn])
+  }, [])
+
+  const speak = useCallback(async (text, onDone) => {
+    if (!speakerOn || !text) { onDone?.(); return }
+    // Try AI voice first (sounds human), fall back to browser TTS
+    const aiWorked = await speakWithAI(text, onDone)
+    if (!aiWorked) speakWithBrowser(text, onDone)
+  }, [speakerOn, speakWithAI, speakWithBrowser])
 
   // Stop speaking when speaker is toggled off
   useEffect(() => {

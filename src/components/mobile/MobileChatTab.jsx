@@ -12,7 +12,7 @@ import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper,
 
 let BOARD_LOADS = []
 
-export default function MobileChatTab() {
+export default function MobileChatTab({ onNavigate }) {
   const { logout, showToast, subscription, user, profile } = useApp()
   const { language: currentLang } = useTranslation()
   const ctx = useCarrier() || {}
@@ -748,7 +748,11 @@ export default function MobileChatTab() {
           return true
         }
         case 'navigate': {
-          showToast('info', 'Navigate', `Opening ${action.to}`)
+          const tabMap = { loads: 'loads', invoices: 'money', money: 'money', expenses: 'money', ifta: 'ifta', home: 'home', chat: 'chat', 'check-call': 'chat', 'add-expense': 'money' }
+          const tab = tabMap[action.to] || action.to
+          if (onNavigate && ['home', 'loads', 'money', 'ifta', 'chat'].includes(tab)) {
+            onNavigate(tab, action.to === 'expenses' || action.to === 'add-expense' ? 'expenses' : null)
+          }
           return true
         }
         default:
@@ -783,14 +787,29 @@ export default function MobileChatTab() {
   // ── TEXT-TO-SPEECH ──────────────────────────────
   const ttsUnlockedRef = useRef(false)
   const unlockTTS = useCallback(() => {
-    if (ttsUnlockedRef.current || !window.speechSynthesis) return
-    const u = new SpeechSynthesisUtterance('')
-    u.volume = 0
-    window.speechSynthesis.speak(u)
-    // Preload voices (iOS loads them lazily)
-    window.speechSynthesis.getVoices()
+    if (ttsUnlockedRef.current) return
+    // Unlock browser TTS
+    if (window.speechSynthesis) {
+      const u = new SpeechSynthesisUtterance('')
+      u.volume = 0
+      window.speechSynthesis.speak(u)
+      window.speechSynthesis.getVoices()
+    }
+    // Unlock Audio element for iOS (must play from user gesture)
+    if (audioRef.current) {
+      audioRef.current.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dX///////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbDMJgoNAAAAAAAAAAAAAAAAAAAA/+MYxAALCAKkGABHAQA0AAANIAAAAABM'
+      audioRef.current.volume = 0
+      audioRef.current.play().catch(() => {})
+      audioRef.current.volume = 1
+    }
     ttsUnlockedRef.current = true
   }, [])
+
+  // Persistent audio element for iOS compatibility (must be created from user gesture)
+  const audioRef = useRef(null)
+  if (!audioRef.current && typeof Audio !== 'undefined') {
+    audioRef.current = new Audio()
+  }
 
   // AI TTS via OpenAI — sounds like a real human male
   const speakWithAI = useCallback(async (text, onDone) => {
@@ -803,7 +822,8 @@ export default function MobileChatTab() {
       if (!res.ok || res.status === 204) return false
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      const audio = new Audio(url)
+      const audio = audioRef.current || new Audio()
+      audio.src = url
       audio.onplay = () => setSpeaking(true)
       audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); onDone?.() }
       audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); onDone?.() }

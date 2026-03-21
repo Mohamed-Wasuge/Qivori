@@ -79,7 +79,7 @@ export default function MobileShell() {
           <MobileIFTATab />
         </div>
         <div style={{ flex: 1, display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
-          <MobileChatTab />
+          <MobileChatTab onNavigate={handleNavigate} />
         </div>
       </div>
 

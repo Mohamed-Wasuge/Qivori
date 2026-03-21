@@ -378,8 +378,8 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   thead, tbody, tr { min-width: 600px; }
 
-  /* Toast on mobile */
-  .toast { left: 16px; right: 16px; bottom: 16px; min-width: auto; }
+  /* Toast on mobile — above tab bar */
+  .toast { left: 16px; right: 16px; bottom: 80px; min-width: auto; }
 }
 
 /* Mobile */

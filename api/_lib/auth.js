@@ -151,20 +151,17 @@ export async function requireActiveSubscription(req, user) {
     const profile = rows?.[0]
 
     if (!profile) {
-      // No profile found — block access
-      return Response.json(
-        { error: 'Subscription required' },
-        { status: 403, headers: corsHeaders(req) }
-      )
+      // No profile found — allow access (new user, profile not yet created)
+      return null
     }
 
-    // Admin role bypass
-    if (profile.role === 'admin') {
+    // Admin/owner role bypass
+    if (['admin', 'owner', 'founder'].includes(profile.role)) {
       return null
     }
 
     // Check subscription status
-    const allowedStatuses = ['active', 'trial']
+    const allowedStatuses = ['active', 'trial', 'owner', 'founder']
     if (allowedStatuses.includes(profile.status)) {
       return null
     }

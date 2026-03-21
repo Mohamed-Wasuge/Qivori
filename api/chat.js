@@ -1,5 +1,5 @@
-import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
-import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
+import { handleCors, corsHeaders, verifyAuth, requireActiveSubscription } from './_lib/auth.js'
+import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -11,13 +11,16 @@ export default async function handler(req) {
   }
 
   // Require authenticated user
-  const authErr = await requireAuth(req)
-  if (authErr) return authErr
+  const { user, error: authError } = await verifyAuth(req)
+  if (authError) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+  }
+  const subErr = await requireActiveSubscription(req, user)
+  if (subErr) return subErr
 
-  // Rate limit: 30 messages per minute per IP
-  const ip = getClientIP(req)
-  const { limited, resetMs } = rateLimit(`chat:${ip}`, 30, 60000)
-  if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
+  // Rate limit: 30 requests per 60 seconds per user (Supabase-backed)
+  const { limited, resetSeconds } = await checkRateLimit(user.id, 'chat', 30, 60)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {

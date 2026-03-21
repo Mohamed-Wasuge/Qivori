@@ -1,6 +1,6 @@
-import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { handleCors, corsHeaders, verifyAuth, requireActiveSubscription } from './_lib/auth.js'
 import { sendSMS } from './_lib/sms.js'
-import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
+import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -11,13 +11,16 @@ export default async function handler(req) {
     return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
 
-  const authErr = await requireAuth(req)
-  if (authErr) return authErr
+  const { user, error: authError } = await verifyAuth(req)
+  if (authError) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+  }
+  const subErr = await requireActiveSubscription(req, user)
+  if (subErr) return subErr
 
-  // Rate limit: 10 SMS per minute per IP
-  const ip = getClientIP(req)
-  const { limited, resetMs } = rateLimit(`sms:${ip}`, 10, 60000)
-  if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
+  // Rate limit: 5 requests per 60 seconds per user (Supabase-backed)
+  const { limited, resetSeconds } = await checkRateLimit(user.id, 'send-sms', 5, 60)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
 
   try {
     const { to, message } = await req.json()

@@ -247,6 +247,10 @@ function OverviewTab({ onTabChange }) {
   return (
     <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:12 }}>
 
+      <div style={{ background:'red', color:'white', padding:20, fontSize:18, fontWeight:'bold', borderRadius:8, textAlign:'center' }}>
+        TEST: THIS IS THE NEW OVERVIEWTAB - v{Date.now() % 10000}
+      </div>
+
       {/* ── TOP BAR: Clock + Fuel Ticker ───────────────────────────── */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
         <LiveClock />

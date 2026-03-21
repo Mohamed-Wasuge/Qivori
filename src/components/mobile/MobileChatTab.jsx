@@ -1651,8 +1651,8 @@ export default function MobileChatTab({ onNavigate }) {
     }
 
     // ── VOICE MODE TOGGLE — start/stop Retell call ──
-    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*(q|alex)\b/i.test(lowerText)) {
-      setMessages(m => [...m, { role: 'assistant', content: 'Starting voice call...' }])
+    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*q\b/i.test(lowerText) || /\btalk\s*to\s*q\b/i.test(lowerText)) {
+      setMessages(m => [...m, { role: 'assistant', content: 'Connecting to Q...' }])
       startRetellCall()
       setLoading(false)
       return
@@ -2205,7 +2205,7 @@ export default function MobileChatTab({ onNavigate }) {
               <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
                 {activeLoads.length > 0
                   ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
-                  : 'Your AI dispatcher \u2014 type or tap the mic'}
+                  : 'Q is ready \u2014 type or tap the mic'}
               </div>
             </div>
 

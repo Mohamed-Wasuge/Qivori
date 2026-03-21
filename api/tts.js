@@ -77,11 +77,11 @@ export default async function handler(req) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'tts-1-hd',
+          model: 'tts-1',
           voice: 'echo',
           input: clean,
           response_format: 'mp3',
-          speed: 1.0,
+          speed: 1.05,
         }),
       })
       if (res.ok) {

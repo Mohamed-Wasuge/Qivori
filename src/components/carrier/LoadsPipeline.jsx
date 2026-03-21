@@ -5,9 +5,7 @@ import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { Ic, HubTabBar } from './shared'
 import { DispatchTab } from './DispatchTab'
-import {
-  SmartDispatch, CheckCallCenter, CommandCenter, LaneIntel, RateNegotiation, RateBadge,
-} from '../../pages/CarrierPages'
+import { SmartDispatch, CommandCenter, CheckCallCenter, LaneIntel, RateNegotiation, RateBadge } from '../../pages/carrier/LoadBoard'
 
 // ── Billing tab ────────────────────────────────────────────────────────────────
 export function BillingTab() {

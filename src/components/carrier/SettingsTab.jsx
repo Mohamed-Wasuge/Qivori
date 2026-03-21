@@ -7,7 +7,7 @@ import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { Ic } from './shared'
-import { SMSSettings, InvoicingSettings, TeamManagement } from '../../pages/CarrierPages'
+import { SMSSettings, InvoicingSettings, TeamManagement } from '../../pages/carrier/Settings'
 
 // ── Subscription Settings (inside Settings tab) ────────────────────────────────
 export function SubscriptionSettings() {

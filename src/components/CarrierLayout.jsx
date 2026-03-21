@@ -11,15 +11,12 @@ import { useApp } from '../context/AppContext'
 import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF } from '../utils/generatePDF'
 import Toast from './Toast'
-import {
-  SmartDispatch, DriverSettlement, FleetMap, FleetManager,
-  LaneIntel, FuelOptimizer, BrokerRiskIntel, DriverOnboarding,
-  CarrierIFTA, CarrierDVIR, CarrierClearinghouse,
-  DriverProfiles, BrokerDirectory, ExpenseTracker, FactoringCashflow,
-  CommandCenter, AILoadBoard, CashFlowForecaster, CheckCallCenter, DriverScorecard, DATAlertBot,
-  PLDashboard, ReceivablesAging, DriverPayReport, CashRunway, QuickBooksExport, CarrierPackage, EquipmentManager,
-  AnalyticsDashboard, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement, RateNegotiation, RateBadge,
-} from '../pages/CarrierPages'
+import { SmartDispatch, LaneIntel, CommandCenter, AILoadBoard, CheckCallCenter, DATAlertBot, RateNegotiation, RateBadge } from '../pages/carrier/LoadBoard'
+import { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, DriverPayReport } from '../pages/carrier/DriverScorecard'
+import { CarrierIFTA, CarrierDVIR, CarrierClearinghouse } from '../pages/carrier/Compliance'
+import { FleetMap, FleetManager, FuelOptimizer, EquipmentManager } from '../pages/carrier/Fleet'
+import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard } from '../pages/carrier/Finance'
+import { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement } from '../pages/carrier/Settings'
 import { apiFetch } from '../lib/api'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
 import { DQFileManager, ExpiryAlerts, DrugAlcoholCompliance, IncidentTracker, PayrollTracker, DriverPortal } from '../pages/carrier/HR'

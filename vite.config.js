@@ -17,11 +17,22 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          supabase: ['@supabase/supabase-js'],
-          pdf: ['jspdf', 'pdfjs-dist'],
-          sentry: ['@sentry/react'],
+        manualChunks(id) {
+          // Core vendor libs
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor'
+          if (id.includes('node_modules/@supabase')) return 'supabase'
+          if (id.includes('node_modules/jspdf') || id.includes('node_modules/pdfjs-dist')) return 'pdf'
+          if (id.includes('node_modules/@sentry')) return 'sentry'
+          if (id.includes('node_modules/html2canvas')) return 'html2canvas'
+          if (id.includes('node_modules/lucide-react')) return 'icons'
+          // Split carrier sub-modules into separate chunks
+          if (id.includes('components/carrier/SettingsTab')) return 'carrier-settings'
+          if (id.includes('components/carrier/DispatchTab')) return 'carrier-dispatch'
+          if (id.includes('components/carrier/ProfitIQTab')) return 'carrier-profitiq'
+          if (id.includes('components/carrier/LoadsPipeline')) return 'carrier-pipeline'
+          if (id.includes('components/carrier/Overlays')) return 'carrier-overlays'
+          if (id.includes('components/carrier/OnboardingWizard')) return 'carrier-onboarding'
+          if (id.includes('components/carrier/OverviewTab')) return 'carrier-overview'
         }
       }
     }

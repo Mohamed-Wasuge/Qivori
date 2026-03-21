@@ -529,19 +529,9 @@ function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ── REVENUE GOAL TRACKER ────────────────────────────────── */}
-      <RevenueGoalWidget
-        company={company}
-        deliveredLoads={deliveredLoads}
-        invoices={invoices}
-        totalRevenue={totalRevenue}
-        editingGoal={editingGoal}
-        setEditingGoal={setEditingGoal}
-        goalInput={goalInput}
-        setGoalInput={setGoalInput}
-        updateCompany={updateCompany}
-        showToast={showToast}
-        pan={pan}
-      />
+      <div id="revenue-goal-anchor" style={{ background: '#f0a500', color: '#0a0a0e', padding: 16, borderRadius: 10, fontWeight: 700, fontSize: 14, textAlign: 'center' }}>
+        REVENUE GOAL TRACKER — SET YOUR WEEKLY TARGET
+      </div>
 
       {/* ── PIPELINE BAR ──────────────────────────────────────────── */}
       <div style={pan}>

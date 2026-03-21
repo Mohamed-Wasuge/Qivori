@@ -48,7 +48,7 @@ export function DriverSettlement() {
     </div>
   )
 
-  const driverName = driver.full_name || driverName || 'Unknown'
+  const driverName = driver.full_name || driver.name || 'Unknown'
   const driverAvatar = driverName.split(' ').map(w => w[0]).join('')
   const model = models[activeDriver] || 'percent'
   const modelVal = modelVals[activeDriver] ?? 28
@@ -1089,8 +1089,8 @@ export function DriverScorecard() {
   const [viewMode, setViewMode] = useState('scorecard') // scorecard | compare
   const [hoveredMonth, setHoveredMonth] = useState(null)
 
-  const driverSource = realDrivers
-  const loadSource = realLoads
+  const driverSource = realDrivers || []
+  const loadSource = realLoads || []
 
   // Build driver stats
   const driverStats = useMemo(() => {

@@ -2,11 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import {
-  Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone, PhoneOff,
+  Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone,
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
   CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell, Globe
 } from 'lucide-react'
-import { RetellWebClient } from 'retell-client-js-sdk'
 import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
 import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper, mobileAnimations } from './shared'
@@ -78,9 +77,7 @@ export default function MobileChatTab({ onNavigate }) {
   const [speakerOn, setSpeakerOn] = useState(true)
   const [speaking, setSpeaking] = useState(false)
   const [handsFree, setHandsFree] = useState(false)
-  const [inCall, setInCall] = useState(false)
-  const [callConnecting, setCallConnecting] = useState(false)
-  const retellClientRef = useRef(null)
+  const retellClientRef = useRef(null) // kept for cleanup only
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -939,80 +936,11 @@ export default function MobileChatTab({ onNavigate }) {
     audioRef.current = new Audio()
   }
 
-  // ── RETELL VOICE CALL — real-time conversation with Q ──
-  const startRetellCall = useCallback(async () => {
-    if (inCall || callConnecting) return
-    setCallConnecting(true)
-    haptic('medium')
-    try {
-      const res = await apiFetch('/api/retell-web-call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          driverName: driverName || 'Driver',
-          context: buildContext(),
-          language: currentLang || 'en',
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to start call')
-      }
-      const { access_token } = await res.json()
-      if (!access_token) throw new Error('No access token')
-
-      const client = new RetellWebClient()
-      retellClientRef.current = client
-
-      client.on('call_started', () => {
-        setInCall(true)
-        setCallConnecting(false)
-        setSpeaking(false)
-        haptic('success')
-        setMessages(m => [...m, { role: 'assistant', content: 'Connected. Q is listening.' }])
-      })
-
-      client.on('call_ended', () => {
-        setInCall(false)
-        setCallConnecting(false)
-        setSpeaking(false)
-        retellClientRef.current = null
-        setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Tap the phone to call again or type below.' }])
-      })
-
-      client.on('agent_start_talking', () => setSpeaking(true))
-      client.on('agent_stop_talking', () => setSpeaking(false))
-
-      client.on('error', (e) => {
-        console.error('Retell error:', e)
-        setInCall(false)
-        setCallConnecting(false)
-        setSpeaking(false)
-        retellClientRef.current = null
-      })
-
-      await client.startCall({ accessToken: access_token })
-    } catch (err) {
-      setCallConnecting(false)
-      showToast('error', 'Call Failed', err.message || 'Could not connect')
-    }
-  }, [inCall, callConnecting, driverName, buildContext, showToast])
-
-  const endRetellCall = useCallback(() => {
-    if (retellClientRef.current) {
-      retellClientRef.current.stopCall()
-      retellClientRef.current = null
-    }
-    setInCall(false)
-    setCallConnecting(false)
-    setSpeaking(false)
-  }, [])
-
-  // Cleanup call on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (retellClientRef.current) {
-        retellClientRef.current.stopCall()
+        retellClientRef.current.stopCall?.()
         retellClientRef.current = null
       }
     }
@@ -1044,10 +972,9 @@ export default function MobileChatTab({ onNavigate }) {
   }, [])
 
   const speak = useCallback(async (text, onDone) => {
-    // Don't TTS if in a Retell call (Retell handles voice) or speaker is off
-    if (inCall || !speakerOn || !text) { onDone?.(); return }
+    if (!speakerOn || !text) { onDone?.(); return }
     speakWithAI(text, onDone)
-  }, [inCall, speakerOn, speakWithAI])
+  }, [speakerOn, speakWithAI])
 
   // Stop speaking when speaker is toggled off
   useEffect(() => {
@@ -1650,16 +1577,9 @@ export default function MobileChatTab({ onNavigate }) {
       return
     }
 
-    // ── VOICE MODE TOGGLE — start/stop Retell call ──
-    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*q\b/i.test(lowerText) || /\btalk\s*to\s*q\b/i.test(lowerText)) {
-      setMessages(m => [...m, { role: 'assistant', content: 'Connecting to Q...' }])
-      startRetellCall()
-      setLoading(false)
-      return
-    }
-    if (/\b(turn\s*off|disable|stop|deactivate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\b(hang\s*up|end\s*call)\b/i.test(lowerText)) {
-      endRetellCall()
-      setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Type or tap the phone to call again.' }])
+    // ── VOICE MODE — just use push-to-talk mic ──
+    if (/\b(call\s*q|talk\s*to\s*q|voice\s*mode|hands[\s-]*free)\b/i.test(lowerText)) {
+      setMessages(m => [...m, { role: 'assistant', content: 'Just tap the mic button and speak. Q is always listening.' }])
       setLoading(false)
       return
     }
@@ -2401,13 +2321,20 @@ export default function MobileChatTab({ onNavigate }) {
         ))}
       </div>
 
-      {/* ── RECORDING INDICATOR ──────────────────────── */}
+      {/* ── RECORDING OVERLAY ──────────────────────── */}
       {listening && (
-        <div style={{ flexShrink: 0, margin: '0 16px', padding: '10px 16px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeInUp 0.2s ease' }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--danger)', animation: 'micPulse 1s ease-in-out infinite' }} />
-          <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Recording... tap mic to send</div>
+        <div style={{ flexShrink: 0, margin: '0 16px 4px', padding: '14px 20px', background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(240,165,0,0.03))', border: '1.5px solid rgba(240,165,0,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 14, animation: 'fadeInUp 0.2s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+            {[0,1,2,3,4].map(i => (
+              <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--accent)', animation: `voiceWave 0.6s ease-in-out ${i * 0.08}s infinite alternate` }} />
+            ))}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Listening...</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Tap send when done</div>
+          </div>
           <button onClick={() => { if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
-            style={{ padding: '4px 12px', background: 'var(--danger)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+            style={{ padding: '8px 20px', background: 'var(--accent)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease' }}>
             Send
           </button>
         </div>
@@ -2453,48 +2380,27 @@ export default function MobileChatTab({ onNavigate }) {
         {/* Send / Mic PTT button */}
         {input.trim() && input !== 'Transcribing...' ? (
           <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
-            style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
-            <Ic icon={Send} size={16} color="#000" />
-          </button>
-        ) : inCall ? (
-          <button onClick={endRetellCall}
-            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'micPulse 2s ease-in-out infinite' }}>
-            <Ic icon={PhoneOff} size={16} color="#fff" />
+            style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', boxShadow: '0 2px 12px rgba(240,165,0,0.25)' }}>
+            <Ic icon={Send} size={18} color="#000" />
           </button>
         ) : (
           <button onClick={() => startListening()}
-            style={{ width: 44, height: 44, borderRadius: '50%', background: listening ? 'var(--danger)' : 'rgba(240,165,0,0.08)', border: `2px solid ${listening ? 'var(--danger)' : 'rgba(240,165,0,0.25)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none' }}>
-            <Ic icon={Mic} size={18} color={listening ? '#fff' : 'var(--accent)'} />
+            style={{
+              width: 48, height: 48, borderRadius: '50%',
+              background: listening
+                ? 'linear-gradient(135deg, var(--accent), #e09000)'
+                : 'linear-gradient(135deg, rgba(240,165,0,0.12), rgba(240,165,0,0.06))',
+              border: listening ? 'none' : '2px solid rgba(240,165,0,0.3)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, transition: 'all 0.25s ease',
+              boxShadow: listening ? '0 0 24px rgba(240,165,0,0.35), 0 0 8px rgba(240,165,0,0.2)' : '0 2px 8px rgba(240,165,0,0.1)',
+              animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none',
+              transform: listening ? 'scale(1.08)' : 'scale(1)',
+            }}>
+            <Ic icon={Mic} size={20} color={listening ? '#000' : 'var(--accent)'} />
           </button>
         )}
       </div>
-
-      {/* In-call overlay */}
-      {(inCall || callConnecting) && (
-        <div style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', left: 16, right: 16, padding: '20px', background: 'var(--surface)', border: `2px solid ${inCall ? 'var(--accent)' : 'var(--accent2)'}`, borderRadius: 16, boxShadow: '0 8px 32px rgba(240,165,0,0.2)', zIndex: 1000, textAlign: 'center' }}>
-          {/* Voice wave animation */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, marginBottom: 12, height: 32 }}>
-            {[0, 1, 2, 3, 4].map(i => (
-              <div key={i} style={{
-                width: 4, borderRadius: 2, background: speaking ? 'var(--accent)' : 'var(--accent2)',
-                height: speaking ? '100%' : 8,
-                animation: speaking ? `voiceWave 0.8s ease-in-out ${i * 0.1}s infinite alternate` : 'none',
-                transition: 'height 0.3s ease',
-              }} />
-            ))}
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
-            {callConnecting ? 'Connecting...' : speaking ? 'Q is speaking...' : 'Listening...'}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
-            {callConnecting ? 'Setting up voice call' : 'Speak naturally \u2014 Q hears you in real time'}
-          </div>
-          <button onClick={endRetellCall}
-            style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Ic icon={PhoneOff} size={20} color="#fff" />
-          </button>
-        </div>
-      )}
 
       {/* Hidden rate con file input */}
       <input ref={rateConInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}

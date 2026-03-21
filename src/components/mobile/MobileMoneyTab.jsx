@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
@@ -22,6 +22,9 @@ export default function MobileMoneyTab({ initialSubTab }) {
   const unpaidInvoices = ctx.unpaidInvoices || []
 
   const [subTab, setSubTab] = useState(initialSubTab || 'invoices')
+  useEffect(() => {
+    if (initialSubTab) setSubTab(initialSubTab)
+  }, [initialSubTab])
   const [showAddExpense, setShowAddExpense] = useState(false)
   const [newExp, setNewExp] = useState({ amount: '', cat: 'Fuel', notes: '', date: new Date().toISOString().split('T')[0], gallons: '', pricePerGal: '', state: '' })
   const [scanning, setScanning] = useState(false)

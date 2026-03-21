@@ -66,19 +66,19 @@ export default function MobileShell() {
       {/* ── TAB CONTENT ── */}
       {/* All tabs stay mounted to preserve state */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
           <MobileHomeTab onNavigate={handleNavigate} />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
           <MobileLoadsTab />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
           <MobileMoneyTab initialSubTab={moneySubTab} />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'ifta' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: activeTab === 'ifta' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
           <MobileIFTATab />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
           <MobileChatTab onNavigate={handleNavigate} />
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function MobileShell() {
       {/* ── BOTTOM TAB BAR ── */}
       <div style={{
         flexShrink: 0,
-        height: 56,
+        minHeight: 56,
         background: 'var(--surface)',
         borderTop: '1px solid var(--border)',
         display: 'flex',
@@ -104,7 +104,7 @@ export default function MobileShell() {
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                padding: '6px 12px', position: 'relative',
+                padding: '10px 16px', position: 'relative',
                 transition: 'all 0.15s',
               }}>
               <div style={{ position: 'relative' }}>
@@ -137,7 +137,10 @@ export default function MobileShell() {
         })}
       </div>
 
-      <style>{mobileAnimations}</style>
+      <style>{mobileAnimations + `
+     .hide-scrollbar::-webkit-scrollbar { display: none; }
+     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+   `}</style>
     </div>
   )
 }

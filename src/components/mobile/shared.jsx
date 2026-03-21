@@ -47,7 +47,6 @@ export function ActionBadge({ action }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.2)', borderRadius: 8, fontSize: 10, fontWeight: 600, color: 'var(--success)' }}>
       <Ic icon={Icon} size={11} />
-      <Ic icon={CheckCircle} size={9} />
       {labels[action.type] || action.type}
     </div>
   )

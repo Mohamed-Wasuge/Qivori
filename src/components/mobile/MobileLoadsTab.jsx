@@ -234,12 +234,12 @@ export default function MobileLoadsTab() {
                     {load.miles > 0 && <span>{load.miles} mi</span>}
                   </div>
                 </div>
-                <ChevronRight size={14} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: '0.2s' }} />
+                <ChevronRight size={14} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s ease' }} />
               </div>
 
               {/* Expanded details */}
               {isExpanded && (
-                <div style={{ borderTop: '1px solid var(--border)' }}>
+                <div style={{ borderTop: '1px solid var(--border)', animation: 'slideUp 0.2s ease' }}>
                   {/* Status progress bar */}
                   <div style={{ padding: '10px 14px', overflowX: 'auto' }}>
                     <div style={{ display: 'flex', gap: 2, minWidth: 'max-content' }}>

@@ -135,6 +135,23 @@ export default function MobileChatTab({ onNavigate }) {
     return () => { window.removeEventListener('offline', goOffline); window.removeEventListener('online', goOnline) }
   }, [showToast])
 
+  // iOS keyboard: adjust layout when keyboard opens
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => {
+      const offset = window.innerHeight - vv.height
+      document.documentElement.style.setProperty('--kb-offset', offset + 'px')
+    }
+    vv.addEventListener('resize', onResize)
+    vv.addEventListener('scroll', onResize)
+    return () => {
+      vv.removeEventListener('resize', onResize)
+      vv.removeEventListener('scroll', onResize)
+      document.documentElement.style.setProperty('--kb-offset', '0px')
+    }
+  }, [])
+
   // Check notification permission
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -2150,7 +2167,7 @@ export default function MobileChatTab({ onNavigate }) {
       )}
 
       {/* ── QUICK ACTION CHIPS ──────────────────────── */}
-      <div style={{ flexShrink: 0, padding: '6px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="hide-scrollbar" style={{ flexShrink: 0, padding: '6px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {quickActions.map(a => (
           <button key={a.label} onClick={() => { haptic('light'); if (a.msg === '__snap_ratecon__') { if (rateConInputRef.current) rateConInputRef.current.click() } else { sendMessage(a.msg) } }}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, fontSize: 12, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif", flexShrink: 0 }}>
@@ -2161,7 +2178,7 @@ export default function MobileChatTab({ onNavigate }) {
       </div>
 
       {/* ── INPUT BAR ───────────────────────────────── */}
-      <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+      <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 'var(--kb-offset, 0px)' }}>
         {/* GPS quick button */}
         <button onClick={getGPS}
           style={{ width: 40, height: 40, borderRadius: 12, background: gpsLocation ? 'rgba(0,212,170,0.12)' : 'var(--surface2)', border: '1px solid ' + (gpsLocation ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -2213,7 +2230,7 @@ export default function MobileChatTab({ onNavigate }) {
 
       {/* Listening overlay */}
       {listening && (
-        <div style={{ position: 'fixed', bottom: 80, left: 16, right: 16, padding: '16px 20px', background: 'var(--surface)', border: '2px solid var(--danger)', borderRadius: 16, boxShadow: '0 8px 32px rgba(239,68,68,0.3)', zIndex: 200, textAlign: 'center' }}>
+        <div style={{ position: 'fixed', bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))', left: 16, right: 16, padding: '16px 20px', background: 'var(--surface)', border: '2px solid var(--danger)', borderRadius: 16, boxShadow: '0 8px 32px rgba(239,68,68,0.3)', zIndex: 1000, textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--danger)', animation: 'micPulse 1s ease-in-out infinite' }} />
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)' }}>Listening...</span>
@@ -2236,17 +2253,6 @@ export default function MobileChatTab({ onNavigate }) {
           e.target.value = ''
         }} />
 
-      {/* Animations */}
-      <style>{`
-        @keyframes aipulse {
-          0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-          40% { opacity: 1; transform: scale(1.1); }
-        }
-        @keyframes micPulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.7; transform: scale(1.15); }
-        }
-      `}</style>
     </div>
   )
 }

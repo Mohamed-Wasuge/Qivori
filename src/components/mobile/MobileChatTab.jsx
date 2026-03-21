@@ -1118,70 +1118,91 @@ export default function MobileChatTab({ onNavigate }) {
     )
   })
 
-  // ── VOICE RECOGNITION ──────────────────────────
-  const hasSpeechRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  // ── PUSH-TO-TALK (MediaRecorder + Whisper) ──────────────────────────
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const recordingTimerRef = useRef(null)
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     unlockTTS()
-    if (!hasSpeechRecognition) {
-      if (isIOS) {
-        showToast('info', 'Voice on iPhone', 'For voice input, use the mic button on your keyboard.')
-      } else {
-        showToast('error', 'Not Supported', 'Voice not supported on this browser. Please type your message.')
-      }
-      return
-    }
 
+    // If already recording, stop and transcribe
     if (listening) {
-      recognitionRef.current?.stop()
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop()
+      }
       return
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'en-US'
-    recognition.interimResults = true
-    recognition.continuous = false
-    recognition.maxAlternatives = 1
-    recognitionRef.current = recognition
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioChunksRef.current = []
 
-    recognition.onstart = () => {
+      // Use webm if supported, fall back to mp4 for iOS
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : ''
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        // Stop all tracks
+        stream.getTracks().forEach(t => t.stop())
+        setListening(false)
+        if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current)
+
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        if (blob.size < 1000) return // Too short, ignore
+
+        // Show transcribing state
+        setInput('Transcribing...')
+        try {
+          const form = new FormData()
+          form.append('audio', blob, 'recording.webm')
+          const res = await apiFetch('/api/transcribe', { method: 'POST', body: form })
+          const data = await res.json()
+          const text = (data.text || '').trim()
+          if (text && text.length > 1) {
+            setInput('')
+            lastInputWasVoiceRef.current = true
+            sendMessageRef.current?.(text)
+          } else {
+            setInput('')
+            showToast('', 'No Speech', 'Tap the mic and speak clearly')
+          }
+        } catch {
+          setInput('')
+          showToast('error', 'Transcription Failed', 'Try again')
+        }
+      }
+
+      recorder.start()
       setListening(true)
-      setVoiceText('')
-    }
+      haptic('medium')
 
-    recognition.onresult = (event) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-      setVoiceText(transcript)
-      setInput(transcript)
-
-      if (event.results[event.results.length - 1].isFinal) {
-        setTimeout(() => {
-          lastInputWasVoiceRef.current = true
-          sendMessageRef.current?.(transcript)
-          setVoiceText('')
-        }, 300)
-      }
-    }
-
-    recognition.onerror = (event) => {
+      // Auto-stop after 30 seconds
+      recordingTimerRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          mediaRecorderRef.current.stop()
+        }
+      }, 30000)
+    } catch (err) {
       setListening(false)
-      if (event.error === 'not-allowed') {
-        showToast('error', 'Mic Blocked', 'Allow microphone access in browser settings')
-      } else if (event.error === 'no-speech') {
-        // Silently end
+      if (err.name === 'NotAllowedError') {
+        showToast('error', 'Mic Blocked', 'Allow microphone in your browser settings')
+      } else {
+        showToast('error', 'Mic Error', err.message || 'Could not access microphone')
       }
     }
-
-    recognition.onend = () => {
-      setListening(false)
-    }
-
-    recognition.start()
-  }, [listening, unlockTTS, hasSpeechRecognition, isIOS, showToast])
+  }, [listening, unlockTTS, showToast, haptic])
 
   // Format parsed document data for chat display
   const formatParsedDoc = (data) => {
@@ -2380,6 +2401,18 @@ export default function MobileChatTab({ onNavigate }) {
         ))}
       </div>
 
+      {/* ── RECORDING INDICATOR ──────────────────────── */}
+      {listening && (
+        <div style={{ flexShrink: 0, margin: '0 16px', padding: '10px 16px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeInUp 0.2s ease' }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--danger)', animation: 'micPulse 1s ease-in-out infinite' }} />
+          <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Recording... tap mic to send</div>
+          <button onClick={() => { if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
+            style={{ padding: '4px 12px', background: 'var(--danger)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+            Send
+          </button>
+        </div>
+      )}
+
       {/* ── INPUT BAR ───────────────────────────────── */}
       <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
         {/* GPS quick button */}
@@ -2418,20 +2451,20 @@ export default function MobileChatTab({ onNavigate }) {
         </div>
 
         {/* Send / Mic PTT button */}
-        {input.trim() ? (
+        {input.trim() && input !== 'Transcribing...' ? (
           <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
-            style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+            style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
             <Ic icon={Send} size={16} color="#000" />
           </button>
         ) : inCall ? (
           <button onClick={endRetellCall}
-            style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'micPulse 2s ease-in-out infinite' }}>
+            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'micPulse 2s ease-in-out infinite' }}>
             <Ic icon={PhoneOff} size={16} color="#fff" />
           </button>
         ) : (
-          <button onClick={() => { haptic('light'); startListening() }}
-            style={{ width: 40, height: 40, borderRadius: '50%', background: listening ? 'var(--danger)' : 'var(--surface2)', border: `1.5px solid ${listening ? 'var(--danger)' : 'var(--border)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none' }}>
-            <Ic icon={Mic} size={16} color={listening ? '#fff' : 'var(--accent)'} />
+          <button onClick={() => startListening()}
+            style={{ width: 44, height: 44, borderRadius: '50%', background: listening ? 'var(--danger)' : 'rgba(240,165,0,0.08)', border: `2px solid ${listening ? 'var(--danger)' : 'rgba(240,165,0,0.25)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none' }}>
+            <Ic icon={Mic} size={18} color={listening ? '#fff' : 'var(--accent)'} />
           </button>
         )}
       </div>

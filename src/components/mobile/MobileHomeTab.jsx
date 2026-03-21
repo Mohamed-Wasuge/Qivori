@@ -1,12 +1,88 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
   Package, DollarSign, TrendingUp, Truck, ChevronRight, AlertCircle,
-  FileText, Clock, CheckCircle, ArrowUpRight, Mic, Send, MapPin,
-  Camera, ScanLine
+  FileText, CheckCircle, ArrowUpRight, Send, MapPin,
+  Camera, ScanLine, ArrowRight
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
+
+// Generate Q's contextual greeting based on driver's real situation
+function buildQGreeting(firstName, activeLoads, unpaidInvoices, totalRevenue, totalExpenses, loads) {
+  const hour = new Date().getHours()
+  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const currentLoad = activeLoads[0]
+  const status = (currentLoad?.status || '').toLowerCase()
+
+  // Priority 1: In transit — Q focuses on the active haul
+  if (currentLoad && (status.includes('transit') || status.includes('loaded'))) {
+    const dest = currentLoad.destination || currentLoad.dest || '?'
+    const miles = currentLoad.miles ? `${currentLoad.miles} mi` : ''
+    return {
+      greeting: `${timeGreeting}, ${firstName}.`,
+      message: `You're hauling to **${dest}**${miles ? ` — ${miles} to go` : ''}. Need to submit a check call, mark delivered, or find your next load?`,
+      actions: [
+        { label: 'Mark Delivered', icon: CheckCircle, color: 'var(--success)', msg: 'Mark my current load as delivered' },
+        { label: 'Check Call', icon: MapPin, color: 'var(--accent2)', msg: 'Submit a check call for my current load' },
+        { label: 'Find Next Load', icon: Package, color: 'var(--accent)', msg: `Find me loads from ${dest}` },
+      ],
+    }
+  }
+
+  // Priority 2: Booked/dispatched — driver needs to get moving
+  if (currentLoad && (status.includes('booked') || status.includes('dispatched'))) {
+    return {
+      greeting: `${timeGreeting}, ${firstName}.`,
+      message: `You've got a load booked: **${currentLoad.origin} → ${currentLoad.destination || currentLoad.dest}** for ${fmt$(currentLoad.gross || currentLoad.rate)}. Ready to hit the road?`,
+      actions: [
+        { label: 'Start Trip', icon: Truck, color: 'var(--accent)', msg: 'Update my load to In Transit' },
+        { label: 'Load Details', icon: FileText, color: 'var(--accent2)', msg: `Tell me about my current load ${currentLoad.load_id || ''}` },
+        { label: 'Navigate to Pickup', icon: ArrowRight, color: 'var(--success)', msg: 'Navigate me to my pickup location' },
+      ],
+    }
+  }
+
+  // Priority 3: Delivered but unpaid invoices — get paid
+  if (unpaidInvoices.length > 0 && activeLoads.length === 0) {
+    const total = unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)
+    return {
+      greeting: `${timeGreeting}, ${firstName}.`,
+      message: `You have **${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length > 1 ? 's' : ''}** totaling **${fmt$(total)}**. Want me to send them out or find your next load?`,
+      actions: [
+        { label: 'Send Invoices', icon: DollarSign, color: 'var(--success)', nav: 'money' },
+        { label: 'Find a Load', icon: Package, color: 'var(--accent)', msg: 'Find me the best available loads right now' },
+        { label: 'Snap Rate Con', icon: ScanLine, color: 'var(--accent2)', nav: 'loads' },
+      ],
+    }
+  }
+
+  // Priority 4: No active loads — time to hustle
+  if (activeLoads.length === 0) {
+    const netProfit = totalRevenue - totalExpenses
+    const profitNote = totalRevenue > 0 ? ` You're at **${fmt$(netProfit)}** net profit this month.` : ''
+    return {
+      greeting: `${timeGreeting}, ${firstName}.`,
+      message: `No active loads right now.${profitNote} Ready to find your next one?`,
+      actions: [
+        { label: 'Find a Load', icon: Package, color: 'var(--accent)', msg: 'Find me a good paying load' },
+        { label: 'Snap Rate Con', icon: ScanLine, color: 'var(--accent2)', nav: 'loads' },
+        { label: 'Log Expense', icon: Camera, color: '#8b5cf6', nav: 'money', navExtra: 'expenses' },
+      ],
+    }
+  }
+
+  // Fallback: multiple active loads
+  return {
+    greeting: `${timeGreeting}, ${firstName}.`,
+    message: `You have **${activeLoads.length} active loads** rolling. What do you need help with?`,
+    actions: [
+      { label: 'Check Loads', icon: Package, color: 'var(--accent)', nav: 'loads' },
+      { label: 'Check Call', icon: MapPin, color: 'var(--accent2)', msg: 'Submit a check call for my current load' },
+      { label: 'Find Next Load', icon: Truck, color: 'var(--success)', msg: 'Find me the best available loads' },
+    ],
+  }
+}
 
 export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
@@ -14,7 +90,6 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
   const invoices = ctx.invoices || []
-  const expenses = ctx.expenses || []
   const totalRevenue = ctx.totalRevenue || 0
   const totalExpenses = ctx.totalExpenses || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
@@ -25,39 +100,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(0) : 0
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
 
-  // Recent activity — last 5 loads sorted by date
   const recentLoads = [...loads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5)
 
-  // Context-aware quick actions — show what matters right now
-  const getSmartActions = () => {
-    const actions = []
-    const hasActiveLoad = activeLoads.length > 0
-    const currentLoad = activeLoads[0]
-    const status = (currentLoad?.status || '').toLowerCase()
-
-    if (hasActiveLoad && (status.includes('transit') || status.includes('loaded'))) {
-      actions.push({ icon: CheckCircle, label: 'Mark Delivered', color: 'var(--success)', action: () => onOpenQ?.('Mark my current load as delivered') })
-      actions.push({ icon: MapPin, label: 'Check Call', color: 'var(--accent2)', action: () => onOpenQ?.('Submit a check call for my current load') })
-    } else if (hasActiveLoad && (status.includes('booked') || status.includes('dispatched'))) {
-      actions.push({ icon: Truck, label: 'Start Trip', color: 'var(--accent)', action: () => onOpenQ?.('Update my load to In Transit') })
-    }
-
-    if (!hasActiveLoad) {
-      actions.push({ icon: Package, label: 'Find a Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load') })
-    }
-
-    actions.push({ icon: ScanLine, label: 'Snap Rate Con', color: 'var(--accent2)', action: () => onNavigate?.('loads') })
-
-    if (unpaidInvoices.length > 0) {
-      actions.push({ icon: DollarSign, label: 'Send Invoice', color: 'var(--success)', action: () => onNavigate?.('money') })
-    }
-
-    actions.push({ icon: Camera, label: 'Scan Receipt', color: '#8b5cf6', action: () => onNavigate?.('money', 'expenses') })
-
-    return actions.slice(0, 3) // Show max 3
-  }
-
-  const smartActions = getSmartActions()
+  // Q's contextual greeting — recalculates when data changes
+  const qBrief = useMemo(() =>
+    buildQGreeting(firstName, activeLoads, unpaidInvoices, totalRevenue, totalExpenses, loads),
+    [firstName, activeLoads, unpaidInvoices, totalRevenue, totalExpenses, loads]
+  )
 
   const handleQSubmit = () => {
     if (!qInput.trim()) return
@@ -66,64 +115,90 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     setQInput('')
   }
 
+  const handleAction = (action) => {
+    haptic()
+    if (action.msg) onOpenQ?.(action.msg)
+    else if (action.nav) onNavigate?.(action.nav, action.navExtra)
+  }
+
+  // Simple bold markdown for Q's greeting
+  const renderBold = (text) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} style={{ color: 'var(--accent)', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+      }
+      return part
+    })
+  }
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ── AI Command Center: Greeting + Q Input ── */}
+      {/* ── Q's Proactive Greeting ── */}
       <div style={{ animation: 'fadeInUp 0.3s ease' }}>
-        <div style={{ fontSize: 22, fontWeight: 700 }}>Hey, {firstName}</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-          {activeLoads.length > 0
-            ? `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} — what do you need?`
-            : "No active loads — let's find one"}
-        </div>
-
-        {/* Q Input Bar — type or tap mic */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 28, padding: '6px 6px 6px 16px',
-        }}>
-          <input
-            value={qInput}
-            onChange={e => setQInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleQSubmit()}
-            placeholder="Ask Q anything..."
-            style={{
-              flex: 1, background: 'none', border: 'none', outline: 'none',
-              color: 'var(--text)', fontSize: 14, fontFamily: "'DM Sans',sans-serif",
-            }}
-          />
-          {qInput.trim() ? (
-            <button onClick={handleQSubmit}
-              style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ic icon={Send} size={16} color="#000" />
-            </button>
-          ) : (
-            <button onClick={() => onOpenQ?.()}
-              style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ic icon={Mic} size={16} color="#000" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Smart Actions — context-aware ── */}
-      <div style={{ display: 'flex', gap: 8, animation: 'fadeInUp 0.3s ease 0.05s both' }}>
-        {smartActions.map((action, i) => (
-          <button key={i} onClick={() => { haptic(); action.action() }}
-            style={{
-              flex: 1, padding: '12px 8px', background: 'var(--surface)',
-              border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease',
+        {/* Q avatar + greeting */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 20px rgba(240,165,0,0.15)' }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', marginBottom: 4, letterSpacing: 0.5 }}>Q</div>
+            <div style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: '2px 14px 14px 14px', padding: '12px 14px',
             }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${action.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Ic icon={action.icon} size={16} color={action.color} />
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{qBrief.greeting}</div>
+              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, opacity: 0.85 }}>
+                {renderBold(qBrief.message)}
+              </div>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', textAlign: 'center' }}>{action.label}</span>
-          </button>
-        ))}
+          </div>
+        </div>
+
+        {/* Q's suggested actions — pill buttons */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 46, flexWrap: 'wrap' }}>
+          {qBrief.actions.map((action, i) => (
+            <button key={i} onClick={() => handleAction(action)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', background: 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 20,
+                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                transition: 'all 0.15s ease',
+                animation: `fadeInUp 0.25s ease ${0.1 + i * 0.05}s both`,
+              }}>
+              <Ic icon={action.icon} size={13} color={action.color} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{action.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Reply to Q — input bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingLeft: 46,
+        }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 24, padding: '4px 4px 4px 14px',
+          }}>
+            <input
+              value={qInput}
+              onChange={e => setQInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleQSubmit()}
+              placeholder="Reply to Q..."
+              style={{
+                flex: 1, background: 'none', border: 'none', outline: 'none',
+                color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif",
+              }}
+            />
+            <button onClick={qInput.trim() ? handleQSubmit : () => onOpenQ?.()}
+              style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ic icon={Send} size={14} color="#000" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ── KPI Cards ── */}
@@ -178,8 +253,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                         <span style={{ fontWeight: 600 }}>{v}</span>
                       </div>
                     ))}
-                    {/* Quick action for this load */}
-                    <button onClick={(e) => { e.stopPropagation(); haptic(); onOpenQ?.(`What's the status on load ${load.load_id || load.id}?`) }}
+                    <button onClick={(e) => { e.stopPropagation(); haptic(); onOpenQ?.(`Tell me about load ${load.load_id || load.id}`) }}
                       style={{ width: '100%', marginTop: 8, padding: '8px', background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Sans',sans-serif" }}>
                       Ask Q about this load
                     </button>

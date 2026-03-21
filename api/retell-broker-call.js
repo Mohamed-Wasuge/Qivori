@@ -16,8 +16,9 @@ export default async function handler(req) {
 
   const RETELL_API_KEY = process.env.RETELL_API_KEY
   const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID
-  const RETELL_PHONE_NUMBER = process.env.RETELL_PHONE_NUMBER
-  if (!RETELL_API_KEY || !RETELL_AGENT_ID || !RETELL_PHONE_NUMBER) {
+  // Use Retell phone number if available, otherwise fall back to Twilio number
+  const FROM_NUMBER = process.env.RETELL_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER
+  if (!RETELL_API_KEY || !RETELL_AGENT_ID || !FROM_NUMBER) {
     return Response.json({ error: 'Retell not configured' }, { status: 500, headers: corsHeaders(req) })
   }
 
@@ -45,7 +46,7 @@ export default async function handler(req) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from_number: RETELL_PHONE_NUMBER,
+        from_number: FROM_NUMBER,
         to_number: toNumber,
         agent_id: RETELL_AGENT_ID,
         retell_llm_dynamic_variables: {

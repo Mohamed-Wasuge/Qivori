@@ -65,6 +65,7 @@ export default function MobileChatTab({ onNavigate }) {
   const [showLoadDetail, setShowLoadDetail] = useState(false)
   const hosWarningShownRef = useRef(false)
   const escalateAttemptRef = useRef(0)
+  const loadingSafetyRef = useRef(null)
 
   // ── PROACTIVE LOAD FINDING AGENT state ──────────────────
   const proactiveTriggeredRef = useRef(false)
@@ -836,11 +837,16 @@ export default function MobileChatTab({ onNavigate }) {
   // AI TTS via OpenAI — sounds like a real human male
   const speakWithAI = useCallback(async (text, onDone) => {
     try {
+      // Race TTS against a 5-second timeout — never block the UI
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
       const res = await apiFetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: controller.signal,
       })
+      clearTimeout(timeout)
       if (!res.ok || res.status === 204) return false
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -850,8 +856,10 @@ export default function MobileChatTab({ onNavigate }) {
       audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); onDone?.() }
       audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); onDone?.() }
       await audio.play()
+      // Safety: force-clear speaking after 30s max (in case onended never fires)
+      setTimeout(() => setSpeaking(false), 30000)
       return true
-    } catch { return false }
+    } catch { onDone?.(); return false }
   }, [])
 
   // Browser TTS fallback
@@ -1289,13 +1297,17 @@ export default function MobileChatTab({ onNavigate }) {
   // Send message
   const sendMessage = async (text) => {
     const userText = text || input.trim()
-    if (!userText || loading) return
+    if (!userText) return
+    if (loading) return
     unlockTTS()
     setShowQuickActions(false)
     const newMessages = [...messages, { role: 'user', content: userText }]
     setMessages(newMessages)
     setInput('')
     setLoading(true)
+    // Safety: force-clear loading after 15s so chat NEVER gets stuck
+    if (loadingSafetyRef.current) clearTimeout(loadingSafetyRef.current)
+    loadingSafetyRef.current = setTimeout(() => setLoading(false), 15000)
 
     const lowerText = userText.toLowerCase()
 
@@ -1668,6 +1680,8 @@ export default function MobileChatTab({ onNavigate }) {
     // Sleep/tired/rest
     if (/\b(sleep|tired|exhausted|rest\s*area|nap|drowsy|fatigue|pull\s*over|need\s*rest|need\s*sleep)\b/.test(lowerText)) {
       await executeAction({ type: 'search_nearby', query: 'rest area OR truck stop parking' })
+      setLoading(false)
+      return
     }
 
     // Find loads — search load board, NOT maps
@@ -1784,16 +1798,18 @@ export default function MobileChatTab({ onNavigate }) {
 
       const replyText = displayText || rawReply
       escalateAttemptRef.current = 0
+      // Show text immediately — voice plays in background (no blocking)
       setMessages(m => [...m, {
         role: 'assistant',
         content: replyText,
         actions,
       }])
+      // Fire TTS in background — don't block the conversation
       speak(replyText, () => {
         if (handsFree && hasSpeechRecognition) {
           setTimeout(() => startListening(), 400)
         }
-      })
+      }).catch(() => {})
     } catch (err) {
       escalateAttemptRef.current += 1
       if (escalateAttemptRef.current >= 2) {
@@ -1816,6 +1832,7 @@ export default function MobileChatTab({ onNavigate }) {
         setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'check your internet.') + '\n\nTry again \u2014 if it fails once more, I\'ll escalate to the admin team.' }])
       }
     } finally {
+      if (loadingSafetyRef.current) clearTimeout(loadingSafetyRef.current)
       setLoading(false)
     }
   }

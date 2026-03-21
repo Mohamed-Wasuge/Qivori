@@ -24,17 +24,25 @@ export default async function handler(req) {
       return Response.json({ error: 'Text required (max 4096 chars)' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // Clean markdown/code blocks
-    const clean = text
+    // Clean markdown/code blocks and truncate for speed
+    let clean = text
       .replace(/```[\s\S]*?```/g, '')
       .replace(/\*\*/g, '')
       .replace(/[#*_~`]/g, '')
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
       .replace(/https?:\/\/\S+/g, '')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, '. ')
       .trim()
 
     if (!clean) {
       return new Response(null, { status: 204, headers: corsHeaders(req) })
+    }
+
+    // Truncate to ~300 chars for faster TTS — driver doesn't need the whole essay read aloud
+    if (clean.length > 300) {
+      const cutoff = clean.lastIndexOf('. ', 300)
+      clean = clean.slice(0, cutoff > 100 ? cutoff + 1 : 300) + '...'
     }
 
     // ElevenLabs TTS — natural human voice

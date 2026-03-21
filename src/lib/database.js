@@ -141,10 +141,8 @@ export async function deleteExpense(id) {
 
 // ─── COMPANY ─────────────────────────────────────────────────
 export async function fetchCompany() {
-  const data = await safeSelect('companies',
-    supabase.from('companies').select('*').limit(1).single()
-  )
-  return data
+  const { data } = await supabase.from('companies').select('*').limit(1).maybeSingle()
+  return data || null
 }
 
 export async function upsertCompany(company) {

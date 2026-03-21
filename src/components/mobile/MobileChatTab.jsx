@@ -1604,6 +1604,43 @@ export default function MobileChatTab() {
       await executeAction({ type: 'search_nearby', query: 'rest area OR truck stop parking' })
     }
 
+    // Find loads — search load board, NOT maps
+    if (/\b(find|show|get|search|look\s*for|any)\s*(me\s*)?(a\s*)?(available\s*)?(load|freight|shipment|haul)s?\b/i.test(lowerText) || /\bload\s*board\b/i.test(lowerText)) {
+      try {
+        const loc = await getGPSCoords()
+        const params = new URLSearchParams({ limit: '10' })
+        if (loc) { params.set('lat', loc.lat); params.set('lng', loc.lng) }
+        // Use delivery city of active load as origin if available
+        const inTransit = activeLoads.find(l => ['In Transit', 'Loaded', 'At Delivery'].includes(l.status))
+        if (inTransit) {
+          const dest = inTransit.destination || inTransit.dest || ''
+          if (dest) params.set('origin', dest)
+        }
+        const res = await apiFetch(`/api/load-board?${params}`)
+        const data = await res.json()
+        const foundLoads = data.loads || BOARD_LOADS || []
+        if (foundLoads.length > 0) {
+          const top5 = foundLoads.slice(0, 5)
+          const lines = top5.map((l, i) => {
+            const orig = l.origin_city || l.origin || '?'
+            const dest = l.destination_city || l.dest || l.destination || '?'
+            const rpm = l.miles ? `$${(l.rate / l.miles).toFixed(2)}/mi` : ''
+            return `**${i + 1}. ${orig} \u2192 ${dest}**\n$${Number(l.rate || 0).toLocaleString()} \u00b7 ${rpm} \u00b7 ${l.miles || '?'} mi \u00b7 ${l.broker_name || l.broker || '?'}`
+          })
+          proactiveLoadsRef.current = top5
+          setMessages(m => [...m, { role: 'assistant', content: `Here's what I found:\n\n${lines.join('\n\n')}\n\nSay **"book 1"**, **"book 2"**, etc. to grab one. Or **"show me more"** for more options.` }])
+          speak(`Found ${top5.length} loads. Say book 1, book 2, or show me more.`)
+        } else {
+          setMessages(m => [...m, { role: 'assistant', content: "Nothing available right now. I'll keep checking. Connect your load board in **Settings** to get more results from DAT and 123Loadboard." }])
+          speak("Nothing available right now. I'll keep checking.")
+        }
+      } catch {
+        setMessages(m => [...m, { role: 'assistant', content: "Couldn't search loads right now. Try again in a sec." }])
+      }
+      setLoading(false)
+      return
+    }
+
     // Nearest truck stop
     if (/\b(nearest|closest|find\s*(me\s*)?(a\s*)?)(truck\s*stop|fuel|gas\s*station|love'?s|pilot|petro|ta\b|flying\s*j)\b/.test(lowerText) || /\bnear(by|est)?\s*truck\s*stop\b/.test(lowerText)) {
       await executeAction({ type: 'search_nearby', query: 'truck stop' })

@@ -529,40 +529,21 @@ function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ── REVENUE GOAL TRACKER ────────────────────────────────── */}
-      <div style={{ ...pan, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 700, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, letterSpacing: 0.5 }}>
-            <Ic icon={Target} size={13} color="var(--accent)" />
-            REVENUE GOAL
-          </div>
-          <button className="btn btn-ghost" style={{ fontSize: 10 }} onClick={() => { setEditingGoal(!editingGoal); setGoalInput('') }}>
-            {(company?.revenue_goal_weekly || company?.revenue_goal_monthly) ? 'Edit' : 'Set Goal'}
-          </button>
+      <div id="qivori-revenue-goal" style={{ background: 'var(--surface)', border: '2px solid #f0a500', borderRadius: 10, padding: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: '#f0a500' }}>REVENUE GOAL</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+          Track your weekly or monthly income target.
         </div>
-        {editingGoal ? (
-          <div style={{ padding: '14px 16px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 120 }}>
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 14, fontWeight: 700 }}>$</span>
-              <input type="number" value={goalInput} onChange={e => setGoalInput(e.target.value)}
-                placeholder="5000"
-                style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 14, padding: '6px 8px 6px 22px', fontFamily: "'JetBrains Mono',monospace" }} />
-            </div>
-            <button className="btn btn-primary" style={{ fontSize: 11, padding: '6px 14px' }} onClick={() => {
-              const val = parseFloat(goalInput)
-              if (val > 0) { updateCompany({ revenue_goal_weekly: val }); setEditingGoal(false); showToast && showToast('Weekly goal set to $' + val.toLocaleString()) }
-            }}>Save</button>
-            <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setEditingGoal(false)}>Cancel</button>
-          </div>
-        ) : (
-          <div style={{ padding: '20px 16px', textAlign: 'center' }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
-              <Ic icon={Target} size={18} color="var(--accent)" />
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Set a revenue goal</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, maxWidth: 320, margin: '0 auto 12px' }}>
-              Track your weekly or monthly income target. Qivori shows how many loads you need and keeps you motivated.
-            </div>
-            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={() => { setEditingGoal(true); setGoalInput('') }}>Set My Goal</button>
+        <button style={{ background: '#f0a500', color: '#0a0a0e', border: 'none', borderRadius: 8, padding: '8px 20px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+          onClick={() => setEditingGoal(true)}>
+          Set My Goal
+        </button>
+        {editingGoal && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="number" value={goalInput} onChange={e => setGoalInput(e.target.value)} placeholder="5000"
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '6px 10px', fontSize: 14, flex: 1 }} />
+            <button style={{ background: '#34b068', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontWeight: 700, cursor: 'pointer' }}
+              onClick={() => { const v = parseFloat(goalInput); if (v > 0) { updateCompany({ revenue_goal_weekly: v }); setEditingGoal(false) } }}>Save</button>
           </div>
         )}
       </div>

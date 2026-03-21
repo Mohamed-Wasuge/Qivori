@@ -736,12 +736,13 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>{t('landing.aiFirstMobile')}</div>
-              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, marginBottom: 14, lineHeight: 1.1 }}>
-                <span style={{ fontSize: 72, color: 'var(--accent)', display: 'block', marginBottom: 4 }}>MEET Q.</span>
-                <span style={{ fontSize: 42, color: 'var(--text)' }}>YOUR AI COPILOT ON THE ROAD</span>
+              <div style={{ marginBottom: 20 }}>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 120, letterSpacing: 4, color: 'var(--accent)', lineHeight: 0.9, display: 'block' }}>Q</span>
+              </div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 2, marginBottom: 14, color: 'var(--text)', lineHeight: 1.2 }}>
+                YOUR AI COPILOT ON THE ROAD
               </h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
                 {t('landing.aiCopilotDesc')}
               </p>
             </div>

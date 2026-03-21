@@ -52,6 +52,20 @@ export default async function handler(req) {
     const event = JSON.parse(body)
     console.log(`[stripe-webhook] Received event: ${event.type} (${event.id})`)
 
+    // Idempotency: skip already-processed events
+    const sbHeaders = { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' }
+    const idempCheck = await fetch(`${supabaseUrl}/rest/v1/webhook_events?event_id=eq.${event.id}&select=id`, { headers: sbHeaders })
+    const existing = await idempCheck.json()
+    if (Array.isArray(existing) && existing.length > 0) {
+      console.log(`[stripe-webhook] Duplicate event ${event.id}, skipping`)
+      return Response.json({ received: true, skipped: true })
+    }
+    // Record event as processed (best-effort, table may not exist yet)
+    fetch(`${supabaseUrl}/rest/v1/webhook_events`, {
+      method: 'POST', headers: sbHeaders,
+      body: JSON.stringify({ event_id: event.id, event_type: event.type, processed_at: new Date().toISOString() })
+    }).catch(() => {})
+
     switch (event.type) {
       // ── CHECKOUT COMPLETED — new subscription ──
       case 'checkout.session.completed': {

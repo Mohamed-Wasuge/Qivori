@@ -264,7 +264,7 @@ export function CarrierProvider({ children }) {
         setLoads(ls => [normalized, ...ls])
         return normalized
       } catch (e) {
-        /* error handled gracefully */
+        console.error('DB operation failed:', e)
       }
     }
     // Fallback: local-only
@@ -280,7 +280,7 @@ export function CarrierProvider({ children }) {
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
-      try { await db.deleteLoad(load.id) } catch { /* error handled gracefully */ }
+      try { await db.deleteLoad(load.id) } catch { console.error('DB operation failed:', e) }
     }
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
     // Also remove any linked invoices
@@ -316,7 +316,7 @@ export function CarrierProvider({ children }) {
           }),
         }).catch(() => {})
       } catch (e) {
-        /* error handled gracefully */
+        console.error('DB operation failed:', e)
       }
     }
 
@@ -348,7 +348,7 @@ export function CarrierProvider({ children }) {
         if (useDb && !String(l.id).startsWith('mock') && !String(l.id).startsWith('local')) {
           db.createInvoice({ ...inv, load_id: l._dbId || l.id }).then(dbInv => {
             setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
-          }).catch(() => { /* error handled gracefully */ })
+          }).catch(err => { console.error('DB operation failed:', err) })
 
           // If auto-invoice is enabled, fire the API to email the broker
           const autoInvoiceSetting = localStorage.getItem('qivori_auto_invoice')
@@ -409,7 +409,7 @@ export function CarrierProvider({ children }) {
       try {
         await db.updateInvoice(inv._dbId, { status })
       } catch (e) {
-        /* error handled gracefully */
+        console.error('DB operation failed:', e)
       }
     }
 
@@ -436,7 +436,7 @@ export function CarrierProvider({ children }) {
         setExpenses(es => [normalizeExpense(newExp), ...es])
         return normalizeExpense(newExp)
       } catch (e) {
-        /* error handled gracefully */
+        console.error('DB operation failed:', e)
       }
     }
     const fakeExp = normalizeExpense({ ...exp, id: 'local-exp-' + Date.now() })
@@ -458,7 +458,7 @@ export function CarrierProvider({ children }) {
         }))
         return
       } catch (e) {
-        /* error handled gracefully */
+        console.error('DB operation failed:', e)
       }
     }
 
@@ -477,7 +477,7 @@ export function CarrierProvider({ children }) {
         const newDriver = await db.createDriver(driver)
         setDrivers(ds => [newDriver, ...ds])
         return newDriver
-      } catch { /* error handled gracefully */ }
+      } catch { console.error('DB operation failed:', e) }
     }
     const fake = { ...driver, id: 'local-drv-' + Date.now() }
     setDrivers(ds => [fake, ...ds])
@@ -487,7 +487,7 @@ export function CarrierProvider({ children }) {
   const editDriver = useCallback(async (id, updates) => {
     if (demoGuard('edit drivers')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateDriver(id, updates) } catch { /* error handled gracefully */ }
+      try { await db.updateDriver(id, updates) } catch { console.error('DB operation failed:', e) }
     }
     setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
   }, [useDb, demoGuard])
@@ -495,7 +495,7 @@ export function CarrierProvider({ children }) {
   const removeDriver = useCallback(async (id) => {
     if (demoGuard('remove drivers')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteDriver(id) } catch { /* error handled gracefully */ }
+      try { await db.deleteDriver(id) } catch { console.error('DB operation failed:', e) }
     }
     setDrivers(ds => ds.filter(d => d.id !== id))
   }, [useDb, demoGuard])
@@ -509,7 +509,7 @@ export function CarrierProvider({ children }) {
         const newVeh = await db.createVehicle(vehicle)
         setVehicles(vs => [newVeh, ...vs])
         result = newVeh
-      } catch { /* error handled gracefully */ }
+      } catch { console.error('DB operation failed:', e) }
     }
     if (!result) {
       result = { ...vehicle, id: 'local-veh-' + Date.now() }
@@ -522,7 +522,7 @@ export function CarrierProvider({ children }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ truckCount: newCount }),
-      }).catch(() => { /* error handled gracefully */ })
+      }).catch(err => { console.error('DB operation failed:', err) })
       return vs
     })
     return result
@@ -531,7 +531,7 @@ export function CarrierProvider({ children }) {
   const editVehicle = useCallback(async (id, updates) => {
     if (demoGuard('edit vehicles')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateVehicle(id, updates) } catch { /* error handled gracefully */ }
+      try { await db.updateVehicle(id, updates) } catch { console.error('DB operation failed:', e) }
     }
     setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
   }, [useDb, demoGuard])
@@ -539,7 +539,7 @@ export function CarrierProvider({ children }) {
   const removeVehicle = useCallback(async (id) => {
     if (demoGuard('remove vehicles')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteVehicle(id) } catch { /* error handled gracefully */ }
+      try { await db.deleteVehicle(id) } catch { console.error('DB operation failed:', e) }
     }
     setVehicles(vs => {
       const updated = vs.filter(v => v.id !== id)
@@ -549,7 +549,7 @@ export function CarrierProvider({ children }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ truckCount: newCount }),
-      }).catch(() => { /* error handled gracefully */ })
+      }).catch(err => { console.error('DB operation failed:', err) })
       return updated
     })
   }, [useDb, demoGuard])
@@ -563,7 +563,7 @@ export function CarrierProvider({ children }) {
       try {
         await db.upsertCompany(merged)
       } catch (e) {
-        /* error handled gracefully */
+        console.error('DB operation failed:', e)
       }
     }
   }, [company, useDb, demoGuard])

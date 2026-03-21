@@ -37,6 +37,7 @@ export async function createLoad(load) {
   const { data, error } = await safeMutate('createLoad',
     supabase.from('loads')
       .insert({
+        owner_id: userId,
         load_id: load.load_id || load.loadId || null,
         origin: load.origin,
         destination: load.destination || load.dest,

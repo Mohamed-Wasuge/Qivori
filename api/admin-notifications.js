@@ -1,14 +1,36 @@
+import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const ADMIN_EMAIL = 'hello@qivori.com'
+const CRON_SECRET = process.env.CRON_SECRET
 function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json'}})}
 const sb=()=>({apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'})
 
+async function requireAdmin(req) {
+  // Allow cron jobs with secret
+  const url = new URL(req.url)
+  if (CRON_SECRET && url.searchParams.get('secret') === CRON_SECRET) return null
+  // Require auth + admin email
+  const { user, error } = await verifyAuth(req)
+  if (error) return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+  if (user.email !== ADMIN_EMAIL && !user.email?.endsWith('@qivori.com')) {
+    return Response.json({ error: 'Admin access required' }, { status: 403, headers: corsHeaders(req) })
+  }
+  return null
+}
+
 export default async function handler(req){
+  const corsRes = handleCors(req)
+  if (corsRes) return corsRes
   const url=new URL(req.url)
   const action=url.searchParams.get('action')
+
+  // Auth: require admin for all operations
+  const authErr = await requireAdmin(req)
+  if (authErr) return authErr
 
   // GET: Admin dashboard aggregation
   if(req.method==='GET'){

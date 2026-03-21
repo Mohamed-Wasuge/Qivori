@@ -18,7 +18,7 @@ const supabaseUrl = () => process.env.SUPABASE_URL || process.env.VITE_SUPABASE_
 const supabaseKey = () => process.env.SUPABASE_SERVICE_KEY
 const GITHUB_TOKEN = () => process.env.GITHUB_TOKEN
 const GITHUB_REPO = 'Mohamed-Wasuge/Qivori'
-const GITHUB_BRANCH = 'main'
+const GITHUB_BRANCH = 'auto-repair' // Never commit directly to main — create PR branch instead
 
 // ── Supabase helpers ──
 function supabaseHeaders(method = 'GET') {

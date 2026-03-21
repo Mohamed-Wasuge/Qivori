@@ -4,7 +4,7 @@ import { useCarrier } from '../../context/CarrierContext'
 import {
   Zap, Send, MapPin, Camera, DollarSign, Package, Truck, Phone, PhoneOff,
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
-  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell
+  CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell, Globe
 } from 'lucide-react'
 import { RetellWebClient } from 'retell-client-js-sdk'
 import { apiFetch } from '../../lib/api'
@@ -44,7 +44,7 @@ function renderMarkdown(text) {
 
 export default function MobileChatTab({ onNavigate }) {
   const { logout, showToast, subscription, user, profile } = useApp()
-  const { language: currentLang } = useTranslation()
+  const { language: currentLang, setLanguage } = useTranslation()
   const ctx = useCarrier() || {}
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
@@ -96,6 +96,8 @@ export default function MobileChatTab({ onNavigate }) {
     return saved ? parseInt(saved) : null
   })
   const [showLoadDetail, setShowLoadDetail] = useState(false)
+  const [showLangPicker, setShowLangPicker] = useState(false)
+  const langPickerRef = useRef(null)
   const hosWarningShownRef = useRef(false)
   const escalateAttemptRef = useRef(0)
   const loadingSafetyRef = useRef(null)
@@ -114,6 +116,22 @@ export default function MobileChatTab({ onNavigate }) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, loading])
+
+  // Close language picker on outside click
+  useEffect(() => {
+    if (!showLangPicker) return
+    const handler = (e) => {
+      if (langPickerRef.current && !langPickerRef.current.contains(e.target)) {
+        setShowLangPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
+  }, [showLangPicker])
 
   // Persist chat history to localStorage
   useEffect(() => {
@@ -144,16 +162,31 @@ export default function MobileChatTab({ onNavigate }) {
     return () => { cancelled = true; clearInterval(interval) }
   }, [])
 
-  // PWA install prompt
+  // iOS detection for install banner fallback (Safari has no beforeinstallprompt)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+  const isInStandaloneMode = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone
+
+  // PWA install prompt — capture the event but don't show banner yet
   useEffect(() => {
+    if (localStorage.getItem('qivori_install_dismissed')) return
+    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) return
     const handler = (e) => {
       e.preventDefault()
       setDeferredPrompt(e)
-      setShowInstallBanner(true)
     }
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
+
+  // Gate install banner on 2+ user messages so it's not intrusive on first visit
+  useEffect(() => {
+    if (localStorage.getItem('qivori_install_dismissed')) return
+    if (isInStandaloneMode) return
+    const userMsgCount = messages.filter(m => m.role === 'user').length
+    if (userMsgCount >= 2 && (deferredPrompt || isIOS)) {
+      setShowInstallBanner(true)
+    }
+  }, [messages, deferredPrompt, isIOS, isInStandaloneMode])
 
   // Online/offline detection + sync
   useEffect(() => {
@@ -227,10 +260,16 @@ export default function MobileChatTab({ onNavigate }) {
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     if (outcome === 'accepted') {
-      showToast('success', 'Installed!', 'Alex added to your home screen')
+      showToast('success', 'Installed!', 'Qivori added to your home screen')
     }
     setDeferredPrompt(null)
     setShowInstallBanner(false)
+    localStorage.setItem('qivori_install_dismissed', '1')
+  }
+
+  const handleDismissInstall = () => {
+    setShowInstallBanner(false)
+    localStorage.setItem('qivori_install_dismissed', '1')
   }
 
   // Build context for AI
@@ -1049,7 +1088,6 @@ export default function MobileChatTab({ onNavigate }) {
   })
 
   // ── VOICE RECOGNITION ──────────────────────────
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
   const hasSpeechRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
   const startListening = useCallback(() => {
@@ -1916,27 +1954,14 @@ export default function MobileChatTab({ onNavigate }) {
     { icon: Clock, label: 'HOS Status', msg: 'How many driving hours do I have left today?' },
   ]
 
-  const suggestions = activeLoads.length > 0
-    ? [
-        "What's my next stop?",
-        'Submit a check call',
-        'I just delivered',
-        'How many hours do I have left?',
-        'Nearest truck stop',
-        "What's the weather on my route?",
-        'Find me a reload',
-        'Add fuel expense',
-      ]
-    : [
-        'Find me the best loads right now',
-        'Snap a rate con to book',
-        'Show my revenue this month',
-        'How many unpaid invoices do I have?',
-        'Nearest truck stop',
-        'Show my IFTA status',
-        'Report a problem',
-        'Help me get started',
-      ]
+  const suggestions = [
+    { emoji: '\ud83d\udd0d', text: 'Find me the best loads from Dallas' },
+    { emoji: '\u26fd', text: 'Log $85 fuel at Loves, 52 gallons, Texas' },
+    { emoji: '\u2705', text: 'I just delivered the load' },
+    { emoji: '\ud83d\udcb0', text: "What's my profit this month?" },
+    { emoji: '\ud83d\udcc4', text: 'Send invoice to the broker' },
+    { emoji: '\ud83d\udee3\ufe0f', text: 'Find me the nearest truck stop' },
+  ]
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1948,18 +1973,79 @@ export default function MobileChatTab({ onNavigate }) {
         </div>
       )}
 
+      {/* ── CHAT HEADER BAR ────────────────────────── */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 4px', position: 'relative' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Chat</div>
+        <div ref={langPickerRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => { haptic?.('light'); setShowLangPicker(v => !v) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 10px', background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 8, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            <Globe size={14} color="var(--accent)" />
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {currentLang || 'en'}
+            </span>
+          </button>
+          {showLangPicker && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 10, padding: '6px 0', zIndex: 9999,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)', minWidth: 160,
+              maxHeight: 320, overflowY: 'auto',
+            }}>
+              {[
+                { code: 'en', label: 'English' },
+                { code: 'es', label: 'Español' },
+                { code: 'fr', label: 'Français' },
+                { code: 'pt', label: 'Português' },
+                { code: 'so', label: 'Soomaali' },
+                { code: 'am', label: 'አማርኛ' },
+                { code: 'ar', label: 'العربية' },
+                { code: 'hi', label: 'हिन्दी' },
+                { code: 'zh', label: '中文' },
+                { code: 'ru', label: 'Русский' },
+                { code: 'ko', label: '한국어' },
+                { code: 'vi', label: 'Tiếng Việt' },
+              ].map(lang => (
+                <button
+                  key={lang.code}
+                  onClick={() => { setLanguage(lang.code); setShowLangPicker(false); haptic?.('light') }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', padding: '9px 14px', background: 'none', border: 'none',
+                    cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'left',
+                    color: currentLang === lang.code ? 'var(--accent)' : 'var(--text)',
+                    fontWeight: currentLang === lang.code ? 700 : 400,
+                    fontSize: 13,
+                  }}
+                >
+                  <span>{lang.label}</span>
+                  <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>{lang.code}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── PWA INSTALL BANNER ──────────────────────── */}
       {showInstallBanner && (
-        <div style={{ flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(0,212,170,0.06))', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Ic icon={Download} size={16} color="var(--accent)" />
+        <div style={{ flexShrink: 0, margin: '8px 16px 0', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Ic icon={Download} size={15} color="var(--accent)" />
+          <div style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
+            {isIOS && !deferredPrompt
+              ? <>Tap <span style={{ fontWeight: 800 }}>Share</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', margin: '0 2px' }}><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> <span style={{ fontWeight: 800 }}>Add to Home Screen</span></>
+              : 'Add Qivori to Home Screen'}
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700 }}>Install Alex</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Add to home screen for quick access</div>
-          </div>
-          <button onClick={handleInstallClick} style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Install</button>
-          <button onClick={() => setShowInstallBanner(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
+          {!isIOS || deferredPrompt ? (
+            <button onClick={handleInstallClick} style={{ padding: '5px 12px', background: 'var(--accent)', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans',sans-serif" }}>Install</button>
+          ) : null}
+          <button onClick={handleDismissInstall} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2, flexShrink: 0, lineHeight: 0 }}>
             <Ic icon={X} size={14} />
           </button>
         </div>
@@ -2062,19 +2148,21 @@ export default function MobileChatTab({ onNavigate }) {
                   ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
                   : 'Your AI dispatcher \u2014 ready when you are'}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontWeight: 600 }}>
-                <Ic icon={Phone} size={11} /> Tap to call Alex \u2014 or type below
-              </div>
             </div>
 
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginTop: 8 }}>OR TAP A SUGGESTION</div>
-            {suggestions.map(s => (
-              <button key={s} onClick={() => sendMessage(s)}
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Ic icon={Send} size={12} color="var(--accent)" style={{ flexShrink: 0 }} />
-                <span>{s}</span>
-              </button>
-            ))}
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 4, textAlign: 'center' }}>Try something</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {suggestions.map(s => (
+                <button key={s.text} onClick={() => sendMessage(s.text)}
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10, transition: 'border-color 0.2s' }}>
+                  <span style={{ fontSize: 16, flexShrink: 0, width: 24, textAlign: 'center' }}>{s.emoji}</span>
+                  <span style={{ lineHeight: 1.3 }}>{s.text}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingBottom: 8 }}>
+              Or just call Alex {'\u2014'} tap the phone button <Ic icon={Phone} size={10} color="var(--accent)" />
+            </div>
           </div>
         )}
 

@@ -735,12 +735,19 @@ export default function LandingPage({ onGetStarted }) {
       <section className="lp-section" style={{ padding: '80px 40px', background: 'linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%)', borderTop: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
-            <div style={{ textAlign: 'center', marginBottom: 48 }}>
-              <div style={{ marginBottom: 20 }}>
-                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 120, letterSpacing: 4, color: 'var(--accent)', lineHeight: 0.9, display: 'block' }}>Q</span>
+            <div style={{ textAlign: 'center', marginBottom: 56 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, padding: '8px 20px 8px 10px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 50, marginBottom: 24 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#000', fontWeight: 800 }}>Q</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', letterSpacing: 0.5 }}>Powered by Qivori</span>
               </div>
-              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 2, marginBottom: 14, color: 'var(--text)', lineHeight: 1.2 }}>
-                YOUR AI COPILOT ON THE ROAD
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 2, marginBottom: 16, lineHeight: 1.1 }}>
+                <span style={{ color: 'var(--text)' }}>MEET </span>
+                <span style={{ color: 'var(--accent)', position: 'relative' }}>Q</span>
+                <span style={{ color: 'var(--text)' }}>.</span>
+                <br />
+                <span style={{ fontSize: 36, color: 'var(--muted)', letterSpacing: 3 }}>YOUR AI COPILOT ON THE ROAD</span>
               </h2>
               <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
                 {t('landing.aiCopilotDesc')}

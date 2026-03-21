@@ -322,9 +322,9 @@ function CarrierLayoutInner() {
           {mobileNav ? '✕' : '☰'}
         </button>
         {/* Logo */}
-        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:17, letterSpacing:3, marginRight:4, flexShrink:0 }}>
-          QI<span style={{ color:'var(--accent)' }}>VORI</span>
-          <span style={{ fontSize:11, color:'var(--accent2)', letterSpacing:1, fontFamily:"'DM Sans',sans-serif", fontWeight:700, marginLeft:6 }}>AI</span>
+        <div style={{ display:'flex', alignItems:'baseline', marginRight:4, flexShrink:0 }}>
+          <span style={{ fontSize:20, fontWeight:800, letterSpacing:2, color:'var(--text)', fontFamily:"'Bebas Neue',sans-serif" }}>Q</span>
+          <span style={{ fontSize:10, color:'var(--muted)', fontWeight:500, marginLeft:6, letterSpacing:0.5, fontFamily:"'DM Sans',sans-serif" }}>by Qivori</span>
         </div>
 
         {/* Search */}

@@ -49,9 +49,9 @@ export default function MobileShell() {
       {/* ── HEADER ── */}
       <div style={{ height: 50, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, lineHeight: 1 }}>
-            QI<span style={{ color: 'var(--accent)' }}>VORI</span>
-            <span style={{ fontSize: 11, color: 'var(--accent2)', letterSpacing: 1, fontFamily: "'DM Sans',sans-serif", fontWeight: 700, marginLeft: 6 }}>AI</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>Q</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans',sans-serif" }}>by Qivori</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

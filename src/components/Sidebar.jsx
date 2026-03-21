@@ -50,10 +50,10 @@ export default function Sidebar() {
         {/* Logo */}
         <div style={{
           padding: '18px 16px', borderBottom: '1px solid var(--border)',
-          fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3
+          display: 'flex', alignItems: 'baseline'
         }}>
-          QI<span style={{ color: 'var(--accent)' }}>VORI</span>
-          <span style={{ fontSize: 10, color: 'var(--accent2)', letterSpacing: 1, fontFamily: "'DM Sans'", fontWeight: 700, marginLeft: 4 }}>AI</span>
+          <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue', sans-serif" }}>Q</span>
+          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
         </div>
 
         {/* User */}

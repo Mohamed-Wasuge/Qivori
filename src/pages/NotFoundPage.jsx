@@ -47,7 +47,7 @@ export default function NotFoundPage({ onGoHome }) {
         </button>
 
         <div style={{ marginTop: 20, fontSize: 12, color: 'var(--muted)' }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2 }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span></span> AI
+          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue', sans-serif" }}>Q</span><span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5 }}>by Qivori</span>
         </div>
       </div>
     </div>

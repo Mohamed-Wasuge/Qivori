@@ -88,8 +88,10 @@ export function Onboarding() {
       {/* Step 1: Welcome */}
       {step === 1 && (
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 3, marginBottom: 8 }}>
-            Welcome to QI<span style={{ color: 'var(--accent)' }}>VORI</span> <span style={{ color: 'var(--accent2)', fontSize: 18 }}>AI</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', marginBottom: 8 }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 3 }}>Welcome to </span>
+            <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>Q</span>
+            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans',sans-serif" }}>by Qivori</span>
           </div>
           <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 32, lineHeight: 1.7 }}>
             Let's get your account set up in 3 quick steps.<br />

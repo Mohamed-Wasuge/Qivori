@@ -180,7 +180,7 @@ export function AIChatbox() {
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(0,212,170,0.05))', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(240,165,0,0.15)', border: '1px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic icon={Zap} size={16} color="var(--accent)" /></div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Qivori AI</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Q <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500, letterSpacing: 0.5 }}>by Qivori</span></div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>Ask me anything about your business</div>
             </div>
             <div style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
@@ -228,7 +228,7 @@ export function AIChatbox() {
             <input
               value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-              placeholder="Ask Qivori AI..."
+              placeholder="Ask Q..."
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}
             />
             <button onClick={() => send()} disabled={loading || !input.trim()}

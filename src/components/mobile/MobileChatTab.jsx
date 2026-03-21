@@ -260,7 +260,7 @@ export default function MobileChatTab({ onNavigate }) {
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     if (outcome === 'accepted') {
-      showToast('success', 'Installed!', 'Qivori added to your home screen')
+      showToast('success', 'Installed!', 'Q added to your home screen')
     }
     setDeferredPrompt(null)
     setShowInstallBanner(false)
@@ -2100,7 +2100,7 @@ export default function MobileChatTab({ onNavigate }) {
           <div style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>
             {isIOS && !deferredPrompt
               ? <>Tap <span style={{ fontWeight: 800 }}>Share</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', margin: '0 2px' }}><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> <span style={{ fontWeight: 800 }}>Add to Home Screen</span></>
-              : 'Add Qivori to Home Screen'}
+              : 'Add Q to Home Screen'}
           </div>
           {!isIOS || deferredPrompt ? (
             <button onClick={handleInstallClick} style={{ padding: '5px 12px', background: 'var(--accent)', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans',sans-serif" }}>Install</button>

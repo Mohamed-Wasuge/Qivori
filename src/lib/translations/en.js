@@ -16,11 +16,11 @@ const en = {
   'nav.logout': 'Log Out',
 
   // ── Landing Page: Hero ──
-  'landing.badge': 'AI-Powered Trucking Platform — Now Live',
-  'landing.heroLine1': 'THE OPERATING SYSTEM',
-  'landing.heroLine2': 'FOR',
-  'landing.heroHighlight': 'MODERN CARRIERS',
-  'landing.heroParagraph': 'AI load matching, voice-first dispatch, auto-invoicing, IFTA, compliance — everything an owner-operator needs, in one platform.',
+  'landing.badge': 'Meet Q — AI-Powered Trucking Platform',
+  'landing.heroLine1': 'MEET Q.',
+  'landing.heroLine2': 'YOUR',
+  'landing.heroHighlight': 'AI DISPATCH ENGINE',
+  'landing.heroParagraph': 'Q handles load matching, voice-first dispatch, auto-invoicing, IFTA, and compliance — everything an owner-operator needs, in one platform.',
   'landing.startFreeTrial': 'Start Free — 14 Day Trial',
   'landing.tryDemo': 'Try Demo',
   'landing.signIn': 'Sign In',
@@ -61,7 +61,7 @@ const en = {
   'landing.drowningInToolsLine1': 'OWNER-OPERATORS ARE',
   'landing.drowningInToolsLine2': 'DROWNING IN TOOLS',
   'landing.drowningInToolsDesc': 'DAT for loads. A different TMS. QuickBooks. ELD app. Spreadsheet for IFTA. Another for invoices.',
-  'landing.drowningInToolsReplace': 'Qivori replaces all of it.',
+  'landing.drowningInToolsReplace': 'Q replaces all of it.',
 
   'landing.pain1': 'Searching DAT for hours finding bad loads',
   'landing.fix1': 'AI scores every load 0\u2013100 \u2014 best loads surface instantly',
@@ -112,7 +112,7 @@ const en = {
   'landing.step1Title': 'Sign Up in 60 Seconds',
   'landing.step1Desc': 'Create your account, add your MC number. No credit card needed for the 14-day trial.',
   'landing.step2Title': 'AI Learns Your Lanes',
-  'landing.step2Desc': 'Qivori analyzes your history and preferences to find the most profitable loads for your operation.',
+  'landing.step2Desc': 'Q analyzes your history and preferences to find the most profitable loads for your operation.',
   'landing.step3Title': 'Run Everything from One Place',
   'landing.step3Desc': 'Dispatch, compliance, invoicing, P&L \u2014 all managed by AI. Talk to it or tap, your choice.',
 

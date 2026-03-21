@@ -103,7 +103,7 @@ function WaitlistSection() {
 function ChatBubble() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Hi! I\'m Qivori AI. Ask me anything about our platform — pricing, features, how it works for owner-operators.' }
+    { role: 'assistant', text: 'Hi! I\'m Q, your AI assistant by Qivori. Ask me anything about our platform — pricing, features, how it works for owner-operators.' }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori AI, an AI-powered operating system for trucking companies. One simple plan: $399/truck/month — everything included, no upsells. Founder pricing (normally $599). 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up.',
+          context: 'This is a landing page visitor asking about Q by Qivori, an AI-powered operating system for trucking companies. One simple plan: $399/truck/month — everything included, no upsells. Founder pricing (normally $599). 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
         }),
       })
       const data = await res.json()
@@ -143,7 +143,7 @@ function ChatBubble() {
                 <Ic icon={Zap} size={14} color="var(--accent)" />
               </div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Qivori AI</div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Q</div>
                 <div style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--success)' }} /> Online
                 </div>
@@ -182,7 +182,7 @@ function ChatBubble() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
-              placeholder="Ask about Qivori..."
+              placeholder="Ask Q anything..."
               style={{ flex: 1, padding: '10px 14px', fontSize: 13, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', outline: 'none' }}
             />
             <button onClick={handleSend} disabled={loading} style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: loading ? 0.5 : 1 }}>
@@ -262,7 +262,7 @@ const TESTIMONIALS = []
 
 const HOW_IT_WORKS = [
   { step: '01', title: 'Sign Up in 60 Seconds', desc: 'Create your account and add your MC number. No credit card, no setup fees, no long-term contracts.', icon: Users },
-  { step: '02', title: 'AI Learns Your Operation', desc: 'Qivori studies your lanes, preferences, and history to surface the most profitable opportunities for your team.', icon: Bot },
+  { step: '02', title: 'AI Learns Your Operation', desc: 'Q studies your lanes, preferences, and history to surface the most profitable opportunities for your team.', icon: Bot },
   { step: '03', title: 'Operate Smarter Every Day', desc: 'Dispatch, compliance, invoicing, fleet tracking — all organized in one place with AI-powered assistance.', icon: Zap },
 ]
 
@@ -460,9 +460,9 @@ export default function LandingPage({ onGetStarted }) {
 
       {/* ── NAV ───────────────────────────────────────────────────────── */}
       <nav className="lp-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(7,9,14,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', padding: '0 48px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, letterSpacing: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-          QI<span style={{ color: 'var(--accent)' }}>VORI</span>
-          <span style={{ fontSize: 10, color: 'var(--accent2)', letterSpacing: 1, fontFamily: "'DM Sans', sans-serif", fontWeight: 800, marginLeft: 6, padding: '2px 6px', background: 'rgba(0,212,170,0.1)', borderRadius: 4 }}>AI</span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: 2, fontFamily: "'Bebas Neue', sans-serif", color: 'var(--accent)' }}>Q</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, marginLeft: 8, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
         </div>
 
         <button className="lp-mob-toggle" onClick={() => setMenuOpen(!menuOpen)}
@@ -651,10 +651,10 @@ export default function LandingPage({ onGetStarted }) {
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>YOUR TEAM, AMPLIFIED</div>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-              HOW QIVORI HELPS YOUR TEAM
+              HOW Q HELPS YOUR TEAM
             </h2>
             <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 560, margin: '0 auto' }}>
-              Qivori doesn't replace your people — it gives them AI-powered tools to work smarter, faster, and with less stress.
+              Q doesn't replace your people — it gives them AI-powered tools to work smarter, faster, and with less stress.
             </p>
           </div>
         </FadeIn>
@@ -756,7 +756,7 @@ export default function LandingPage({ onGetStarted }) {
                       <Ic icon={Zap} size={12} color="var(--accent)" />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2 }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span> <span style={{ fontSize: 9, color: 'var(--accent2)' }}>AI</span></div>
+                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2 }}><span style={{ color: 'var(--accent)' }}>Q</span> <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'DM Sans',sans-serif", fontWeight: 500, letterSpacing: 0 }}>by Qivori</span></div>
                       <div style={{ fontSize: 8, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 3 }}>
                         <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--success)' }} /> 2 active loads
                       </div>
@@ -840,7 +840,7 @@ export default function LandingPage({ onGetStarted }) {
               BE ONE OF THE FIRST 50
             </h2>
             <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
-              We're opening Qivori to the first 50 trucks at founder pricing. Help shape the platform, lock in $399/truck forever, and get direct access to our team.
+              We're opening Q to the first 50 trucks at founder pricing. Help shape the platform, lock in $399/truck forever, and get direct access to our team.
             </p>
           </div>
         </FadeIn>
@@ -916,7 +916,7 @@ export default function LandingPage({ onGetStarted }) {
                 <div style={{ padding: '16px 20px', fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 2 }}>FEATURE</div>
                 <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, textAlign: 'center' }}>LEGACY TMS</div>
                 <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, textAlign: 'center' }}>ENTERPRISE TMS</div>
-                <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, textAlign: 'center' }}>QIVORI</div>
+                <div style={{ padding: '16px 12px', fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, textAlign: 'center' }}>Q</div>
               </div>
 
               {/* Price Row */}
@@ -1132,9 +1132,9 @@ export default function LandingPage({ onGetStarted }) {
       <footer style={{ borderTop: '1px solid var(--border)', padding: '48px 40px 60px', background: 'var(--surface)' }}>
         <div className="lp-footer-grid" style={{ maxWidth: 960, margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
           <div>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 4, marginBottom: 12 }}>
-              QI<span style={{ color: 'var(--accent)' }}>VORI</span>
-              <span style={{ fontSize: 10, color: 'var(--accent2)', letterSpacing: 1, fontFamily: "'DM Sans',sans-serif", fontWeight: 800, marginLeft: 6, padding: '2px 6px', background: 'rgba(0,212,170,0.1)', borderRadius: 4 }}>AI</span>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 2, fontFamily: "'Bebas Neue', sans-serif", color: 'var(--accent)' }}>Q</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, marginLeft: 8, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 280 }}>
               {t('landing.footerDesc')}
@@ -1236,7 +1236,7 @@ export default function LandingPage({ onGetStarted }) {
                   {demoForm.email}
                 </div>
                 <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.7, marginBottom:24 }}>
-                  Click the link in your email to explore the full Qivori AI platform with sample data.
+                  Click the link in your email to explore the full Q platform with sample data.
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                   <button onClick={() => { setDemoSent(false); setDemoModal(false) }}
@@ -1252,7 +1252,7 @@ export default function LandingPage({ onGetStarted }) {
               <>
                 <div style={{ textAlign:'center', marginBottom:24 }}>
                   <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>
-                    TRY QI<span style={{ color:'var(--accent)' }}>VORI</span> AI
+                    TRY <span style={{ color:'var(--accent)' }}>Q</span>
                   </div>
                   <div style={{ fontSize:13, color:'var(--muted)' }}>Enter your info to get demo access</div>
                 </div>

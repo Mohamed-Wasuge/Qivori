@@ -1,7 +1,7 @@
 {
-  "name": "Qivori AI",
-  "short_name": "Qivori",
-  "description": "AI-Powered TMS for Trucking",
+  "name": "Q by Qivori",
+  "short_name": "Q",
+  "description": "AI dispatch engine for trucking",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

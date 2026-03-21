@@ -118,8 +118,8 @@ const en = {
 
   // ── Landing Page: AI Mobile ──
   'landing.aiFirstMobile': 'MEET Q',
-  'landing.aiCopilot': 'MEET Q — YOUR AI ON THE ROAD',
-  'landing.aiCopilotDesc': 'No menus. No forms. Just talk to Q and it handles everything \u2014 hands-free while you drive.',
+  'landing.aiCopilot': 'MEET Q. YOUR AI COPILOT ON THE ROAD.',
+  'landing.aiCopilotDesc': 'Q is your voice-first dispatch engine. No menus. No forms. Just talk and Q handles loads, invoices, compliance \u2014 hands-free while you drive.',
   'landing.voiceFirst': 'Voice-First',
   'landing.voiceFirstDesc': 'Tap and talk \u2014 AI processes your commands hands-free while you drive.',
   'landing.aiReadsBack': 'AI Reads Back',

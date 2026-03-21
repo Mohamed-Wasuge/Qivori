@@ -26,6 +26,8 @@ export default function MobileChatTab() {
   const addExpense = ctx.addExpense || (() => {})
   const logCheckCall = ctx.logCheckCall || (() => {})
   const updateLoadStatus = ctx.updateLoadStatus || (() => {})
+  const updateInvoiceStatus = ctx.updateInvoiceStatus || (() => {})
+  const unpaidInvoices = ctx.unpaidInvoices || []
   const addLoad = ctx.addLoad || (() => {})
 
   const dataReady = ctx.dataReady !== false
@@ -156,7 +158,7 @@ export default function MobileChatTab() {
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     if (outcome === 'accepted') {
-      showToast('success', 'Installed!', 'Qivori AI added to your home screen')
+      showToast('success', 'Installed!', 'Alex added to your home screen')
     }
     setDeferredPrompt(null)
     setShowInstallBanner(false)
@@ -454,8 +456,22 @@ export default function MobileChatTab() {
             merchant: action.merchant || '',
             notes: action.notes || '',
             date: new Date().toISOString().split('T')[0],
+            gallons: action.gallons ? parseFloat(action.gallons) : null,
+            price_per_gallon: action.price_per_gallon ? parseFloat(action.price_per_gallon) : null,
+            state: action.state || null,
           })
-          showToast('success', 'Expense Added', `$${action.amount} \u2014 ${action.category}`)
+          const iftaNote = action.gallons && action.state ? ` (${action.gallons} gal, ${action.state} \u2014 IFTA logged)` : ''
+          showToast('success', 'Expense Added', `$${action.amount} \u2014 ${action.category}${iftaNote}`)
+          return true
+        }
+        case 'mark_invoice_paid': {
+          const inv = invoices.find(i => i.id === action.invoice_id || i.invoice_number === action.invoice_id || i._dbId === action.invoice_id) || unpaidInvoices[0]
+          if (!inv) { showToast('error', 'Error', 'No unpaid invoice found'); return false }
+          if (updateInvoiceStatus) {
+            await updateInvoiceStatus(inv.id || inv.invoice_number || inv._dbId, 'Paid')
+            haptic('success')
+            showToast('success', 'Invoice Paid', `${inv.invoice_number || inv.id} \u2014 $${Number(inv.amount || 0).toLocaleString()}`)
+          }
           return true
         }
         case 'check_call': {
@@ -1703,16 +1719,27 @@ export default function MobileChatTab() {
     { icon: Clock, label: 'HOS Status', msg: 'How many driving hours do I have left today?' },
   ]
 
-  const suggestions = [
-    'Upgrade my plan',
-    'Show my subscription',
-    'Activate load finding',
-    'Help me with BOL',
-    'Report a problem',
-    'Nearest truck stop',
-    'How many hours do I have left?',
-    "What's my next stop?",
-  ]
+  const suggestions = activeLoads.length > 0
+    ? [
+        "What's my next stop?",
+        'Submit a check call',
+        'I just delivered',
+        'How many hours do I have left?',
+        'Nearest truck stop',
+        "What's the weather on my route?",
+        'Find me a reload',
+        'Add fuel expense',
+      ]
+    : [
+        'Find me the best loads right now',
+        'Snap a rate con to book',
+        'Show my revenue this month',
+        'How many unpaid invoices do I have?',
+        'Nearest truck stop',
+        'Show my IFTA status',
+        'Report a problem',
+        'Help me get started',
+      ]
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1731,7 +1758,7 @@ export default function MobileChatTab() {
             <Ic icon={Download} size={16} color="var(--accent)" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700 }}>Install Qivori AI</div>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>Install Alex</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>Add to home screen for quick access</div>
           </div>
           <button onClick={handleInstallClick} style={{ padding: '6px 14px', background: 'var(--accent)', border: 'none', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Install</button>
@@ -1831,7 +1858,7 @@ export default function MobileChatTab() {
                 <Ic icon={listening ? Mic : Zap} size={32} color={listening ? '#fff' : 'var(--accent)'} />
               </button>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                {listening ? 'Listening...' : `Hey, ${(profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]}`}
+                {listening ? 'Listening...' : `Hey ${(profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]}, it's Alex`}
               </div>
               {listening ? (
                 <div style={{ fontSize: 14, color: 'var(--text)', minHeight: 20, fontWeight: 600 }}>
@@ -1840,10 +1867,12 @@ export default function MobileChatTab() {
               ) : (
                 <>
                   <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                    Tap the mic and tell me what you need
+                    {activeLoads.length > 0
+                      ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
+                      : 'Your AI dispatcher \u2014 tell me what you need'}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontWeight: 600 }}>
-                    <Ic icon={Mic} size={11} /> Tap to talk — or type below
+                    <Ic icon={Mic} size={11} /> Tap to talk \u2014 or type below
                   </div>
                 </>
               )}
@@ -1868,7 +1897,7 @@ export default function MobileChatTab() {
                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Ic icon={Zap} size={10} color="var(--accent)" />
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>Qivori AI</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>Alex</span>
                 <button onClick={(e) => { e.stopPropagation(); speak(m.content) }}
                   style={{ width: 20, height: 20, borderRadius: '50%', background: speaking ? 'rgba(0,212,170,0.2)' : 'transparent', border: '1px solid rgba(0,212,170,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, marginLeft: 2 }}
                   title="Replay">

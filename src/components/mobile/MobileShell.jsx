@@ -24,7 +24,7 @@ export default function MobileShell() {
   const totalRevenue = ctx.totalRevenue || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
 
-  const [activeTab, setActiveTab] = useState('home')
+  const [activeTab, setActiveTab] = useState('chat')
   const [moneySubTab, setMoneySubTab] = useState(null)
   const [chatInitMsg, setChatInitMsg] = useState(null)
 

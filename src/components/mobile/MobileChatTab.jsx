@@ -1081,16 +1081,18 @@ export default function MobileChatTab({ onNavigate }) {
       }
 
       recorder.onstop = async () => {
-        // Stop all tracks
         stream.getTracks().forEach(t => t.stop())
         setListening(false)
         if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current)
 
         const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-        if (blob.size < 1000) return // Too short, ignore
+        if (blob.size < 1000) return
 
-        // Show transcribing state
-        setInput('Transcribing...')
+        // Immediately show processing state — feels instant
+        haptic('light')
+        setMessages(m => [...m, { role: 'user', content: 'Voice message...', _processing: true }])
+        setLoading(true)
+
         try {
           const form = new FormData()
           form.append('audio', blob, 'recording.webm')
@@ -1098,16 +1100,21 @@ export default function MobileChatTab({ onNavigate }) {
           const data = await res.json()
           const text = (data.text || '').trim()
           if (text && text.length > 1) {
-            setInput('')
+            // Replace processing message with actual text
+            setMessages(m => m.map((msg, i) => i === m.length - 1 && msg._processing ? { role: 'user', content: text } : msg))
+            setLoading(false)
             lastInputWasVoiceRef.current = true
             sendMessageRef.current?.(text)
           } else {
-            setInput('')
+            // Remove processing message
+            setMessages(m => m.filter(msg => !msg._processing))
+            setLoading(false)
             showToast('', 'No Speech', 'Tap the mic and speak clearly')
           }
         } catch {
-          setInput('')
-          showToast('error', 'Transcription Failed', 'Try again')
+          setMessages(m => m.filter(msg => !msg._processing))
+          setLoading(false)
+          showToast('error', 'Try Again', 'Could not process audio')
         }
       }
 
@@ -2322,24 +2329,24 @@ export default function MobileChatTab({ onNavigate }) {
 
         {/* Recording state — replaces input when listening */}
         {listening ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0', animation: 'fadeInUp 0.15s ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-              {[0,1,2,3,4].map(i => (
-                <div key={i} style={{ width: 3, height: 20, borderRadius: 2, background: 'var(--accent)', animation: `voiceWave 0.6s ease-in-out ${i * 0.08}s infinite alternate` }} />
-              ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
+            {/* Red pulse dot */}
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', flexShrink: 0, animation: 'micPulse 1.2s ease-in-out infinite' }} />
+            <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', fontSize: 15, color: 'var(--muted)', fontFamily: "'DM Sans',sans-serif" }}>
+              Listening...
             </div>
-            <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>Listening...</div>
-            <button onClick={() => { if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
-              style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 20px rgba(240,165,0,0.3)', transition: 'all 0.15s ease' }}>
-              <Ic icon={Send} size={20} color="#000" />
+            {/* Stop & send */}
+            <button onClick={() => { haptic('medium'); if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
+              style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+              <Ic icon={Send} size={18} color="#000" />
             </button>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Attachment button (camera + GPS) */}
-            <button onClick={() => { haptic('light'); getGPS(); if (fileInputRef.current) fileInputRef.current.click() }}
-              style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
-              <Ic icon={Plus} size={18} color="var(--muted)" />
+            {/* + button */}
+            <button onClick={() => { haptic('light'); if (fileInputRef.current) fileInputRef.current.click() }}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: 'none', border: '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+              <Ic icon={Plus} size={16} color="var(--muted)" />
             </button>
             <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
               onChange={e => {
@@ -2354,33 +2361,26 @@ export default function MobileChatTab({ onNavigate }) {
                 e.target.value = ''
               }} />
 
-            {/* Text input */}
+            {/* Input */}
             <input
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lastInputWasVoiceRef.current = false; sendMessage() } }}
               placeholder="Ask Q anything..."
-              style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 24, padding: '12px 16px', color: 'var(--text)', fontSize: 15, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s ease' }}
+              style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 24, padding: '12px 16px', color: 'var(--text)', fontSize: 15, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
             />
 
             {/* Send or Mic */}
-            {input.trim() && input !== 'Transcribing...' ? (
+            {input.trim() ? (
               <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
-                style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', boxShadow: '0 2px 12px rgba(240,165,0,0.25)' }}>
+                style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
                 <Ic icon={Send} size={18} color="#000" />
               </button>
             ) : (
               <button onClick={() => startListening()}
-                style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(240,165,0,0.08))',
-                  border: '2px solid rgba(240,165,0,0.3)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 12px rgba(240,165,0,0.1)',
-                }}>
-                <Ic icon={Mic} size={20} color="var(--accent)" />
+                style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+                <Ic icon={Mic} size={18} color="#000" />
               </button>
             )}
           </div>

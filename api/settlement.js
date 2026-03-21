@@ -1,3 +1,5 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -6,17 +8,18 @@ function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{
 const sb=()=>({apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'})
 
 export default async function handler(req){
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
+  const user = req._user
+
   const url=new URL(req.url)
   const action=url.searchParams.get('action')
 
   // GET: Settlement history
   if(req.method==='GET'){
-    const authHeader=req.headers.get('authorization')
-    if(!authHeader) return json({error:'Unauthorized'},401)
-    const token=authHeader.replace('Bearer ','')
-    const userRes=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token}})
-    if(!userRes.ok) return json({error:'Invalid token'},401)
-    const user=await userRes.json()
     const r=await fetch(SUPABASE_URL+'/rest/v1/settlements?user_id=eq.'+user.id+'&order=created_at.desc&limit=50',{headers:sb()})
     const settlements=await r.json()
     const total=settlements.reduce((s,i)=>s+(parseFloat(i.agreed_rate)||0),0)

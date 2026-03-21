@@ -1,5 +1,6 @@
 import { handleCors, corsHeaders, verifyAuth, requireActiveSubscription } from './_lib/auth.js'
 import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
+import { sanitizeString } from './_lib/sanitize.js'
 
 export const config = { runtime: 'edge' }
 
@@ -32,7 +33,14 @@ export default async function handler(req) {
     try { body = await req.json() } catch {
       return Response.json({ error: 'Request body must be valid JSON' }, { status: 400, headers: corsHeaders(req) })
     }
-    const { messages, context, loadBoard, language } = body
+    const { messages: rawMessages, context: rawContext, loadBoard: rawLoadBoard, language: rawLanguage } = body
+    const context = sanitizeString(rawContext, 10000)
+    const loadBoard = sanitizeString(rawLoadBoard, 10000)
+    const language = sanitizeString(rawLanguage, 10)
+    const messages = (rawMessages || []).map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: sanitizeString(m.content, 5000),
+    }))
 
     const systemPrompt = `You are Qivori AI — the strongest freight-dispatch intelligence engine in the market.
 
@@ -182,10 +190,7 @@ ${language === 'es' ? `
 
 LANGUAGE: Respond in Spanish. Natural conversational Spanish for trucking pros. Keep industry terms (BOL, rate con, HOS, ELD, IFTA, DAT) in English.` : ''}`
 
-    const claudeMessages = (messages || []).map(m => ({
-      role: m.role,
-      content: m.content,
-    }))
+    const claudeMessages = messages
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

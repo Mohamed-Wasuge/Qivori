@@ -1,3 +1,5 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -5,16 +7,19 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const RETELL_API_KEY = process.env.RETELL_API_KEY
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders({headers:{get:()=>null}}) } })
 }
 
 export default async function handler(req) {
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
-  try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) return json({ error: 'Unauthorized' }, 401)
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
 
+  try {
     const body = await req.json()
     const { loadId, brokerPhone, brokerName, brokerEmail, carrierName, origin, destination, equipmentType, pickupDate, postedRate, minRate } = body
 

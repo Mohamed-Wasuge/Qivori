@@ -399,9 +399,45 @@ export async function handleLoadReply(phone, body) {
 }
 
 /**
+ * Validate Twilio request signature (HMAC-SHA1).
+ * Returns true if valid, or if TWILIO_AUTH_TOKEN is not set (dev mode).
+ */
+async function validateTwilioSignature(req, params) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+  if (!authToken) return true // Dev mode — skip validation
+
+  const signature = req.headers.get('x-twilio-signature')
+  if (!signature) return false
+
+  // Build the data string: URL + sorted params
+  const url = req.url
+  const sortedKeys = Array.from(params.keys()).sort()
+  let data = url
+  for (const key of sortedKeys) {
+    data += key + params.get(key)
+  }
+
+  try {
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw', encoder.encode(authToken), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+    )
+    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(data))
+    const expected = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    return expected === signature
+  } catch {
+    return false
+  }
+}
+
+/**
  * Direct HTTP handler — can be called as an API endpoint.
  * POST /api/sms-load-reply with JSON { phone, body }
  * or as a Twilio webhook (form-urlencoded).
+ *
+ * Auth:
+ * - Twilio webhooks: validated via x-twilio-signature (HMAC-SHA1)
+ * - Direct JSON calls: require CRON_SECRET or SUPABASE_SERVICE_KEY in Authorization header
  */
 export default async function handler(req) {
   if (req.method !== 'POST') {
@@ -413,13 +449,29 @@ export default async function handler(req) {
 
     const contentType = req.headers.get('content-type') || ''
     if (contentType.includes('application/json')) {
+      // Direct JSON call — require service key or CRON_SECRET
+      const authHeader = req.headers.get('authorization') || ''
+      const token = authHeader.replace('Bearer ', '')
+      const cronSecret = process.env.CRON_SECRET
+      const serviceKey = process.env.SUPABASE_SERVICE_KEY
+      const isAuthorized = (cronSecret && token === cronSecret) || (serviceKey && token === serviceKey)
+      if (!isAuthorized) {
+        return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+      }
+
       const json = await req.json()
       phone = json.phone || json.From
       body = json.body || json.Body
     } else {
-      // Twilio form-encoded
+      // Twilio form-encoded — validate signature
       const text = await req.text()
       const params = new URLSearchParams(text)
+
+      const isValid = await validateTwilioSignature(req, params)
+      if (!isValid) {
+        return Response.json({ ok: false, error: 'Invalid Twilio signature' }, { status: 403 })
+      }
+
       phone = params.get('From')
       body = params.get('Body')
     }

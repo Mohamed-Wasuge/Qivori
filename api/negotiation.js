@@ -1,3 +1,5 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -5,18 +7,18 @@ function json(d, s=200) { return new Response(JSON.stringify(d), { status: s, he
 const sb = () => ({ apikey: SUPABASE_KEY, Authorization: 'Bearer '+SUPABASE_KEY, 'Content-Type': 'application/json' })
 
 export default async function handler(req) {
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
+  const user = req._user
+
   const url = new URL(req.url)
   const action = url.searchParams.get('action')
 
   // GET: Return negotiation settings
   if (req.method === 'GET') {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) return json({ error: 'Unauthorized' }, 401)
-    const token = authHeader.replace('Bearer ', '')
-    const userRes = await fetch(SUPABASE_URL + '/auth/v1/user', { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token } })
-    if (!userRes.ok) return json({ error: 'Invalid token' }, 401)
-    const user = await userRes.json()
-
     const res = await fetch(SUPABASE_URL + '/rest/v1/negotiation_settings?user_id=eq.' + user.id + '&limit=1', { headers: sb() })
     const data = await res.json()
     if (data.length === 0) {
@@ -28,12 +30,6 @@ export default async function handler(req) {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   try {
-    const authHeader = req.headers.get('authorization')
-    if (!authHeader) return json({ error: 'Unauthorized' }, 401)
-    const token = authHeader.replace('Bearer ', '')
-    const userRes = await fetch(SUPABASE_URL + '/auth/v1/user', { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token } })
-    if (!userRes.ok) return json({ error: 'Invalid token' }, 401)
-    const user = await userRes.json()
     const body = await req.json()
 
     // POST update_settings: Save negotiation preferences

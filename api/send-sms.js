@@ -1,6 +1,7 @@
 import { handleCors, corsHeaders, verifyAuth, requireActiveSubscription } from './_lib/auth.js'
 import { sendSMS } from './_lib/sms.js'
 import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
+import { sanitizeString } from './_lib/sanitize.js'
 
 export const config = { runtime: 'edge' }
 
@@ -23,7 +24,9 @@ export default async function handler(req) {
   if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
 
   try {
-    const { to, message } = await req.json()
+    const raw = await req.json()
+    const to = sanitizeString(raw.to, 30).replace(/[^\d+\-() ]/g, '')
+    const message = sanitizeString(raw.message, 1600)
     if (!to || !message) {
       return Response.json({ error: 'to and message are required' }, { status: 400, headers: corsHeaders(req) })
     }

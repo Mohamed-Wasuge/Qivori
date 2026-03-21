@@ -3,6 +3,8 @@
  * Receives frontend crash reports and stores them in Supabase for the self-repair agent.
  * Called automatically by the AppErrorBoundary when any component crashes.
  */
+import { sanitizeString } from './_lib/sanitize.js'
+
 export const config = { runtime: 'edge' }
 
 const supabaseUrl = () => process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -45,30 +47,29 @@ export default async function handler(req) {
 
   try {
     const body = await req.json()
-    const {
+
+    const error_message = sanitizeString(body.error_message, 2000)
+    const error_stack = sanitizeString(body.error_stack, 5000)
+    const component_stack = sanitizeString(body.component_stack, 5000)
+    const page = sanitizeString(body.page || 'unknown', 200)
+    const user_agent = sanitizeString(body.user_agent, 500)
+    const url = sanitizeString(body.url, 500)
+    const timestamp = body.timestamp
+
+    if (!error_message) {
+      return new Response(JSON.stringify({ error: 'error_message required' }), { status: 400, headers: corsHeaders })
+    }
+
+    const dedupeKey = `${error_message}:${page}`.slice(0, 500)
+
+    await supabaseInsert('error_reports', {
       error_message,
       error_stack,
       component_stack,
       page,
       user_agent,
       url,
-      timestamp,
-    } = body
-
-    if (!error_message) {
-      return new Response(JSON.stringify({ error: 'error_message required' }), { status: 400, headers: corsHeaders })
-    }
-
-    const dedupeKey = `${error_message}:${page || 'unknown'}`
-
-    await supabaseInsert('error_reports', {
-      error_message: String(error_message).slice(0, 2000),
-      error_stack: String(error_stack || '').slice(0, 5000),
-      component_stack: String(component_stack || '').slice(0, 5000),
-      page: String(page || 'unknown').slice(0, 200),
-      user_agent: String(user_agent || '').slice(0, 500),
-      url: String(url || '').slice(0, 500),
-      dedupe_key: dedupeKey.slice(0, 500),
+      dedupe_key: dedupeKey,
       status: 'new',
       reported_at: timestamp || new Date().toISOString(),
     })

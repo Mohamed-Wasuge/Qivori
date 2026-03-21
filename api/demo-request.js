@@ -1,6 +1,7 @@
 import { sendEmail } from './_lib/emails.js'
 import { handleCors, corsHeaders } from './_lib/auth.js'
 import { rateLimit, getClientIP } from './_lib/rate-limit.js'
+import { sanitizeString, sanitizeEmail } from './_lib/sanitize.js'
 
 export const config = { runtime: 'edge' }
 
@@ -91,12 +92,23 @@ export default async function handler(req) {
   }
 
   try {
-    const { name, email, phone, company, truckCount, currentELD, factoringCompany, loadBoards, painPoints, _hp, recaptchaToken } = await req.json()
+    const raw = await req.json()
 
     // Honeypot — if hidden field is filled, silently accept (bot thinks it worked)
-    if (_hp) {
+    if (raw._hp) {
       return Response.json({ success: true, firstName: 'Thanks' }, { headers: corsHeaders(req) })
     }
+
+    const name = sanitizeString(raw.name, 200)
+    const email = sanitizeEmail(raw.email) || String(raw.email || '').trim().toLowerCase()
+    const phone = sanitizeString(raw.phone, 30)
+    const company = sanitizeString(raw.company, 200)
+    const truckCount = sanitizeString(raw.truckCount, 20)
+    const currentELD = sanitizeString(raw.currentELD, 100)
+    const factoringCompany = sanitizeString(raw.factoringCompany, 200)
+    const loadBoards = sanitizeString(raw.loadBoards, 500)
+    const painPoints = sanitizeString(raw.painPoints, 2000)
+    const recaptchaToken = raw.recaptchaToken
 
     // Rate limit — 3 requests per IP per day (86400s)
     const ip = getClientIP(req)

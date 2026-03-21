@@ -1,5 +1,6 @@
 import { handleCors, corsHeaders, verifyAuth, requireActiveSubscription } from './_lib/auth.js'
 import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
+import { sanitizeString, sanitizeEmail, sanitizeNumber } from './_lib/sanitize.js'
 
 export const config = { runtime: 'edge' }
 
@@ -27,16 +28,17 @@ export default async function handler(req) {
   }
 
   try {
-    const { to, carrierName, invoiceNumber, loadNumber, route, amount, dueDate, brokerName } = await req.json()
+    const raw = await req.json()
 
+    const to = sanitizeEmail(raw.to)
     if (!to) return Response.json({ error: 'Recipient email required' }, { status: 400, headers: corsHeaders(req) })
 
-    const safeCarrierName = String(carrierName || 'Carrier').replace(/[<>"'&]/g, '')
-    const safeInvoiceNumber = String(invoiceNumber || '—').replace(/[<>"'&]/g, '')
-    const safeLoadNumber = String(loadNumber || '—').replace(/[<>"'&]/g, '')
-    const safeRoute = String(route || '—').replace(/[<>"'&]/g, '')
-    const safeDueDate = String(dueDate || 'Net 30').replace(/[<>"'&]/g, '')
-    const safeAmount = Number(amount || 0)
+    const safeCarrierName = sanitizeString(raw.carrierName || 'Carrier', 200).replace(/[<>"'&]/g, '')
+    const safeInvoiceNumber = sanitizeString(raw.invoiceNumber || '—', 100).replace(/[<>"'&]/g, '')
+    const safeLoadNumber = sanitizeString(raw.loadNumber || '—', 100).replace(/[<>"'&]/g, '')
+    const safeRoute = sanitizeString(raw.route || '—', 300).replace(/[<>"'&]/g, '')
+    const safeDueDate = sanitizeString(raw.dueDate || 'Net 30', 50).replace(/[<>"'&]/g, '')
+    const safeAmount = sanitizeNumber(raw.amount || 0, 0, 10000000)
 
     const subject = `Invoice ${safeInvoiceNumber} — ${safeRoute} — $${safeAmount.toLocaleString()}`
 

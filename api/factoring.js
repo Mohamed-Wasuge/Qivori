@@ -1,20 +1,23 @@
+import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+
 export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const RESEND_API_KEY = process.env.RESEND_API_KEY
-function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json'}})}
+function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json',...corsHeaders({headers:{get:()=>null}})}})}
 const sb=()=>({apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'})
 const FACTORING_COMPANIES=[{name:'OTR Solutions',email:'submissions@otrsolutions.com'},{name:'RTS Financial',email:'submissions@rtsinc.com'},{name:'Triumph Business Capital',email:'submissions@triumphpay.com'},{name:'TCI Business Capital',email:'submissions@tcicapital.com'},{name:'Riviera Finance',email:'submissions@rivierafinance.com'}]
 
 export default async function handler(req){
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+
+  const authErr = await requireAuth(req)
+  if (authErr) return authErr
+  const user = req._user
+
   const url=new URL(req.url)
   const action=url.searchParams.get('action')
-  const authHeader=req.headers.get('authorization')
-  if(!authHeader) return json({error:'Unauthorized'},401)
-  const token=authHeader.replace('Bearer ','')
-  const userRes=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+token}})
-  if(!userRes.ok) return json({error:'Invalid token'},401)
-  const user=await userRes.json()
 
   // GET: settings + dashboard + submissions
   if(req.method==='GET'){

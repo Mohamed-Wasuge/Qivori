@@ -331,8 +331,6 @@ function OverviewTab({ onTabChange }) {
   const { showToast } = useApp()
   const { loads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles, removeLoad, company, updateCompany, invoices } = useCarrier()
   const [dismissed, setDismissed] = useState([])
-  const [editingGoal, setEditingGoal] = useState(false)
-  const [goalInput, setGoalInput] = useState('')
 
   // Animated KPI values
   const animRevenue = useAnimatedNumber(totalRevenue)
@@ -528,51 +526,7 @@ function OverviewTab({ onTabChange }) {
         ))}
       </div>
 
-      {/* ── REVENUE GOAL TRACKER ────────────────────────────────── */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
-        {editingGoal ? (
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 11, color: '#f0a500', letterSpacing: 0.5, marginBottom: 8 }}>SET WEEKLY GOAL</div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>$</span>
-              <input type="number" value={goalInput} onChange={e => setGoalInput(e.target.value)} placeholder="5000"
-                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '5px 8px', fontSize: 13, flex: 1, fontFamily: "'JetBrains Mono',monospace" }} />
-              <button style={{ background: '#f0a500', color: '#0a0a0e', border: 'none', borderRadius: 6, padding: '5px 12px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
-                onClick={() => { const v = parseFloat(goalInput); if (v > 0) { updateCompany({ revenue_goal_weekly: v }); setEditingGoal(false); showToast && showToast('Goal set to $' + v.toLocaleString()) } }}>Save</button>
-              <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', color: 'var(--muted)', fontSize: 11, cursor: 'pointer' }}
-                onClick={() => setEditingGoal(false)}>Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 700, fontSize: 11, color: '#f0a500', letterSpacing: 0.5 }}>REVENUE GOAL</div>
-              <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 10, padding: '3px 10px', cursor: 'pointer', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}
-                onClick={() => { setEditingGoal(true); setGoalInput(String((company && company.revenue_goal_weekly) || '')) }}>
-                {(company && company.revenue_goal_weekly) ? 'Edit' : 'Set Goal'}
-              </button>
-            </div>
-            {company && company.revenue_goal_weekly > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                  <div>
-                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: '#f0a500' }}>
-                      ${(totalRevenue || 0).toLocaleString()}
-                    </span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 4 }}>/ ${company.revenue_goal_weekly.toLocaleString()}</span>
-                  </div>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 14, fontWeight: 700, color: '#f0a500' }}>
-                    {Math.min(Math.round(((totalRevenue || 0) / company.revenue_goal_weekly) * 100), 100)}%
-                  </span>
-                </div>
-                <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3 }}>
-                  <div style={{ height: '100%', width: Math.min(Math.round(((totalRevenue || 0) / company.revenue_goal_weekly) * 100), 100) + '%', background: 'linear-gradient(90deg, #f0a500, #2cb896)', borderRadius: 3, transition: 'width 0.8s ease' }} />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Revenue Goal moved to Financials tab */}
 
       {/* ── PIPELINE BAR ──────────────────────────────────────────── */}
       <div style={pan}>

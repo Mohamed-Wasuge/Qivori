@@ -529,47 +529,23 @@ function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ── REVENUE GOAL TRACKER ────────────────────────────────── */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--accent)', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Ic icon={Target} size={12} color="var(--accent)" /> REVENUE GOAL
-          </div>
-          <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 10, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}
-            onClick={() => { setEditingGoal(!editingGoal); setGoalInput(String(company?.revenue_goal_weekly || '')) }}>
-            {company?.revenue_goal_weekly ? 'Edit' : 'Set Goal'}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editingGoal ? 10 : 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 11, color: '#f0a500', letterSpacing: 0.5 }}>REVENUE GOAL</div>
+          <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 10, padding: '3px 10px', cursor: 'pointer', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}
+            onClick={() => setEditingGoal(!editingGoal)}>
+            Set Goal
           </button>
         </div>
-        {editingGoal ? (
-          <div style={{ padding: '8px 14px 10px', display: 'flex', gap: 6, alignItems: 'center', borderTop: '1px solid var(--border)' }}>
+        {editingGoal && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ color: 'var(--muted)', fontSize: 13, fontWeight: 700 }}>$</span>
             <input type="number" value={goalInput} onChange={e => setGoalInput(e.target.value)} placeholder="5000"
               style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '5px 8px', fontSize: 13, flex: 1, fontFamily: "'JetBrains Mono',monospace" }} />
-            <button style={{ background: 'var(--accent)', color: '#0a0a0e', border: 'none', borderRadius: 6, padding: '5px 12px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
-              onClick={() => { const v = parseFloat(goalInput); if (v > 0) { updateCompany({ revenue_goal_weekly: v, revenue_goal_type: 'weekly' }); setEditingGoal(false); showToast && showToast('Weekly goal set to $' + v.toLocaleString()) } }}>Save</button>
-            <button style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', color: 'var(--muted)', fontSize: 11, cursor: 'pointer' }}
-              onClick={() => setEditingGoal(false)}>Cancel</button>
+            <button style={{ background: '#f0a500', color: '#0a0a0e', border: 'none', borderRadius: 6, padding: '5px 12px', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+              onClick={() => { const v = parseFloat(goalInput); if (v > 0) { updateCompany({ revenue_goal_weekly: v }); setEditingGoal(false); showToast && showToast('Goal set to $' + v.toLocaleString()) } }}>Save</button>
           </div>
-        ) : company?.revenue_goal_weekly > 0 ? (
-          <div style={{ padding: '8px 14px 10px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>
-                  ${(totalRevenue || 0).toLocaleString()}
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>/ ${company.revenue_goal_weekly.toLocaleString()}</span>
-              </div>
-              <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.min(Math.round(((totalRevenue || 0) / company.revenue_goal_weekly) * 100), 100)}%`, background: 'linear-gradient(90deg, var(--accent), var(--accent2))', borderRadius: 3, transition: 'width 0.8s ease' }} />
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
-                {Math.min(Math.round(((totalRevenue || 0) / company.revenue_goal_weekly) * 100), 100)}%
-              </div>
-              <div style={{ fontSize: 8, color: 'var(--muted)', letterSpacing: 0.5 }}>THIS WEEK</div>
-            </div>
-          </div>
-        ) : null}
+        )}
       </div>
 
       {/* ── PIPELINE BAR ──────────────────────────────────────────── */}

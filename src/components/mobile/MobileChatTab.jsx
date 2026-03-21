@@ -9,6 +9,7 @@ import {
 import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
 import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper, mobileAnimations } from './shared'
+import { RetellWebClient } from 'retell-client-js-sdk'
 
 let BOARD_LOADS = []
 
@@ -65,6 +66,11 @@ export default function MobileChatTab() {
   const [showLoadDetail, setShowLoadDetail] = useState(false)
   const hosWarningShownRef = useRef(false)
   const escalateAttemptRef = useRef(0)
+
+  // ── RETELL VOICE CALL state ──────────────────
+  const [retellActive, setRetellActive] = useState(false)
+  const [retellConnecting, setRetellConnecting] = useState(false)
+  const retellClientRef = useRef(null)
 
   // ── PROACTIVE LOAD FINDING AGENT state ──────────────────
   const proactiveTriggeredRef = useRef(false)
@@ -861,11 +867,72 @@ export default function MobileChatTab() {
   }, [])
 
   const speak = useCallback(async (text, onDone) => {
-    if (!speakerOn || !text) { onDone?.(); return }
+    if (!speakerOn || !text || retellActive) { onDone?.(); return }
     // Try AI voice first (sounds human), fall back to browser TTS
     const aiWorked = await speakWithAI(text, onDone)
     if (!aiWorked) speakWithBrowser(text, onDone)
-  }, [speakerOn, speakWithAI, speakWithBrowser])
+  }, [speakerOn, speakWithAI, speakWithBrowser, retellActive])
+
+  // ── RETELL VOICE CALL — Talk to Alex like a real phone call ──
+  const startRetellCall = useCallback(async () => {
+    if (retellActive || retellConnecting) return
+    setRetellConnecting(true)
+    haptic('medium')
+    try {
+      const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
+      const res = await apiFetch('/api/retell-web-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverName: firstName,
+          context: buildContext(),
+        }),
+      })
+      if (!res.ok) throw new Error('Could not start voice call')
+      const { access_token } = await res.json()
+
+      const client = new RetellWebClient()
+      retellClientRef.current = client
+
+      client.on('call_started', () => {
+        setRetellActive(true)
+        setRetellConnecting(false)
+        setSpeaking(true)
+        showToast('success', 'Alex is live', 'Talk naturally — Alex is listening')
+      })
+      client.on('call_ended', () => {
+        setRetellActive(false)
+        setSpeaking(false)
+        retellClientRef.current = null
+        showToast('info', 'Call ended', 'Alex disconnected')
+      })
+      client.on('error', (err) => {
+        console.error('Retell error:', err)
+        setRetellActive(false)
+        setRetellConnecting(false)
+        setSpeaking(false)
+        retellClientRef.current = null
+        showToast('error', 'Voice Error', 'Could not connect to Alex')
+      })
+      client.on('agent_start_talking', () => setSpeaking(true))
+      client.on('agent_stop_talking', () => setSpeaking(false))
+
+      await client.startCall({ accessToken: access_token })
+    } catch (err) {
+      setRetellConnecting(false)
+      showToast('error', 'Voice Error', err.message || 'Could not start voice call')
+    }
+  }, [retellActive, retellConnecting, profile, user, buildContext, showToast])
+
+  const endRetellCall = useCallback(() => {
+    if (retellClientRef.current) {
+      retellClientRef.current.stopCall()
+      retellClientRef.current = null
+    }
+    setRetellActive(false)
+    setSpeaking(false)
+    haptic('light')
+  }, [])
 
   // Stop speaking when speaker is toggled off
   useEffect(() => {
@@ -1930,16 +1997,20 @@ export default function MobileChatTab() {
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16 }}>
             <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <button onClick={startListening}
-                style={{ width: 80, height: 80, borderRadius: '50%', background: listening ? 'var(--danger)' : 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '2px solid ' + (listening ? 'var(--danger)' : 'rgba(240,165,0,0.3)'), display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', cursor: 'pointer', transition: 'all 0.2s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none', boxShadow: listening ? '0 0 30px rgba(239,68,68,0.3)' : '0 0 20px rgba(240,165,0,0.15)' }}>
-                <Ic icon={listening ? Mic : Zap} size={32} color={listening ? '#fff' : 'var(--accent)'} />
+              <button onClick={retellActive ? endRetellCall : retellConnecting ? undefined : startRetellCall}
+                style={{ width: 80, height: 80, borderRadius: '50%', background: retellActive ? 'var(--success)' : retellConnecting ? 'var(--accent)' : 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '2px solid ' + (retellActive ? 'var(--success)' : retellConnecting ? 'var(--accent)' : 'rgba(240,165,0,0.3)'), display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', cursor: 'pointer', transition: 'all 0.2s', animation: retellActive ? 'micPulse 1.5s ease-in-out infinite' : 'none', boxShadow: retellActive ? '0 0 30px rgba(0,212,170,0.4)' : '0 0 20px rgba(240,165,0,0.15)' }}>
+                <Ic icon={retellActive ? Phone : retellConnecting ? Clock : Zap} size={32} color={retellActive ? '#fff' : retellConnecting ? '#000' : 'var(--accent)'} />
               </button>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                {listening ? 'Listening...' : `Hey ${(profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]}, it's Alex`}
+                {retellActive ? 'Alex is listening...' : retellConnecting ? 'Connecting to Alex...' : `Hey ${(profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]}, it's Alex`}
               </div>
-              {listening ? (
-                <div style={{ fontSize: 14, color: 'var(--text)', minHeight: 20, fontWeight: 600 }}>
-                  {voiceText || 'Speak now...'}
+              {retellActive ? (
+                <div style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
+                  Talk naturally — tap to hang up
+                </div>
+              ) : retellConnecting ? (
+                <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+                  Starting voice call...
                 </div>
               ) : (
                 <>
@@ -1949,7 +2020,7 @@ export default function MobileChatTab() {
                       : 'Your AI dispatcher \u2014 tell me what you need'}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontWeight: 600 }}>
-                    <Ic icon={Mic} size={11} /> Tap to talk \u2014 or type below
+                    <Ic icon={Phone} size={11} /> Tap to talk to Alex \u2014 or type below
                   </div>
                 </>
               )}
@@ -2191,8 +2262,25 @@ export default function MobileChatTab() {
         )}
       </div>
 
+      {/* Retell voice call overlay */}
+      {retellActive && (
+        <div style={{ position: 'fixed', bottom: 80, left: 16, right: 16, padding: '20px', background: 'var(--surface)', border: '2px solid var(--success)', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,212,170,0.3)', zIndex: 200, textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--success)', animation: 'micPulse 1s ease-in-out infinite' }} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--success)' }}>On call with Alex</span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+            {speaking ? 'Alex is talking...' : 'Listening to you...'}
+          </div>
+          <button onClick={endRetellCall}
+            style={{ padding: '10px 30px', background: 'var(--danger)', border: 'none', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Ic icon={Phone} size={14} color="#fff" /> End Call
+          </button>
+        </div>
+      )}
+
       {/* Listening overlay */}
-      {listening && (
+      {listening && !retellActive && (
         <div style={{ position: 'fixed', bottom: 80, left: 16, right: 16, padding: '16px 20px', background: 'var(--surface)', border: '2px solid var(--danger)', borderRadius: 16, boxShadow: '0 8px 32px rgba(239,68,68,0.3)', zIndex: 200, textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
             <div style={{ width: 12, height: 12, borderRadius: '50%', background: 'var(--danger)', animation: 'micPulse 1s ease-in-out infinite' }} />

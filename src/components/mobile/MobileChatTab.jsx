@@ -605,7 +605,39 @@ export default function MobileChatTab({ onNavigate }) {
           return true
         }
         case 'call_broker': {
-          if (action.phone) window.location.href = `tel:${action.phone}`
+          if (!action.phone) {
+            showToast('error', 'No Number', 'No broker phone number available')
+            return true
+          }
+          // Get load details for context
+          const brokerLoad = activeLoads[0]
+          const loadDetails = brokerLoad
+            ? `${brokerLoad.origin} to ${brokerLoad.destination || brokerLoad.dest}, ${brokerLoad.miles} miles, $${brokerLoad.rate || brokerLoad.gross}, ${brokerLoad.equipment || 'Dry Van'}`
+            : ''
+          try {
+            const callRes = await apiFetch('/api/retell-broker-call', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phone: action.phone,
+                brokerName: action.broker || brokerLoad?.broker_name || 'the broker',
+                loadDetails,
+                driverName: driverName || 'Driver',
+              }),
+            })
+            const callData = await callRes.json()
+            if (callRes.ok) {
+              haptic('success')
+              setMessages(m => [...m, { role: 'assistant', content: `Calling ${action.broker || 'the broker'} now at ${action.phone}. Alex is handling the negotiation — I'll update you when done.` }])
+              showToast('success', 'Calling Broker', `Alex is dialing ${action.phone}`)
+            } else {
+              // Fallback to regular phone call
+              window.location.href = `tel:${action.phone}`
+            }
+          } catch {
+            // Fallback to regular phone call
+            window.location.href = `tel:${action.phone}`
+          }
           return true
         }
         case 'update_load_status': {

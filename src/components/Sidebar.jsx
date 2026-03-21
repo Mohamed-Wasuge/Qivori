@@ -52,8 +52,7 @@ export default function Sidebar() {
           padding: '18px 16px', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'baseline'
         }}>
-          <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue', sans-serif" }}>Q</span>
-          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
+          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue', sans-serif" }}>QIVORI</span>
         </div>
 
         {/* User */}

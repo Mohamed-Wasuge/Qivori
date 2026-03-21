@@ -110,8 +110,7 @@ const LoadingFallback = () => (
   <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
     <div style={{ textAlign: 'center' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', marginBottom: 12 }}>
-        <span style={{ fontSize: 32, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue', sans-serif" }}>Q</span>
-        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
+        <span style={{ fontSize: 28, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue', sans-serif" }}>QIVORI</span>
       </div>
       <div style={{ width: 40, height: 3, background: 'var(--surface2)', borderRadius: 2, margin: '0 auto', overflow: 'hidden' }}>
         <div style={{ width: '50%', height: '100%', background: 'var(--accent)', borderRadius: 2, animation: 'lbar 1s ease-in-out infinite alternate' }} />
@@ -265,8 +264,7 @@ class AppErrorBoundary extends Component {
         <div style={{ width:'100vw', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0c0f15', color:'#c8d0dc', fontFamily:"'DM Sans',sans-serif" }}>
           <div style={{ textAlign:'center', maxWidth:400, padding:32 }}>
             <div style={{ display:'flex', alignItems:'baseline', justifyContent:'center', marginBottom:8 }}>
-              <span style={{ fontSize:32, fontWeight:800, letterSpacing:2, color:'#c8d0dc', fontFamily:"'Bebas Neue',sans-serif" }}>Q</span>
-              <span style={{ fontSize:12, color:'#6b7590', fontWeight:500, marginLeft:6, letterSpacing:0.5, fontFamily:"'DM Sans',sans-serif" }}>by Qivori</span>
+              <span style={{ fontSize:28, fontWeight:800, letterSpacing:3, color:'#c8d0dc', fontFamily:"'Bebas Neue',sans-serif" }}>QIVORI</span>
             </div>
             <div style={{ fontSize:14, fontWeight:600, marginBottom:16 }}>Something went wrong</div>
             <div style={{ fontSize:12, color:'#6b7590', background:'#131720', border:'1px solid #1e2330', borderRadius:8, padding:'10px 14px', fontFamily:'monospace', marginBottom:20, wordBreak:'break-word' }}>

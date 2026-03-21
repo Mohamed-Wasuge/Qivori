@@ -83,7 +83,7 @@ export function OnboardingWizard({ onComplete }) {
         {step === 1 && (
           <div style={{ textAlign:'center', paddingTop:32 }}>
             <div style={{ width:64, height:64, borderRadius:16, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}><Ic icon={Zap} size={28} color="var(--accent)" /></div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, letterSpacing:3, marginBottom:8, display:'flex', alignItems:'baseline', justifyContent:'center', gap:4 }}>WELCOME TO <span style={{ fontSize:36, fontWeight:800, letterSpacing:2, color:'var(--text)' }}>Q</span><span style={{ fontSize:11, color:'var(--muted)', fontWeight:500, letterSpacing:0.5, fontFamily:"'DM Sans',sans-serif" }}>by Qivori</span></div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, letterSpacing:3, marginBottom:8, display:'flex', alignItems:'baseline', justifyContent:'center', gap:4 }}>WELCOME TO QIVORI</div>
             <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.8, maxWidth:400, margin:'0 auto 32px' }}>Let's set up your account in 3 minutes.<br/>AI-powered dispatch, invoicing, compliance, and load matching — all in one platform built for carriers.</div>
             <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap', marginBottom:28 }}>
               {[{ icon: Building2, label:'Company Info', color:'var(--accent)' }, { icon: Truck, label:'Add Truck', color:'var(--accent2)' }, { icon: User, label:'Add Driver', color:'var(--accent3)' }, { icon: Package, label:'First Load', color:'var(--success)' }].map(item => (

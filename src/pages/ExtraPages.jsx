@@ -90,8 +90,7 @@ export function Onboarding() {
         <div style={{ textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', marginBottom: 8 }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 3 }}>Welcome to </span>
-            <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>Q</span>
-            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans',sans-serif" }}>by Qivori</span>
+            <span style={{ fontSize: 36, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QIVORI</span>
           </div>
           <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 32, lineHeight: 1.7 }}>
             Let's get your account set up in 3 quick steps.<br />

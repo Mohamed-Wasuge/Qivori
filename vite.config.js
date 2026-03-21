@@ -33,6 +33,12 @@ export default defineConfig({
           if (id.includes('components/carrier/Overlays')) return 'carrier-overlays'
           if (id.includes('components/carrier/OnboardingWizard')) return 'carrier-onboarding'
           if (id.includes('components/carrier/OverviewTab')) return 'carrier-overview'
+          // Split mobile sub-modules
+          if (id.includes('components/mobile/MobileChatTab')) return 'mobile-chat'
+          if (id.includes('components/mobile/MobileHomeTab')) return 'mobile-home'
+          if (id.includes('components/mobile/MobileLoadsTab')) return 'mobile-loads'
+          if (id.includes('components/mobile/MobileMoneyTab')) return 'mobile-money'
+          if (id.includes('components/mobile/MobileIFTATab')) return 'mobile-ifta'
         }
       }
     }

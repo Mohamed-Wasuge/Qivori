@@ -102,4 +102,8 @@ export const mobileAnimations = `
     from { transform: translateY(20px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
+  @keyframes voiceWave {
+    0% { height: 8px; }
+    100% { height: 28px; }
+  }
 `

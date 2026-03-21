@@ -25,6 +25,7 @@ export default defineConfig({
           if (id.includes('node_modules/@sentry')) return 'sentry'
           if (id.includes('node_modules/html2canvas')) return 'html2canvas'
           if (id.includes('node_modules/lucide-react')) return 'icons'
+          if (id.includes('node_modules/retell-client') || id.includes('node_modules/livekit-client')) return 'retell'
           // Split carrier sub-modules into separate chunks
           if (id.includes('components/carrier/SettingsTab')) return 'carrier-settings'
           if (id.includes('components/carrier/DispatchTab')) return 'carrier-dispatch'

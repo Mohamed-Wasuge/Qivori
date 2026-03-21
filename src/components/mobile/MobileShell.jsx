@@ -1,20 +1,19 @@
 import { useState, useCallback } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { Home, Package, DollarSign, FileText, Zap } from 'lucide-react'
+import { Home, Package, DollarSign, MoreHorizontal, X } from 'lucide-react'
 import { Ic, MiniStat, mobileAnimations } from './shared'
 import MobileHomeTab from './MobileHomeTab'
 import MobileLoadsTab from './MobileLoadsTab'
 import MobileMoneyTab from './MobileMoneyTab'
-import MobileIFTATab from './MobileIFTATab'
+import MobileMoreTab from './MobileMoreTab'
 import MobileChatTab from './MobileChatTab'
 
 const TABS = [
   { id: 'home', label: 'Home', icon: Home },
   { id: 'loads', label: 'Loads', icon: Package },
   { id: 'money', label: 'Money', icon: DollarSign },
-  { id: 'ifta', label: 'IFTA', icon: FileText },
-  { id: 'chat', label: 'Q', icon: Zap },
+  { id: 'more', label: 'More', icon: MoreHorizontal },
 ]
 
 export default function MobileShell() {
@@ -24,21 +23,28 @@ export default function MobileShell() {
   const totalRevenue = ctx.totalRevenue || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
 
-  const [activeTab, setActiveTab] = useState('chat')
+  const [activeTab, setActiveTab] = useState('home')
   const [moneySubTab, setMoneySubTab] = useState(null)
+  const [chatOpen, setChatOpen] = useState(false)
   const [chatInitMsg, setChatInitMsg] = useState(null)
 
-  // Navigate between tabs — called from child components
   const handleNavigate = useCallback((tab, extra) => {
+    if (tab === 'chat') {
+      setChatInitMsg(extra || null)
+      setChatOpen(true)
+      return
+    }
     if (tab === 'money' && extra === 'expenses') {
       setMoneySubTab('expenses')
     } else {
       setMoneySubTab(null)
     }
-    if (tab === 'chat' && extra) {
-      setChatInitMsg(extra)
-    }
     setActiveTab(tab)
+  }, [])
+
+  const openQ = useCallback((msg) => {
+    setChatInitMsg(msg || null)
+    setChatOpen(true)
   }, [])
 
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
@@ -58,16 +64,12 @@ export default function MobileShell() {
           <MiniStat label="MTD" value={'$' + totalRevenue.toLocaleString()} color="var(--accent)" />
           <MiniStat label="Loads" value={activeLoads.length} color="var(--accent2)" />
         </div>
-        <button onClick={logout} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 10px', color: 'var(--danger)', cursor: 'pointer', fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
-          Out
-        </button>
       </div>
 
       {/* ── TAB CONTENT ── */}
-      {/* All tabs stay mounted to preserve state */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileHomeTab onNavigate={handleNavigate} />
+          <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />
         </div>
         <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileLoadsTab />
@@ -75,13 +77,74 @@ export default function MobileShell() {
         <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileMoneyTab initialSubTab={moneySubTab} />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'ifta' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileIFTATab />
-        </div>
-        <div style={{ flex: 1, display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileChatTab onNavigate={handleNavigate} />
+        <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+          <MobileMoreTab />
         </div>
       </div>
+
+      {/* ── FLOATING Q BUTTON ── */}
+      {!chatOpen && (
+        <button
+          onClick={() => openQ()}
+          style={{
+            position: 'fixed',
+            bottom: `calc(72px + env(safe-area-inset-bottom, 0px))`,
+            right: 16,
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'var(--accent)',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(240,165,0,0.3), 0 2px 8px rgba(0,0,0,0.3)',
+            zIndex: 100,
+            animation: 'fabPop 0.3s ease',
+            transition: 'transform 0.15s ease',
+          }}
+        >
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+        </button>
+      )}
+
+      {/* ── Q CHAT OVERLAY ── */}
+      {chatOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 200,
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--bg)',
+          animation: 'overlaySlideUp 0.25s ease-out',
+        }}>
+          {/* Overlay header */}
+          <div style={{
+            height: 50, flexShrink: 0, display: 'flex', alignItems: 'center',
+            padding: '0 16px', gap: 12, background: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
+          }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Q</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Your AI copilot</div>
+            </div>
+            <button onClick={() => setChatOpen(false)}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Ic icon={X} size={18} color="var(--muted)" />
+            </button>
+          </div>
+
+          {/* Chat content */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <MobileChatTab onNavigate={handleNavigate} initialMessage={chatInitMsg} isOverlay />
+          </div>
+        </div>
+      )}
 
       {/* ── BOTTOM TAB BAR ── */}
       <div style={{

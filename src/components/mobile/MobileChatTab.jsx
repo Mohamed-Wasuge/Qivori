@@ -41,7 +41,7 @@ function renderMarkdown(text) {
   return parts.length > 0 ? parts : text
 }
 
-export default function MobileChatTab({ onNavigate }) {
+export default function MobileChatTab({ onNavigate, initialMessage, isOverlay }) {
   const { logout, showToast, subscription, user, profile } = useApp()
   const { language: currentLang, setLanguage } = useTranslation()
   const ctx = useCarrier() || {}
@@ -1914,6 +1914,15 @@ export default function MobileChatTab({ onNavigate }) {
 
   // Keep ref in sync so voice callbacks always call the latest sendMessage
   sendMessageRef.current = sendMessage
+
+  // Auto-send initialMessage when opened from FAB or home screen
+  const initialMessageSentRef = useRef(null)
+  useEffect(() => {
+    if (initialMessage && initialMessage !== initialMessageSentRef.current && !loading) {
+      initialMessageSentRef.current = initialMessage
+      setTimeout(() => sendMessageRef.current?.(initialMessage), 100)
+    }
+  }, [initialMessage, loading])
 
   // Quick action chips
   const quickActions = [

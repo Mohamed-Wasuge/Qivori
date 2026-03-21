@@ -146,6 +146,19 @@ export const mobileAnimations = `
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes fabPop {
+    0% { opacity: 0; transform: scale(0.5); }
+    70% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes overlaySlideUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes qPulse {
+    0%, 100% { box-shadow: 0 4px 20px rgba(240,165,0,0.3), 0 2px 8px rgba(0,0,0,0.3); }
+    50% { box-shadow: 0 4px 30px rgba(240,165,0,0.5), 0 2px 12px rgba(0,0,0,0.3); }
+  }
   .press-scale:active { transform: scale(0.97); transition: transform 0.1s ease; }
   .momentum-scroll { -webkit-overflow-scrolling: touch; overflow-y: auto; }
   .smooth-transition { transition: all 0.2s ease; }

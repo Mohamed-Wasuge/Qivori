@@ -66,6 +66,8 @@ export default function MobileChatTab({ onNavigate }) {
   const hosWarningShownRef = useRef(false)
   const escalateAttemptRef = useRef(0)
   const loadingSafetyRef = useRef(null)
+  const sendMessageRef = useRef(null)
+  const lastInputWasVoiceRef = useRef(false)
 
   // ── PROACTIVE LOAD FINDING AGENT state ──────────────────
   const proactiveTriggeredRef = useRef(false)
@@ -1026,7 +1028,8 @@ export default function MobileChatTab({ onNavigate }) {
 
       if (event.results[event.results.length - 1].isFinal) {
         setTimeout(() => {
-          sendMessage(transcript)
+          lastInputWasVoiceRef.current = true
+          sendMessageRef.current?.(transcript)
           setVoiceText('')
         }, 300)
       }
@@ -1805,8 +1808,9 @@ export default function MobileChatTab({ onNavigate }) {
         actions,
       }])
       // Fire TTS in background — don't block the conversation
+      // After Alex finishes speaking, auto-listen if user was using voice
       speak(replyText, () => {
-        if (handsFree && hasSpeechRecognition) {
+        if (hasSpeechRecognition && (handsFree || lastInputWasVoiceRef.current)) {
           setTimeout(() => startListening(), 400)
         }
       }).catch(() => {})
@@ -1836,6 +1840,9 @@ export default function MobileChatTab({ onNavigate }) {
       setLoading(false)
     }
   }
+
+  // Keep ref in sync so voice callbacks always call the latest sendMessage
+  sendMessageRef.current = sendMessage
 
   // Quick action chips
   const quickActions = [
@@ -2230,7 +2237,7 @@ export default function MobileChatTab({ onNavigate }) {
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lastInputWasVoiceRef.current = false; sendMessage() } }}
             placeholder={gpsLocation ? `\ud83d\udccd ${gpsLocation} \u2014 Ask me anything...` : 'Tell me what you need...'}
             style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--text)', fontSize: 16, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
           />
@@ -2238,7 +2245,7 @@ export default function MobileChatTab({ onNavigate }) {
 
         {/* Mic / Send button */}
         {input.trim() ? (
-          <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
+          <button onClick={() => { haptic('light'); lastInputWasVoiceRef.current = false; sendMessage() }} disabled={loading}
             style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
             <Ic icon={Send} size={16} color="#000" />
           </button>

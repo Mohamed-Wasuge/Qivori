@@ -380,6 +380,9 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 
   /* Toast on mobile — above tab bar */
   .toast { left: 16px; right: 16px; bottom: 80px; min-width: auto; }
+
+  /* Hide reCAPTCHA badge on mobile — only needed on landing page demo form */
+  .grecaptcha-badge { display: none !important; }
 }
 
 /* Mobile */

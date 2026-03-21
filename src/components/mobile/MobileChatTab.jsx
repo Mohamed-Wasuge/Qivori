@@ -13,6 +13,35 @@ import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper,
 
 let BOARD_LOADS = []
 
+// Simple markdown renderer for chat messages
+function renderMarkdown(text) {
+  if (!text) return text
+  const parts = []
+  let remaining = text
+  let key = 0
+  // Split by **bold**, newlines, and [links](url)
+  const regex = /(\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)]+)\)|\n)/g
+  let lastIndex = 0
+  let match
+  while ((match = regex.exec(remaining)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(remaining.slice(lastIndex, match.index))
+    }
+    if (match[2]) {
+      parts.push(<strong key={key++} style={{ fontWeight: 800, color: 'var(--accent)' }}>{match[2]}</strong>)
+    } else if (match[3] && match[4]) {
+      parts.push(<a key={key++} href={match[4]} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>{match[3]}</a>)
+    } else if (match[0] === '\n') {
+      parts.push(<br key={key++} />)
+    }
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < remaining.length) {
+    parts.push(remaining.slice(lastIndex))
+  }
+  return parts.length > 0 ? parts : text
+}
+
 export default function MobileChatTab({ onNavigate }) {
   const { logout, showToast, subscription, user, profile } = useApp()
   const { language: currentLang } = useTranslation()
@@ -869,7 +898,7 @@ export default function MobileChatTab({ onNavigate }) {
         setCallConnecting(false)
         setSpeaking(false)
         haptic('success')
-        setMessages(m => [...m, { role: 'assistant', content: '**Call connected.** Talk to Alex — he\'s listening.' }])
+        setMessages(m => [...m, { role: 'assistant', content: 'Call connected. Talk to Alex — he\'s listening.' }])
       })
 
       client.on('call_ended', () => {
@@ -877,7 +906,7 @@ export default function MobileChatTab({ onNavigate }) {
         setCallConnecting(false)
         setSpeaking(false)
         retellClientRef.current = null
-        setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Type or tap the mic to talk again.' }])
+        setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Tap the phone to call again or type below.' }])
       })
 
       client.on('agent_start_talking', () => setSpeaking(true))
@@ -2092,7 +2121,7 @@ export default function MobileChatTab({ onNavigate }) {
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>Tap a station for directions {'\u00b7'} Report status to help other drivers</div>
                 </div>
-              ) : m.content}
+              ) : renderMarkdown(m.content)}
             </div>
 
             {/* Action confirmation badges */}

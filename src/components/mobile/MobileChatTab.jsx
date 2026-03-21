@@ -2112,37 +2112,33 @@ export default function MobileChatTab({ onNavigate }) {
       {/* ── CHAT MESSAGES ───────────────────────────── */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}>
 
-        {/* Empty state */}
+        {/* Empty state — Q welcome */}
         {messages.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16, animation: 'fadeInUp 0.4s ease' }}>
-            <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(240,165,0,0.08)', border: '1.5px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', animation: 'pulseGlowAmber 3s ease-in-out infinite', boxShadow: '0 0 20px rgba(240,165,0,0.1)' }}>
-                <Ic icon={Zap} size={24} color="var(--accent)" />
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                {`Hey ${driverName}`}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                {activeLoads.length > 0
-                  ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
-                  : 'Q is ready \u2014 type or tap the mic'}
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '0 20px', animation: 'fadeInUp 0.4s ease' }}>
+            {/* Q mark */}
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 0 40px rgba(240,165,0,0.2), 0 4px 20px rgba(240,165,0,0.15)', animation: 'pulseGlowAmber 3s ease-in-out infinite' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4, fontFamily: "'DM Sans',sans-serif" }}>
+              {`Hey, ${driverName}`}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24, textAlign: 'center', lineHeight: 1.5 }}>
+              {activeLoads.length > 0
+                ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
+                : 'What do you need?'}
             </div>
 
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 4, textAlign: 'center' }}>Try something</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {suggestions.map((s, idx) => (
+            {/* Suggestion grid — 2 columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%', maxWidth: 360 }}>
+              {suggestions.slice(0, 4).map((s, idx) => (
                 <button key={s.text} onClick={() => sendMessage(s.text)}
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease', animation: `fadeInUp 0.3s ease ${idx * 0.07}s both` }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(240,165,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Ic icon={s.icon} size={14} color="var(--accent)" />
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 12px', fontSize: 12, color: 'var(--text)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.15s ease', animation: `fadeInUp 0.3s ease ${idx * 0.06}s both` }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(240,165,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ic icon={s.icon} size={16} color="var(--accent)" />
                   </div>
-                  <span style={{ lineHeight: 1.3 }}>{s.text}</span>
+                  <span style={{ lineHeight: 1.3, fontWeight: 600 }}>{s.text}</span>
                 </button>
               ))}
-            </div>
-            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingBottom: 8 }}>
-              Type or tap the mic to talk to Q
             </div>
           </div>
         )}
@@ -2321,84 +2317,73 @@ export default function MobileChatTab({ onNavigate }) {
         ))}
       </div>
 
-      {/* ── RECORDING OVERLAY ──────────────────────── */}
-      {listening && (
-        <div style={{ flexShrink: 0, margin: '0 16px 4px', padding: '14px 20px', background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(240,165,0,0.03))', border: '1.5px solid rgba(240,165,0,0.2)', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 14, animation: 'fadeInUp 0.2s ease' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-            {[0,1,2,3,4].map(i => (
-              <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--accent)', animation: `voiceWave 0.6s ease-in-out ${i * 0.08}s infinite alternate` }} />
-            ))}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Listening...</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Tap send when done</div>
-          </div>
-          <button onClick={() => { if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
-            style={{ padding: '8px 20px', background: 'var(--accent)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease' }}>
-            Send
-          </button>
-        </div>
-      )}
-
       {/* ── INPUT BAR ───────────────────────────────── */}
-      <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
-        {/* GPS quick button */}
-        <button onClick={getGPS}
-          style={{ width: 40, height: 40, borderRadius: 12, background: gpsLocation ? 'rgba(0,212,170,0.12)' : 'var(--surface2)', border: '1px solid ' + (gpsLocation ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
-          <Ic icon={Navigation} size={16} color={gpsLocation ? 'var(--success)' : 'var(--muted)'} />
-        </button>
+      <div style={{ flexShrink: 0, padding: '8px 16px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
 
-        {/* Camera / document upload button */}
-        <label style={{ width: 40, height: 40, borderRadius: 12, background: pendingUpload ? 'rgba(240,165,0,0.12)' : 'var(--surface2)', border: '1px solid ' + (pendingUpload ? 'rgba(240,165,0,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
-          <Ic icon={Camera} size={16} color={pendingUpload ? 'var(--accent)' : 'var(--muted)'} />
-          <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (!file) return
-              if (pendingUpload) {
-                handleDocUpload(file)
-              } else {
-                setPendingUpload({ doc_type: 'other', load_id: activeLoads[0]?.id, prompt: 'Uploading document...' })
-                handleDocUpload(file)
-              }
-              e.target.value = ''
-            }} />
-        </label>
-
-        {/* Text input */}
-        <div style={{ flex: 1, position: 'relative' }}>
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lastInputWasVoiceRef.current = false; sendMessage() } }}
-            placeholder={gpsLocation ? `${gpsLocation} \u2014 Ask me anything...` : 'Tell me what you need...'}
-            style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--text)', fontSize: 16, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s ease' }}
-          />
-        </div>
-
-        {/* Send / Mic PTT button */}
-        {input.trim() && input !== 'Transcribing...' ? (
-          <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
-            style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', boxShadow: '0 2px 12px rgba(240,165,0,0.25)' }}>
-            <Ic icon={Send} size={18} color="#000" />
-          </button>
+        {/* Recording state — replaces input when listening */}
+        {listening ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0', animation: 'fadeInUp 0.15s ease' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ width: 3, height: 20, borderRadius: 2, background: 'var(--accent)', animation: `voiceWave 0.6s ease-in-out ${i * 0.08}s infinite alternate` }} />
+              ))}
+            </div>
+            <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--accent)' }}>Listening...</div>
+            <button onClick={() => { if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
+              style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 20px rgba(240,165,0,0.3)', transition: 'all 0.15s ease' }}>
+              <Ic icon={Send} size={20} color="#000" />
+            </button>
+          </div>
         ) : (
-          <button onClick={() => startListening()}
-            style={{
-              width: 48, height: 48, borderRadius: '50%',
-              background: listening
-                ? 'linear-gradient(135deg, var(--accent), #e09000)'
-                : 'linear-gradient(135deg, rgba(240,165,0,0.12), rgba(240,165,0,0.06))',
-              border: listening ? 'none' : '2px solid rgba(240,165,0,0.3)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, transition: 'all 0.25s ease',
-              boxShadow: listening ? '0 0 24px rgba(240,165,0,0.35), 0 0 8px rgba(240,165,0,0.2)' : '0 2px 8px rgba(240,165,0,0.1)',
-              animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none',
-              transform: listening ? 'scale(1.08)' : 'scale(1)',
-            }}>
-            <Ic icon={Mic} size={20} color={listening ? '#000' : 'var(--accent)'} />
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Attachment button (camera + GPS) */}
+            <button onClick={() => { haptic('light'); getGPS(); if (fileInputRef.current) fileInputRef.current.click() }}
+              style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+              <Ic icon={Plus} size={18} color="var(--muted)" />
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                if (pendingUpload) {
+                  handleDocUpload(file)
+                } else {
+                  setPendingUpload({ doc_type: 'other', load_id: activeLoads[0]?.id, prompt: 'Uploading document...' })
+                  handleDocUpload(file)
+                }
+                e.target.value = ''
+              }} />
+
+            {/* Text input */}
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lastInputWasVoiceRef.current = false; sendMessage() } }}
+              placeholder="Ask Q anything..."
+              style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 24, padding: '12px 16px', color: 'var(--text)', fontSize: 15, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s ease' }}
+            />
+
+            {/* Send or Mic */}
+            {input.trim() && input !== 'Transcribing...' ? (
+              <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
+                style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', boxShadow: '0 2px 12px rgba(240,165,0,0.25)' }}>
+                <Ic icon={Send} size={18} color="#000" />
+              </button>
+            ) : (
+              <button onClick={() => startListening()}
+                style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(240,165,0,0.08))',
+                  border: '2px solid rgba(240,165,0,0.3)',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 12px rgba(240,165,0,0.1)',
+                }}>
+                <Ic icon={Mic} size={20} color="var(--accent)" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 

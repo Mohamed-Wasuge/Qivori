@@ -27,7 +27,7 @@ async function safeMutate(label, query) {
 // ─── LOADS (uses actual schema: load_id, rate, broker_id, etc.) ──
 export async function fetchLoads() {
   const data = await safeSelect('loads',
-    supabase.from('loads').select('*').order('created_at', { ascending: false })
+    supabase.from('loads').select('*').order('created_at', { ascending: false }).limit(500)
   )
   return data || []
 }
@@ -88,7 +88,7 @@ export async function deleteLoad(id) {
 // ─── INVOICES ────────────────────────────────────────────────
 export async function fetchInvoices() {
   const data = await safeSelect('invoices',
-    supabase.from('invoices').select('*').order('created_at', { ascending: false })
+    supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(500)
   )
   return data || []
 }
@@ -112,7 +112,7 @@ export async function updateInvoice(id, updates) {
 // ─── EXPENSES ────────────────────────────────────────────────
 export async function fetchExpenses() {
   const data = await safeSelect('expenses',
-    supabase.from('expenses').select('*').order('date', { ascending: false })
+    supabase.from('expenses').select('*').order('date', { ascending: false }).limit(500)
   )
   return data || []
 }
@@ -183,7 +183,7 @@ export async function createCheckCall(loadId, call) {
 // ─── VEHICLES ────────────────────────────────────────────────
 export async function fetchVehicles() {
   const data = await safeSelect('vehicles',
-    supabase.from('vehicles').select('*').order('created_at', { ascending: false })
+    supabase.from('vehicles').select('*').order('created_at', { ascending: false }).limit(100)
   )
   return data || []
 }
@@ -215,7 +215,7 @@ export async function deleteVehicle(id) {
 // ─── DRIVERS ─────────────────────────────────────────────────
 export async function fetchDrivers() {
   const data = await safeSelect('drivers',
-    supabase.from('drivers').select('*').order('created_at', { ascending: false })
+    supabase.from('drivers').select('*').order('created_at', { ascending: false }).limit(100)
   )
   return data || []
 }
@@ -246,7 +246,7 @@ export async function deleteDriver(id) {
 
 // ─── DOCUMENTS ───────────────────────────────────────────────
 export async function fetchDocuments(loadId) {
-  let query = supabase.from('documents').select('*').order('uploaded_at', { ascending: false })
+  let query = supabase.from('documents').select('*').order('uploaded_at', { ascending: false }).limit(500)
   if (loadId) query = query.eq('load_id', loadId)
   const data = await safeSelect('documents', query)
   return data || []
@@ -269,7 +269,7 @@ export async function deleteDocument(id) {
 
 // ─── DRIVER DQ FILES ────────────────────────────────────────
 export async function fetchDQFiles(driverId) {
-  let query = supabase.from('driver_dq_files').select('*').order('created_at', { ascending: false })
+  let query = supabase.from('driver_dq_files').select('*').order('created_at', { ascending: false }).limit(200)
   if (driverId) query = query.eq('driver_id', driverId)
   const data = await safeSelect('driver_dq_files', query)
   return data || []

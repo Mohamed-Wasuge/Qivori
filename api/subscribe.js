@@ -23,7 +23,7 @@ export default async function handler(req){
     let spots=100
     if(spotsRes.ok){const d=await spotsRes.json();spots=typeof d==='number'?d:100}
     const isFounder=spots>=trucks
-    const pricePerTruck=isFounder?399:549
+    const pricePerTruck=isFounder?399:599
     const totalCents=pricePerTruck*trucks*100
 
     if(!STRIPE_KEY){

@@ -103,7 +103,7 @@ function WaitlistSection() {
 function ChatBubble() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Hi! I\'m Q, your AI assistant by Qivori. Ask me anything about our platform — pricing, features, how it works for owner-operators.' }
+    { role: 'assistant', text: 'Hi! I\'m the Qivori AI assistant. Ask me anything about our platform — pricing, features, how it works for owner-operators.' }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Q by Qivori, an AI-powered operating system for trucking companies. One simple plan: $399/truck/month — everything included, no upsells. Founder pricing (normally $599). 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
+          context: 'This is a landing page visitor asking about Qivori, an AI-powered operating system for trucking companies. One simple plan: $399/truck/month — everything included, no upsells. Founder pricing (normally $599). 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up. You are Qivori AI assistant.',
         }),
       })
       const data = await res.json()
@@ -461,8 +461,7 @@ export default function LandingPage({ onGetStarted }) {
       {/* ── NAV ───────────────────────────────────────────────────────── */}
       <nav className="lp-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(7,9,14,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', padding: '0 48px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: 2, fontFamily: "'Bebas Neue', sans-serif", color: 'var(--accent)' }}>Q</span>
-          <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, marginLeft: 8, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif", color: 'var(--text)' }}>QIVORI</span>
         </div>
 
         <button className="lp-mob-toggle" onClick={() => setMenuOpen(!menuOpen)}
@@ -1133,8 +1132,7 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-footer-grid" style={{ maxWidth: 960, margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 2, fontFamily: "'Bebas Neue', sans-serif", color: 'var(--accent)' }}>Q</span>
-              <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, marginLeft: 8, fontFamily: "'DM Sans', sans-serif" }}>by Qivori</span>
+              <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif", color: 'var(--text)' }}>QIVORI</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 280 }}>
               {t('landing.footerDesc')}
@@ -1236,7 +1234,7 @@ export default function LandingPage({ onGetStarted }) {
                   {demoForm.email}
                 </div>
                 <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.7, marginBottom:24 }}>
-                  Click the link in your email to explore the full Q platform with sample data.
+                  Click the link in your email to explore the full Qivori platform with sample data.
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                   <button onClick={() => { setDemoSent(false); setDemoModal(false) }}
@@ -1252,7 +1250,7 @@ export default function LandingPage({ onGetStarted }) {
               <>
                 <div style={{ textAlign:'center', marginBottom:24 }}>
                   <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:4 }}>
-                    TRY <span style={{ color:'var(--accent)' }}>Q</span>
+                    TRY <span style={{ color:'var(--accent)' }}>QIVORI</span>
                   </div>
                   <div style={{ fontSize:13, color:'var(--muted)' }}>Enter your info to get demo access</div>
                 </div>

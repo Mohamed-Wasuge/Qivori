@@ -16,11 +16,11 @@ const en = {
   'nav.logout': 'Log Out',
 
   // ── Landing Page: Hero ──
-  'landing.badge': 'Meet Q — AI-Powered Trucking Platform',
-  'landing.heroLine1': 'MEET Q.',
-  'landing.heroLine2': 'YOUR',
-  'landing.heroHighlight': 'AI DISPATCH ENGINE',
-  'landing.heroParagraph': 'Q handles load matching, voice-first dispatch, auto-invoicing, IFTA, and compliance — everything an owner-operator needs, in one platform.',
+  'landing.badge': 'AI-Powered Trucking Platform',
+  'landing.heroLine1': 'THE OPERATING SYSTEM',
+  'landing.heroLine2': 'FOR',
+  'landing.heroHighlight': 'MODERN CARRIERS',
+  'landing.heroParagraph': 'Qivori handles load matching, voice-first dispatch, auto-invoicing, IFTA, and compliance — everything an owner-operator needs, in one platform.',
   'landing.startFreeTrial': 'Start Free — 14 Day Trial',
   'landing.tryDemo': 'Try Demo',
   'landing.signIn': 'Sign In',
@@ -61,7 +61,7 @@ const en = {
   'landing.drowningInToolsLine1': 'OWNER-OPERATORS ARE',
   'landing.drowningInToolsLine2': 'DROWNING IN TOOLS',
   'landing.drowningInToolsDesc': 'DAT for loads. A different TMS. QuickBooks. ELD app. Spreadsheet for IFTA. Another for invoices.',
-  'landing.drowningInToolsReplace': 'Q replaces all of it.',
+  'landing.drowningInToolsReplace': 'Qivori replaces all of it.',
 
   'landing.pain1': 'Searching DAT for hours finding bad loads',
   'landing.fix1': 'AI scores every load 0\u2013100 \u2014 best loads surface instantly',
@@ -112,14 +112,14 @@ const en = {
   'landing.step1Title': 'Sign Up in 60 Seconds',
   'landing.step1Desc': 'Create your account, add your MC number. No credit card needed for the 14-day trial.',
   'landing.step2Title': 'AI Learns Your Lanes',
-  'landing.step2Desc': 'Q analyzes your history and preferences to find the most profitable loads for your operation.',
+  'landing.step2Desc': 'Qivori analyzes your history and preferences to find the most profitable loads for your operation.',
   'landing.step3Title': 'Run Everything from One Place',
   'landing.step3Desc': 'Dispatch, compliance, invoicing, P&L \u2014 all managed by AI. Talk to it or tap, your choice.',
 
   // ── Landing Page: AI Mobile ──
   'landing.aiFirstMobile': 'AI-FIRST MOBILE',
   'landing.aiCopilot': 'YOUR AI COPILOT ON THE ROAD',
-  'landing.aiCopilotDesc': 'No menus. No forms. Just talk to your AI and it handles everything \u2014 hands-free while you drive.',
+  'landing.aiCopilotDesc': 'No menus. No forms. Just talk to your AI copilot and it handles everything \u2014 hands-free while you drive.',
   'landing.voiceFirst': 'Voice-First',
   'landing.voiceFirstDesc': 'Tap and talk \u2014 AI processes your commands hands-free while you drive.',
   'landing.aiReadsBack': 'AI Reads Back',
@@ -214,7 +214,7 @@ const en = {
   // ── Landing Page: Savings ──
   'landing.oneBetterLoadLine1': 'ONE LOAD BOOKED BETTER PAYS FOR THE',
   'landing.oneBetterLoadHighlight': 'WHOLE MONTH',
-  'landing.savingsDesc': 'Qivori AI works alongside your team \u2014 finding better loads, faster',
+  'landing.savingsDesc': 'Qivori works alongside your team \u2014 finding better loads, faster',
   'landing.savedPerMonth': 'saved per month on dispatching costs',
   'landing.hoursSavedWeekLabel': 'hours saved per week',
   'landing.aiScoresEveryLoad': 'AI scores every load instantly',
@@ -240,7 +240,7 @@ const en = {
   'landing.searchLoads': 'Or search 2,000+ loads for free',
 
   // ── Landing Page: Footer ──
-  'landing.footerDesc': 'The AI-powered operating system for owner-operators and small fleets. Built by people who understand trucking.',
+  'landing.footerDesc': 'Qivori is the AI-powered operating system for owner-operators and small fleets. Built by people who understand trucking.',
   'landing.footerPlatform': 'PLATFORM',
   'landing.footerCompany': 'COMPANY',
   'landing.footerLegal': 'LEGAL',

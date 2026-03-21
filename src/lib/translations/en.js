@@ -117,9 +117,9 @@ const en = {
   'landing.step3Desc': 'Dispatch, compliance, invoicing, P&L \u2014 all managed by AI. Talk to it or tap, your choice.',
 
   // ── Landing Page: AI Mobile ──
-  'landing.aiFirstMobile': 'AI-FIRST MOBILE',
-  'landing.aiCopilot': 'YOUR AI COPILOT ON THE ROAD',
-  'landing.aiCopilotDesc': 'No menus. No forms. Just talk to your AI copilot and it handles everything \u2014 hands-free while you drive.',
+  'landing.aiFirstMobile': 'MEET Q',
+  'landing.aiCopilot': 'MEET Q — YOUR AI ON THE ROAD',
+  'landing.aiCopilotDesc': 'No menus. No forms. Just talk to Q and it handles everything \u2014 hands-free while you drive.',
   'landing.voiceFirst': 'Voice-First',
   'landing.voiceFirstDesc': 'Tap and talk \u2014 AI processes your commands hands-free while you drive.',
   'landing.aiReadsBack': 'AI Reads Back',

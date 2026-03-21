@@ -49,7 +49,7 @@ export default async function handler(req) {
     const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
     const isPdf = mediaType.includes('pdf')
 
-    const promptText = `You are a receipt parser for a freight trucking company. Extract expense details from this receipt.
+    const promptText = `You are a receipt parser for a freight trucking company. Extract expense details from this receipt. IMPORTANT: For fuel receipts, extract gallons, price per gallon, and the US state where the purchase was made — this data is critical for IFTA fuel tax reporting.
 
 Return ONLY a valid JSON object with these fields. Use null for any field you cannot find:
 {
@@ -57,7 +57,11 @@ Return ONLY a valid JSON object with these fields. Use null for any field you ca
   "date": "YYYY-MM-DD",
   "category": "",
   "merchant": "",
-  "notes": ""
+  "notes": "",
+  "gallons": null,
+  "price_per_gallon": null,
+  "fuel_type": null,
+  "state": null
 }
 
 Rules:
@@ -65,7 +69,11 @@ Rules:
 - date: the transaction date in YYYY-MM-DD format
 - category: classify as one of: Fuel, Tolls, Repairs, Insurance, Meals, Parking, Permits, Tires, DEF, Lumper, Scale, Other
 - merchant: the store/station/vendor name
-- notes: brief description of what was purchased (e.g. "52 gal diesel", "oil change", "lunch")
+- notes: brief description of what was purchased (e.g. "52.3 gal diesel @ $3.89/gal", "oil change", "lunch")
+- gallons: for Fuel purchases ONLY — the number of gallons purchased as a number (e.g. 52.3). Look for "gallons", "gal", "volume". Critical for IFTA.
+- price_per_gallon: for Fuel purchases ONLY — the price per gallon as a number (e.g. 3.89). Look for "$/gal", "price/gal", "unit price".
+- fuel_type: for Fuel purchases ONLY — "diesel", "def", or "gasoline"
+- state: the US state where the purchase was made as a 2-letter code (e.g. "TX", "CA", "IL"). Look for the address on the receipt — city/state, zip code, or store location. Critical for IFTA fuel tax credits.
 - Return ONLY the JSON, no explanation, no markdown`
 
     const content = isPdf

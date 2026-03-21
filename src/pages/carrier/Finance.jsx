@@ -704,8 +704,19 @@ export function ExpenseTracker() {
       const json = await res.json()
       if (!json.success) throw new Error(json.error)
       const d = json.data
-      setNewExp(e => ({ ...e, amount: d.amount || '', date: d.date || '', cat: d.category || 'Fuel', notes: d.notes || d.merchant || '', }))
-      showToast('', 'Receipt Scanned', `${d.category || 'Expense'} · $${d.amount} — review and confirm`)
+      setNewExp(e => ({
+        ...e,
+        amount: d.amount || '',
+        date: d.date || '',
+        cat: d.category || 'Fuel',
+        notes: d.notes || d.merchant || '',
+        gallons: d.gallons || '',
+        pricePerGal: d.price_per_gallon || '',
+        state: d.state || '',
+      }))
+      const iftaInfo = d.gallons ? ` · ${d.gallons} gal` : ''
+      const stateInfo = d.state ? ` · ${d.state}` : ''
+      showToast('', 'Receipt Scanned', `${d.category || 'Expense'} · $${d.amount}${iftaInfo}${stateInfo} — review and confirm`)
     } catch (err) {
       showToast('', 'Scan Failed', err.message || 'Check server connection')
     } finally {

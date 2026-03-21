@@ -2,7 +2,7 @@
  * Call Handler — TwiML webhook for AI broker conversation
  * Handles multi-turn voice conversation using Twilio + Claude AI
  * Voice: Amazon Polly "Matthew" — professional American male, natural pace
- * The AI sounds like a real human dispatcher named "Alex"
+ * The AI sounds like a real human dispatcher named "Q"
  * Handles: greeting, availability check, negotiation, booking confirmation
  * Records all calls + transcribes for admin dashboard
  * Runtime: Vercel Edge
@@ -45,7 +45,7 @@ function twimlResponse(content) {
 
 // — Ask Claude to generate natural human response —
 async function askClaude(brokerSaid, context) {
-  const systemPrompt = `You are Alex, an elite freight dispatcher at Qivori Dispatch. You're on a live phone call with a broker.
+  const systemPrompt = `You are Q, an elite freight dispatcher at Qivori Dispatch. You're on a live phone call with a broker.
 
 You sound like a real dispatcher who moves freight every day — confident, natural, experienced, direct, calm. You've done this a thousand times.
 
@@ -105,7 +105,7 @@ STAGE: ${context.stage}`;
         model: 'claude-sonnet-4-20250514',
         max_tokens: 150,
         system: systemPrompt,
-        messages: [{ role: 'user', content: `The broker just said: "${brokerSaid}"\n\nRespond naturally as Alex the dispatcher. Keep it short and conversational.` }]
+        messages: [{ role: 'user', content: `The broker just said: "${brokerSaid}"\n\nRespond naturally as Q the dispatcher. Keep it short and conversational.` }]
       })
     });
 
@@ -194,7 +194,7 @@ export default async function handler(req) {
 
     // STAGE 1: Greeting when broker answers
     case 'greeting': {
-      const greeting = `Hi, this is Alex calling from Qivori Dispatch on behalf of ${context.carrierName}. I'm calling about load number ${context.loadId} from ${context.origin} to ${context.destination}. Is that load still available?`;
+      const greeting = `Hi, this is Q calling from Qivori Dispatch on behalf of ${context.carrierName}. I'm calling about load number ${context.loadId} from ${context.origin} to ${context.destination}. Is that load still available?`;
 
       const nextUrl = `${baseUrl}?stage=availability&${contextParams}`;
       return twimlResponse(gather(nextUrl, greeting, 8));
@@ -218,7 +218,7 @@ export default async function handler(req) {
         const pitch = `Great — my carrier is running ${context.equipment}, fully insured, ${context.csaScore} CSA score. They're available for pickup ${context.pickupDate}. The posted rate is $${context.rate} — can we confirm at that rate?`;
 
         await supabaseInsert('call_transcripts', {
-          call_sid: callSid, speaker: 'ai_alex', text: pitch, stage: 'availability', created_at: new Date().toISOString()
+          call_sid: callSid, speaker: 'ai_q', text: pitch, stage: 'availability', created_at: new Date().toISOString()
         });
 
         const nextUrl = `${baseUrl}?stage=negotiation&${contextParams}`;
@@ -228,7 +228,7 @@ export default async function handler(req) {
         const response = "Ah gotcha, no worries. Appreciate your time. If anything else opens up on that lane, give us a call. Have a good one.";
 
         await supabaseInsert('call_transcripts', {
-          call_sid: callSid, speaker: 'ai_alex', text: response, stage: 'unavailable', created_at: new Date().toISOString()
+          call_sid: callSid, speaker: 'ai_q', text: response, stage: 'unavailable', created_at: new Date().toISOString()
         });
         await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, { call_status: 'load_unavailable', ended_at: new Date().toISOString() });
 
@@ -272,7 +272,7 @@ export default async function handler(req) {
         const confirm = `Perfect — I'll send over the carrier packet now. MC number ${context.carrierMC}, DOT ${context.carrierDOT}, insurance on file. What's the best email for the rate confirmation?`;
 
         await supabaseInsert('call_transcripts', {
-          call_sid: callSid, speaker: 'ai_alex', text: confirm, stage: 'confirmed', created_at: new Date().toISOString()
+          call_sid: callSid, speaker: 'ai_q', text: confirm, stage: 'confirmed', created_at: new Date().toISOString()
         });
 
         const nextUrl = `${baseUrl}?stage=get_email&${contextParams}&agreedRate=${postedRate}`;
@@ -288,7 +288,7 @@ export default async function handler(req) {
           const accept = `Let me check that against our minimum. ... Yeah, we can do $${counterOffer}. That works for us. I'll get the carrier packet sent over. What's the best email for the rate con?`;
 
           await supabaseInsert('call_transcripts', {
-            call_sid: callSid, speaker: 'ai_alex', text: accept, stage: 'counter_accepted', created_at: new Date().toISOString()
+            call_sid: callSid, speaker: 'ai_q', text: accept, stage: 'counter_accepted', created_at: new Date().toISOString()
           });
 
           const nextUrl = `${baseUrl}?stage=get_email&${contextParams}&agreedRate=${counterOffer}`;
@@ -297,7 +297,7 @@ export default async function handler(req) {
           const decline = `I hear you, but $${counterOffer} is a bit below what we can do on this one. We're looking at $${postedRate} to make this work. Any flexibility on your end?`;
 
           await supabaseInsert('call_transcripts', {
-            call_sid: callSid, speaker: 'ai_alex', text: decline, stage: 'counter_declined', created_at: new Date().toISOString()
+            call_sid: callSid, speaker: 'ai_q', text: decline, stage: 'counter_declined', created_at: new Date().toISOString()
           });
 
           const nextUrl = `${baseUrl}?stage=negotiation&${contextParams}`;
@@ -310,7 +310,7 @@ export default async function handler(req) {
       const aiResponse = await askClaude(brokerSaid, context);
 
       await supabaseInsert('call_transcripts', {
-        call_sid: callSid, speaker: 'ai_alex', text: aiResponse, stage: 'negotiation', created_at: new Date().toISOString()
+        call_sid: callSid, speaker: 'ai_q', text: aiResponse, stage: 'negotiation', created_at: new Date().toISOString()
       });
 
       const nextUrl = `${baseUrl}?stage=negotiation&${contextParams}`;
@@ -340,7 +340,7 @@ export default async function handler(req) {
         const closing = `Got it — ${brokerEmail}. I'll have that rate con over to you within the next few minutes. Appreciate you working with us. Have a great day.`;
 
         await supabaseInsert('call_transcripts', {
-          call_sid: callSid, speaker: 'ai_alex', text: closing, stage: 'closing', created_at: new Date().toISOString()
+          call_sid: callSid, speaker: 'ai_q', text: closing, stage: 'closing', created_at: new Date().toISOString()
         });
 
         // Update call log as booked
@@ -417,7 +417,7 @@ export default async function handler(req) {
 
       if (amdResult === 'machine_start' || amdResult === 'machine_end_beep') {
         // Leave a voicemail
-        const voicemail = `Hi, this is Alex from Qivori Dispatch. I'm calling about a load from ${context.origin} to ${context.destination}. If that's still available, please give us a call back. Thanks.`;
+        const voicemail = `Hi, this is Q from Qivori Dispatch. I'm calling about a load from ${context.origin} to ${context.destination}. If that's still available, please give us a call back. Thanks.`;
         await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, { call_status: 'voicemail', outcome: 'voicemail' });
         return twimlResponse(`${say(voicemail)}<Hangup/>`);
       }

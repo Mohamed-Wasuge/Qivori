@@ -107,7 +107,7 @@ export default function MobileHomeTab({ onNavigate }) {
           <QuickAction icon={DollarSign} label="Invoices" onClick={() => onNavigate?.('money')} color="var(--success)" />
           <QuickAction icon={FileText} label="IFTA" onClick={() => onNavigate?.('ifta')} color="#8b5cf6" />
           <QuickAction icon={Truck} label="Add Expense" onClick={() => onNavigate?.('money', 'expenses')} color="var(--accent)" />
-          <QuickAction icon={Clock} label="AI Chat" onClick={() => onNavigate?.('chat')} color="var(--accent2)" />
+          <QuickAction icon={Clock} label="Ask Q" onClick={() => onNavigate?.('chat')} color="var(--accent2)" />
           <QuickAction icon={AlertCircle} label="HOS Check" onClick={() => onNavigate?.('chat', 'How many driving hours do I have left?')} color="var(--danger)" />
         </div>
       </div>

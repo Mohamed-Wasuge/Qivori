@@ -14,7 +14,7 @@ const TABS = [
   { id: 'loads', label: 'Loads', icon: Package },
   { id: 'money', label: 'Money', icon: DollarSign },
   { id: 'ifta', label: 'IFTA', icon: FileText },
-  { id: 'chat', label: 'AI', icon: Zap },
+  { id: 'chat', label: 'Q', icon: Zap },
 ]
 
 export default function MobileShell() {

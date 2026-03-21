@@ -35,8 +35,8 @@ export default async function handler(req){
       for(const call of pending){
         try{
           const script=call.call_type==='pickup_check'
-            ?'Hi this is Alex from Qivori Dispatch. Calling to confirm '+call.carrier_name+' picked up load and is en route to '+call.destination+'. Current ETA is '+call.eta+'. Any questions?'
-            :'Hi this is Alex from Qivori. '+call.carrier_name+' is approximately 2 hours from delivery. ETA '+(call.eta||'on schedule')+'. Delivery on schedule.'
+            ?'Hi this is Q from Qivori Dispatch. Calling to confirm '+call.carrier_name+' picked up load and is en route to '+call.destination+'. Current ETA is '+call.eta+'. Any questions?'
+            :'Hi this is Q from Qivori. '+call.carrier_name+' is approximately 2 hours from delivery. ETA '+(call.eta||'on schedule')+'. Delivery on schedule.'
           if(RETELL_API_KEY){
             const retellRes=await fetch('https://api.retellai.com/v2/create-phone-call',{
               method:'POST',headers:{Authorization:'Bearer '+RETELL_API_KEY,'Content-Type':'application/json'},

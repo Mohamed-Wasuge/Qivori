@@ -110,10 +110,10 @@ export default function MobileChatTab({ onNavigate }) {
   const proactiveLoadsRef = useRef([])
   const [proactiveLoadId, setProactiveLoadId] = useState(null)
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom with smooth behavior
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     }
   }, [messages, loading])
 
@@ -628,8 +628,8 @@ export default function MobileChatTab({ onNavigate }) {
             const callData = await callRes.json()
             if (callRes.ok) {
               haptic('success')
-              setMessages(m => [...m, { role: 'assistant', content: `Calling ${action.broker || 'the broker'} now at ${action.phone}. Alex is handling the negotiation — I'll update you when done.` }])
-              showToast('success', 'Calling Broker', `Alex is dialing ${action.phone}`)
+              setMessages(m => [...m, { role: 'assistant', content: `Calling ${action.broker || 'the broker'} now at ${action.phone}. Q is handling the negotiation \u2014 I'll update you when done.` }])
+              showToast('success', 'Calling Broker', `Q is dialing ${action.phone}`)
             } else {
               // Fallback to regular phone call
               window.location.href = `tel:${action.phone}`
@@ -764,7 +764,7 @@ export default function MobileChatTab({ onNavigate }) {
                 etaText = `\nETA: ~${etaHours} hrs (${miles} mi at 55 mph avg)`
               }
             }
-            setMessages(m => [...m, { role: 'assistant', content: `**Next Stop: ${stop.type}**\n\ud83d\udccd ${stop.location}\n${stop.address !== stop.location ? `\ud83d\udceb ${stop.address}\n` : ''}\ud83d\udcc5 ${stop.date}\n\ud83d\udd16 Load ${stop.loadId}${etaText}` }])
+            setMessages(m => [...m, { role: 'assistant', content: `**Next Stop: ${stop.type}**\n${stop.location}\n${stop.address !== stop.location ? `${stop.address}\n` : ''}${stop.date}\nLoad ${stop.loadId}${etaText}` }])
           }
           return true
         }
@@ -775,8 +775,7 @@ export default function MobileChatTab({ onNavigate }) {
           } else {
             const hrs = hos.remaining < 1 ? `${Math.round(hos.remaining * 60)} minutes` : `${hos.remaining} hours`
             const driven = hos.elapsed < 1 ? `${Math.round(hos.elapsed * 60)} min` : `${hos.elapsed} hrs`
-            const urgency = hos.remaining <= 2 ? '\ud83d\udd34' : hos.remaining <= 4 ? '\ud83d\udfe1' : '\ud83d\udfe2'
-            setMessages(m => [...m, { role: 'assistant', content: `${urgency} **HOS Status**\n\u23f1 Driven: ${driven}\n\u23f3 Remaining: ${hrs}\n${hos.remaining <= 2 ? '\n\u26a0\ufe0f **Start looking for a safe place to stop!**' : ''}` }])
+            setMessages(m => [...m, { role: 'assistant', content: `**HOS Status**\nDriven: ${driven}\nRemaining: ${hrs}\n${hos.remaining <= 2 ? '\n**Start looking for a safe place to stop.**' : ''}` }])
           }
           return true
         }
@@ -785,28 +784,28 @@ export default function MobileChatTab({ onNavigate }) {
           setHosStartTime(now)
           localStorage.setItem('qivori_hos_start', String(now))
           hosWarningShownRef.current = false
-          setMessages(m => [...m, { role: 'assistant', content: '\ud83d\udfe2 **HOS clock started.** You have 11 hours of driving time. I\'ll warn you when 2 hours remain.' }])
+          setMessages(m => [...m, { role: 'assistant', content: '**HOS clock started.** You have 11 hours of driving time. I\'ll warn you when 2 hours remain.' }])
           return true
         }
         case 'reset_hos': {
           resetHOS()
-          setMessages(m => [...m, { role: 'assistant', content: '\ud83d\udd04 **HOS clock reset.** Your 11-hour driving clock is cleared. It will restart when your next load goes In Transit.' }])
+          setMessages(m => [...m, { role: 'assistant', content: '**HOS clock reset.** Your 11-hour driving clock is cleared. It will restart when your next load goes In Transit.' }])
           return true
         }
         case 'weather_check': {
-          setMessages(m => [...m, { role: 'assistant', content: '\ud83c\udf24 Checking weather conditions...' }])
+          setMessages(m => [...m, { role: 'assistant', content: 'Checking weather conditions...' }])
           const weather = await fetchWeather()
           if (weather.error) {
             setMessages(m => { const updated = [...m]; updated[updated.length - 1] = { role: 'assistant', content: weather.error }; return updated })
           } else {
-            let msg = `**Weather at Your Location**\n\ud83c\udf21 ${weather.current.temp}\u00b0F \u2014 ${weather.current.condition}\n\ud83d\udca8 Wind: ${weather.current.wind} mph\n\ud83c\udf27 Precipitation: ${weather.current.precip}"`
+            let msg = `**Weather at Your Location**\n${weather.current.temp}\u00b0F \u2014 ${weather.current.condition}\nWind: ${weather.current.wind} mph\nPrecipitation: ${weather.current.precip}"`
             if (weather.dest) {
-              msg += `\n\n**Weather at Destination (${weather.dest.location})**\n\ud83c\udf21 ${weather.dest.temp}\u00b0F \u2014 ${weather.dest.condition}\n\ud83d\udca8 Wind: ${weather.dest.wind} mph\n\ud83c\udf27 Precipitation: ${weather.dest.precip}"`
+              msg += `\n\n**Weather at Destination (${weather.dest.location})**\n${weather.dest.temp}\u00b0F \u2014 ${weather.dest.condition}\nWind: ${weather.dest.wind} mph\nPrecipitation: ${weather.dest.precip}"`
             }
             const dangerous = [65, 75, 77, 82, 85, 86, 95, 96, 99]
             const currentDangerous = dangerous.includes(weather.current?.weathercode)
             const destDangerous = weather.dest && dangerous.includes(weather.dest?.weathercode)
-            if (currentDangerous || destDangerous) msg += '\n\n\u26a0\ufe0f **Severe conditions detected. Drive cautiously and consider stopping if visibility is poor.**'
+            if (currentDangerous || destDangerous) msg += '\n\n**Severe conditions detected. Drive cautiously and consider stopping if visibility is poor.**'
             setMessages(m => { const updated = [...m]; updated[updated.length - 1] = { role: 'assistant', content: msg }; return updated })
           }
           return true
@@ -849,7 +848,7 @@ export default function MobileChatTab({ onNavigate }) {
               setMessages(m => [...m, { role: 'assistant', content: 'I need more info to check the rate. Tell me the origin, destination, miles, and rate amount. For example: "Check rate $2500 Chicago to Atlanta 700 miles"' }])
               return true
             }
-            setMessages(m => [...m, { role: 'assistant', content: '\ud83d\udcca Analyzing rate...' }])
+            setMessages(m => [...m, { role: 'assistant', content: 'Analyzing rate...' }])
             const res = await apiFetch('/api/rate-analysis', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -859,15 +858,15 @@ export default function MobileChatTab({ onNavigate }) {
             if (data.error) {
               setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'Could not analyze rate: ' + data.error }; return u })
             } else {
-              const emoji = data.verdict === 'excellent' ? '\u2b50' : data.verdict === 'good' ? '\ud83d\udfe2' : data.verdict === 'fair' ? '\ud83d\udfe1' : '\ud83d\udd34'
-              const msg = `${emoji} **Rate Check: ${data.verdict === 'below_market' ? 'Below Market' : data.verdict === 'fair' ? 'Fair' : data.verdict === 'good' ? 'Good Deal' : 'Excellent'}** (Score: ${data.score}/100)\n\n` +
+              const verdictLabel = data.verdict === 'below_market' ? 'Below Market' : data.verdict === 'fair' ? 'Fair' : data.verdict === 'good' ? 'Good Deal' : 'Excellent'
+              const msg = `**Rate Check: ${verdictLabel}** (Score: ${data.score}/100)\n\n` +
                 `**${origin} \u2192 ${dest}** (${miles} mi)\n` +
-                `\ud83d\udcb0 Your rate: **$${rate.toLocaleString()}** ($${data.offered_rpm}/mi)\n` +
-                `\ud83d\udcc8 Market avg: **$${data.market_rpm.avg}/mi** ($${data.market_rpm.low}-$${data.market_rpm.high})\n` +
-                `\ud83d\udca1 Suggested counter: **$${data.suggested_counter}/mi** ($${data.suggested_gross?.toLocaleString()})\n\n` +
-                `\ud83d\udcca Est. profit: **$${data.profit_estimate.net.toLocaleString()}** after fuel ($${data.profit_estimate.fuel}), driver pay ($${data.profit_estimate.driver_pay || 0}), and expenses\n\n` +
+                `Your rate: **$${rate.toLocaleString()}** ($${data.offered_rpm}/mi)\n` +
+                `Market avg: **$${data.market_rpm.avg}/mi** ($${data.market_rpm.low}-$${data.market_rpm.high})\n` +
+                `Suggested counter: **$${data.suggested_counter}/mi** ($${data.suggested_gross?.toLocaleString()})\n\n` +
+                `Est. profit: **$${data.profit_estimate.net.toLocaleString()}** after fuel ($${data.profit_estimate.fuel}), driver pay ($${data.profit_estimate.driver_pay || 0}), and expenses\n\n` +
                 `${data.reasoning}\n\n` +
-                `\ud83d\udde3\ufe0f **Counter script:** "${data.negotiation_script}"`
+                `**Counter script:** "${data.negotiation_script}"`
               setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: msg, rateAnalysis: data }; return u })
               speak(`This rate is ${data.verdict === 'below_market' ? 'below market' : data.verdict}. Score ${data.score} out of 100. Your rate is $${data.offered_rpm} per mile, market average is $${data.market_rpm.avg}. I suggest countering at $${data.suggested_counter} per mile.`)
             }
@@ -940,7 +939,7 @@ export default function MobileChatTab({ onNavigate }) {
     audioRef.current = new Audio()
   }
 
-  // ── RETELL VOICE CALL — real-time conversation with Alex ──
+  // ── RETELL VOICE CALL — real-time conversation with Q ──
   const startRetellCall = useCallback(async () => {
     if (inCall || callConnecting) return
     setCallConnecting(true)
@@ -970,7 +969,7 @@ export default function MobileChatTab({ onNavigate }) {
         setCallConnecting(false)
         setSpeaking(false)
         haptic('success')
-        setMessages(m => [...m, { role: 'assistant', content: 'Call connected. Talk to Alex — he\'s listening.' }])
+        setMessages(m => [...m, { role: 'assistant', content: 'Connected. Q is listening.' }])
       })
 
       client.on('call_ended', () => {
@@ -995,7 +994,7 @@ export default function MobileChatTab({ onNavigate }) {
       await client.startCall({ accessToken: access_token })
     } catch (err) {
       setCallConnecting(false)
-      showToast('error', 'Call Failed', err.message || 'Could not connect to Alex')
+      showToast('error', 'Call Failed', err.message || 'Could not connect')
     }
   }, [inCall, callConnecting, driverName, buildContext, showToast])
 
@@ -1631,8 +1630,8 @@ export default function MobileChatTab({ onNavigate }) {
     }
 
     // ── VOICE MODE TOGGLE — start/stop Retell call ──
-    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*alex\b/i.test(lowerText)) {
-      setMessages(m => [...m, { role: 'assistant', content: 'Starting voice call with Alex...' }])
+    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*(q|alex)\b/i.test(lowerText)) {
+      setMessages(m => [...m, { role: 'assistant', content: 'Starting voice call...' }])
       startRetellCall()
       setLoading(false)
       return
@@ -1732,7 +1731,7 @@ export default function MobileChatTab({ onNavigate }) {
         const lines = recent.map((inv, i) => {
           const date = inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '\u2014'
           const status = inv.status || 'draft'
-          const statusIcon = status === 'paid' ? '\u2705' : status === 'sent' ? '\ud83d\udce4' : '\ud83d\udcdd'
+          const statusIcon = status === 'paid' ? '[Paid]' : status === 'sent' ? '[Sent]' : '[Draft]'
           return `${i + 1}. **${inv.invoice_number || `INV-${i + 1}`}** \u2014 $${Number(inv.total || 0).toLocaleString()} \u00b7 ${date} ${statusIcon} ${status}`
         })
         setMessages(m => [...m, { role: 'assistant', content: `**Your Recent Invoices:**\n\n${lines.join('\n')}\n\n${invoices.length > 5 ? `Showing 5 of ${invoices.length}. ` : ''}Say **"update payment method"** to manage billing.` }])
@@ -1987,12 +1986,12 @@ export default function MobileChatTab({ onNavigate }) {
   ]
 
   const suggestions = [
-    { emoji: '\ud83d\udd0d', text: 'Find me the best loads from Dallas' },
-    { emoji: '\u26fd', text: 'Log $85 fuel at Loves, 52 gallons, Texas' },
-    { emoji: '\u2705', text: 'I just delivered the load' },
-    { emoji: '\ud83d\udcb0', text: "What's my profit this month?" },
-    { emoji: '\ud83d\udcc4', text: 'Send invoice to the broker' },
-    { emoji: '\ud83d\udee3\ufe0f', text: 'Find me the nearest truck stop' },
+    { icon: Truck, text: 'Find me the best loads from Dallas' },
+    { icon: DollarSign, text: 'Log $85 fuel at Loves, 52 gallons, Texas' },
+    { icon: CheckCircle, text: 'I just delivered the load' },
+    { icon: DollarSign, text: "What's my profit this month?" },
+    { icon: FileText, text: 'Send invoice to the broker' },
+    { icon: MapPin, text: 'Find me the nearest truck stop' },
   ]
 
   return (
@@ -2007,7 +2006,7 @@ export default function MobileChatTab({ onNavigate }) {
 
       {/* ── CHAT HEADER BAR ────────────────────────── */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 4px', position: 'relative' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Chat</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: 0.5 }}>Q</div>
         <div ref={langPickerRef} style={{ position: 'relative' }}>
           <button
             onClick={() => { haptic?.('light'); setShowLangPicker(v => !v) }}
@@ -2162,51 +2161,55 @@ export default function MobileChatTab({ onNavigate }) {
       )}
 
       {/* ── CHAT MESSAGES ───────────────────────────── */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}>
 
         {/* Empty state */}
         {messages.length === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16, animation: 'fadeInUp 0.4s ease' }}>
             <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <button onClick={startRetellCall} disabled={callConnecting}
-                style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(0,212,170,0.1))', border: '2px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 0 20px rgba(240,165,0,0.15)' }}>
-                <Ic icon={Phone} size={32} color="var(--accent)" />
-              </button>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(240,165,0,0.08)', border: '1.5px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                <Ic icon={Zap} size={24} color="var(--accent)" />
+              </div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-                {`Hey ${driverName}, it's Alex`}
+                {`Hey ${driverName}`}
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
                 {activeLoads.length > 0
                   ? `${activeLoads[0].origin} \u2192 ${activeLoads[0].destination || activeLoads[0].dest} \u00b7 ${activeLoads[0].status}`
-                  : 'Your AI dispatcher \u2014 ready when you are'}
+                  : 'Your AI dispatcher \u2014 type or tap the mic'}
               </div>
             </div>
 
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 4, textAlign: 'center' }}>Try something</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {suggestions.map(s => (
+              {suggestions.map((s, idx) => (
                 <button key={s.text} onClick={() => sendMessage(s.text)}
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10, transition: 'border-color 0.2s' }}>
-                  <span style={{ fontSize: 16, flexShrink: 0, width: 24, textAlign: 'center' }}>{s.emoji}</span>
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s', animation: `fadeInUp 0.3s ease ${idx * 0.05}s both` }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(240,165,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Ic icon={s.icon} size={14} color="var(--accent)" />
+                  </div>
                   <span style={{ lineHeight: 1.3 }}>{s.text}</span>
                 </button>
               ))}
             </div>
-            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)', marginTop: 4, paddingBottom: 8 }}>
-              Or just call Alex {'\u2014'} tap the phone button <Ic icon={Phone} size={10} color="var(--accent)" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, paddingBottom: 8 }}>
+              <button onClick={startRetellCall} disabled={callConnecting}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 20, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 600, color: 'var(--muted)', transition: 'all 0.2s' }}>
+                <Ic icon={Phone} size={12} color="var(--accent)" /> Call Q hands-free
+              </button>
             </div>
           </div>
         )}
 
         {/* Messages */}
         {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', animation: i >= messages.length - 2 ? 'msgSlideIn 0.25s ease' : 'none' }}>
             {m.role === 'assistant' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Ic icon={Zap} size={10} color="var(--accent)" />
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>Alex</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>Q</span>
                 <button onClick={(e) => { e.stopPropagation(); speak(m.content) }}
                   style={{ width: 20, height: 20, borderRadius: '50%', background: speaking ? 'rgba(0,212,170,0.2)' : 'transparent', border: '1px solid rgba(0,212,170,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, marginLeft: 2 }}
                   title="Replay">
@@ -2226,7 +2229,7 @@ export default function MobileChatTab({ onNavigate }) {
               {m.wsSummary ? (
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>{'\u2696\ufe0f'}</span> Weigh Stations Nearby
+                    <Ic icon={MapPin} size={13} color="var(--accent)" /> Weigh Stations Nearby
                   </div>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(0,212,170,0.1)', borderRadius: 8, padding: '5px 10px' }}>
@@ -2373,7 +2376,7 @@ export default function MobileChatTab({ onNavigate }) {
       </div>
 
       {/* ── INPUT BAR ───────────────────────────────── */}
-      <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 'var(--kb-offset, 0px)' }}>
+      <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
         {/* GPS quick button */}
         <button onClick={getGPS}
           style={{ width: 40, height: 40, borderRadius: 12, background: gpsLocation ? 'rgba(0,212,170,0.12)' : 'var(--surface2)', border: '1px solid ' + (gpsLocation ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -2404,12 +2407,12 @@ export default function MobileChatTab({ onNavigate }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lastInputWasVoiceRef.current = false; sendMessage() } }}
-            placeholder={gpsLocation ? `\ud83d\udccd ${gpsLocation} \u2014 Ask me anything...` : 'Tell me what you need...'}
+            placeholder={gpsLocation ? `${gpsLocation} \u2014 Ask me anything...` : 'Tell me what you need...'}
             style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--text)', fontSize: 16, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
           />
         </div>
 
-        {/* Send / Call Alex button */}
+        {/* Send / Mic PTT button */}
         {input.trim() ? (
           <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
             style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
@@ -2421,9 +2424,9 @@ export default function MobileChatTab({ onNavigate }) {
             <Ic icon={PhoneOff} size={16} color="#fff" />
           </button>
         ) : (
-          <button onClick={startRetellCall} disabled={callConnecting}
-            style={{ width: 40, height: 40, borderRadius: '50%', background: callConnecting ? 'var(--accent2)' : 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', opacity: callConnecting ? 0.7 : 1 }}>
-            <Ic icon={Phone} size={16} color="#000" />
+          <button onClick={() => { haptic('light'); startListening() }}
+            style={{ width: 40, height: 40, borderRadius: '50%', background: listening ? 'var(--danger)' : 'var(--surface2)', border: `1.5px solid ${listening ? 'var(--danger)' : 'var(--border)'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s', animation: listening ? 'micPulse 1.5s ease-in-out infinite' : 'none' }}>
+            <Ic icon={Mic} size={16} color={listening ? '#fff' : 'var(--accent)'} />
           </button>
         )}
       </div>
@@ -2443,10 +2446,10 @@ export default function MobileChatTab({ onNavigate }) {
             ))}
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
-            {callConnecting ? 'Connecting to Alex...' : speaking ? 'Alex is talking...' : 'Listening...'}
+            {callConnecting ? 'Connecting...' : speaking ? 'Q is speaking...' : 'Listening...'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
-            {callConnecting ? 'Setting up voice call' : 'Speak naturally — Alex hears you in real time'}
+            {callConnecting ? 'Setting up voice call' : 'Speak naturally \u2014 Q hears you in real time'}
           </div>
           <button onClick={endRetellCall}
             style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>

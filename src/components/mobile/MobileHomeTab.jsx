@@ -28,10 +28,10 @@ export default function MobileHomeTab({ onNavigate }) {
   const recentLoads = [...loads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5)
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Greeting */}
-      <div>
+      <div style={{ animation: 'fadeInUp 0.3s ease' }}>
         <div style={{ fontSize: 20, fontWeight: 700 }}>Hey, {firstName}</div>
         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
           {activeLoads.length > 0 ? `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} right now` : 'No active loads — time to find one'}
@@ -40,20 +40,20 @@ export default function MobileHomeTab({ onNavigate }) {
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <KPICard icon={DollarSign} label="Revenue MTD" value={fmt$(totalRevenue)} color="var(--accent)" />
-        <KPICard icon={TrendingUp} label="Net Profit" value={fmt$(netProfit)} color={netProfit >= 0 ? 'var(--success)' : 'var(--danger)'} sub={`${profitMargin}% margin`} />
-        <KPICard icon={Package} label="Active Loads" value={activeLoads.length} color="var(--accent2)" onClick={() => onNavigate?.('loads')} />
-        <KPICard icon={FileText} label="Unpaid Invoices" value={unpaidInvoices.length} color={unpaidInvoices.length > 0 ? 'var(--danger)' : 'var(--success)'} sub={unpaidInvoices.length > 0 ? fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)) : 'All clear'} onClick={() => onNavigate?.('money')} />
+        <KPICard icon={DollarSign} label="Revenue MTD" value={fmt$(totalRevenue)} color="var(--accent)" delay={0} />
+        <KPICard icon={TrendingUp} label="Net Profit" value={fmt$(netProfit)} color={netProfit >= 0 ? 'var(--success)' : 'var(--danger)'} sub={`${profitMargin}% margin`} delay={0.05} />
+        <KPICard icon={Package} label="Active Loads" value={activeLoads.length} color="var(--accent2)" onClick={() => onNavigate?.('loads')} delay={0.1} />
+        <KPICard icon={FileText} label="Unpaid Invoices" value={unpaidInvoices.length} color={unpaidInvoices.length > 0 ? 'var(--danger)' : 'var(--success)'} sub={unpaidInvoices.length > 0 ? fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)) : 'All clear'} onClick={() => onNavigate?.('money')} delay={0.15} />
       </div>
 
       {/* Active Load Card — expandable */}
       {activeLoads.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 }}>ACTIVE LOADS</div>
-          {activeLoads.slice(0, 3).map(load => {
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8, animation: 'fadeInUp 0.2s ease' }}>ACTIVE LOADS</div>
+          {activeLoads.slice(0, 3).map((load, index) => {
             const isExpanded = expandedLoad === (load.id || load.load_id)
             return (
-              <div key={load.id || load.load_id} style={{ marginBottom: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+              <div key={load.id || load.load_id} style={{ marginBottom: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', animation: `fadeInUp 0.3s ease ${index * 0.05}s both` }}>
                 <div
                   onClick={() => { haptic(); setExpandedLoad(isExpanded ? null : (load.id || load.load_id)) }}
                   style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
@@ -75,7 +75,7 @@ export default function MobileHomeTab({ onNavigate }) {
                   <ChevronRight size={14} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: '0.2s' }} />
                 </div>
                 {isExpanded && (
-                  <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)', transition: 'all 0.2s ease' }}>
                     {[
                       ['Load ID', load.load_id || load.loadId || '—'],
                       ['Broker', load.broker_name || load.broker || '—'],
@@ -101,14 +101,14 @@ export default function MobileHomeTab({ onNavigate }) {
 
       {/* Quick Actions */}
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 }}>QUICK ACTIONS</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8, animation: 'fadeInUp 0.2s ease' }}>QUICK ACTIONS</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          <QuickAction icon={Package} label="Find Loads" onClick={() => onNavigate?.('loads')} />
-          <QuickAction icon={DollarSign} label="Invoices" onClick={() => onNavigate?.('money')} color="var(--success)" />
-          <QuickAction icon={FileText} label="IFTA" onClick={() => onNavigate?.('ifta')} color="#8b5cf6" />
-          <QuickAction icon={Truck} label="Add Expense" onClick={() => onNavigate?.('money', 'expenses')} color="var(--accent)" />
-          <QuickAction icon={Clock} label="Ask Q" onClick={() => onNavigate?.('chat')} color="var(--accent2)" />
-          <QuickAction icon={AlertCircle} label="HOS Check" onClick={() => onNavigate?.('chat', 'How many driving hours do I have left?')} color="var(--danger)" />
+          <QuickAction icon={Package} label="Find Loads" onClick={() => onNavigate?.('loads')} index={0} />
+          <QuickAction icon={DollarSign} label="Invoices" onClick={() => onNavigate?.('money')} color="var(--success)" index={1} />
+          <QuickAction icon={FileText} label="IFTA" onClick={() => onNavigate?.('ifta')} color="#8b5cf6" index={2} />
+          <QuickAction icon={Truck} label="Add Expense" onClick={() => onNavigate?.('money', 'expenses')} color="var(--accent)" index={3} />
+          <QuickAction icon={Clock} label="Ask Q" onClick={() => onNavigate?.('chat')} color="var(--accent2)" index={4} />
+          <QuickAction icon={AlertCircle} label="HOS Check" onClick={() => onNavigate?.('chat', 'How many driving hours do I have left?')} color="var(--danger)" index={5} />
         </div>
       </div>
 
@@ -127,9 +127,9 @@ export default function MobileHomeTab({ onNavigate }) {
       {/* Recent Activity */}
       {recentLoads.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 }}>RECENT ACTIVITY</div>
-          {recentLoads.map(load => (
-            <div key={load.id || load.load_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8, animation: 'fadeInUp 0.2s ease' }}>RECENT ACTIVITY</div>
+          {recentLoads.map((load, index) => (
+            <div key={load.id || load.load_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', animation: `fadeInUp 0.2s ease ${index * 0.03}s both` }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(load.status), flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -147,9 +147,9 @@ export default function MobileHomeTab({ onNavigate }) {
   )
 }
 
-function KPICard({ icon, label, value, color, sub, onClick }) {
+function KPICard({ icon, label, value, color, sub, onClick, delay }) {
   return (
-    <div onClick={onClick} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px', cursor: onClick ? 'pointer' : 'default' }}>
+    <div onClick={onClick} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px', cursor: onClick ? 'pointer' : 'default', animation: `fadeInUp 0.3s ease ${delay || 0}s both`, transition: 'all 0.15s ease' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Ic icon={icon} size={13} color={color} />
         <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{label}</span>
@@ -160,9 +160,9 @@ function KPICard({ icon, label, value, color, sub, onClick }) {
   )
 }
 
-function QuickAction({ icon, label, onClick, color = 'var(--accent)' }) {
+function QuickAction({ icon, label, onClick, color = 'var(--accent)', index = 0 }) {
   return (
-    <button onClick={() => { haptic(); onClick?.() }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: "'DM Sans',sans-serif" }}>
+    <button onClick={() => { haptic(); onClick?.() }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: "'DM Sans',sans-serif", animation: `fadeInUp 0.25s ease ${index * 0.04}s both` }}>
       <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Ic icon={icon} size={16} color={color} />
       </div>

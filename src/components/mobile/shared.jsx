@@ -114,4 +114,39 @@ export const mobileAnimations = `
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes staggerIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes cardPop {
+    0% { opacity: 0; transform: scale(0.95); }
+    70% { opacity: 1; transform: scale(1.02); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+  @keyframes pressScale {
+    to { transform: scale(0.97); }
+  }
+  @keyframes tabSlide {
+    from { opacity: 0; transform: translateX(8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.3); }
+    50% { box-shadow: 0 0 0 6px rgba(0, 212, 170, 0); }
+  }
+  @keyframes pulseGlowAmber {
+    0%, 100% { box-shadow: 0 0 15px rgba(240,165,0,0.08); }
+    50% { box-shadow: 0 0 25px rgba(240,165,0,0.15); }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .press-scale:active { transform: scale(0.97); transition: transform 0.1s ease; }
+  .momentum-scroll { -webkit-overflow-scrolling: touch; overflow-y: auto; }
+  .smooth-transition { transition: all 0.2s ease; }
 `

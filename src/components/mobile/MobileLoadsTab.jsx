@@ -152,7 +152,7 @@ export default function MobileLoadsTab() {
           }).length
           return (
             <button key={s} onClick={() => { haptic(); setFilter(s) }}
-              style={{ padding: '6px 12px', borderRadius: 20, background: isActive ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, color: isActive ? '#000' : 'var(--text)', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif", flexShrink: 0 }}>
+              style={{ padding: '6px 12px', borderRadius: 20, background: isActive ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, color: isActive ? '#000' : 'var(--text)', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif", flexShrink: 0, transition: 'all 0.15s ease' }}>
               {s} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
             </button>
           )
@@ -160,7 +160,7 @@ export default function MobileLoadsTab() {
       </div>
 
       {showAddLoad && (
-        <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px' }}>
+        <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px', animation: 'fadeInUp 0.3s ease' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>New Load</span>
             <button onClick={() => setShowAddLoad(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
@@ -199,7 +199,7 @@ export default function MobileLoadsTab() {
       )}
 
       {/* Load cards */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
             <Ic icon={Package} size={40} color="var(--border)" />
@@ -208,14 +208,14 @@ export default function MobileLoadsTab() {
           </div>
         )}
 
-        {filtered.map(load => {
+        {filtered.map((load, index) => {
           const isExpanded = expandedId === (load.id || load.load_id)
           const currentIdx = STATUS_FLOW.findIndex(s => s.toLowerCase() === (load.status || '').toLowerCase())
           const canAdvance = currentIdx >= 0 && currentIdx < STATUS_FLOW.length - 1
           const nextStatus = canAdvance ? STATUS_FLOW[currentIdx + 1] : null
 
           return (
-            <div key={load.id || load.load_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8, overflow: 'hidden' }}>
+            <div key={load.id || load.load_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8, overflow: 'hidden', animation: `fadeInUp 0.25s ease ${index * 0.04}s both`, transition: 'transform 0.15s ease' }}>
               {/* Card header */}
               <div onClick={() => { haptic(); setExpandedId(isExpanded ? null : (load.id || load.load_id)) }}
                 style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>

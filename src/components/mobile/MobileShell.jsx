@@ -66,19 +66,19 @@ export default function MobileShell() {
       {/* ── TAB CONTENT ── */}
       {/* All tabs stay mounted to preserve state */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
+        <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileHomeTab onNavigate={handleNavigate} />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
+        <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileLoadsTab />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
+        <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileMoneyTab initialSubTab={moneySubTab} />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'ifta' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
+        <div style={{ flex: 1, display: activeTab === 'ifta' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileIFTATab />
         </div>
-        <div style={{ flex: 1, display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'slideUp 0.15s ease' }}>
+        <div style={{ flex: 1, display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
           <MobileChatTab onNavigate={handleNavigate} />
         </div>
       </div>
@@ -105,9 +105,9 @@ export default function MobileShell() {
                 background: 'none', border: 'none', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                 padding: '10px 16px', position: 'relative',
-                transition: 'all 0.15s',
+                transition: 'all 0.2s ease',
               }}>
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', transform: isActive ? 'scale(1)' : 'scale(0.95)', transition: 'all 0.15s ease' }}>
                 <Ic icon={tab.icon} size={20}
                   color={isActive ? 'var(--accent)' : 'var(--muted)'}
                   strokeWidth={isActive ? 2.5 : 1.5}

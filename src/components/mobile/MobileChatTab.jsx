@@ -2196,7 +2196,7 @@ export default function MobileChatTab({ onNavigate }) {
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16, animation: 'fadeInUp 0.4s ease' }}>
             <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(240,165,0,0.08)', border: '1.5px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(240,165,0,0.08)', border: '1.5px solid rgba(240,165,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', animation: 'pulseGlowAmber 3s ease-in-out infinite', boxShadow: '0 0 20px rgba(240,165,0,0.1)' }}>
                 <Ic icon={Zap} size={24} color="var(--accent)" />
               </div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
@@ -2213,7 +2213,7 @@ export default function MobileChatTab({ onNavigate }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {suggestions.map((s, idx) => (
                 <button key={s.text} onClick={() => sendMessage(s.text)}
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s', animation: `fadeInUp 0.3s ease ${idx * 0.05}s both` }}>
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease', animation: `fadeInUp 0.3s ease ${idx * 0.07}s both` }}>
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(240,165,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Ic icon={s.icon} size={14} color="var(--accent)" />
                   </div>
@@ -2417,12 +2417,12 @@ export default function MobileChatTab({ onNavigate }) {
       <div style={{ flexShrink: 0, padding: '8px 12px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
         {/* GPS quick button */}
         <button onClick={getGPS}
-          style={{ width: 40, height: 40, borderRadius: 12, background: gpsLocation ? 'rgba(0,212,170,0.12)' : 'var(--surface2)', border: '1px solid ' + (gpsLocation ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          style={{ width: 40, height: 40, borderRadius: 12, background: gpsLocation ? 'rgba(0,212,170,0.12)' : 'var(--surface2)', border: '1px solid ' + (gpsLocation ? 'rgba(0,212,170,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
           <Ic icon={Navigation} size={16} color={gpsLocation ? 'var(--success)' : 'var(--muted)'} />
         </button>
 
         {/* Camera / document upload button */}
-        <label style={{ width: 40, height: 40, borderRadius: 12, background: pendingUpload ? 'rgba(240,165,0,0.12)' : 'var(--surface2)', border: '1px solid ' + (pendingUpload ? 'rgba(240,165,0,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <label style={{ width: 40, height: 40, borderRadius: 12, background: pendingUpload ? 'rgba(240,165,0,0.12)' : 'var(--surface2)', border: '1px solid ' + (pendingUpload ? 'rgba(240,165,0,0.3)' : 'var(--border)'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
           <Ic icon={Camera} size={16} color={pendingUpload ? 'var(--accent)' : 'var(--muted)'} />
           <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
             onChange={e => {
@@ -2446,7 +2446,7 @@ export default function MobileChatTab({ onNavigate }) {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lastInputWasVoiceRef.current = false; sendMessage() } }}
             placeholder={gpsLocation ? `${gpsLocation} \u2014 Ask me anything...` : 'Tell me what you need...'}
-            style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--text)', fontSize: 16, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--text)', fontSize: 16, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s ease' }}
           />
         </div>
 

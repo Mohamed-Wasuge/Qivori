@@ -165,17 +165,17 @@ export default function MobileIFTATab() {
       <div style={{ flexShrink: 0, padding: '0 16px 8px', display: 'flex', gap: 6 }}>
         {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
           <button key={q} onClick={() => { haptic(); setSelectedQuarter(q) }}
-            style={{ flex: 1, padding: '8px', borderRadius: 8, background: selectedQuarter === q ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${selectedQuarter === q ? 'var(--accent)' : 'var(--border)'}`, color: selectedQuarter === q ? '#000' : 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+            style={{ flex: 1, padding: '8px', borderRadius: 8, background: selectedQuarter === q ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${selectedQuarter === q ? 'var(--accent)' : 'var(--border)'}`, color: selectedQuarter === q ? '#000' : 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease' }}>
             {q}
           </button>
         ))}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
 
         {/* Summary cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12, animation: 'fadeInUp 0.3s ease' }}>
           <SummaryCard label="Total Miles" value={summary.totalMiles.toLocaleString()} color="var(--accent)" />
           <SummaryCard label="Total Gallons" value={summary.totalGallons.toFixed(0)} color="var(--accent2)" />
           <SummaryCard label="Avg MPG" value={summary.mpg} color="var(--success)" />
@@ -205,12 +205,12 @@ export default function MobileIFTATab() {
           </div>
         )}
 
-        {summary.stateDetails.map(s => (
-          <div key={s.state} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginBottom: 6 }}>
+        {summary.stateDetails.map((s, index) => (
+          <div key={s.state} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginBottom: 6, animation: `fadeInUp 0.25s ease ${index * 0.05}s both` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif", width: 28 }}>{s.state}</span>
               <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 2, width: `${Math.min(100, (s.miles / Math.max(1, summary.totalMiles)) * 100)}%` }} />
+                <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 2, width: `${Math.min(100, (s.miles / Math.max(1, summary.totalMiles)) * 100)}%`, transition: 'width 0.5s ease' }} />
               </div>
               <span style={{ fontSize: 11, fontWeight: 700, color: s.net >= 0 ? 'var(--danger)' : 'var(--success)', minWidth: 50, textAlign: 'right' }}>
                 {s.net >= 0 ? '' : '-'}{fmt$(Math.abs(s.net))}

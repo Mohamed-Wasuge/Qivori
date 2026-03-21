@@ -130,7 +130,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* Summary bar */}
-      <div style={{ flexShrink: 0, padding: '12px 16px', display: 'flex', gap: 10 }}>
+      <div style={{ flexShrink: 0, padding: '12px 16px', display: 'flex', gap: 10, animation: 'fadeInUp 0.3s ease' }}>
         <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px', textAlign: 'center' }}>
           <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Revenue</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(totalRevenue)}</div>
@@ -149,14 +149,14 @@ export default function MobileMoneyTab({ initialSubTab }) {
       <div style={{ flexShrink: 0, padding: '0 16px 8px', display: 'flex', gap: 8 }}>
         {['invoices', 'expenses'].map(t => (
           <button key={t} onClick={() => { haptic(); setSubTab(t) }}
-            style={{ flex: 1, padding: '8px', borderRadius: 10, background: subTab === t ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${subTab === t ? 'var(--accent)' : 'var(--border)'}`, color: subTab === t ? '#000' : 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize' }}>
+            style={{ flex: 1, padding: '8px', borderRadius: 10, background: subTab === t ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${subTab === t ? 'var(--accent)' : 'var(--border)'}`, color: subTab === t ? '#000' : 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textTransform: 'capitalize', transition: 'all 0.15s ease' }}>
             {t === 'invoices' ? `Invoices (${invoices.length})` : `Expenses (${expenses.length})`}
           </button>
         ))}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
 
         {/* ── INVOICES ── */}
         {subTab === 'invoices' && (
@@ -168,11 +168,11 @@ export default function MobileMoneyTab({ initialSubTab }) {
                 <div style={{ fontSize: 12, marginTop: 4 }}>Invoices are auto-generated when loads are delivered</div>
               </div>
             )}
-            {invoices.map(inv => {
+            {invoices.map((inv, index) => {
               const isPaid = (inv.status || '').toLowerCase() === 'paid'
               const isSent = (inv.status || '').toLowerCase() === 'sent'
               return (
-                <div key={inv.id || inv.invoice_number || inv._dbId} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', marginBottom: 8 }}>
+                <div key={inv.id || inv.invoice_number || inv._dbId} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', marginBottom: 8, animation: `fadeInUp 0.2s ease ${index * 0.04}s both` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: isPaid ? 'rgba(0,212,170,0.08)' : 'rgba(239,68,68,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Ic icon={isPaid ? CheckCircle : FileText} size={16} color={isPaid ? 'var(--success)' : 'var(--danger)'} />
@@ -230,7 +230,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
             {/* Add expense form */}
             {showAddExpense && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px', marginBottom: 10 }}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.25s ease' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>New Expense</span>
                   <button onClick={() => setShowAddExpense(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
@@ -283,7 +283,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
               </div>
             )}
             {expenses.map((exp, i) => (
-              <div key={exp.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div key={exp.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', animation: `fadeInUp 0.2s ease ${i * 0.04}s both` }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Ic icon={Receipt} size={14} color="var(--accent)" />
                 </div>

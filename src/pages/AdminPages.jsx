@@ -2768,9 +2768,22 @@ ${content}
         <div className="panel fade-in">
           <div className="panel-header">
             <div className="panel-title"><Ic icon={Inbox} size={14} /> Sent Emails</div>
-            <button className="btn btn-ghost" onClick={fetchLogs} style={{ fontSize: 11 }}>
-              <Ic icon={RefreshCw} size={12} /> Refresh
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn-ghost" onClick={fetchLogs} style={{ fontSize: 11 }}>
+                <Ic icon={RefreshCw} size={12} /> Refresh
+              </button>
+              {logs.length > 0 && (
+                <button className="btn btn-ghost" style={{ fontSize: 11, color: 'var(--danger)' }}
+                  onClick={async () => {
+                    if (!confirm('Clear all sent history?')) return
+                    await supabase.from('email_logs').delete().eq('template', 'admin_broadcast')
+                    setLogs([])
+                    showToast('', 'Cleared', 'Sent history cleared')
+                  }}>
+                  <Ic icon={Trash2} size={12} /> Clear All
+                </button>
+              )}
+            </div>
           </div>
           {logsLoading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading sent history...</div>
@@ -2787,6 +2800,7 @@ ${content}
                   <th>Subject</th>
                   <th>Sent By</th>
                   <th>Date</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -2798,6 +2812,15 @@ ${content}
                     </td>
                     <td style={{ fontSize: 11, color: 'var(--muted)' }}>{l.metadata?.sent_by || '—'}</td>
                     <td style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(l.created_at)}</td>
+                    <td>
+                      <button className="btn btn-ghost" style={{ padding: '2px 6px', color: 'var(--danger)' }}
+                        onClick={async () => {
+                          await supabase.from('email_logs').delete().eq('id', l.id)
+                          setLogs(prev => prev.filter(x => x.id !== l.id))
+                        }}>
+                        <Ic icon={Trash2} size={11} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

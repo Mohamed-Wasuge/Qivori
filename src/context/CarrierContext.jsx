@@ -171,6 +171,7 @@ export function CarrierProvider({ children }) {
   const [qMemories, setQMemories] = useState([])
   const [consolidations, setConsolidations] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
+  const [fuelCostPerMile, setFuelCostPerMile] = useState(0.22) // default, updated from EIA
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
   const initRef = useRef(false)
@@ -281,6 +282,22 @@ export function CarrierProvider({ children }) {
       channels.forEach(ch => supabase.removeChannel(ch))
     }
   }, [demoMode, useDb])
+
+  // ─── Fetch real diesel prices from EIA API ─────────────────────
+  useEffect(() => {
+    if (demoMode) return
+    apiFetch('/api/diesel-prices').then(r => r.json()).then(data => {
+      const prices = data?.prices
+      if (prices && prices.length > 0) {
+        const usAvg = prices.find(p => p.region === 'US AVG')
+        const price = usAvg ? usAvg.price : prices[0].price
+        if (price && price > 0) {
+          // Convert $/gallon to $/mile (avg truck: 6.5 MPG)
+          setFuelCostPerMile(+(price / 6.5).toFixed(3))
+        }
+      }
+    }).catch(() => {}) // keep default $0.22/mi on failure
+  }, [demoMode])
 
   // ─── Load operations ─────────────────────────────────────────
   const addLoad = useCallback(async (load) => {
@@ -767,7 +784,7 @@ export function CarrierProvider({ children }) {
       allLoads: loads, allInvoices: invoices, allExpenses: expenses,
       drivers, vehicles, company, checkCalls, qMemories, consolidations,
       deliveredLoads, activeLoads, unpaidInvoices,
-      totalRevenue, totalExpenses, brokerStats,
+      totalRevenue, totalExpenses, brokerStats, fuelCostPerMile,
       updateLoadStatus, addLoad, addLoadWithStops, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense,
       addDriver, editDriver, removeDriver,

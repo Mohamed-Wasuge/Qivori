@@ -9,19 +9,31 @@ import { Ic } from './shared'
 export const PIQ_TABS = ['Overview', 'Per Load', 'By Driver', 'By Broker']
 
 export function ProfitIQTab() {
-  const { loads, expenses, totalRevenue, totalExpenses, drivers: ctxDrivers } = useCarrier()
+  const { loads, expenses, totalRevenue, totalExpenses, drivers: ctxDrivers, fuelCostPerMile } = useCarrier()
   const [tab, setTab] = useState('Overview')
+
+  const fuelRate = fuelCostPerMile || 0.22
+
+  // Helper: get per-driver pay
+  const calcDriverPay = (driverName, gross, miles) => {
+    const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
+    const model = driverRec?.pay_model || 'percent'
+    const rate = parseFloat(driverRec?.pay_rate) || 28
+    if (model === 'permile') return Math.round(miles * rate)
+    if (model === 'flat') return Math.round(rate)
+    return Math.round(gross * (rate / 100))
+  }
 
   // ── computed base data ──────────────────────────────────────────────────────
   const completedLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
   const activeLoads    = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
 
-  // Per-load profit: gross minus estimated driver pay (28%) and fuel ($0.22/mi)
+  // Per-load profit: gross minus per-driver pay and real fuel cost
   const loadProfit = completedLoads.map(l => {
     const gross      = l.gross || 0
     const miles      = parseFloat(l.miles) || 0
-    const driverPay  = Math.round(gross * 0.28)
-    const fuelCost   = Math.round(miles * 0.22)
+    const driverPay  = calcDriverPay(l.driver, gross, miles)
+    const fuelCost   = Math.round(miles * fuelRate)
     const net        = gross - driverPay - fuelCost
     const margin     = gross > 0 ? ((net / gross) * 100).toFixed(1) : '0.0'
     const rpm        = parseFloat(l.rate) || (miles > 0 ? gross / miles : 0)
@@ -32,7 +44,7 @@ export function ProfitIQTab() {
   const expCats = ['Fuel','Driver Pay','Insurance','Maintenance','Tolls','Lumper','Permits','Other']
   const catColors = { Fuel:'var(--warning)', 'Driver Pay':'var(--accent)', Insurance:'var(--accent2)', Maintenance:'var(--danger)', Tolls:'var(--accent3)', Lumper:'var(--success)', Permits:'var(--muted)', Other:'var(--muted)' }
   const realFuel = expenses.filter(e => e.cat === 'Fuel').reduce((s,e) => s + e.amount, 0)
-  const estimatedDriverPay = completedLoads.reduce((s,l) => s + Math.round((l.gross||0)*0.28), 0)
+  const estimatedDriverPay = completedLoads.reduce((s,l) => s + calcDriverPay(l.driver, l.gross||0, parseFloat(l.miles)||0), 0)
   const otherExpenses = expenses.filter(e => e.cat !== 'Fuel')
   const otherTotal = otherExpenses.reduce((s,e) => s + e.amount, 0)
   const totalForBreakdown = realFuel + estimatedDriverPay + otherTotal || 1

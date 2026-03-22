@@ -13,9 +13,10 @@ export function BillingTab() {
   const { invoices, vehicles, unpaidInvoices, totalRevenue, totalExpenses } = useCarrier()
 
   const truckCount = vehicles.length || profile?.truck_count || 1
-  const planName = 'Autonomous Fleet AI'
-  const planPrice = 399
-  const totalMonthly = planPrice * truckCount
+  const planName = 'Qivori AI Dispatch'
+  const firstTruck = 199
+  const extraTruck = 99
+  const totalMonthly = firstTruck + Math.max(0, truckCount - 1) * extraTruck
 
   const validPlans = ['autonomous_fleet', 'autopilot_ai', 'autopilot']
   const isFreeTier = !subscription?.plan || !validPlans.includes(subscription?.plan)
@@ -34,7 +35,7 @@ export function BillingTab() {
         <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 16 }}>
           {[
             { label: 'Plan', price: planName, note: 'Everything included', color: 'var(--accent)' },
-            { label: 'Per Truck', price: `$${planPrice}/mo`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''}`, color: 'var(--accent2)' },
+            { label: 'Pricing', price: `$${firstTruck} + $${extraTruck}/truck`, note: `${truckCount} truck${truckCount !== 1 ? 's' : ''}`, color: 'var(--accent2)' },
             { label: 'Total Monthly', price: `$${totalMonthly}/mo`, note: profile?.current_period_end ? `Next: ${new Date(profile.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '', color: 'var(--success)', bold: true },
           ].map(item => (
             <div key={item.label} style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16, textAlign: 'center' }}>
@@ -106,8 +107,29 @@ export function BillingTab() {
 // ── Settlement tab ─────────────────────────────────────────────────────────────
 export function SettlementTab() {
   const { showToast } = useApp()
-  const { loads } = useCarrier()
+  const { loads, drivers: ctxDrivers, fuelCostPerMile } = useCarrier()
   const [paid, setPaid] = useState([])
+
+  // Helper: get driver pay from their configured model
+  const getDriverPay = (driverName, gross, miles) => {
+    const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
+    const model = driverRec?.pay_model || 'percent'
+    const rate = parseFloat(driverRec?.pay_rate) || 28
+    if (model === 'permile') return Math.round(miles * rate)
+    if (model === 'flat') return Math.round(rate)
+    return Math.round(gross * (rate / 100)) // percent
+  }
+
+  const getPayLabel = (driverName) => {
+    const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
+    const model = driverRec?.pay_model || 'percent'
+    const rate = parseFloat(driverRec?.pay_rate) || 28
+    if (model === 'permile') return `$${rate}/mi`
+    if (model === 'flat') return `$${rate}/load`
+    return `${rate}%`
+  }
+
+  const fuelRate = fuelCostPerMile || 0.22
 
   // Compute driver settlements from delivered/invoiced loads
   const settledLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
@@ -117,11 +139,11 @@ export function SettlementTab() {
     const dLoads = settledLoads.filter(l => l.driver === driver)
     const gross  = dLoads.reduce((s,l) => s + (l.gross || 0), 0)
     const miles  = dLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
-    const fuel   = Math.round(miles * 0.22)
-    const pay    = Math.round(gross * 0.28)
+    const fuel   = Math.round(miles * fuelRate)
+    const pay    = getDriverPay(driver, gross, miles)
     const net    = gross - fuel
     const isPaid = paid.includes(driver)
-    return { driver, loads: dLoads.length, gross, fuel, pay, net, status: isPaid ? 'Paid' : 'Ready', color: isPaid ? 'var(--muted)' : 'var(--success)' }
+    return { driver, loads: dLoads.length, gross, fuel, pay, net, payLabel: getPayLabel(driver), status: isPaid ? 'Paid' : 'Ready', color: isPaid ? 'var(--muted)' : 'var(--success)' }
   })
 
   const totalGross  = settlements.reduce((s,d) => s + d.gross, 0)
@@ -161,7 +183,7 @@ export function SettlementTab() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{s.driver}</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.loads} load{s.loads !== 1 ? 's' : ''} · Gross: ${s.gross.toLocaleString()} · Fuel est: ${s.fuel.toLocaleString()} · Driver pay (28%): ${s.pay.toLocaleString()}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.loads} load{s.loads !== 1 ? 's' : ''} · Gross: ${s.gross.toLocaleString()} · Fuel est: ${s.fuel.toLocaleString()} · Driver pay ({s.payLabel}): ${s.pay.toLocaleString()}</div>
             </div>
             <div style={{ textAlign: 'right', marginRight: 12 }}>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: s.status === 'Paid' ? 'var(--muted)' : 'var(--success)' }}>${s.net.toLocaleString()}</div>
@@ -312,7 +334,7 @@ export function InvoiceStatusBadge({ status }) {
 
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 export function LoadDetailDrawer({ loadId, onClose }) {
-  const { loads, invoices, checkCalls, updateLoadStatus, drivers } = useCarrier()
+  const { loads, invoices, checkCalls, updateLoadStatus, drivers, fuelCostPerMile } = useCarrier()
   const { showToast } = useApp()
   const [invoiceSending, setInvoiceSending] = useState(false)
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
@@ -513,12 +535,23 @@ export function LoadDetailDrawer({ loadId, onClose }) {
           {/* Financial summary */}
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
             <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', marginBottom:10, textTransform:'uppercase', letterSpacing:1 }}>Financial Summary</div>
-            {[
-              { label:'Gross Revenue', value:`$${gross.toLocaleString()}`, color:'var(--accent)' },
-              { label:'Est. Driver Pay (28%)', value:`-$${Math.round(gross * 0.28).toLocaleString()}`, color:'var(--danger)' },
-              { label:'Est. Fuel', value:`-$${Math.round((load.miles || 0) * 0.55).toLocaleString()}`, color:'var(--danger)' },
-              { label:'Est. Net', value:`$${Math.round(gross - gross * 0.28 - (load.miles || 0) * 0.55).toLocaleString()}`, color:'var(--success)', bold:true },
-            ].map(r => (
+            {(() => {
+              const driverRec = (drivers || []).find(d => (d.full_name || d.name) === load.driver)
+              const payModel = driverRec?.pay_model || 'percent'
+              const payRate = parseFloat(driverRec?.pay_rate) || 28
+              const miles = load.miles || 0
+              const driverPay = payModel === 'permile' ? Math.round(miles * payRate) : payModel === 'flat' ? Math.round(payRate) : Math.round(gross * (payRate / 100))
+              const payLabel = payModel === 'permile' ? `$${payRate}/mi` : payModel === 'flat' ? `$${payRate}/load` : `${payRate}%`
+              const fuelRate = fuelCostPerMile || 0.22
+              const fuelCost = Math.round(miles * fuelRate)
+              const estNet = gross - driverPay - fuelCost
+              return [
+                { label:'Gross Revenue', value:`$${gross.toLocaleString()}`, color:'var(--accent)' },
+                { label:`Est. Driver Pay (${payLabel})`, value:`-$${driverPay.toLocaleString()}`, color:'var(--danger)' },
+                { label:`Est. Fuel ($${fuelRate.toFixed(2)}/mi)`, value:`-$${fuelCost.toLocaleString()}`, color:'var(--danger)' },
+                { label:'Est. Net', value:`$${estNet.toLocaleString()}`, color:'var(--success)', bold:true },
+              ]
+            })().map(r => (
               <div key={r.label} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
                 <span style={{ fontSize:12, color:'var(--muted)' }}>{r.label}</span>
                 <span style={{ fontSize: r.bold ? 16 : 13, fontWeight: r.bold ? 800 : 600, color:r.color, fontFamily: r.bold ? "'Bebas Neue',sans-serif" : 'inherit' }}>{r.value}</span>

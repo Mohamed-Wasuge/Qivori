@@ -25,7 +25,7 @@ function calcPay(load, model, val) {
 
 export function DriverSettlement() {
   const { showToast } = useApp()
-  const { loads: ctxLoads, drivers: ctxDrivers } = useCarrier()
+  const { loads: ctxLoads, drivers: ctxDrivers, editDriver, fuelCostPerMile } = useCarrier()
   const [activeDriver, setActiveDriver] = useState(null)
   const [models, setModels] = useState({})
   const [modelVals, setModelVals] = useState({})
@@ -33,13 +33,34 @@ export function DriverSettlement() {
   const [addingDeduct, setAddingDeduct] = useState(false)
   const [newDeduct, setNewDeduct] = useState({ label: 'Fuel Advance', amount: '' })
   const [showSheet, setShowSheet] = useState(false)
+  const [payDirty, setPayDirty] = useState(false)
 
-  // Auto-select first driver
+  // Auto-select first driver and load their saved pay model
   useEffect(() => {
     if (!activeDriver && ctxDrivers.length > 0) setActiveDriver(ctxDrivers[0].id)
   }, [ctxDrivers, activeDriver])
 
+  // Load pay model from driver record when switching drivers
+  useEffect(() => {
+    if (!activeDriver) return
+    const d = (ctxDrivers || []).find(dr => dr.id === activeDriver)
+    if (d) {
+      if (d.pay_model && !models[activeDriver]) setModels(m => ({ ...m, [activeDriver]: d.pay_model }))
+      if (d.pay_rate != null && modelVals[activeDriver] == null) setModelVals(v => ({ ...v, [activeDriver]: parseFloat(d.pay_rate) || 28 }))
+    }
+  }, [activeDriver, ctxDrivers])
+
   const driver = (ctxDrivers || []).find(d => d.id === activeDriver)
+
+  // Save pay model to driver record when changed
+  const savePayModel = useCallback(() => {
+    if (!activeDriver || !editDriver) return
+    const m = models[activeDriver] || 'percent'
+    const v = modelVals[activeDriver] ?? 28
+    editDriver(activeDriver, { pay_model: m, pay_rate: v })
+    setPayDirty(false)
+    showToast('', 'Pay Model Saved', `${driver?.full_name || driver?.name} — ${m === 'percent' ? v + '%' : m === 'permile' ? '$' + v + '/mi' : '$' + v + '/load'}`)
+  }, [activeDriver, models, modelVals, editDriver, showToast, driver])
 
   if (!driver) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
@@ -50,9 +71,10 @@ export function DriverSettlement() {
 
   const driverName = driver.full_name || driver.name || 'Unknown'
   const driverAvatar = driverName.split(' ').map(w => w[0]).join('')
-  const model = models[activeDriver] || 'percent'
-  const modelVal = modelVals[activeDriver] ?? 28
+  const model = models[activeDriver] || driver.pay_model || 'percent'
+  const modelVal = modelVals[activeDriver] ?? parseFloat(driver.pay_rate) ?? 28
   const driverDeductions = deductions[activeDriver] || []
+  const fuelRate = fuelCostPerMile || 0.22
 
   const mergedLoads = ctxLoads
     .filter(l => l.driver === driverName && (l.status === 'Delivered' || l.status === 'Invoiced'))
@@ -172,20 +194,28 @@ export function DriverSettlement() {
               const isActive = model === pm.id
               return (
                 <label key={pm.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 8, border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, background: isActive ? 'rgba(240,165,0,0.05)' : 'var(--surface2)', cursor: 'pointer' }}>
-                  <input type="radio" name={`model-${activeDriver}`} checked={isActive} onChange={() => setModels(m => ({ ...m, [activeDriver]: pm.id }))} style={{ accentColor: 'var(--accent)' }} />
+                  <input type="radio" name={`model-${activeDriver}`} checked={isActive} onChange={() => { setModels(m => ({ ...m, [activeDriver]: pm.id })); setPayDirty(true) }} style={{ accentColor: 'var(--accent)' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? 'var(--accent)' : 'var(--text)' }}>{pm.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>{pm.desc}</div>
                   </div>
                   {isActive && (
                     <input type="number" value={modelVal} step={pm.id === 'permile' ? 0.01 : 1} min={0}
-                      onChange={e => setModelVals(v => ({ ...v, [activeDriver]: parseFloat(e.target.value) || 0 }))}
+                      onChange={e => { setModelVals(v => ({ ...v, [activeDriver]: parseFloat(e.target.value) || 0 })); setPayDirty(true) }}
                       onClick={e => e.stopPropagation()}
                       style={{ width: 80, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', color: 'var(--text)', fontSize: 14, fontFamily: "'Bebas Neue',sans-serif", textAlign: 'center' }} />
                   )}
                 </label>
               )
             })}
+            {payDirty && (
+              <button className="btn btn-primary" style={{ fontSize: 12, marginTop: 4 }} onClick={savePayModel}>
+                <Ic icon={Save} size={13} /> Save Pay Model
+              </button>
+            )}
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+              Fuel rate: ${fuelRate.toFixed(2)}/mi (EIA diesel ÷ 6.5 MPG)
+            </div>
           </div>
         </div>
 

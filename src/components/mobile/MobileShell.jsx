@@ -28,10 +28,12 @@ export default function MobileShell() {
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInitMsg, setChatInitMsg] = useState(null)
   const [qGreetingForChat, setQGreetingForChat] = useState(null)
+  const [chatAutoCall, setChatAutoCall] = useState(false)
 
   const handleNavigate = useCallback((tab, extra) => {
     if (tab === 'chat') {
       setChatInitMsg(extra || null)
+      setChatAutoCall(false)
       setChatOpen(true)
       return
     }
@@ -43,9 +45,10 @@ export default function MobileShell() {
     setActiveTab(tab)
   }, [])
 
-  const openQ = useCallback((msg, greeting) => {
+  const openQ = useCallback((msg, greeting, startCall) => {
     setChatInitMsg(msg || null)
     if (greeting) setQGreetingForChat(greeting)
+    setChatAutoCall(!!startCall)
     setChatOpen(true)
     if (msg) setTimeout(() => setChatInitMsg(null), 500)
   }, [])
@@ -88,7 +91,7 @@ export default function MobileShell() {
       {/* ── FLOATING Q BUTTON ── */}
       {!chatOpen && (
         <button
-          onClick={() => openQ()}
+          onClick={() => openQ(null, null, true)}
           style={{
             position: 'fixed',
             bottom: `calc(72px + env(safe-area-inset-bottom, 0px))`,
@@ -146,7 +149,7 @@ export default function MobileShell() {
 
           {/* Chat content */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay />
+            <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay autoCall={chatAutoCall} />
           </div>
         </div>
       )}

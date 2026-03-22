@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext'
 import {
   Package, DollarSign, TrendingUp, Truck, ChevronRight, AlertCircle,
   FileText, Clock, CheckCircle, ArrowUpRight, Mic, Send, MapPin,
-  Camera, ScanLine
+  Camera, ScanLine, Phone
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
 import { apiFetch } from '../../lib/api'
@@ -127,14 +127,14 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     const status = (currentLoad?.status || '').toLowerCase()
 
     if (hasActiveLoad && (status.includes('transit') || status.includes('loaded'))) {
-      actions.push({ icon: CheckCircle, label: 'Mark Delivered', color: 'var(--success)', action: () => onOpenQ?.('Mark my current load as delivered', qGreeting) })
-      actions.push({ icon: MapPin, label: 'Check Call', color: 'var(--accent2)', action: () => onOpenQ?.('Submit a check call for my current load', qGreeting) })
+      actions.push({ icon: CheckCircle, label: 'Mark Delivered', color: 'var(--success)', action: () => onOpenQ?.('Mark my current load as delivered', qGreeting, false) })
+      actions.push({ icon: MapPin, label: 'Check Call', color: 'var(--accent2)', action: () => onOpenQ?.('Submit a check call for my current load', qGreeting, false) })
     } else if (hasActiveLoad && (status.includes('booked') || status.includes('dispatched'))) {
-      actions.push({ icon: Truck, label: 'Start Trip', color: 'var(--accent)', action: () => onOpenQ?.('Update my load to In Transit', qGreeting) })
+      actions.push({ icon: Truck, label: 'Start Trip', color: 'var(--accent)', action: () => onOpenQ?.('Update my load to In Transit', qGreeting, false) })
     }
 
     if (!hasActiveLoad) {
-      actions.push({ icon: Package, label: 'Find a Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load', qGreeting) })
+      actions.push({ icon: Package, label: 'Find a Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load', qGreeting, false) })
     }
 
     actions.push({ icon: ScanLine, label: 'Snap Rate Con', color: 'var(--accent2)', action: () => onNavigate?.('loads') })
@@ -160,13 +160,15 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── AI Command Center: Greeting + Q Input ── */}
+      {/* ── Q AI Hero — Talk to your dispatcher ── */}
       <div style={{ animation: 'fadeInUp 0.3s ease' }}>
         <div style={{ fontSize: 22, fontWeight: 700 }}>Hey, {firstName}</div>
+
+        {/* Q greeting bubble */}
         {qGreeting ? (
-          <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 6, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', lineHeight: 1.5, animation: 'fadeInUp 0.3s ease', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', lineHeight: 1.5, animation: 'fadeInUp 0.3s ease', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, animation: 'pulseGlowAmber 2s ease-in-out infinite' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <span style={{ opacity: 0.9 }}>{qGreeting}</span>
           </div>
@@ -178,9 +180,33 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           </div>
         )}
 
-        {/* Q Input Bar — type or tap mic */}
+        {/* Talk to Q — primary CTA */}
+        <button onClick={() => onOpenQ?.(null, qGreeting, true)}
+          style={{
+            width: '100%', marginTop: 14, padding: '16px 20px',
+            background: 'linear-gradient(135deg, var(--accent) 0%, #e6960a 100%)',
+            border: 'none', borderRadius: 16, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 14,
+            animation: 'fadeInUp 0.3s ease 0.05s both',
+            boxShadow: '0 4px 20px rgba(240,165,0,0.25)',
+          }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Ic icon={Phone} size={20} color="#000" />
+          </div>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>Talk to Q</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.6)', fontWeight: 500 }}>Your AI dispatcher — always on</div>
+          </div>
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} style={{ width: 3, height: 8 + Math.random() * 12, borderRadius: 2, background: 'rgba(0,0,0,0.25)', animation: `voiceWave 0.6s ease-in-out ${i * 0.12}s infinite alternate` }} />
+            ))}
+          </div>
+        </button>
+
+        {/* Text input — secondary */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginTop: 14,
+          display: 'flex', alignItems: 'center', gap: 8, marginTop: 10,
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 28, padding: '6px 6px 6px 16px',
         }}>
@@ -188,21 +214,16 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
             value={qInput}
             onChange={e => setQInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleQSubmit()}
-            placeholder="Ask Q anything..."
+            placeholder="Or type a message..."
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
               color: 'var(--text)', fontSize: 14, fontFamily: "'DM Sans',sans-serif",
             }}
           />
-          {qInput.trim() ? (
+          {qInput.trim() && (
             <button onClick={handleQSubmit}
               style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Ic icon={Send} size={16} color="#000" />
-            </button>
-          ) : (
-            <button onClick={() => onOpenQ?.(null, qGreeting)}
-              style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ic icon={Mic} size={16} color="#000" />
             </button>
           )}
         </div>

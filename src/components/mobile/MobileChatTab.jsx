@@ -42,7 +42,7 @@ function renderMarkdown(text) {
   return parts.length > 0 ? parts : text
 }
 
-export default function MobileChatTab({ onNavigate, initialMessage, greetingContext, isOverlay }) {
+export default function MobileChatTab({ onNavigate, initialMessage, greetingContext, isOverlay, autoCall }) {
   const { logout, showToast, subscription, user, profile } = useApp()
   const { language: currentLang, setLanguage } = useTranslation()
   const ctx = useCarrier() || {}
@@ -2060,6 +2060,16 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       setTimeout(() => sendMessageRef.current?.(initialMessage), 150)
     }
   }, [initialMessage, loading])
+
+  // Auto-start Retell call when opened as overlay (AI-first experience)
+  const autoCallTriggeredRef = useRef(false)
+  useEffect(() => {
+    if (autoCall && isOverlay && !autoCallTriggeredRef.current && !inCall && !callConnecting) {
+      autoCallTriggeredRef.current = true
+      // Small delay for overlay animation to finish
+      setTimeout(() => startRetellCall(), 400)
+    }
+  }, [autoCall, isOverlay, inCall, callConnecting, startRetellCall])
 
   // Quick action chips
   const quickActions = [

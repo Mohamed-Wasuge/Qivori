@@ -329,7 +329,7 @@ export function CarrierProvider({ children }) {
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
-      try { await db.deleteLoad(load.id) } catch { console.error('DB operation failed:', e) }
+      try { await db.deleteLoad(load.id) } catch (e) { console.error('DB operation failed:', e) }
     }
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
     // Also remove any linked invoices
@@ -527,7 +527,7 @@ export function CarrierProvider({ children }) {
         const newDriver = await db.createDriver(driver)
         setDrivers(ds => [newDriver, ...ds])
         return newDriver
-      } catch { console.error('DB operation failed:', e) }
+      } catch (e) { console.error('DB operation failed:', e) }
     }
     const fake = { ...driver, id: 'local-drv-' + Date.now() }
     setDrivers(ds => [fake, ...ds])
@@ -537,7 +537,7 @@ export function CarrierProvider({ children }) {
   const editDriver = useCallback(async (id, updates) => {
     if (demoGuard('edit drivers')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateDriver(id, updates) } catch { console.error('DB operation failed:', e) }
+      try { await db.updateDriver(id, updates) } catch (e) { console.error('DB operation failed:', e) }
     }
     setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
   }, [useDb, demoGuard])
@@ -545,7 +545,7 @@ export function CarrierProvider({ children }) {
   const removeDriver = useCallback(async (id) => {
     if (demoGuard('remove drivers')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteDriver(id) } catch { console.error('DB operation failed:', e) }
+      try { await db.deleteDriver(id) } catch (e) { console.error('DB operation failed:', e) }
     }
     setDrivers(ds => ds.filter(d => d.id !== id))
   }, [useDb, demoGuard])
@@ -559,7 +559,7 @@ export function CarrierProvider({ children }) {
         const newVeh = await db.createVehicle(vehicle)
         setVehicles(vs => [newVeh, ...vs])
         result = newVeh
-      } catch { console.error('DB operation failed:', e) }
+      } catch (e) { console.error('DB operation failed:', e) }
     }
     if (!result) {
       result = { ...vehicle, id: 'local-veh-' + Date.now() }
@@ -581,7 +581,7 @@ export function CarrierProvider({ children }) {
   const editVehicle = useCallback(async (id, updates) => {
     if (demoGuard('edit vehicles')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateVehicle(id, updates) } catch { console.error('DB operation failed:', e) }
+      try { await db.updateVehicle(id, updates) } catch (e) { console.error('DB operation failed:', e) }
     }
     setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
   }, [useDb, demoGuard])
@@ -589,7 +589,7 @@ export function CarrierProvider({ children }) {
   const removeVehicle = useCallback(async (id) => {
     if (demoGuard('remove vehicles')) return
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteVehicle(id) } catch { console.error('DB operation failed:', e) }
+      try { await db.deleteVehicle(id) } catch (e) { console.error('DB operation failed:', e) }
     }
     setVehicles(vs => {
       const updated = vs.filter(v => v.id !== id)

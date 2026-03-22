@@ -4,8 +4,8 @@
 
 export const config = { runtime: 'edge' }
 
-const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 const QB_CLIENT_ID = process.env.QUICKBOOKS_CLIENT_ID
 const QB_CLIENT_SECRET = process.env.QUICKBOOKS_CLIENT_SECRET
 

@@ -89,7 +89,14 @@ export default async function handler(req) {
     return { status: 'green', message: 'Configured', latency: 0 }
   })
 
-  // 8. Load Board APIs
+  // 8. FMCSA SAFER API
+  checks.fmcsa = await checkWithTimeout('fmcsa', async () => {
+    const key = process.env.FMCSA_WEBKEY
+    if (!key) return { status: 'yellow', message: 'FMCSA_WEBKEY missing', latency: 0 }
+    return { status: 'green', message: 'Configured', latency: 0 }
+  })
+
+  // 9. Load Board APIs
   checks.loadBoard = await checkWithTimeout('load_board', async () => {
     const dat = process.env.DAT_CLIENT_ID
     const lb123 = process.env.LB123_API_KEY

@@ -2,12 +2,7 @@ import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 
 export const config = { runtime: 'edge' }
 
-/**
- * Proactive notification API — analyzes driver data and sends SMS alerts via Twilio.
- *
- * POST with user auth:  { user_id, phone, driver_name, alerts_data }
- * POST with cron secret: Authorization: Bearer <CRON_SECRET>  (batch mode, body has array of drivers)
- */
+// Proactive notification API — analyzes driver data and sends SMS alerts via Twilio.
 export default async function handler(req) {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse

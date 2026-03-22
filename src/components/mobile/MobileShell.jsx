@@ -27,6 +27,7 @@ export default function MobileShell() {
   const [moneySubTab, setMoneySubTab] = useState(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInitMsg, setChatInitMsg] = useState(null)
+  const [qGreetingForChat, setQGreetingForChat] = useState(null)
 
   const handleNavigate = useCallback((tab, extra) => {
     if (tab === 'chat') {
@@ -42,10 +43,10 @@ export default function MobileShell() {
     setActiveTab(tab)
   }, [])
 
-  const openQ = useCallback((msg) => {
+  const openQ = useCallback((msg, greeting) => {
     setChatInitMsg(msg || null)
+    if (greeting) setQGreetingForChat(greeting)
     setChatOpen(true)
-    // Clear after a tick so it doesn't re-fire on next open
     if (msg) setTimeout(() => setChatInitMsg(null), 500)
   }, [])
 
@@ -145,7 +146,7 @@ export default function MobileShell() {
 
           {/* Chat content */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} isOverlay />
+            <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay />
           </div>
         </div>
       )}

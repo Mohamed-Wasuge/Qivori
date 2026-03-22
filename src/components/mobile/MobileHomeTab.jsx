@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
@@ -7,6 +7,7 @@ import {
   Camera, ScanLine
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
+import { apiFetch } from '../../lib/api'
 
 export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
@@ -20,6 +21,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const unpaidInvoices = ctx.unpaidInvoices || []
   const [expandedLoad, setExpandedLoad] = useState(null)
   const [qInput, setQInput] = useState('')
+  const [qGreeting, setQGreeting] = useState('')
+  const greetingSpokenRef = useRef(false)
 
   const netProfit = totalRevenue - totalExpenses
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(0) : 0
@@ -27,6 +30,78 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
 
   // Recent activity — last 5 loads sorted by date
   const recentLoads = [...loads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5)
+
+  // ── Q speaks on app open ──────────────────────────
+  // Builds a short contextual greeting, calls AI to generate it, then speaks it out loud via TTS
+  const buildGreetingContext = useCallback(() => {
+    const active = loads.filter(l => !['Delivered', 'Invoiced', 'Paid'].includes(l.status))
+    const unpaid = invoices.filter(i => i.status !== 'Paid')
+    return [
+      `DRIVER: ${profile?.full_name || user?.user_metadata?.full_name || 'Driver'}`,
+      `Revenue MTD: $${totalRevenue.toLocaleString()} | Net: $${(totalRevenue - totalExpenses).toLocaleString()}`,
+      `Active loads (${active.length}): ${active.map(l => `${l.origin}→${l.destination || l.dest} $${l.rate || 0} [${l.status}]`).join(' | ') || 'none'}`,
+      `Unpaid invoices: ${unpaid.length}`,
+    ].join('\n')
+  }, [loads, invoices, totalRevenue, totalExpenses, profile, user])
+
+  useEffect(() => {
+    if (greetingSpokenRef.current) return
+    if (ctx.dataReady === false) return
+
+    // Only greet once per session
+    const sessionKey = 'qivori_q_spoken'
+    if (sessionStorage.getItem(sessionKey)) return
+
+    greetingSpokenRef.current = true
+    sessionStorage.setItem(sessionKey, '1')
+
+    const hour = new Date().getHours()
+    const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
+    const doGreeting = async () => {
+      try {
+        // Ask AI to generate a short spoken greeting
+        const res = await apiFetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{
+              role: 'user',
+              content: `[SYSTEM: Generate a brief spoken greeting for the driver opening their app. ${timeGreeting}. Look at their data and say something useful in 1-2 short sentences. Be warm but direct. Reference specific numbers or loads if relevant. End by asking what they're working on today. Keep it under 30 words — this will be spoken out loud.]`,
+            }],
+            context: buildGreetingContext(),
+          }),
+        })
+
+        if (!res.ok) return
+        const data = await res.json()
+        const reply = (data.reply || '').replace(/```action[\s\S]*?```/g, '').replace(/\*\*/g, '').trim()
+        if (!reply) return
+
+        setQGreeting(reply)
+
+        // Speak it via TTS
+        const ttsRes = await apiFetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: reply }),
+        })
+
+        if (ttsRes.ok && ttsRes.status !== 204) {
+          const blob = await ttsRes.blob()
+          const url = URL.createObjectURL(blob)
+          const audio = new Audio(url)
+          audio.onended = () => URL.revokeObjectURL(url)
+          audio.onerror = () => URL.revokeObjectURL(url)
+          await audio.play().catch(() => {})
+        }
+      } catch {
+        // Silent fail — greeting is a nice-to-have
+      }
+    }
+
+    doGreeting()
+  }, [ctx.dataReady, buildGreetingContext])
 
   // Context-aware quick actions — show what matters right now
   const getSmartActions = () => {
@@ -36,14 +111,14 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     const status = (currentLoad?.status || '').toLowerCase()
 
     if (hasActiveLoad && (status.includes('transit') || status.includes('loaded'))) {
-      actions.push({ icon: CheckCircle, label: 'Mark Delivered', color: 'var(--success)', action: () => onOpenQ?.('Mark my current load as delivered') })
-      actions.push({ icon: MapPin, label: 'Check Call', color: 'var(--accent2)', action: () => onOpenQ?.('Submit a check call for my current load') })
+      actions.push({ icon: CheckCircle, label: 'Mark Delivered', color: 'var(--success)', action: () => onOpenQ?.('Mark my current load as delivered', qGreeting) })
+      actions.push({ icon: MapPin, label: 'Check Call', color: 'var(--accent2)', action: () => onOpenQ?.('Submit a check call for my current load', qGreeting) })
     } else if (hasActiveLoad && (status.includes('booked') || status.includes('dispatched'))) {
-      actions.push({ icon: Truck, label: 'Start Trip', color: 'var(--accent)', action: () => onOpenQ?.('Update my load to In Transit') })
+      actions.push({ icon: Truck, label: 'Start Trip', color: 'var(--accent)', action: () => onOpenQ?.('Update my load to In Transit', qGreeting) })
     }
 
     if (!hasActiveLoad) {
-      actions.push({ icon: Package, label: 'Find a Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load') })
+      actions.push({ icon: Package, label: 'Find a Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load', qGreeting) })
     }
 
     actions.push({ icon: ScanLine, label: 'Snap Rate Con', color: 'var(--accent2)', action: () => onNavigate?.('loads') })
@@ -62,7 +137,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const handleQSubmit = () => {
     if (!qInput.trim()) return
     haptic()
-    onOpenQ?.(qInput.trim())
+    onOpenQ?.(qInput.trim(), qGreeting)
     setQInput('')
   }
 
@@ -72,11 +147,20 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
       {/* ── AI Command Center: Greeting + Q Input ── */}
       <div style={{ animation: 'fadeInUp 0.3s ease' }}>
         <div style={{ fontSize: 22, fontWeight: 700 }}>Hey, {firstName}</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-          {activeLoads.length > 0
-            ? `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} — what do you need?`
-            : "No active loads — let's find one"}
-        </div>
+        {qGreeting ? (
+          <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 6, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', lineHeight: 1.5, animation: 'fadeInUp 0.3s ease', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            </div>
+            <span style={{ opacity: 0.9 }}>{qGreeting}</span>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+            {activeLoads.length > 0
+              ? `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} — what do you need?`
+              : "No active loads — let's find one"}
+          </div>
+        )}
 
         {/* Q Input Bar — type or tap mic */}
         <div style={{
@@ -100,7 +184,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
               <Ic icon={Send} size={16} color="#000" />
             </button>
           ) : (
-            <button onClick={() => onOpenQ?.()}
+            <button onClick={() => onOpenQ?.(null, qGreeting)}
               style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Ic icon={Mic} size={16} color="#000" />
             </button>
@@ -179,7 +263,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                       </div>
                     ))}
                     {/* Quick action for this load */}
-                    <button onClick={(e) => { e.stopPropagation(); haptic(); onOpenQ?.(`What's the status on load ${load.load_id || load.id}?`) }}
+                    <button onClick={(e) => { e.stopPropagation(); haptic(); onOpenQ?.(`What's the status on load ${load.load_id || load.id}?`, qGreeting) }}
                       style={{ width: '100%', marginTop: 8, padding: '8px', background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Sans',sans-serif" }}>
                       Ask Q about this load
                     </button>

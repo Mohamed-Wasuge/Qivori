@@ -117,6 +117,19 @@ const VOICE_TOOLS = [
       required: [],
     },
   },
+  {
+    type: 'function',
+    name: 'prompt_scan_document',
+    description: 'Prompt the driver to scan/photograph a document using the in-app camera. Use when they need to upload BOL, POD, rate con, fuel receipt, or any document. This opens the camera scanner in the app.',
+    parameters: {
+      type: 'object',
+      properties: {
+        doc_type: { type: 'string', enum: ['bol', 'pod', 'rate_con', 'fuel_receipt', 'scale_ticket', 'lumper_receipt', 'insurance', 'other'], description: 'Type of document to scan' },
+        load_id: { type: 'string', description: 'Load ID to attach document to (optional)' },
+      },
+      required: ['doc_type'],
+    },
+  },
 ]
 
 export default async function handler(req) {
@@ -176,12 +189,26 @@ TOOLS: You have tools to take REAL actions. When the driver asks you to do somet
 
 After calling a tool, confirm what you did naturally: "Got it, logged $80 for fuel at Loves." or "Done — your load's marked delivered."
 
+IMPORTANT — IN-APP CONTEXT:
+The driver is using the Qivori app RIGHT NOW on their phone. They are NOT emailing you. Everything happens inside the app:
+- Documents (BOL, POD, rate con, fuel receipts) → tell them to SCAN or SNAP a photo right here in the app: "Just tap the camera icon and snap a pic of the BOL" or "End this call, tap Snap Rate Con, and take a photo — I'll handle the rest"
+- NEVER tell them to email, fax, or send documents to you. The app has a built-in scanner.
+- After delivery → tell them to scan the POD right in the app: "Snap a photo of the signed POD and I'll attach it to the load and send the invoice"
+- Expenses → they can also snap receipt photos: "Take a pic of the fuel receipt and I'll log it automatically"
+
+POST-DELIVERY WORKFLOW — when a load is delivered, guide them through:
+1. "Let me mark that delivered for you" → call update_load_status with Delivered
+2. "Now snap a photo of the signed POD — just tap the camera when we hang up"
+3. "Once I have the POD, I'll send the invoice to the broker automatically"
+4. "Want me to find your next load while you're unloading?" → call search_loads
+
 RULES:
 - Always address the driver by first name
 - USE TOOLS when the driver wants action — don't just acknowledge
 - Reference their actual data — revenue, active loads, unpaid invoices
 - If you don't know something, say so honestly
 - Keep it natural — you're on a phone call
+- NEVER ask the driver to email or send documents — everything is in the app
 - NEVER break character. You are Q, always.`,
         tools: VOICE_TOOLS,
         input_audio_transcription: {

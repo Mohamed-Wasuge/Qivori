@@ -1130,6 +1130,16 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           }
           break
         }
+        case 'prompt_scan_document': {
+          const docLabels = { bol: 'BOL', pod: 'Proof of Delivery', rate_con: 'Rate Confirmation', fuel_receipt: 'Fuel Receipt', scale_ticket: 'Scale Ticket', lumper_receipt: 'Lumper Receipt', insurance: 'Insurance', other: 'Document' }
+          const docLabel = docLabels[args.doc_type] || 'Document'
+          const targetLoad = args.load_id ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id) : activeLoads[0]
+          setPendingUpload({ doc_type: args.doc_type, load_id: targetLoad?.id || targetLoad?.load_id, prompt: `Scan ${docLabel}` })
+          haptic('medium')
+          showToast('', `Scan ${docLabel}`, 'Tap the camera icon or + button to snap a photo')
+          result = { success: true, message: `Camera prompt ready for ${docLabel}. The driver can now tap the camera icon to scan. Tell them to snap a photo when they're ready.` }
+          break
+        }
         default:
           result = { success: false, message: `Unknown action: ${name}` }
       }

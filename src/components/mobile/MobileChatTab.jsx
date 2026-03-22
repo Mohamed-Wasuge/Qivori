@@ -100,6 +100,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const loadingSafetyRef = useRef(null)
   const sendMessageRef = useRef(null)
   const lastInputWasVoiceRef = useRef(false)
+  const startListeningRef = useRef(null)
 
   // ── PROACTIVE LOAD FINDING AGENT state ──────────────────
   const proactiveTriggeredRef = useRef(false)
@@ -1138,6 +1139,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     }
   }, [listening, unlockTTS, showToast, haptic])
 
+  // Keep startListening ref in sync for hands-free callback
+  startListeningRef.current = startListening
+
   // Format parsed document data for chat display
   const formatParsedDoc = (data) => {
     if (!data || !data.type) return null
@@ -1883,8 +1887,16 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         content: replyText,
         actions,
       }])
-      // Fire TTS in background — don't block the conversation
-      speak(replyText).catch(() => {})
+      // Fire TTS in background — when hands-free, auto-listen after Q finishes speaking
+      const wasVoice = lastInputWasVoiceRef.current
+      speak(replyText, () => {
+        if (handsFree && wasVoice) {
+          // Small pause so it doesn't feel robotic, then auto-listen
+          setTimeout(() => {
+            if (handsFree) startListeningRef.current?.()
+          }, 600)
+        }
+      }).catch(() => {})
     } catch (err) {
       escalateAttemptRef.current += 1
       if (escalateAttemptRef.current >= 2) {
@@ -2072,6 +2084,20 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           <button onClick={() => setShowNotifBanner(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
             <Ic icon={X} size={14} />
           </button>
+        </div>
+      )}
+
+      {/* ── HANDS-FREE MODE BANNER ──────────────────── */}
+      {handsFree && (
+        <div style={{ flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', background: 'linear-gradient(135deg, rgba(0,212,170,0.1), rgba(0,212,170,0.04))', border: '1px solid rgba(0,212,170,0.3)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeInUp 0.2s ease' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'pulseGlow 2s ease-in-out infinite' }}>
+            <Ic icon={Phone} size={14} color="#fff" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>Hands-Free Mode</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Q will listen after speaking — like a call</div>
+          </div>
+          <button onClick={() => setHandsFree(false)} style={{ padding: '5px 12px', background: 'rgba(0,212,170,0.15)', border: '1px solid rgba(0,212,170,0.3)', borderRadius: 7, fontSize: 10, fontWeight: 700, color: 'var(--success)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>End</button>
         </div>
       )}
 
@@ -2347,13 +2373,31 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       {/* ── INPUT BAR ───────────────────────────────── */}
       <div style={{ flexShrink: 0, padding: '8px 16px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
 
-        {/* Recording state — replaces input when listening */}
-        {listening ? (
+        {/* Speaking state — Q is talking back */}
+        {speaking && handsFree && !listening ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'micPulse 1.5s ease-in-out infinite' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            </div>
+            <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                {[0, 1, 2, 3, 4].map(i => (
+                  <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--accent)', animation: `voiceWave 0.5s ease-in-out ${i * 0.1}s infinite alternate` }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q is speaking...</span>
+            </div>
+            <button onClick={() => { if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = '' }; setSpeaking(false); setHandsFree(false) }}
+              style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ic icon={X} size={18} color="#fff" />
+            </button>
+          </div>
+        ) : listening ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
             {/* Red pulse dot */}
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', flexShrink: 0, animation: 'micPulse 1.2s ease-in-out infinite' }} />
-            <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', fontSize: 15, color: 'var(--muted)', fontFamily: "'DM Sans',sans-serif" }}>
-              Listening...
+            <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', fontSize: 15, color: handsFree ? 'var(--success)' : 'var(--muted)', fontFamily: "'DM Sans',sans-serif" }}>
+              {handsFree ? 'Your turn — speak...' : 'Listening...'}
             </div>
             {/* Stop & send */}
             <button onClick={() => { haptic('medium'); if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}
@@ -2391,16 +2435,23 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 24, padding: '12px 16px', color: 'var(--text)', fontSize: 15, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
             />
 
+            {/* Hands-free toggle */}
+            <button onClick={() => { haptic('light'); setHandsFree(h => !h) }}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: handsFree ? 'var(--success)' : 'none', border: handsFree ? 'none' : '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', animation: handsFree ? 'pulseGlow 2s ease-in-out infinite' : 'none' }}
+              title={handsFree ? 'Hands-free ON — Q will keep talking' : 'Enable hands-free conversation'}>
+              <Ic icon={Phone} size={14} color={handsFree ? '#fff' : 'var(--muted)'} />
+            </button>
+
             {/* Send or Mic */}
             {input.trim() ? (
-              <button onClick={() => { haptic('light'); sendMessage() }} disabled={loading}
+              <button onClick={() => { haptic('light'); lastInputWasVoiceRef.current = false; sendMessage() }} disabled={loading}
                 style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
                 <Ic icon={Send} size={18} color="#000" />
               </button>
             ) : (
-              <button onClick={() => startListening()}
-                style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
-                <Ic icon={Mic} size={18} color="#000" />
+              <button onClick={() => { if (!handsFree) setHandsFree(true); startListening() }}
+                style={{ width: 44, height: 44, borderRadius: '50%', background: handsFree ? 'var(--success)' : 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', animation: speaking ? 'micPulse 1.2s ease-in-out infinite' : 'none' }}>
+                <Ic icon={Mic} size={18} color={handsFree ? '#fff' : '#000'} />
               </button>
             )}
           </div>

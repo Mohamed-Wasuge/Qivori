@@ -23,6 +23,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const [qInput, setQInput] = useState('')
   const [qGreeting, setQGreeting] = useState('')
   const greetingSpokenRef = useRef(false)
+  const pendingAudioRef = useRef(null)
 
   const netProfit = totalRevenue - totalExpenses
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(0) : 0
@@ -93,7 +94,22 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           const audio = new Audio(url)
           audio.onended = () => URL.revokeObjectURL(url)
           audio.onerror = () => URL.revokeObjectURL(url)
-          await audio.play().catch(() => {})
+          try {
+            await audio.play()
+          } catch {
+            // Autoplay blocked (mobile Safari) — store blob, play on first tap
+            pendingAudioRef.current = { url, audio }
+            const playOnTap = () => {
+              if (pendingAudioRef.current) {
+                pendingAudioRef.current.audio.play().catch(() => {})
+                pendingAudioRef.current = null
+              }
+              document.removeEventListener('touchstart', playOnTap)
+              document.removeEventListener('click', playOnTap)
+            }
+            document.addEventListener('touchstart', playOnTap, { once: true })
+            document.addEventListener('click', playOnTap, { once: true })
+          }
         }
       } catch {
         // Silent fail — greeting is a nice-to-have

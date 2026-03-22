@@ -604,11 +604,63 @@ export function CarrierProvider({ children }) {
   const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0)
   const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0)
 
+  // Broker intelligence — score brokers from load + invoice history
+  const brokerStats = useMemo(() => {
+    const map = {}
+    loads.forEach(l => {
+      const name = l.broker_name || l.broker
+      if (!name) return
+      if (!map[name]) map[name] = { name, loads: 0, totalRevenue: 0, miles: 0, payDays: [], onTime: 0, total: 0 }
+      const b = map[name]
+      b.loads += 1
+      b.totalRevenue += Number(l.rate || l.gross || 0)
+      b.miles += Number(l.miles || 0)
+      // on-time: delivered before or on scheduled date (if available)
+      if (l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid') {
+        b.total += 1
+        if (l.delivery_date && l.actual_delivery) {
+          if (new Date(l.actual_delivery) <= new Date(l.delivery_date)) b.onTime += 1
+          else b.onTime += 0
+        } else {
+          b.onTime += 1 // assume on-time if no dates to compare
+        }
+      }
+    })
+    // Match invoices to brokers via load_id
+    const loadBrokerMap = {}
+    loads.forEach(l => {
+      const name = l.broker_name || l.broker
+      if (name && l.id) loadBrokerMap[l.id] = name
+    })
+    invoices.forEach(inv => {
+      const brokerName = inv.broker_name || inv.broker || loadBrokerMap[inv.load_id]
+      if (!brokerName || !map[brokerName]) return
+      if (inv.status === 'Paid') {
+        const created = new Date(inv.created_at || inv.date)
+        const paid = new Date(inv.paid_at || inv.updated_at)
+        if (!isNaN(created) && !isNaN(paid)) {
+          const days = Math.max(0, Math.round((paid - created) / 86400000))
+          map[brokerName].payDays.push(days)
+        }
+      }
+    })
+    return Object.values(map)
+      .map(b => ({
+        name: b.name,
+        totalLoads: b.loads,
+        totalRevenue: b.totalRevenue,
+        avgRpm: b.miles > 0 ? (b.totalRevenue / b.miles).toFixed(2) : 'N/A',
+        avgDaysToPay: b.payDays.length > 0 ? Math.round(b.payDays.reduce((s, d) => s + d, 0) / b.payDays.length) : null,
+        onTimeRate: b.total > 0 ? Math.round((b.onTime / b.total) * 100) : null,
+      }))
+      .sort((a, b) => b.totalLoads - a.totalLoads)
+  }, [loads, invoices])
+
   return (
     <CarrierContext.Provider value={{
       loads, invoices, expenses, drivers, vehicles, company, checkCalls, qMemories,
       deliveredLoads, activeLoads, unpaidInvoices,
-      totalRevenue, totalExpenses,
+      totalRevenue, totalExpenses, brokerStats,
       updateLoadStatus, addLoad, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense,
       addDriver, editDriver, removeDriver,

@@ -60,6 +60,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const addLoad = ctx.addLoad || (() => {})
   const qMemories = ctx.qMemories || []
   const addQMemory = ctx.addQMemory || (() => {})
+  const brokerStats = ctx.brokerStats || []
 
   const dataReady = ctx.dataReady !== false
 
@@ -335,6 +336,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       `UNPAID: ${unpaid.length} totaling $${unpaid.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}`,
       overdue.length > 0 ? `\u26A0 OVERDUE 30+ DAYS: ${overdue.length} invoices $${overdue.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}` : '',
       topExp ? `EXPENSES: ${topExp}` : '',
+      brokerStats.length > 0 ? `BROKER INTEL: ${brokerStats.slice(0, 5).map(b => `${b.name} (${b.totalLoads} loads, $${b.avgRpm}/mi RPM, ${b.avgDaysToPay !== null ? b.avgDaysToPay + 'd pay' : 'pay N/A'}, ${b.onTimeRate !== null ? b.onTimeRate + '% reliable' : 'reliability N/A'})`).join(' | ')}` : '',
       gpsLocation ? `LOCATION: ${gpsLocation}` : '',
       qMemories.length > 0 ? `\nQ MEMORY (things you remember about this driver):\n${qMemories.slice(0, 20).map(m => `- [${m.memory_type}] ${m.content}`).join('\n')}` : '',
     ].filter(Boolean).join('\n')
@@ -393,6 +395,55 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     hosWarningShownRef.current = false
   }, [])
 
+  // ── SMART RATE ALERTS — monitor driver's top lanes for rate spikes ──
+  const rateAlertShownRef = useRef({})
+  useEffect(() => {
+    if (!brokerStats.length && !qMemories.length) return
+    if (BOARD_LOADS.length === 0) return
+
+    // Get driver's top lanes from their load history
+    const delivered = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+    const laneAvgs = {}
+    delivered.forEach(l => {
+      const o = (l.origin || '').split(',')[0].trim()
+      const d = (l.destination || l.dest || '').split(',')[0].trim()
+      if (!o || !d || !Number(l.miles) || !Number(l.rate || l.gross)) return
+      const lane = `${o}\u2192${d}`
+      if (!laneAvgs[lane]) laneAvgs[lane] = []
+      laneAvgs[lane].push(Number(l.rate || l.gross) / Number(l.miles))
+    })
+
+    // Check load board for rates on driver's lanes
+    for (const [lane, rpms] of Object.entries(laneAvgs)) {
+      if (rpms.length < 2) continue // need history to compare
+      const avg = rpms.reduce((s, r) => s + r, 0) / rpms.length
+      const [origin, dest] = lane.split('\u2192')
+      if (!origin || !dest) continue
+
+      // Find matching loads on the board
+      const matching = BOARD_LOADS.filter(l => {
+        const lo = (l.origin_city || l.origin || '').toLowerCase()
+        const ld = (l.destination_city || l.dest || l.destination || '').toLowerCase()
+        return lo.includes(origin.toLowerCase()) && ld.includes(dest.toLowerCase())
+      })
+
+      for (const load of matching) {
+        const rpm = Number(load.miles) > 0 ? Number(load.rate || 0) / Number(load.miles) : 0
+        if (rpm <= 0) continue
+        const spike = ((rpm - avg) / avg) * 100
+        if (spike >= 15 && !rateAlertShownRef.current[lane]) {
+          rateAlertShownRef.current[lane] = true
+          setMessages(m => [...m, {
+            role: 'assistant',
+            content: `**Rate Alert** \u2014 Your **${lane}** lane is paying **$${rpm.toFixed(2)}/mi** right now \u2014 that's **${Math.round(spike)}% above** your average of $${avg.toFixed(2)}/mi. Worth jumping on.`,
+            isProactive: true,
+          }])
+          break
+        }
+      }
+    }
+  }, [loads, qMemories, brokerStats])
+
   // ── PROACTIVE LOAD FINDING AGENT ─────────────────────────────────────
   useEffect(() => {
     if (!subscription?.plan || subscription.plan !== 'autopilot') return
@@ -446,15 +497,25 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           }
 
           const foundLoads = searchData.loads || []
+          // Weak market detection — cities known for poor outbound freight
+          const weakMarkets = ['Jacksonville', 'Miami', 'Tampa', 'Orlando', 'Savannah', 'El Paso', 'Laredo', 'Brownsville', 'McAllen', 'Nogales', 'Tucson']
+          const destCity = (dest || '').split(',')[0].trim()
+          const isWeakMarket = weakMarkets.some(w => destCity.toLowerCase().includes(w.toLowerCase()))
+
           if (foundLoads.length === 0) {
+            const weakMsg = isWeakMarket
+              ? `**\u26A0 Deadhead Warning** \u2014 You're ~${Math.round(estimatedMinutes)} min from ${dest}, which is a **weak outbound market**. No loads available right now. Consider repositioning to a stronger market nearby. I'll keep checking.`
+              : `**Proactive Load Finder** \u2014 You're ~${Math.round(estimatedMinutes)} min from ${dest}. I searched for loads but nothing available right now. I'll check again in 15 min.`
             setMessages(m => [...m, {
               role: 'assistant',
-              content: `**Proactive Load Finder** \u2014 You're ~${Math.round(estimatedMinutes)} min from ${dest}. I searched for loads but nothing available right now. I'll check again in 15 min.`,
+              content: weakMsg,
               isProactive: true,
             }])
-            speak(`You're approaching delivery. No loads found from ${dest} right now, I'll check again soon.`)
+            speak(isWeakMarket
+              ? `Warning. ${dest} is a weak outbound market. No loads found. You might need to reposition. I'll keep checking.`
+              : `You're approaching delivery. No loads found from ${dest} right now, I'll check again soon.`)
             proactiveTriggeredRef.current = false
-            logProactiveActivity('empty', `No loads found from ${dest}`)
+            logProactiveActivity(isWeakMarket ? 'weak-market' : 'empty', `${isWeakMarket ? 'WEAK MARKET ' : ''}No loads found from ${dest}`)
             return
           }
 
@@ -481,9 +542,10 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           const origin = best.origin_city || best.origin || dest
           const destination = best.destination_city || best.dest || best.destination || '?'
 
+          const weakNote = isWeakMarket ? `\n\u26A0 **${destCity} is a weak outbound market** \u2014 grab a load fast or consider repositioning.\n` : ''
           const msg = [
             `**Proactive Load Finder** \u2014 You're ~${Math.round(estimatedMinutes)} min from delivery!`,
-            ``,
+            weakNote,
             `I found **${scored.length} loads** from ${dest}. Here's the best one:`,
             ``,
             `**${origin} \u2192 ${destination}**`,
@@ -1238,8 +1300,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           const targetLoad = args.load_id ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id) : activeLoads[0]
           setPendingUpload({ doc_type: args.doc_type, load_id: targetLoad?.id || targetLoad?.load_id, prompt: `Scan ${docLabel}` })
           haptic('medium')
-          showToast('', `Scan ${docLabel}`, 'Tap the camera icon or + button to snap a photo')
-          result = { success: true, message: `Camera prompt ready for ${docLabel}. The driver can now tap the camera icon to scan. Tell them to snap a photo when they're ready.` }
+          // Auto-open camera after a short delay (lets UI update first)
+          setTimeout(() => { if (fileInputRef.current) fileInputRef.current.click() }, 300)
+          result = { success: true, message: `Camera is opening for ${docLabel}. The driver can snap a photo now.` }
           break
         }
         default:

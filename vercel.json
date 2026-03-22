@@ -52,6 +52,8 @@
     { "path": "/api/carrier-expiry-alerts", "schedule": "0 8 * * 1" },
     { "path": "/api/check-calls", "schedule": "0 12 * * *" },
     { "path": "/api/admin-notifications?action=send_digest", "schedule": "0 18 * * *" },
-    { "path": "/api/doc-expiry-alerts", "schedule": "0 8 * * *" }
+    { "path": "/api/doc-expiry-alerts", "schedule": "0 8 * * *" },
+    { "path": "/api/q-alerts", "schedule": "0 9,14,19 * * *" },
+    { "path": "/api/q-weekly-summary", "schedule": "0 10 * * 0" }
   ]
 }

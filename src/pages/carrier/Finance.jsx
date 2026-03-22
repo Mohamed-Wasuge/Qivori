@@ -1297,13 +1297,15 @@ export function CashFlowForecaster() {
       items[wk].push({ type:'invoice', id:inv.id, label:`${inv.id} · ${inv.route}`, amount:inv.amount, broker:inv.broker, detail:`Due ${inv.dueDate}`, factorAmt: Math.round(inv.amount * 0.975) })
     })
 
-    // 2. Active loads → delivery week + 30-day payment
+    // 2. Active loads → delivery week + payment terms (biweekly for Amazon, ~30d for brokers)
     loads.filter(l => !['Delivered','Invoiced'].includes(l.status)).forEach(load => {
       const delDate = load.delivery?.split(' · ')[0] || ''
       const delWk   = CF_DUE_WEEK[delDate] ?? 1
-      const payWk   = Math.min(5, delWk + 4)
+      const isRelay = load.load_source === 'amazon_relay' || load.payment_terms === 'biweekly'
+      const payWk   = Math.min(5, delWk + (isRelay ? 2 : 4)) // Amazon pays ~2 weeks, brokers ~30 days
       incoming[payWk] += load.gross
-      items[payWk].push({ type:'load', id:load.loadId, label:`${load.loadId} · ${load.origin?.split(',')[0]}→${load.dest?.split(',')[0]}`, amount:load.gross, broker:load.broker, detail:`Delivers ${delDate || 'TBD'} · pays ~30 days later`, projected:true })
+      const payNote = isRelay ? 'pays biweekly (Amazon Relay)' : 'pays ~30 days later'
+      items[payWk].push({ type:'load', id:load.loadId, label:`${load.loadId} · ${load.origin?.split(',')[0]}→${load.dest?.split(',')[0]}`, amount:load.gross, broker:load.broker, detail:`Delivers ${delDate || 'TBD'} · ${payNote}`, projected:true })
     })
 
     // 3. Weekly outgoing (deterministic, no Math.random)

@@ -84,6 +84,10 @@ function normalizeLoad(l) {
     height_inches: l.height_inches || null,
     handling_unit: l.handling_unit || null,
     consolidation_id: l.consolidation_id || null,
+    // Source tracking
+    load_source: l.load_source || null,
+    amazon_block_id: l.amazon_block_id || null,
+    payment_terms: l.payment_terms || null,
   }
 }
 

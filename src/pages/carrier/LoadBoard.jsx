@@ -111,7 +111,8 @@ export function SmartDispatch() {
   const [calcInputs, setCalcInputs]     = useState({})
   // Add Load modal
   const [addModal, setAddModal]         = useState(false)
-  const [addForm, setAddForm]           = useState({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'' })
+  const [addSource, setAddSource]       = useState('broker') // 'broker' | 'amazon_relay'
+  const [addForm, setAddForm]           = useState({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'', amazon_block_id:'' })
   const [addParsing, setAddParsing]     = useState(false)
   const addFileRef = useRef(null)
 
@@ -249,8 +250,9 @@ export function SmartDispatch() {
       showToast('','Missing Fields','Origin, destination, and rate are required')
       return
     }
+    const isRelay = addSource === 'amazon_relay'
     addLoad({
-      broker: addForm.broker || 'Direct',
+      broker: isRelay ? 'Amazon Relay' : (addForm.broker || 'Direct'),
       origin: addForm.origin,
       dest: addForm.dest,
       miles: parseInt(addForm.miles) || 0,
@@ -261,11 +263,16 @@ export function SmartDispatch() {
       pickup: addForm.pickup || new Date().toISOString().split('T')[0],
       delivery: addForm.delivery,
       driver: addForm.driver || '',
-      notes: addForm.notes,
-      equipment: addForm.equipment,
+      notes: isRelay ? `Amazon Block: ${addForm.amazon_block_id || 'N/A'}${addForm.notes ? ' | ' + addForm.notes : ''}` : addForm.notes,
+      equipment: isRelay ? 'Dry Van' : addForm.equipment,
+      load_source: isRelay ? 'amazon_relay' : 'broker',
+      amazon_block_id: isRelay ? addForm.amazon_block_id : null,
+      payment_terms: isRelay ? 'biweekly' : null,
     })
-    showToast('','Load Added',`${addForm.origin} → ${addForm.dest} · $${parseFloat(addForm.gross).toLocaleString()}`)
-    setAddForm({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'' })
+    const label = isRelay ? 'Amazon Relay Load Added' : 'Load Added'
+    showToast('', label, `${addForm.origin} → ${addForm.dest} · $${parseFloat(addForm.gross).toLocaleString()}`)
+    setAddForm({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'', amazon_block_id:'' })
+    setAddSource('broker')
     setAddModal(false)
   }
 
@@ -630,7 +637,35 @@ export function SmartDispatch() {
           onClick={e => e.target===e.currentTarget && setAddModal(false)}>
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, padding:28, width:520, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.7)' }}>
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4 }}>Add Load</div>
-            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:16 }}>Drop a rate con to auto-fill or enter manually</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:12 }}>Drop a rate con to auto-fill or enter manually</div>
+
+            {/* Source Toggle */}
+            <div style={{ display:'flex', gap:0, marginBottom:16, background:'var(--surface2)', borderRadius:10, padding:3, border:'1px solid var(--border)' }}>
+              {[
+                { id:'broker', label:'Broker Load', icon:'📋' },
+                { id:'amazon_relay', label:'Amazon Relay', icon:'📦' },
+              ].map(s => (
+                <button key={s.id} onClick={() => setAddSource(s.id)}
+                  style={{ flex:1, padding:'8px 12px', borderRadius:8, border:'none', cursor:'pointer',
+                    background: addSource===s.id ? (s.id==='amazon_relay' ? 'rgba(255,153,0,0.15)' : 'var(--accent)15') : 'transparent',
+                    color: addSource===s.id ? (s.id==='amazon_relay' ? '#ff9900' : 'var(--accent)') : 'var(--muted)',
+                    fontWeight: addSource===s.id ? 700 : 500, fontSize:12, fontFamily:"'DM Sans',sans-serif",
+                    transition:'all 0.15s' }}>
+                  {s.icon} {s.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Rate Con Upload — only for broker loads */}
+            {addSource === 'broker' && (<>
+            {/* Amazon Relay info banner — hidden, this is the broker branch */}
+            </>)}
+            {addSource === 'amazon_relay' && (
+              <div style={{ padding:'10px 14px', background:'rgba(255,153,0,0.08)', border:'1px solid rgba(255,153,0,0.2)', borderRadius:10, marginBottom:16, fontSize:12, color:'#ff9900' }}>
+                <div style={{ fontWeight:700, marginBottom:4 }}>Amazon Relay Load</div>
+                <div style={{ color:'var(--muted)', fontSize:11 }}>Quick-add your Relay block. Payment tracked as biweekly. Equipment defaults to Dry Van.</div>
+              </div>
+            )}
 
             {/* Rate Con Upload */}
             <input ref={addFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display:'none' }}
@@ -658,7 +693,15 @@ export function SmartDispatch() {
 
             {/* Form fields */}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
-              {[
+              {(addSource === 'amazon_relay' ? [
+                { key:'amazon_block_id', label:'Amazon Block ID', ph:'e.g. BLK-1234567' },
+                { key:'origin', label:'Pickup Facility *', ph:'e.g. DFW7, ONT2' },
+                { key:'dest', label:'Delivery Facility *', ph:'e.g. SBD1, LAX9' },
+                { key:'gross', label:'Rate ($) *', ph:'850', type:'number' },
+                { key:'miles', label:'Miles', ph:'350', type:'number' },
+                { key:'pickup', label:'Pickup Date/Time', ph:'', type:'date' },
+                { key:'delivery', label:'Delivery Date/Time', ph:'', type:'date' },
+              ] : [
                 { key:'broker', label:'Broker', ph:'e.g. TQL, CH Robinson' },
                 { key:'equipment', label:'Equipment', ph:'Dry Van' },
                 { key:'origin', label:'Origin *', ph:'City, ST' },
@@ -669,7 +712,7 @@ export function SmartDispatch() {
                 { key:'commodity', label:'Commodity', ph:'Electronics' },
                 { key:'pickup', label:'Pickup Date', ph:'', type:'date' },
                 { key:'delivery', label:'Delivery Date', ph:'', type:'date' },
-              ].map(f => (
+              ]).map(f => (
                 <div key={f.key}>
                   <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:4, letterSpacing:0.5 }}>{f.label}</div>
                   {f.key === 'equipment' ? (

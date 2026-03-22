@@ -669,6 +669,9 @@ export function IncidentTracker() {
   const [newInc, setNewInc] = useState({ driver_id:'', incident_type:'accident', severity:'minor', incident_date:'', location:'', description:'', csa_points:0, dot_reportable:false, preventable:false })
   const [saving, setSaving] = useState(false)
   const [filterType, setFilterType] = useState('all')
+  const [pendingFiles, setPendingFiles] = useState([]) // files to upload with new incident
+  const [uploadingDoc, setUploadingDoc] = useState(null) // incident id currently uploading doc to
+  const [generatingReport, setGeneratingReport] = useState(null) // incident id generating AI report
 
   useEffect(() => {
     db.fetchIncidents().then(i => { setIncidents(i); setLoading(false) }).catch(() => setLoading(false))
@@ -705,6 +708,83 @@ export function IncidentTracker() {
     } catch (err) {
       showToast('error','Error', err.message)
     }
+  }
+
+  // Upload documents to an incident
+  const uploadIncidentDoc = async (incidentId, files) => {
+    if (!files || files.length === 0) return
+    setUploadingDoc(incidentId)
+    try {
+      const { uploadFile } = await import('../../lib/storage')
+      const uploaded = []
+      for (const file of files) {
+        const result = await uploadFile(file, `incidents/${incidentId}`)
+        if (result?.url) uploaded.push({ name: file.name, url: result.url, type: file.type, uploaded_at: new Date().toISOString() })
+      }
+      if (uploaded.length > 0) {
+        const inc = incidents.find(i => i.id === incidentId)
+        const existingDocs = inc?.documents || []
+        const allDocs = [...existingDocs, ...uploaded]
+        await db.updateIncident(incidentId, { documents: allDocs })
+        setIncidents(prev => prev.map(i => i.id === incidentId ? { ...i, documents: allDocs } : i))
+        showToast('success', 'Documents Uploaded', `${uploaded.length} file${uploaded.length > 1 ? 's' : ''} attached to incident`)
+      }
+    } catch (err) {
+      showToast('error', 'Upload Error', err.message || 'Failed to upload')
+    }
+    setUploadingDoc(null)
+  }
+
+  // AI generate incident report
+  const generateAIReport = async (incidentId) => {
+    const inc = incidents.find(i => i.id === incidentId)
+    if (!inc) return
+    setGeneratingReport(incidentId)
+    try {
+      const driverName = driverMap[inc.driver_id] || 'Unknown Driver'
+      const type = INCIDENT_TYPES.find(t => t.id === inc.incident_type)
+      const sev = SEVERITY_COLORS[inc.severity] || SEVERITY_COLORS.minor
+      const prompt = `Generate a professional DOT-compliant incident report for a trucking company. Format it clearly with sections.
+
+INCIDENT DETAILS:
+- Type: ${type?.label || inc.incident_type}
+- Severity: ${sev.label}
+- Driver: ${driverName}
+- Date: ${inc.incident_date || 'Not specified'}
+- Location: ${inc.location || 'Not specified'}
+- Description: ${inc.description}
+- DOT Reportable: ${inc.dot_reportable ? 'Yes' : 'No'}
+- Preventable: ${inc.preventable ? 'Yes' : 'No'}
+- CSA Points: ${inc.csa_points || 0}
+
+Generate a formal incident report with these sections:
+1. INCIDENT SUMMARY
+2. DETAILS & CIRCUMSTANCES
+3. CONTRIBUTING FACTORS
+4. CORRECTIVE ACTIONS RECOMMENDED
+5. FOLLOW-UP REQUIREMENTS
+6. REGULATORY NOTES (if DOT reportable)
+
+Keep it professional, factual, and compliant with FMCSA reporting standards.`
+
+      const res = await apiFetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: 1500 })
+      })
+      const data = await res.json()
+      const report = data?.choices?.[0]?.message?.content || data?.content?.[0]?.text || data?.text || ''
+      if (report) {
+        await db.updateIncident(incidentId, { ai_report: report, report_generated_at: new Date().toISOString() })
+        setIncidents(prev => prev.map(i => i.id === incidentId ? { ...i, ai_report: report, report_generated_at: new Date().toISOString() } : i))
+        showToast('success', 'Report Generated', 'AI incident report created — click to view')
+      } else {
+        showToast('error', 'Error', 'Could not generate report')
+      }
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'AI report generation failed')
+    }
+    setGeneratingReport(null)
   }
 
   return (
@@ -768,9 +848,27 @@ export function IncidentTracker() {
                 </label>
               </div>
             </div>
+            {/* Document upload */}
+            <div style={{ marginTop:10 }}>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Attach Documents (photos, police report, insurance)</label>
+              <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={e => setPendingFiles(Array.from(e.target.files || []))}
+                style={{ fontSize:12, color:'var(--text)' }} />
+              {pendingFiles.length > 0 && (
+                <div style={{ fontSize:11, color:'var(--accent)', marginTop:4 }}>{pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''} ready to upload</div>
+              )}
+            </div>
+
             <div style={{ display:'flex', gap:10, marginTop:18 }}>
-              <button className="btn btn-primary" style={{ flex:1 }} onClick={handleAdd} disabled={saving}>{saving ? 'Saving...' : 'Log Incident'}</button>
-              <button className="btn btn-ghost" style={{ flex:1 }} onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex:1 }} onClick={async () => {
+                await handleAdd()
+                // Upload pending files to the newly created incident
+                if (pendingFiles.length > 0 && incidents.length > 0) {
+                  const newest = incidents[0]
+                  if (newest) await uploadIncidentDoc(newest.id, pendingFiles)
+                  setPendingFiles([])
+                }
+              }} disabled={saving}>{saving ? 'Saving...' : 'Log Incident'}</button>
+              <button className="btn btn-ghost" style={{ flex:1 }} onClick={() => { setShowAdd(false); setPendingFiles([]) }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -846,6 +944,43 @@ export function IncidentTracker() {
                     )}
                   </div>
                 </div>
+
+                {/* Action buttons: Upload docs + AI Report */}
+                <div style={{ display:'flex', gap:6, marginTop:10, flexWrap:'wrap' }}>
+                  <label style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', cursor:'pointer', fontSize:10, fontWeight:600, color:'var(--muted)' }}>
+                    <Upload size={11} /> {uploadingDoc === inc.id ? 'Uploading...' : 'Upload Docs'}
+                    <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" style={{ display:'none' }}
+                      onChange={e => uploadIncidentDoc(inc.id, Array.from(e.target.files || []))} disabled={uploadingDoc === inc.id} />
+                  </label>
+                  <button onClick={() => generateAIReport(inc.id)} disabled={generatingReport === inc.id}
+                    style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:6, border:'1px solid rgba(240,165,0,0.25)', background:'rgba(240,165,0,0.06)', cursor:'pointer', fontSize:10, fontWeight:600, color:'var(--accent)', fontFamily:"'DM Sans',sans-serif" }}>
+                    <FileText size={11} /> {generatingReport === inc.id ? 'Generating...' : inc.ai_report ? 'Regenerate Report' : 'AI Incident Report'}
+                  </button>
+                </div>
+
+                {/* Attached documents */}
+                {inc.documents && inc.documents.length > 0 && (
+                  <div style={{ marginTop:8, display:'flex', gap:6, flexWrap:'wrap' }}>
+                    {inc.documents.map((doc, idx) => (
+                      <a key={idx} href={doc.url} target="_blank" rel="noopener noreferrer"
+                        style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:6, background:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.2)', fontSize:10, fontWeight:600, color:'var(--accent3)', textDecoration:'none' }}>
+                        <Eye size={10} /> {doc.name.length > 20 ? doc.name.slice(0, 18) + '...' : doc.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {/* AI Report display */}
+                {inc.ai_report && (
+                  <details style={{ marginTop:8 }}>
+                    <summary style={{ fontSize:11, fontWeight:700, color:'var(--accent)', cursor:'pointer', marginBottom:6 }}>
+                      View AI Incident Report {inc.report_generated_at && <span style={{ fontSize:9, color:'var(--muted)', fontWeight:400 }}>· {new Date(inc.report_generated_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>}
+                    </summary>
+                    <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:14, fontSize:12, lineHeight:1.7, whiteSpace:'pre-wrap', color:'var(--text)', maxHeight:400, overflowY:'auto' }}>
+                      {inc.ai_report}
+                    </div>
+                  </details>
+                )}
               </div>
             )
           })}

@@ -223,7 +223,12 @@ export function KanbanCard({ load, onClick, onDragStart }) {
       onMouseOver={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.transform='translateY(-1px)' }}
       onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.transform='none' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-        <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'var(--accent)' }}>{load.loadId || load.id}</span>
+        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+          <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'var(--accent)' }}>{load.loadId || load.id}</span>
+          {load.load_source === 'amazon_relay' && (
+            <span style={{ fontSize:8, fontWeight:700, padding:'1px 5px', borderRadius:4, background:'rgba(255,153,0,0.15)', color:'#ff9900', letterSpacing:0.3 }}>RELAY</span>
+          )}
+        </div>
         <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:6, background:'rgba(240,165,0,0.1)', color:'var(--accent)' }}>{load.status}</span>
       </div>
       <div style={{ fontSize:13, fontWeight:700, marginBottom:6 }}>{origin} → {dest}</div>
@@ -236,7 +241,7 @@ export function KanbanCard({ load, onClick, onDragStart }) {
         <span>{load.driver || 'Unassigned'}</span>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
           <RateBadge rpm={rpm} equipment={load.equipment} compact />
-          <span>{load.broker || ''}</span>
+          <span style={load.load_source === 'amazon_relay' ? { color:'#ff9900', fontWeight:600 } : undefined}>{load.broker || ''}</span>
         </div>
       </div>
     </div>
@@ -394,7 +399,12 @@ export function LoadDetailDrawer({ loadId, onClose }) {
         {/* Header */}
         <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-            <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:700, color:'var(--accent)' }}>{load.loadId || load.id}</span>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontFamily:'monospace', fontSize:14, fontWeight:700, color:'var(--accent)' }}>{load.loadId || load.id}</span>
+              {load.load_source === 'amazon_relay' && (
+                <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'rgba(255,153,0,0.15)', color:'#ff9900' }}>AMAZON RELAY</span>
+              )}
+            </div>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:8, background:'rgba(240,165,0,0.1)', color:'var(--accent)' }}>{load.status}</span>
               <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:18 }}>✕</button>
@@ -477,18 +487,22 @@ export function LoadDetailDrawer({ loadId, onClose }) {
             <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', marginBottom:10, textTransform:'uppercase', letterSpacing:1 }}>Load Details</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
-                { label:'Broker', value: load.broker || '—' },
+                { label:'Broker', value: load.broker || '—', highlight: load.load_source === 'amazon_relay' ? '#ff9900' : null },
                 { label:'Driver', value: load.driver || 'Unassigned' },
-                { label:'Ref #', value: load.refNum || load.ref_number || '—' },
+                { label:'Ref #', value: load.amazon_block_id || load.refNum || load.ref_number || '—' },
                 { label:'Equipment', value: load.equipment || '—' },
                 { label:'Weight', value: load.weight ? `${load.weight} lbs` : '—' },
                 { label:'Commodity', value: load.commodity || '—' },
                 { label:'Pickup', value: load.pickup || '—' },
                 { label:'Delivery', value: load.delivery || '—' },
+                ...(load.load_source === 'amazon_relay' ? [
+                  { label:'Source', value: 'Amazon Relay', highlight: '#ff9900' },
+                  { label:'Payment Terms', value: 'Biweekly', highlight: '#ff9900' },
+                ] : []),
               ].map(d => (
                 <div key={d.label}>
                   <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>{d.label}</div>
-                  <div style={{ fontSize:12, fontWeight:600 }}>{d.value}</div>
+                  <div style={{ fontSize:12, fontWeight:600, color: d.highlight || 'inherit' }}>{d.value}</div>
                 </div>
               ))}
             </div>

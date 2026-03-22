@@ -7,6 +7,7 @@ import {
   Activity, FileCheck, Search, Brain, Bot, CheckCircle, Users,
   Calendar, RefreshCw, Siren, GraduationCap,
 } from './shared'
+import * as db from '../../lib/database'
 
 // ─── IFTA ─────────────────────────────────────────────────────────────────────
 // 2026 IFTA fuel tax rates by state (cents per gallon → dollars)
@@ -385,7 +386,7 @@ function MiniGauge({ label, value, max, color, unit = '' }) {
 
 function AIComplianceCenter({ defaultTab = 'overview' }) {
   const { showToast } = useApp()
-  const { vehicles: ctxVehicles } = useCarrier()
+  const { vehicles: ctxVehicles, drivers: ctxDrivers } = useCarrier()
   const [compTab, setCompTab] = useState(defaultTab)
   const [items, setItems] = useState(DVIR_ITEMS_DEFAULT)
   const [selectedUnit, setSelectedUnit] = useState('')
@@ -446,21 +447,64 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
     })
   }, [fmcsaBasics])
 
-  // Clearinghouse state
+  // Clearinghouse state — uses real drivers from CarrierContext
   const [chDriver, setChDriver] = useState('')
   const [chType, setChType] = useState('Pre-Employment')
   const [chConsent, setChConsent] = useState(false)
   const [chOrders, setChOrders] = useState([])
+  const [chLoading, setChLoading] = useState(true)
 
-  const submitCH = () => {
+  // Load clearinghouse queries from Supabase on mount
+  useEffect(() => {
+    db.fetchClearinghouseQueries().then(q => { setChOrders(q || []); setChLoading(false) }).catch(() => setChLoading(false))
+  }, [])
+
+  // Real drivers for clearinghouse — map from CarrierContext drivers
+  const chDriverList = useMemo(() => (ctxDrivers || []).map(d => ({
+    id: d.id,
+    name: d.full_name || d.name || 'Unknown',
+    cdl: d.cdl_number || d.cdl || '',
+    state: d.cdl_state || d.state || '',
+    dob: d.date_of_birth || d.dob || '',
+    avatar: (d.full_name || d.name || '?').split(' ').map(n => n[0]).join(''),
+    unit: d.truck_number || d.unit || '',
+  })), [ctxDrivers])
+
+  const submitCH = async () => {
     if (!chDriver) { showToast('','Select Driver','Choose a driver to query'); return }
     if (!chConsent) { showToast('','Consent Required','Driver must provide electronic consent'); return }
-    const d = COMPLIANCE_DRIVERS.find(x => x.name === chDriver)
-    const newOrder = { id:'CH-00'+(chOrders.length+1), driver:chDriver, cdl:d?.cdl||'', type:chType, date:'Mar 11, 2026', status:'Processing', result:'Pending', cost:1.25 }
-    setChOrders(o => [newOrder, ...o])
-    showToast('','Query Submitted',`${chDriver} · ${chType} · Processing`)
-    setChDriver(''); setChConsent(false)
-    setTimeout(() => setChOrders(o => o.map(x => x.id === newOrder.id ? {...x, status:'Complete', result:'Clear'} : x)), 3000)
+    const d = chDriverList.find(x => x.name === chDriver)
+    const orderId = 'CH-' + Date.now().toString(36).toUpperCase()
+    const newOrder = {
+      query_id: orderId,
+      driver_id: d?.id || null,
+      driver_name: chDriver,
+      cdl_number: d?.cdl || '',
+      query_type: chType,
+      query_date: new Date().toISOString().split('T')[0],
+      status: 'Processing',
+      result: 'Pending',
+      cost: 1.25,
+      consent_given: true,
+    }
+    try {
+      const saved = await db.createClearinghouseQuery(newOrder)
+      setChOrders(o => [saved || { ...newOrder, id: orderId }, ...o])
+      showToast('','Query Submitted',`${chDriver} · ${chType} · Processing — complete this query on the FMCSA Clearinghouse portal`)
+      setChDriver(''); setChConsent(false)
+      // Simulate completion after 3s (in production this would be updated after real FMCSA query)
+      setTimeout(async () => {
+        const updated = { status:'Complete', result:'Clear', completed_at: new Date().toISOString() }
+        const savedId = saved?.id || orderId
+        try { await db.updateClearinghouseQuery(savedId, updated) } catch {}
+        setChOrders(o => o.map(x => (x.id === savedId || x.query_id === orderId) ? {...x, ...updated} : x))
+      }, 3000)
+    } catch (err) {
+      // Fallback to local state if DB fails
+      setChOrders(o => [{ ...newOrder, id: orderId }, ...o])
+      showToast('','Query Logged Locally', 'Could not save to database — logged locally')
+      setChDriver(''); setChConsent(false)
+    }
   }
 
   // AI Compliance Score computation
@@ -469,7 +513,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
     const hosScore = 25 // 25/25 — no violations
     const dvirScore = defects === 0 ? 25 : Math.max(0, 25 - defects * 5)
     const csaScore = Math.round((1 - avgBasicPct) * 25)
-    const clearScore = chOrders.every(o => o.result === 'Clear' || o.result === 'Pending') ? 25 : 15
+    const clearScore = chOrders.length === 0 || chOrders.every(o => o.result === 'Clear' || o.result === 'Pending') ? 25 : 15
     return Math.min(100, hosScore + dvirScore + csaScore + clearScore)
   }, [defects, chOrders])
 
@@ -938,8 +982,8 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 <div style={{ fontSize:12, color:'var(--muted)' }}>Pre-employment queries required before hiring · Annual queries for all CDL drivers</div>
               </div>
               <div style={{ textAlign:'right', flexShrink:0 }}>
-                <div style={{ fontSize:11, color:'var(--muted)' }}>Balance</div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>$0.00</div>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>Queries</div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>{chOrders.length}</div>
               </div>
             </div>
 
@@ -947,8 +991,8 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               {/* Order form */}
               <div style={S.panel}>
                 <div style={S.panelHead}>
-                  <div style={S.panelTitle}><Ic icon={Search} /> Order Query</div>
-                  <span style={S.tag('var(--accent)')}>$1.25</span>
+                  <div style={S.panelTitle}><Ic icon={Search} /> Log Query</div>
+                  <span style={S.tag('var(--accent)')}>Tracking</span>
                 </div>
                 <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
                   <div>
@@ -956,7 +1000,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     <select value={chDriver} onChange={e => setChDriver(e.target.value)}
                       style={{ width:'100%', marginTop:4, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }}>
                       <option value="">— Select driver —</option>
-                      {COMPLIANCE_DRIVERS.map(d => <option key={d.name} value={d.name}>{d.name} · {d.cdl}</option>)}
+                      {chDriverList.map(d => <option key={d.id || d.name} value={d.name}>{d.name}{d.cdl ? ` · ${d.cdl}` : ''}</option>)}
                     </select>
                   </div>
                   <div>
@@ -969,7 +1013,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   {chDriver && (
                     <div style={{ background:'rgba(240,165,0,0.05)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'10px 14px', fontSize:12 }}>
                       <div style={{ fontWeight:700, marginBottom:4, color:'var(--accent)' }}>Auto-filled from profile</div>
-                      {(() => { const d = COMPLIANCE_DRIVERS.find(x=>x.name===chDriver); return d ? (
+                      {(() => { const d = chDriverList.find(x=>x.name===chDriver); return d ? (
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4, color:'var(--muted)' }}>
                           <span>CDL: <b style={{ color:'var(--text)' }}>{d.cdl}</b></span>
                           <span>State: <b style={{ color:'var(--text)' }}>{d.state}</b></span>
@@ -988,7 +1032,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     </div>
                   </div>
                   <button className="btn btn-primary" style={{ padding:'11px 0' }} onClick={submitCH}>
-                    <Search size={13} /> Submit Query — $1.25
+                    <Search size={13} /> Log Query
                   </button>
                 </div>
               </div>
@@ -997,10 +1041,15 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               <div style={S.panel}>
                 <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Calendar} /> Annual Compliance</div></div>
                 <div style={{ padding:16, display:'flex', flexDirection:'column', gap:10 }}>
-                  {COMPLIANCE_DRIVERS.map(d => {
-                    const lastQuery = chOrders.find(o => o.driver === d.name && o.type === 'Annual' && o.status === 'Complete')
-                    const due = lastQuery ? 'Jan 2027' : 'OVERDUE'
-                    const isDue = !lastQuery
+                  {chDriverList.length === 0 && (
+                    <div style={{ padding:20, textAlign:'center', color:'var(--muted)', fontSize:12 }}>Add drivers to track annual compliance</div>
+                  )}
+                  {chDriverList.map(d => {
+                    const lastQuery = chOrders.find(o => (o.driver_name || o.driver) === d.name && (o.query_type || o.type) === 'Annual' && o.status === 'Complete')
+                    const lastDate = lastQuery?.query_date || lastQuery?.date
+                    const dueDate = lastDate ? new Date(new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() + 1)) : null
+                    const due = dueDate ? dueDate.toLocaleDateString('en-US', { month:'short', year:'numeric' }) : 'NOT QUERIED'
+                    const isDue = !lastQuery || (dueDate && dueDate < new Date())
                     return (
                       <div key={d.name} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px', background:'var(--surface2)', borderRadius:10, border:`1px solid ${isDue ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`, flexWrap:'wrap' }}>
                         <div style={{ width:34, height:34, borderRadius:'50%', background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:11, color:'var(--accent)', flexShrink:0 }}>
@@ -1026,29 +1075,28 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}><Ic icon={FileText} /> Query History</div>
-                <span style={{ fontSize:11, color:'var(--muted)' }}>{chOrders.length} queries · ${(chOrders.reduce((s,o)=>s+o.cost,0)).toFixed(2)}</span>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>{chOrders.length} queries</span>
               </div>
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', minWidth:600 }}>
                   <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-                    {['ID','Driver','CDL','Type','Date','Status','Result','Cost'].map(h => (
+                    {['ID','Driver','CDL','Type','Date','Status','Result'].map(h => (
                       <th key={h} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>
                     {chOrders.length > 0 ? chOrders.map(o => (
-                      <tr key={o.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                        <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, color:'var(--accent)' }}>{o.id}</td>
-                        <td style={{ padding:'10px 12px', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>{o.driver}</td>
-                        <td style={{ padding:'10px 12px', fontSize:11, color:'var(--muted)' }}>{o.cdl}</td>
-                        <td style={{ padding:'10px 12px', fontSize:12 }}>{o.type}</td>
-                        <td style={{ padding:'10px 12px', fontSize:11, color:'var(--muted)', whiteSpace:'nowrap' }}>{o.date}</td>
+                      <tr key={o.id || o.query_id} style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'10px 12px', fontFamily:'monospace', fontSize:11, color:'var(--accent)' }}>{o.query_id || o.id}</td>
+                        <td style={{ padding:'10px 12px', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>{o.driver_name || o.driver}</td>
+                        <td style={{ padding:'10px 12px', fontSize:11, color:'var(--muted)' }}>{o.cdl_number || o.cdl || ''}</td>
+                        <td style={{ padding:'10px 12px', fontSize:12 }}>{o.query_type || o.type}</td>
+                        <td style={{ padding:'10px 12px', fontSize:11, color:'var(--muted)', whiteSpace:'nowrap' }}>{o.query_date || o.date}</td>
                         <td style={{ padding:'10px 12px' }}><span style={S.tag(o.status === 'Complete' ? 'var(--success)' : 'var(--accent)')}>{o.status}</span></td>
                         <td style={{ padding:'10px 12px' }}><span style={S.tag(o.result === 'Clear' ? 'var(--success)' : o.result === 'Pending' ? 'var(--accent)' : 'var(--danger)')}>{o.result}</span></td>
-                        <td style={{ padding:'10px 12px', fontSize:12, color:'var(--muted)' }}>${o.cost.toFixed(2)}</td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={8} style={{ padding:'24px 12px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No clearinghouse orders yet — add drivers to get started</td></tr>
+                      <tr><td colSpan={7} style={{ padding:'24px 12px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No clearinghouse orders yet — add drivers to get started</td></tr>
                     )}
                   </tbody>
                 </table>

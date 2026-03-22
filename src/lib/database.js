@@ -71,6 +71,10 @@ export async function createLoad(load) {
         height_inches: load.height_inches ? parseFloat(load.height_inches) : null,
         handling_unit: load.handling_unit || null,
         consolidation_id: load.consolidation_id || null,
+        // Source tracking (broker, amazon_relay, direct, etc.)
+        load_source: load.load_source || null,
+        amazon_block_id: load.amazon_block_id || null,
+        payment_terms: load.payment_terms || null,
       })
       .select()
       .single()
@@ -361,6 +365,31 @@ export async function createIncident(incident) {
 export async function updateIncident(id, updates) {
   const { data, error } = await safeMutate('updateIncident',
     supabase.from('driver_incidents').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── CLEARINGHOUSE QUERIES ───────────────────────────────────
+export async function fetchClearinghouseQueries() {
+  const data = await safeSelect('clearinghouse_queries',
+    supabase.from('clearinghouse_queries').select('*').order('created_at', { ascending: false }).limit(200)
+  )
+  return data || []
+}
+
+export async function createClearinghouseQuery(query) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createClearinghouseQuery',
+    supabase.from('clearinghouse_queries').insert({ ...query, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateClearinghouseQuery(id, updates) {
+  const { data, error } = await safeMutate('updateClearinghouseQuery',
+    supabase.from('clearinghouse_queries').update(updates).eq('id', id).select().single()
   )
   if (error) throw error
   return data

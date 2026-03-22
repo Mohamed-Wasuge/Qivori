@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
@@ -7,82 +7,7 @@ import {
   Camera, ScanLine, ArrowRight
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
-
-// Generate Q's contextual greeting based on driver's real situation
-function buildQGreeting(firstName, activeLoads, unpaidInvoices, totalRevenue, totalExpenses, loads) {
-  const hour = new Date().getHours()
-  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const currentLoad = activeLoads[0]
-  const status = (currentLoad?.status || '').toLowerCase()
-
-  // Priority 1: In transit — Q focuses on the active haul
-  if (currentLoad && (status.includes('transit') || status.includes('loaded'))) {
-    const dest = currentLoad.destination || currentLoad.dest || '?'
-    const miles = currentLoad.miles ? `${currentLoad.miles} mi` : ''
-    return {
-      greeting: `${timeGreeting}, ${firstName}.`,
-      message: `You're hauling to **${dest}**${miles ? ` — ${miles} to go` : ''}. Need to submit a check call, mark delivered, or find your next load?`,
-      actions: [
-        { label: 'Mark Delivered', icon: CheckCircle, color: 'var(--success)', msg: 'Mark my current load as delivered' },
-        { label: 'Check Call', icon: MapPin, color: 'var(--accent2)', msg: 'Submit a check call for my current load' },
-        { label: 'Find Next Load', icon: Package, color: 'var(--accent)', msg: `Find me loads from ${dest}` },
-      ],
-    }
-  }
-
-  // Priority 2: Booked/dispatched — driver needs to get moving
-  if (currentLoad && (status.includes('booked') || status.includes('dispatched'))) {
-    return {
-      greeting: `${timeGreeting}, ${firstName}.`,
-      message: `You've got a load booked: **${currentLoad.origin} → ${currentLoad.destination || currentLoad.dest}** for ${fmt$(currentLoad.gross || currentLoad.rate)}. Ready to hit the road?`,
-      actions: [
-        { label: 'Start Trip', icon: Truck, color: 'var(--accent)', msg: 'Update my load to In Transit' },
-        { label: 'Load Details', icon: FileText, color: 'var(--accent2)', msg: `Tell me about my current load ${currentLoad.load_id || ''}` },
-        { label: 'Navigate to Pickup', icon: ArrowRight, color: 'var(--success)', msg: 'Navigate me to my pickup location' },
-      ],
-    }
-  }
-
-  // Priority 3: Delivered but unpaid invoices — get paid
-  if (unpaidInvoices.length > 0 && activeLoads.length === 0) {
-    const total = unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)
-    return {
-      greeting: `${timeGreeting}, ${firstName}.`,
-      message: `You have **${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length > 1 ? 's' : ''}** totaling **${fmt$(total)}**. Want me to send them out or find your next load?`,
-      actions: [
-        { label: 'Send Invoices', icon: DollarSign, color: 'var(--success)', nav: 'money' },
-        { label: 'Find a Load', icon: Package, color: 'var(--accent)', msg: 'Find me the best available loads right now' },
-        { label: 'Snap Rate Con', icon: ScanLine, color: 'var(--accent2)', nav: 'loads' },
-      ],
-    }
-  }
-
-  // Priority 4: No active loads — time to hustle
-  if (activeLoads.length === 0) {
-    const netProfit = totalRevenue - totalExpenses
-    const profitNote = totalRevenue > 0 ? ` You're at **${fmt$(netProfit)}** net profit this month.` : ''
-    return {
-      greeting: `${timeGreeting}, ${firstName}.`,
-      message: `No active loads right now.${profitNote} Ready to find your next one?`,
-      actions: [
-        { label: 'Find a Load', icon: Package, color: 'var(--accent)', msg: 'Find me a good paying load' },
-        { label: 'Snap Rate Con', icon: ScanLine, color: 'var(--accent2)', nav: 'loads' },
-        { label: 'Log Expense', icon: Camera, color: '#8b5cf6', nav: 'money', navExtra: 'expenses' },
-      ],
-    }
-  }
-
-  // Fallback: multiple active loads
-  return {
-    greeting: `${timeGreeting}, ${firstName}.`,
-    message: `You have **${activeLoads.length} active loads** rolling. What do you need help with?`,
-    actions: [
-      { label: 'Check Loads', icon: Package, color: 'var(--accent)', nav: 'loads' },
-      { label: 'Check Call', icon: MapPin, color: 'var(--accent2)', msg: 'Submit a check call for my current load' },
-      { label: 'Find Next Load', icon: Truck, color: 'var(--success)', msg: 'Find me the best available loads' },
-    ],
-  }
-}
+import { apiFetch } from '../../lib/api'
 
 export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
@@ -90,11 +15,17 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const loads = ctx.loads || []
   const activeLoads = ctx.activeLoads || []
   const invoices = ctx.invoices || []
+  const expenses = ctx.expenses || []
   const totalRevenue = ctx.totalRevenue || 0
   const totalExpenses = ctx.totalExpenses || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
   const [expandedLoad, setExpandedLoad] = useState(null)
   const [qInput, setQInput] = useState('')
+
+  // Q greeting state
+  const [qGreeting, setQGreeting] = useState('')
+  const [qLoading, setQLoading] = useState(true)
+  const greetingFetchedRef = useRef(false)
 
   const netProfit = totalRevenue - totalExpenses
   const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(0) : 0
@@ -102,11 +33,121 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
 
   const recentLoads = [...loads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5)
 
-  // Q's contextual greeting — recalculates when data changes
-  const qBrief = useMemo(() =>
-    buildQGreeting(firstName, activeLoads, unpaidInvoices, totalRevenue, totalExpenses, loads),
-    [firstName, activeLoads, unpaidInvoices, totalRevenue, totalExpenses, loads]
-  )
+  // Build context for Q's greeting — same data the chat uses
+  const buildContext = useCallback(() => {
+    const active = loads.filter(l => !['Delivered', 'Invoiced', 'Paid'].includes(l.status))
+    const unpaid = invoices.filter(i => i.status !== 'Paid')
+    const net = totalRevenue - totalExpenses
+    return [
+      `DRIVER NAME: ${profile?.full_name || user?.user_metadata?.full_name || 'Driver'}`,
+      `CARRIER: ${ctx.company?.name || 'Unknown'}`,
+      `Revenue MTD: $${totalRevenue.toLocaleString()} | Expenses: $${totalExpenses.toLocaleString()} | Net: $${net.toLocaleString()}`,
+      `Active loads (${active.length}): ${active.map(l => `${l.load_id || l.id} ${l.origin}→${l.destination || l.dest} $${Number(l.rate || 0).toLocaleString()} [${l.status}]`).join(' | ') || 'none'}`,
+      `Unpaid invoices: ${unpaid.length} totaling $${unpaid.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}`,
+      `Recent expenses: ${expenses.slice(0, 3).map(e => `${e.category} $${e.amount}`).join(', ') || 'none'}`,
+    ].join('\n')
+  }, [loads, invoices, expenses, totalRevenue, totalExpenses, ctx.company, profile, user])
+
+  // Fetch Q's real AI greeting on app open
+  useEffect(() => {
+    if (greetingFetchedRef.current) return
+    // Wait for data to be ready (loads/invoices loaded)
+    const dataReady = ctx.dataReady !== false
+    if (!dataReady) return
+
+    greetingFetchedRef.current = true
+
+    // Check if we already have a cached greeting from this session
+    const cacheKey = 'qivori_q_greeting'
+    const cached = sessionStorage.getItem(cacheKey)
+    if (cached) {
+      setQGreeting(cached)
+      setQLoading(false)
+      return
+    }
+
+    const hour = new Date().getHours()
+    const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
+    const fetchGreeting = async () => {
+      try {
+        const res = await apiFetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              {
+                role: 'user',
+                content: `[SYSTEM: This is a home screen greeting, not a user message. Generate a brief, warm opening message for the driver. ${timeGreeting}. Look at their current situation and proactively tell them what matters most right now. Be specific — reference their actual loads, amounts, statuses. Keep it to 2-3 sentences max. Sound like a smart copilot who already knows what's going on, not a generic assistant. Don't use emojis. End with a question about what they need help with.]`,
+              },
+            ],
+            context: buildContext(),
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const reply = (data.reply || '').replace(/```action[\s\S]*?```/g, '').trim()
+          if (reply) {
+            setQGreeting(reply)
+            sessionStorage.setItem(cacheKey, reply)
+          }
+        }
+      } catch {
+        // Fallback to static greeting if API fails
+      }
+      setQLoading(false)
+    }
+
+    fetchGreeting()
+  }, [buildContext, ctx.dataReady])
+
+  // Fallback greeting while AI loads or if it fails
+  const fallbackGreeting = (() => {
+    const hour = new Date().getHours()
+    const time = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+    if (activeLoads.length > 0) {
+      const load = activeLoads[0]
+      const status = (load.status || '').toLowerCase()
+      if (status.includes('transit') || status.includes('loaded')) {
+        return `${time}, ${firstName}. You're hauling to ${load.destination || load.dest || '?'}${load.miles ? ` — ${load.miles} mi to go` : ''}. Need to check in, mark delivered, or find your next load?`
+      }
+      return `${time}, ${firstName}. You have a load booked: ${load.origin} → ${load.destination || load.dest} for ${fmt$(load.gross || load.rate)}. What do you need?`
+    }
+    if (unpaidInvoices.length > 0) {
+      return `${time}, ${firstName}. You have ${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length > 1 ? 's' : ''} totaling ${fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0))}. Want to send them out or find a new load?`
+    }
+    return `${time}, ${firstName}. No active loads right now. Ready to find your next one?`
+  })()
+
+  const displayGreeting = qGreeting || fallbackGreeting
+
+  // Context-aware quick actions based on current situation
+  const getSmartActions = () => {
+    const actions = []
+    const currentLoad = activeLoads[0]
+    const status = (currentLoad?.status || '').toLowerCase()
+
+    if (currentLoad && (status.includes('transit') || status.includes('loaded'))) {
+      actions.push({ label: 'Mark Delivered', icon: CheckCircle, color: 'var(--success)', msg: 'Mark my current load as delivered' })
+      actions.push({ label: 'Check Call', icon: MapPin, color: 'var(--accent2)', msg: 'Submit a check call for my current load' })
+      actions.push({ label: 'Find Next Load', icon: Package, color: 'var(--accent)', msg: `Find me loads from ${currentLoad.destination || currentLoad.dest || 'my delivery city'}` })
+    } else if (currentLoad && (status.includes('booked') || status.includes('dispatched'))) {
+      actions.push({ label: 'Start Trip', icon: Truck, color: 'var(--accent)', msg: 'Update my load to In Transit' })
+      actions.push({ label: 'Navigate', icon: ArrowRight, color: 'var(--success)', msg: 'Navigate me to my pickup location' })
+      actions.push({ label: 'Snap Rate Con', icon: ScanLine, color: 'var(--accent2)', nav: 'loads' })
+    } else if (unpaidInvoices.length > 0) {
+      actions.push({ label: 'Send Invoices', icon: DollarSign, color: 'var(--success)', nav: 'money' })
+      actions.push({ label: 'Find a Load', icon: Package, color: 'var(--accent)', msg: 'Find me the best available loads right now' })
+      actions.push({ label: 'Scan Receipt', icon: Camera, color: '#8b5cf6', nav: 'money', navExtra: 'expenses' })
+    } else {
+      actions.push({ label: 'Find a Load', icon: Package, color: 'var(--accent)', msg: 'Find me a good paying load' })
+      actions.push({ label: 'Snap Rate Con', icon: ScanLine, color: 'var(--accent2)', nav: 'loads' })
+      actions.push({ label: 'Log Expense', icon: Camera, color: '#8b5cf6', nav: 'money', navExtra: 'expenses' })
+    }
+    return actions
+  }
+
+  const smartActions = getSmartActions()
 
   const handleQSubmit = () => {
     if (!qInput.trim()) return
@@ -121,7 +162,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     else if (action.nav) onNavigate?.(action.nav, action.navExtra)
   }
 
-  // Simple bold markdown for Q's greeting
+  // Render bold markdown in Q's greeting
   const renderBold = (text) => {
     const parts = text.split(/(\*\*[^*]+\*\*)/g)
     return parts.map((part, i) => {
@@ -135,9 +176,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ── Q's Proactive Greeting ── */}
+      {/* ── Q's Live Greeting ── */}
       <div style={{ animation: 'fadeInUp 0.3s ease' }}>
-        {/* Q avatar + greeting */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 20px rgba(240,165,0,0.15)' }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
@@ -147,37 +187,45 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
             <div style={{
               background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: '2px 14px 14px 14px', padding: '12px 14px',
+              minHeight: 44,
             }}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{qBrief.greeting}</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, opacity: 0.85 }}>
-                {renderBold(qBrief.message)}
-              </div>
+              {qLoading && !qGreeting ? (
+                <div style={{ display: 'flex', gap: 4, padding: '4px 0' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'aipulse 1.2s ease-in-out infinite' }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'aipulse 1.2s ease-in-out 0.2s infinite' }} />
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'aipulse 1.2s ease-in-out 0.4s infinite' }} />
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, animation: 'fadeInUp 0.3s ease' }}>
+                  {renderBold(displayGreeting)}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Q's suggested actions — pill buttons */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 46, flexWrap: 'wrap' }}>
-          {qBrief.actions.map((action, i) => (
-            <button key={i} onClick={() => handleAction(action)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px', background: 'var(--surface)',
-                border: '1px solid var(--border)', borderRadius: 20,
-                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
-                transition: 'all 0.15s ease',
-                animation: `fadeInUp 0.25s ease ${0.1 + i * 0.05}s both`,
-              }}>
-              <Ic icon={action.icon} size={13} color={action.color} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{action.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Q's suggested actions */}
+        {!qLoading && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingLeft: 46, flexWrap: 'wrap', animation: 'fadeInUp 0.25s ease 0.1s both' }}>
+            {smartActions.map((action, i) => (
+              <button key={i} onClick={() => handleAction(action)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', background: 'var(--surface)',
+                  border: '1px solid var(--border)', borderRadius: 20,
+                  cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                  transition: 'all 0.15s ease',
+                  animation: `fadeInUp 0.25s ease ${0.15 + i * 0.05}s both`,
+                }}>
+                <Ic icon={action.icon} size={13} color={action.color} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{action.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Reply to Q — input bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingLeft: 46,
-        }}>
+        {/* Reply to Q */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingLeft: 46 }}>
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center',
             background: 'var(--surface)', border: '1px solid var(--border)',

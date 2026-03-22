@@ -41,7 +41,7 @@ function renderMarkdown(text) {
   return parts.length > 0 ? parts : text
 }
 
-export default function MobileChatTab({ onNavigate, initialMessage, greetingContext, isOverlay }) {
+export default function MobileChatTab({ onNavigate, initialMessage, isOverlay }) {
   const { logout, showToast, subscription, user, profile } = useApp()
   const { language: currentLang, setLanguage } = useTranslation()
   const ctx = useCarrier() || {}
@@ -1915,25 +1915,12 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   // Keep ref in sync so voice callbacks always call the latest sendMessage
   sendMessageRef.current = sendMessage
 
-  // Seed Q's greeting from home screen so conversation continues naturally
-  const greetingSeededRef = useRef(null)
-  useEffect(() => {
-    if (greetingContext && greetingContext !== greetingSeededRef.current && messages.length === 0) {
-      greetingSeededRef.current = greetingContext
-      setMessages(m => {
-        if (m.length === 0) return [{ role: 'assistant', content: greetingContext }]
-        return m
-      })
-    }
-  }, [greetingContext])
-
   // Auto-send initialMessage when opened from FAB or home screen
   const initialMessageSentRef = useRef(null)
   useEffect(() => {
     if (initialMessage && initialMessage !== initialMessageSentRef.current && !loading) {
       initialMessageSentRef.current = initialMessage
-      // Small delay to let greeting seed first
-      setTimeout(() => sendMessageRef.current?.(initialMessage), 150)
+      setTimeout(() => sendMessageRef.current?.(initialMessage), 100)
     }
   }, [initialMessage, loading])
 

@@ -272,13 +272,13 @@ export function SmartDispatch() {
       payment_terms: isRelay ? 'biweekly' : null,
     }
 
-    // Multi-stop relay: use addLoadWithStops
-    if (isRelay && relayStops.length > 0 && addLoadWithStops) {
+    // Multi-stop: use addLoadWithStops for any load with extra stops
+    if (relayStops.length > 0 && addLoadWithStops) {
       const stops = [
         { type: 'pickup', facility_name: addForm.origin, city: addForm.origin, scheduled_date: addForm.pickup || null, sequence: 1 },
-        { type: 'delivery', facility_name: addForm.dest, city: addForm.dest, scheduled_date: null, sequence: 2 },
+        { type: 'delivery', facility_name: addForm.dest, city: addForm.dest, scheduled_date: addForm.delivery || null, sequence: 2 },
         ...relayStops.map((s, i) => ({
-          type: 'delivery', facility_name: s.facility, city: s.facility, scheduled_date: null, sequence: i + 3,
+          type: s.type || 'delivery', facility_name: s.facility, city: s.facility, scheduled_date: null, sequence: i + 3,
         })),
       ]
       addLoadWithStops(loadData, stops)
@@ -748,26 +748,30 @@ export function SmartDispatch() {
               ))}
             </div>
 
-            {/* Amazon Relay Multi-Stop */}
-            {addSource === 'amazon_relay' && (
-              <div style={{ marginBottom:12 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:6, letterSpacing:0.5 }}>ADDITIONAL DROPS</div>
-                {relayStops.map((stop, i) => (
-                  <div key={i} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6 }}>
-                    <span style={{ fontSize:11, color:'#ff9900', fontWeight:700, flexShrink:0 }}>Drop {i + 2}</span>
-                    <input placeholder="e.g. LAX9, ONT2" value={stop.facility}
-                      onChange={e => setRelayStops(s => s.map((st, idx) => idx === i ? { ...st, facility: e.target.value } : st))}
-                      style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
-                    <button onClick={() => setRelayStops(s => s.filter((_, idx) => idx !== i))}
-                      style={{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:14, padding:'4px' }}>✕</button>
-                  </div>
-                ))}
-                <button onClick={() => setRelayStops(s => [...s, { facility:'' }])}
-                  style={{ fontSize:11, fontWeight:600, color:'#ff9900', background:'rgba(255,153,0,0.08)', border:'1px solid rgba(255,153,0,0.2)', borderRadius:6, padding:'6px 12px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                  + Add Drop
-                </button>
+            {/* Multi-Stop */}
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:6, letterSpacing:0.5 }}>
+                {relayStops.length > 0 ? `ADDITIONAL STOPS (${relayStops.length})` : 'MULTI-STOP'}
               </div>
-            )}
+              {relayStops.map((stop, i) => (
+                <div key={i} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6 }}>
+                  <select value={stop.type || 'delivery'} onChange={e => setRelayStops(s => s.map((st, idx) => idx === i ? { ...st, type: e.target.value } : st))}
+                    style={{ width:80, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 6px', color:'var(--text)', fontSize:11, fontFamily:"'DM Sans',sans-serif", flexShrink:0 }}>
+                    <option value="pickup">Pickup</option>
+                    <option value="delivery">Drop</option>
+                  </select>
+                  <input placeholder={addSource === 'amazon_relay' ? 'e.g. LAX9, ONT2' : 'City, ST'} value={stop.facility}
+                    onChange={e => setRelayStops(s => s.map((st, idx) => idx === i ? { ...st, facility: e.target.value } : st))}
+                    style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                  <button onClick={() => setRelayStops(s => s.filter((_, idx) => idx !== i))}
+                    style={{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:14, padding:'4px' }}>✕</button>
+                </div>
+              ))}
+              <button onClick={() => setRelayStops(s => [...s, { facility:'', type:'delivery' }])}
+                style={{ fontSize:11, fontWeight:600, color: addSource === 'amazon_relay' ? '#ff9900' : 'var(--accent)', background: addSource === 'amazon_relay' ? 'rgba(255,153,0,0.08)' : 'rgba(240,165,0,0.08)', border: `1px solid ${addSource === 'amazon_relay' ? 'rgba(255,153,0,0.2)' : 'rgba(240,165,0,0.2)'}`, borderRadius:6, padding:'6px 12px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                + Add Stop
+              </button>
+            </div>
 
             {/* Driver */}
             <div style={{ marginBottom:12 }}>

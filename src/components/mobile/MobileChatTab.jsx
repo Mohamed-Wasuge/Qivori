@@ -58,6 +58,8 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const updateInvoiceStatus = ctx.updateInvoiceStatus || (() => {})
   const unpaidInvoices = ctx.unpaidInvoices || []
   const addLoad = ctx.addLoad || (() => {})
+  const qMemories = ctx.qMemories || []
+  const addQMemory = ctx.addQMemory || (() => {})
 
   const dataReady = ctx.dataReady !== false
 
@@ -90,6 +92,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const contextMemoryRef = useRef([])
+  const lastMemoryExtractRef = useRef(0)
   const [hosStartTime, setHosStartTime] = useState(() => {
     const saved = localStorage.getItem('qivori_hos_start')
     return saved ? parseInt(saved) : null
@@ -141,6 +144,11 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         const toSave = messages.slice(-50)
         localStorage.setItem('qivori_chat_history', JSON.stringify(toSave))
       } catch { /* storage full — ignore */ }
+    }
+    // Auto-extract memories every 10 new messages (text chat)
+    if (messages.length > 0 && messages.length - lastMemoryExtractRef.current >= 10 && !inCall) {
+      lastMemoryExtractRef.current = messages.length
+      extractMemories(messages)
     }
   }, [messages])
 
@@ -328,8 +336,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       overdue.length > 0 ? `\u26A0 OVERDUE 30+ DAYS: ${overdue.length} invoices $${overdue.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}` : '',
       topExp ? `EXPENSES: ${topExp}` : '',
       gpsLocation ? `LOCATION: ${gpsLocation}` : '',
+      qMemories.length > 0 ? `\nQ MEMORY (things you remember about this driver):\n${qMemories.slice(0, 20).map(m => `- [${m.memory_type}] ${m.content}`).join('\n')}` : '',
     ].filter(Boolean).join('\n')
-  }, [loads, invoices, expenses, totalRevenue, totalExpenses, company, gpsLocation, profile, user])
+  }, [loads, invoices, expenses, totalRevenue, totalExpenses, company, gpsLocation, profile, user, qMemories])
 
   // Build load board context for AI
   const buildLoadBoard = useCallback(() => {
@@ -1375,6 +1384,19 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     }
   }, [inCall, callConnecting, driverName, buildContext, showToast])
 
+  // Extract memories from conversation transcript (runs in background after calls/chats)
+  const extractMemories = useCallback(async (msgs) => {
+    if (!msgs || msgs.length < 3) return
+    const transcript = msgs.slice(-30).map(m => `${m.role === 'user' ? 'Driver' : 'Q'}: ${m.content}`).join('\n')
+    try {
+      await apiFetch('/api/q-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract', transcript }),
+      })
+    } catch { /* silent — memory extraction is best-effort */ }
+  }, [])
+
   const endVoiceCall = useCallback(() => {
     if (realtimeDcRef.current) {
       realtimeDcRef.current.close()
@@ -1392,7 +1414,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     setInCall(false)
     setCallConnecting(false)
     setSpeaking(false)
-  }, [])
+    // Extract memories from the voice call conversation (background)
+    extractMemories(messages)
+  }, [messages, extractMemories])
 
   // Cleanup call on unmount
   useEffect(() => {

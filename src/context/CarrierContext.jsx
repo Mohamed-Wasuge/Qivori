@@ -146,6 +146,7 @@ export function CarrierProvider({ children }) {
   const [drivers, setDrivers] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [company, setCompany] = useState(normalizeCompany({}))
+  const [qMemories, setQMemories] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
@@ -171,13 +172,14 @@ export function CarrierProvider({ children }) {
 
     async function init() {
       try {
-        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles] = await Promise.all([
+        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
           db.fetchExpenses(),
           db.fetchCompany(),
           db.fetchDrivers(),
           db.fetchVehicles(),
+          db.fetchMemories(),
         ])
 
         setLoads(dbLoads.map(normalizeLoad))
@@ -185,6 +187,7 @@ export function CarrierProvider({ children }) {
         setExpenses(dbExpenses.map(normalizeExpense))
         setDrivers(dbDrivers)
         setVehicles(dbVehicles)
+        setQMemories(dbMemories)
         if (dbCompany) setCompany(normalizeCompany(dbCompany))
         setUseDb(true)
       } catch (e) {
@@ -568,6 +571,20 @@ export function CarrierProvider({ children }) {
     }
   }, [company, useDb, demoGuard])
 
+  // ─── Q Memories (cross-session AI intelligence) ─────────────────
+  const addQMemory = useCallback(async (memory) => {
+    if (demoGuard()) return null
+    const saved = await db.createMemory(memory)
+    if (saved) setQMemories(prev => [saved, ...prev])
+    return saved
+  }, [useDb])
+
+  const removeQMemory = useCallback(async (id) => {
+    if (demoGuard()) return
+    await db.deleteMemory(id)
+    setQMemories(prev => prev.filter(m => m.id !== id))
+  }, [useDb])
+
   // ─── Reset (clears all local data) ──────────────────────────────
   const resetData = useCallback(() => {
     setLoads([])
@@ -577,6 +594,7 @@ export function CarrierProvider({ children }) {
     setVehicles([])
     setCompany(normalizeCompany({}))
     setCheckCalls({})
+    setQMemories([])
   }, [])
 
   // ─── Computed values ──────────────────────────────────────────
@@ -588,7 +606,7 @@ export function CarrierProvider({ children }) {
 
   return (
     <CarrierContext.Provider value={{
-      loads, invoices, expenses, drivers, vehicles, company, checkCalls,
+      loads, invoices, expenses, drivers, vehicles, company, checkCalls, qMemories,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses,
       updateLoadStatus, addLoad, removeLoad, advanceStop,
@@ -596,6 +614,7 @@ export function CarrierProvider({ children }) {
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,
       logCheckCall, updateCompany, resetData,
+      addQMemory, removeQMemory,
       dataReady, useDb, demoMode,
     }}>
       {children}

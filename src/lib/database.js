@@ -396,3 +396,33 @@ export async function updateLoadStop(id, updates) {
   )
   return data
 }
+
+// ─── Q MEMORIES (cross-session AI intelligence) ─────────────
+export async function fetchMemories() {
+  const data = await safeSelect('q_memories',
+    supabase.from('q_memories').select('*').order('importance', { ascending: false }).order('updated_at', { ascending: false }).limit(50)
+  )
+  return data || []
+}
+
+export async function createMemory(memory) {
+  const userId = await getUserId()
+  if (!userId) return null
+  const { data } = await safeMutate('createMemory',
+    supabase.from('q_memories').insert({ ...memory, owner_id: userId }).select().single()
+  )
+  return data
+}
+
+export async function updateMemory(id, updates) {
+  const { data } = await safeMutate('updateMemory',
+    supabase.from('q_memories').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  )
+  return data
+}
+
+export async function deleteMemory(id) {
+  await safeMutate('deleteMemory',
+    supabase.from('q_memories').delete().eq('id', id)
+  )
+}

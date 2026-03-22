@@ -599,7 +599,10 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           return true
         }
         case 'get_gps': {
-          getGPS()
+          // Check if the conversation context is about finding loads
+          const recentMsgs = messages.slice(-4).map(m => m.content?.toLowerCase() || '').join(' ')
+          const wantsLoads = /load|freight|haul|shipment|find.*load|book/i.test(recentMsgs)
+          getGPS(wantsLoads)
           return true
         }
         case 'call_broker': {
@@ -890,8 +893,8 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     }
   }
 
-  // Get GPS location
-  const getGPS = () => {
+  // Get GPS location — if followUpLoads is true, auto-search for loads after getting position
+  const getGPS = (followUpLoads) => {
     if (!navigator.geolocation) { showToast('error', 'Error', 'GPS not available'); return }
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
@@ -903,6 +906,37 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         const loc = [city, state].filter(Boolean).join(', ')
         setGpsLocation(loc)
         showToast('success', 'Location Found', loc)
+
+        // Auto-search loads after getting location
+        if (followUpLoads) {
+          try {
+            const params = new URLSearchParams({ limit: '10', lat: pos.coords.latitude, lng: pos.coords.longitude })
+            const inTransit = activeLoads.find(l => ['In Transit', 'Loaded', 'At Delivery'].includes(l.status))
+            if (inTransit) {
+              const dest = inTransit.destination || inTransit.dest || ''
+              if (dest) params.set('origin', dest)
+            }
+            const lbRes = await apiFetch(`/api/load-board?${params}`)
+            const lbData = await lbRes.json()
+            const foundLoads = lbData.loads || BOARD_LOADS || []
+            if (foundLoads.length > 0) {
+              const top5 = foundLoads.slice(0, 5)
+              const lines = top5.map((l, i) => {
+                const orig = l.origin_city || l.origin || '?'
+                const dest2 = l.destination_city || l.dest || l.destination || '?'
+                const rpm = l.miles ? `$${(l.rate / l.miles).toFixed(2)}/mi` : ''
+                return `**${i + 1}. ${orig} \u2192 ${dest2}**\n$${Number(l.rate || 0).toLocaleString()} \u00b7 ${rpm} \u00b7 ${l.miles || '?'} mi \u00b7 ${l.broker_name || l.broker || '?'}`
+              })
+              proactiveLoadsRef.current = top5
+              setMessages(m => [...m, { role: 'assistant', content: `Found you near **${loc}**. Here's what's available:\n\n${lines.join('\n\n')}\n\nSay **"book 1"**, **"book 2"**, etc. to grab one.` }])
+              speak(`Found ${top5.length} loads near ${city || 'your location'}. Say book 1 or book 2 to grab one.`)
+            } else {
+              setMessages(m => [...m, { role: 'assistant', content: `You're near **${loc}**. Nothing available right now — I'll keep checking. Connect your load board in **Settings** for more results.` }])
+            }
+          } catch {
+            setMessages(m => [...m, { role: 'assistant', content: `Got your location: **${loc}**. Couldn't search loads right now — try again.` }])
+          }
+        }
       } catch {
         const loc = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`
         setGpsLocation(loc)
@@ -1768,7 +1802,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     }
 
     // Find loads — search load board, NOT maps
-    if (/\b(find|show|get|search|look\s*for|any)\s*(me\s*)?(a\s*)?(available\s*)?(load|freight|shipment|haul)s?\b/i.test(lowerText) || /\bload\s*board\b/i.test(lowerText)) {
+    if (/\b(find|show|get|search|look\s*for|any)\s*(me\s*)?(a\s*)?(good\s*|best\s*|cheap\s*|available\s*|paying\s*|high\s*|nearby\s*|local\s*|new\s*|open\s*|hot\s*)*(load|freight|shipment|haul)s?\b/i.test(lowerText) || /\bload\s*board\b/i.test(lowerText)) {
       try {
         const loc = await getGPSCoords()
         const params = new URLSearchParams({ limit: '10' })

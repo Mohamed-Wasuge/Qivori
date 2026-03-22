@@ -1,6 +1,6 @@
 // Qivori AI — Service Worker
 // Cache versioning: bump CACHE_VERSION to force update
-const CACHE_VERSION = 23
+const CACHE_VERSION = 24
 const STATIC_CACHE = `qivori-static-v${CACHE_VERSION}`
 const RUNTIME_CACHE = `qivori-runtime-v${CACHE_VERSION}`
 const OFFLINE_URL = '/offline.html'
@@ -32,7 +32,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== STATIC_CACHE && k !== RUNTIME_CACHE)
+          .filter(k => k !== STATIC_CACHE)
           .map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -97,6 +97,9 @@ async function cacheFirstForStatic(request) {
     }
     return response
   } catch {
+    // Network failed — try cache as fallback
+    const cached = await caches.match(request)
+    if (cached) return cached
     return new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
   }
 }

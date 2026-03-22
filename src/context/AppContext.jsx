@@ -504,6 +504,8 @@ export function AppProvider({ children }) {
       // Multi-user roles
       companyRole, companyId, myDriverId,
       isDriver, isAdmin, isDispatcher,
+      // Admin can switch to carrier view
+      switchView: (role) => setCurrentRole(role),
     }}>
       {children}
     </AppContext.Provider>

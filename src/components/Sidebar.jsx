@@ -1,9 +1,9 @@
 import React from 'react'
 import { useApp, ROLES } from '../context/AppContext'
-import { LogOut } from 'lucide-react'
+import { LogOut, ArrowLeftRight } from 'lucide-react'
 
 export default function Sidebar() {
-  const { currentRole, currentPage, navigatePage, logout, sidebarOpen, closeSidebar } = useApp()
+  const { currentRole, currentPage, navigatePage, logout, sidebarOpen, closeSidebar, switchView } = useApp()
   const r = ROLES[currentRole]
 
   const badgeColors = {
@@ -122,8 +122,22 @@ export default function Sidebar() {
           })}
         </div>
 
-        {/* Logout */}
+        {/* Switch View + Logout */}
         <div style={{ padding: '12px 8px', borderTop: '1px solid var(--border)' }}>
+          {currentRole === 'admin' && (
+            <button
+              onClick={() => { switchView('carrier'); navigatePage('overview') }}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 10px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                background: 'rgba(240,165,0,0.08)', color: 'var(--accent)',
+                fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: 13,
+                marginBottom: 6, transition: 'all 0.15s'
+              }}
+            >
+              <ArrowLeftRight size={15} /> Carrier View
+            </button>
+          )}
           <button
             onClick={logout}
             style={{

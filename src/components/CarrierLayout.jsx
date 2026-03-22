@@ -184,7 +184,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
 }
 
 function CarrierLayoutInner() {
-  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, companyRole } = useApp()
+  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, companyRole, switchView, currentRole } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
   const [showInvite, setShowInvite] = useState(false)
@@ -629,6 +629,11 @@ function CarrierLayoutInner() {
             <div style={{ display:'flex', justifyContent:'center' }}>
               <LanguageToggle />
             </div>
+            {profile?.role === 'admin' && currentRole === 'carrier' && (
+              <button onClick={() => { switchView('admin'); }} style={{ width:'100%', padding:'7px', background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, color:'var(--accent)', fontSize:11, fontWeight:600, cursor:'pointer', marginBottom:6 }}>
+                Back to Admin
+              </button>
+            )}
             <button onClick={logout} style={{ width:'100%', padding:'7px', background:'transparent', border:'1px solid var(--border)', borderRadius:8, color:'var(--muted)', fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
               onMouseOver={e => { e.currentTarget.style.borderColor='var(--danger)'; e.currentTarget.style.color='var(--danger)' }}
               onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--muted)' }}>

@@ -24,9 +24,9 @@ const FEATURE_GATES = {
 }
 
 const PLAN_DISPLAY = {
-  autonomous_fleet: { name: 'Autonomous Fleet AI', price: 399,  color: '#f0a500' },
-  autopilot_ai:     { name: 'Autonomous Fleet AI', price: 399,  color: '#f0a500' },  // legacy mapping
-  autopilot:        { name: 'Autonomous Fleet AI', price: 399,  color: '#f0a500' },  // legacy mapping
+  autonomous_fleet: { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },
+  autopilot_ai:     { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy mapping
+  autopilot:        { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy mapping
 }
 
 export function useSubscription() {

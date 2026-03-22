@@ -35,8 +35,9 @@ export default async function handler(req) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
 
-    // Plan prices in cents
-    const PLAN_PRICES = { autopilot: 9900, autopilot_ai: 79900, basic: 9900, pro: 9900, solo: 9900, fleet: 9900, growing: 9900, enterprise: 79900 }
+    // Plan prices: $199 first truck + $99 each additional
+    const FIRST_TRUCK_CENTS = 19900
+    const EXTRA_TRUCK_CENTS = 9900
 
     // Active subscribers
     const active = profiles.filter(p => ['active', 'trialing'].includes(p.subscription_status))
@@ -44,8 +45,11 @@ export default async function handler(req) {
     const trialing = profiles.filter(p => p.subscription_status === 'trialing')
     const cancelled = profiles.filter(p => p.subscription_status === 'canceled')
 
-    // MRR = sum of all active subscription prices
-    const mrrCents = paying.reduce((sum, p) => sum + (PLAN_PRICES[p.subscription_plan] || 0), 0)
+    // MRR = $199 first truck + $99 each additional per paying carrier
+    const mrrCents = paying.reduce((sum, p) => {
+      const trucks = parseInt(p.truck_count) || 1
+      return sum + FIRST_TRUCK_CENTS + Math.max(0, trucks - 1) * EXTRA_TRUCK_CENTS
+    }, 0)
     const mrr = mrrCents / 100
     const arr = mrr * 12
 

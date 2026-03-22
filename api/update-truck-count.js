@@ -111,12 +111,14 @@ export default async function handler(req) {
       body: JSON.stringify({ truck_count: totalTrucks }),
     })
 
-    const perTruckCost = profile.subscription_plan === 'autopilot_ai' ? 150 : 49
+    // $199 first truck + $99 each additional
+    const monthlyTotal = 199 + Math.max(0, totalTrucks - 1) * 99
     return Response.json({
       success: true,
       truckCount: totalTrucks,
       extraTrucks,
-      monthlyExtra: extraTrucks * perTruckCost,
+      monthlyTotal,
+      monthlyExtra: Math.max(0, totalTrucks - 1) * 99,
     }, { headers: corsHeaders(req) })
   } catch (err) {
     return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })

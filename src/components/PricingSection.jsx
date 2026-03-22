@@ -6,17 +6,18 @@ import { apiFetch } from '../lib/api'
 const PRICING_PLANS = [
   {
     id: 'autonomous_fleet',
-    name: 'Autonomous Fleet AI',
-    sub: 'Everything included · Per truck · No upsells',
-    price: '$399',
-    period: '/truck/mo',
+    name: 'Qivori AI Dispatch',
+    sub: '$199 first truck · $99 each additional · Everything included',
+    price: '$199',
+    period: '/mo',
+    extraTruck: '$99',
     color: '#f0a500',
     icon: Crown,
     popular: true,
     features: [
       'AI Load Board & Scoring',
       'AI-Powered Dispatch',
-      'Proactive Load Finding Agent',
+      'Rate Con OCR Auto-Fill',
       'Voice AI Assistant',
       'Fleet Map & GPS Tracking',
       'P&L Dashboard & Analytics',
@@ -24,8 +25,8 @@ const PRICING_PLANS = [
       'Invoicing & Auto-Factoring',
       'Fuel Optimizer',
       'Full Compliance Suite',
-      'HR & DQ File Management',
-      'Driver Portal & Scorecards',
+      'Driver Onboarding & Scorecards',
+      'QuickBooks Sync',
       'Smart Document Handling',
       'Dedicated Support',
     ],
@@ -33,7 +34,7 @@ const PRICING_PLANS = [
     cta: 'Start Free Trial',
     stripeId: 'autonomous_fleet',
     founder: true,
-    fullPrice: '$599',
+    fullPrice: '$299',
   },
 ]
 
@@ -149,10 +150,15 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
                   <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 2 }}>
                     {plan.period}
                   </span>
+                  {plan.extraTruck && (
+                    <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 6 }}>
+                      + <span style={{ color: plan.color, fontWeight: 700 }}>{plan.extraTruck}</span>/mo each additional truck
+                    </div>
+                  )}
                   {plan.founder && (
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                      <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{plan.fullPrice}/truck/mo</span>
-                      <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $200/truck</span>
+                      <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{plan.fullPrice}/mo after founders</span>
+                      <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>FOUNDER RATE — LOCKED FOR LIFE</span>
                     </div>
                   )}
                 </div>

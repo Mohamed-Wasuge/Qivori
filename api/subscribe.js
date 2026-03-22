@@ -23,8 +23,9 @@ export default async function handler(req){
     let spots=100
     if(spotsRes.ok){const d=await spotsRes.json();spots=typeof d==='number'?d:100}
     const isFounder=spots>=trucks
-    const pricePerTruck=isFounder?399:599
-    const totalCents=pricePerTruck*trucks*100
+    const firstTruck=isFounder?199:299
+    const extraTruck=isFounder?99:149
+    const totalCents=(firstTruck+Math.max(0,trucks-1)*extraTruck)*100
 
     if(!STRIPE_KEY){
       return json({ok:true,provider:'mock',isFounder,pricePerTruck,trucks,checkoutUrl:(successUrl||'/app')+'?checkout=mock_success'})
@@ -37,12 +38,13 @@ export default async function handler(req){
     params.set('cancel_url',cancelUrl||'https://qivori.com/pricing?checkout=cancel')
     params.set('subscription_data[trial_period_days]','14')
     params.set('line_items[0][price_data][currency]','usd')
-    params.set('line_items[0][price_data][product_data][name]','Qivori Dispatch ('+trucks+' trucks)')
+    params.set('line_items[0][price_data][product_data][name]','Qivori AI Dispatch ('+trucks+' truck'+(trucks>1?'s':'')+')')
     params.set('line_items[0][price_data][recurring][interval]','month')
     params.set('line_items[0][price_data][unit_amount]',String(totalCents))
     params.set('line_items[0][quantity]','1')
     params.set('metadata[truck_count]',String(trucks))
-    params.set('metadata[price_per_truck]',String(pricePerTruck))
+    params.set('metadata[first_truck]',String(firstTruck))
+    params.set('metadata[extra_truck]',String(extraTruck))
     params.set('metadata[is_founder]',String(isFounder))
 
     const stripeRes=await fetch('https://api.stripe.com/v1/checkout/sessions',{

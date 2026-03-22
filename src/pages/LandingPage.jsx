@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori, an AI-powered operating system for trucking companies. One simple plan: $399/truck/month — everything included, no upsells. Founder pricing (normally $599). 14-day free trial, no credit card. Position AI as supporting the team, not replacing people. Keep answers short, confident, and helpful. Direct them to sign up. You are Qivori AI assistant.',
+          context: 'This is a landing page visitor asking about Qivori, an AI-powered TMS for trucking. Pricing: $199/mo first truck, $99 each additional truck. Everything included — AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks sync. Founder pricing locked for life (first 100 carriers). Regular price goes to $299/mo after. 14-day free trial, no credit card. Keep answers short, confident, and helpful. Direct them to sign up. You are Qivori AI assistant.',
         }),
       })
       const data = await res.json()
@@ -236,11 +236,11 @@ const FEATURES = [
 
 const PLANS = [
   {
-    name: 'Autonomous Fleet AI', sub: 'Everything included · Per truck · No upsells', price: '$399', color: '#f0a500',
+    name: 'Qivori AI Dispatch', sub: '$199 first truck · $99 each additional · Everything included', price: '$199', color: '#f0a500',
     features: [
       'AI Load Board & Scoring',
       'AI-Powered Dispatch',
-      'Proactive Load Finding Agent',
+      'Rate Con OCR Auto-Fill',
       'Voice AI Assistant',
       'Fleet Map & GPS Tracking',
       'P&L Dashboard & Analytics',
@@ -248,13 +248,13 @@ const PLANS = [
       'Invoicing & Auto-Factoring',
       'Fuel Optimizer',
       'Full Compliance Suite',
-      'HR & DQ File Management',
-      'Driver Portal & Scorecards',
+      'Driver Onboarding & Scorecards',
+      'QuickBooks Sync',
       'Smart Document Handling',
       'Dedicated Support',
     ],
-    extra: 'Per truck / month · Add trucks anytime',
-    cta: 'Start Free Trial', highlight: true, stripeId: 'autonomous_fleet', founder: true, fullPrice: '$599',
+    extra: '$99/mo each additional truck · Add trucks anytime',
+    cta: 'Start Free Trial', highlight: true, stripeId: 'autonomous_fleet', founder: true, fullPrice: '$299',
   },
 ]
 
@@ -631,10 +631,10 @@ export default function LandingPage({ onGetStarted }) {
       <section style={{ padding: '32px 40px', background: 'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(240,165,0,0.01))', borderTop: '1px solid rgba(240,165,0,0.1)', borderBottom: '1px solid rgba(240,165,0,0.1)' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
           {[
-            { value: '50', label: 'Founder Spots Left' },
-            { value: '$399', label: 'Per Truck / Month' },
+            { value: '100', label: 'Founder Spots' },
+            { value: '$199', label: 'First Truck / Month' },
+            { value: '$99', label: 'Each Additional Truck' },
             { value: '14', label: 'Day Free Trial' },
-            { value: '$0', label: 'No Credit Card Required' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)', lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
@@ -845,16 +845,16 @@ export default function LandingPage({ onGetStarted }) {
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>EARLY ACCESS</div>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, marginBottom: 14 }}>
-              BE ONE OF THE FIRST 50
+              FIRST 100 CARRIERS
             </h2>
             <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
-              We're opening Q to the first 50 trucks at founder pricing. Help shape the platform, lock in $399/truck forever, and get direct access to our team.
+              We're opening Qivori to the first 100 carriers at founder pricing. Lock in $199/mo forever, and get direct access to our team.
             </p>
           </div>
         </FadeIn>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, maxWidth: 700, margin: '0 auto' }}>
           {[
-            { icon: Zap, title: 'Founder Pricing Locked', desc: '$399/truck/mo forever. Price goes to $599 after the first 50 trucks.' },
+            { icon: Zap, title: 'Founder Pricing Locked', desc: '$199/mo + $99/truck forever. Price goes to $299 after the first 100 carriers.' },
             { icon: Bot, title: 'AI That Calls Brokers', desc: 'Your AI dispatcher finds loads, calls brokers, negotiates rates, and books — hands-free.' },
             { icon: Shield, title: 'Direct Founder Access', desc: 'Work directly with our team. Your feedback shapes the product. Priority support.' },
           ].map((item, i) => (
@@ -929,7 +929,7 @@ export default function LandingPage({ onGetStarted }) {
 
               {/* Price Row */}
               {[
-                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: '$399/truck', qivoriHighlight: true },
+                { feature: 'Monthly Cost', legacy: '$150–300/mo', enterprise: '$500–1,200/mo', qivori: '$199 + $99/truck', qivoriHighlight: true },
                 { feature: 'Setup / Onboarding Fee', legacy: '$500–1,500', enterprise: '$2,000–10,000', qivori: '$0', qivoriHighlight: true },
                 { feature: 'Contract Length', legacy: '12 months', enterprise: '24–36 months', qivori: 'Month-to-month', qivoriHighlight: true },
                 { feature: 'AI Load Scoring', legacy: false, enterprise: false, qivori: true },

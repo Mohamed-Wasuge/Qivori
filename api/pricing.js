@@ -33,17 +33,26 @@ export default async function handler(req) {
     }
 
     const isFounderAvailable = founderSpotsRemaining > 0
-    const founderPrice = 399
-    const standardPrice = 549
+    const founderFirstTruck = 199
+    const founderExtraTruck = 99
+    const standardFirstTruck = 299
+    const standardExtraTruck = 149
 
     return new Response(JSON.stringify({
       founderSpotsRemaining,
-      founderPrice,
-      standardPrice,
+      founderFirstTruck,
+      founderExtraTruck,
+      standardFirstTruck,
+      standardExtraTruck,
       isFounderAvailable,
-      currentPrice: isFounderAvailable ? founderPrice : standardPrice
+      currentFirstTruck: isFounderAvailable ? founderFirstTruck : standardFirstTruck,
+      currentExtraTruck: isFounderAvailable ? founderExtraTruck : standardExtraTruck,
+      // Legacy fields for backwards compat
+      founderPrice: founderFirstTruck,
+      standardPrice: standardFirstTruck,
+      currentPrice: isFounderAvailable ? founderFirstTruck : standardFirstTruck,
     }), { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=60', ...corsHeaders(req) } })
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Failed to fetch pricing', founderSpotsRemaining: 100, founderPrice: 399, standardPrice: 549, isFounderAvailable: true, currentPrice: 399 }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(req) } })
+    return new Response(JSON.stringify({ error: 'Failed to fetch pricing', founderSpotsRemaining: 100, founderPrice: 199, standardPrice: 299, isFounderAvailable: true, currentPrice: 199 }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders(req) } })
   }
 }

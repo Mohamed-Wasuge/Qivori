@@ -189,7 +189,7 @@ const es = {
   'landing.autopilotAI': 'Autopilot AI',
   'landing.autopilotAISub': 'Autonomia total con IA',
   'landing.1truckOnly': 'Solo 1 camion',
-  'landing.perExtraTruck': '+$150/mes por camion adicional',
+  'landing.perExtraTruck': '+$99/mes por camion adicional',
 
   // Plan features
   'landing.planFeat.aiLoadBoardScoring': 'Tablero de Cargas IA y Calificacion',
@@ -236,7 +236,7 @@ const es = {
   'landing.moneyOnTable': 'DINERO?',
   'landing.finalCtaDesc': 'Unete a propietarios-operadores y flotas pequenas usando Qivori para encontrar mejores cargas, operar mas eficiente y cobrar mas rapido.',
   'landing.startFreeNoCard': 'Comienza Gratis \u2014 Sin Tarjeta',
-  'landing.trialInfo': '14 dias gratis \u00b7 $399/camion/mes \u00b7 Cancela cuando quieras',
+  'landing.trialInfo': '14 dias gratis \u00b7 $199/mes primer camion \u00b7 Cancela cuando quieras',
   'landing.searchLoads': 'O busca 2,000+ cargas gratis',
 
   // ── Pagina Principal: Footer ──

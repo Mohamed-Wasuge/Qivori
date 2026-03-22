@@ -2,7 +2,7 @@ import { sendEmail, sendAdminEmail, sendAdminSMS, logEmail, logRevenueEvent, TEM
 
 export const config = { runtime: 'edge' }
 
-const PLAN_NAMES = { autonomous_fleet: 'Autonomous Fleet AI', autopilot_ai: 'Autonomous Fleet AI', autopilot: 'Autonomous Fleet AI', pro: 'Autonomous Fleet AI', fleet: 'Autonomous Fleet AI', basic: 'Autonomous Fleet AI', solo: 'Autonomous Fleet AI', growing: 'Autonomous Fleet AI', enterprise: 'Autonomous Fleet AI' }
+const PLAN_NAMES = { autonomous_fleet: 'Qivori AI Dispatch', autopilot_ai: 'Qivori AI Dispatch', autopilot: 'Qivori AI Dispatch', pro: 'Qivori AI Dispatch', fleet: 'Qivori AI Dispatch', basic: 'Qivori AI Dispatch', solo: 'Qivori AI Dispatch', growing: 'Qivori AI Dispatch', enterprise: 'Qivori AI Dispatch' }
 
 export default async function handler(req) {
   if (req.method !== 'POST') {

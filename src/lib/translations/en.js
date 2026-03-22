@@ -189,7 +189,7 @@ const en = {
   'landing.autopilotAI': 'Autopilot AI',
   'landing.autopilotAISub': 'Full AI autonomy',
   'landing.1truckOnly': '1 truck only',
-  'landing.perExtraTruck': '+$150/mo per additional truck',
+  'landing.perExtraTruck': '+$99/mo per additional truck',
 
   // Plan features
   'landing.planFeat.aiLoadBoardScoring': 'AI Load Board & Scoring',
@@ -236,7 +236,7 @@ const en = {
   'landing.moneyOnTable': 'MONEY ON THE TABLE?',
   'landing.finalCtaDesc': 'Join owner-operators and small fleets using Qivori to find better loads, run leaner, and get paid faster.',
   'landing.startFreeNoCard': 'Start Free \u2014 No Card Needed',
-  'landing.trialInfo': '14 days free \u00b7 $399/truck/month \u00b7 Cancel anytime',
+  'landing.trialInfo': '14 days free \u00b7 $199/mo first truck \u00b7 Cancel anytime',
   'landing.searchLoads': 'Or search 2,000+ loads for free',
 
   // ── Landing Page: Footer ──

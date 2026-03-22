@@ -138,11 +138,11 @@ export const TEMPLATES = {
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;">
         <p style="color:#f0a500;font-size:14px;font-weight:700;margin:0 0 8px;">Lock in founder pricing now:</p>
         <p style="color:#c8c8d0;font-size:13px;margin:0;line-height:1.6;">
-          <strong>Autonomous Fleet AI</strong> — $399/truck/mo (founder pricing, normally $599) · AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher.
+          <strong>Qivori AI Dispatch</strong> — $199/mo first truck + $99 each additional (founder pricing, goes to $299 after). AI dispatch, load board, invoicing, compliance — everything included.
         </p>
       </div>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Save $200/truck vs regular pricing ($599). AI dispatcher works 24/7.</p>
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Founder rate locked for life. Only 100 spots available.</p>
       </div>
       <p style="color:#ef4444;font-size:13px;">After your trial ends, you'll lose access to all features and data.</p>
       <div style="text-align:center;margin-top:24px;">
@@ -158,8 +158,8 @@ export const TEMPLATES = {
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, your 14-day free trial is over. Your account is now inactive.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">But your data is still here — upgrade anytime to pick up right where you left off.</p>
       <div style="background:#1e1e2a;border:1px solid #2a2a35;border-radius:12px;padding:16px;margin:16px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:16px;font-weight:700;margin:0;">Autonomous Fleet AI — $399/truck/mo</p>
-        <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;">Founder pricing (normally $599). AI dispatcher works 24/7.</p>
+        <p style="color:#f0a500;font-size:16px;font-weight:700;margin:0;">Qivori AI Dispatch — $199/mo + $99/truck</p>
+        <p style="color:#8a8a9a;font-size:12px;margin:6px 0 0;">Founder pricing (goes to $299 after 100 spots). Everything included.</p>
       </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Upgrade & Keep Your Data →</a>
@@ -190,10 +190,10 @@ export const TEMPLATES = {
 
   upgrade_congrats: (firstName, plan) => {
     return {
-      subject: `Welcome to Autonomous Fleet AI!`,
+      subject: `Welcome to Qivori AI Dispatch!`,
       html: wrap(`
-        <h2 style="color:#f0a500;font-size:20px;margin:0 0 12px;">Welcome to Autonomous Fleet AI!</h2>
-        <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, your <strong style="color:#f0a500;">Autonomous Fleet AI</strong> plan is now active. All features are unlocked.</p>
+        <h2 style="color:#f0a500;font-size:20px;margin:0 0 12px;">Welcome to Qivori AI Dispatch!</h2>
+        <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, your <strong style="color:#f0a500;">Qivori AI Dispatch</strong> plan is now active. All features are unlocked.</p>
         <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Here's what's included:</p>
         <ul style="color:#c8c8d0;font-size:13px;line-height:1.8;padding-left:20px;">
           <li>Full AI-powered dispatching — replaces your dispatcher entirely</li>
@@ -203,7 +203,7 @@ export const TEMPLATES = {
           <li>Priority support & dedicated account manager</li>
         </ul>
         <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;text-align:center;">
-          <p style="color:#22c55e;font-size:16px;font-weight:800;margin:0;">Save $200/truck vs regular pricing ($599). AI dispatcher works 24/7.</p>
+          <p style="color:#22c55e;font-size:16px;font-weight:800;margin:0;">Founder rate locked for life. $199/mo first truck + $99 each additional.</p>
         </div>
         <div style="text-align:center;margin-top:24px;">
           <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Open Qivori →</a>
@@ -220,12 +220,12 @@ export const TEMPLATES = {
       <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;">
         <p style="color:#22c55e;font-size:18px;font-weight:800;margin:0 0 12px;text-align:center;">20% OFF for 3 months</p>
         <p style="color:#c8c8d0;font-size:13px;margin:0;line-height:1.8;">
-          <strong>Autonomous Fleet AI</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$399/truck</span> <strong style="color:#22c55e;">$319/truck/mo</strong>
+          <strong>Qivori AI Dispatch</strong> — <span style="text-decoration:line-through;color:#8a8a9a;">$199/mo</span> <strong style="color:#22c55e;">$199/mo</strong>
         </p>
         <p style="color:#8a8a9a;font-size:11px;margin:8px 0 0;text-align:center;">Use code <strong style="color:#fff;">COMEBACK20</strong> at checkout</p>
       </div>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:12px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autonomous Fleet AI replaces your dispatcher — AI finds loads, calls brokers, negotiates rates, handles compliance. Works 24/7.</p>
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Qivori AI Dispatch replaces your dispatcher — AI finds loads, calls brokers, negotiates rates, handles compliance. Works 24/7.</p>
       </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#22c55e;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Come Back →</a>
@@ -265,7 +265,7 @@ export const TEMPLATES = {
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, it's been a week since your last login. Everything okay?</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">While you were away, Qivori has been tracking new loads on your lanes. Come back and see what's available.</p>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:16px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Did you know? Autonomous Fleet AI replaces your dispatcher — $399/truck/mo. AI finds loads, calls brokers, negotiates rates. Works 24/7.</p>
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Did you know? Qivori AI Dispatch replaces your dispatcher — $199/mo + $99/truck. AI finds loads, calls brokers, negotiates rates. Works 24/7.</p>
       </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Check New Loads →</a>
@@ -280,7 +280,7 @@ export const TEMPLATES = {
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, we noticed you haven't searched for loads in a few days.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Just open Qivori and say <strong style="color:#f0a500;">"Find me the best loads right now"</strong> — the AI will do the rest.</p>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:16px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autonomous Fleet AI — $399/truck/mo. AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher.</p>
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Qivori AI Dispatch — $199/mo + $99/truck. AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher.</p>
       </div>
       <div style="text-align:center;margin-top:24px;">
         <a href="https://qivori.com" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Find Loads →</a>
@@ -307,7 +307,7 @@ export const TEMPLATES = {
       <h2 style="color:#fff;font-size:20px;margin:0 0 12px;">Hey ${firstName},</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">This is Mohamed, the founder of Qivori. I noticed you might not be getting the most out of the platform.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">I built Qivori specifically for owner-operators like you, and I want to make sure it's working for you. Can I help with anything?</p>
-      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">If dispatching is your biggest pain point, our <strong style="color:#f0a500;">Autonomous Fleet AI</strong> plan ($399/truck/mo) replaces your dispatcher entirely — AI finds loads, calls brokers, negotiates rates, handles compliance. Works 24/7.</p>
+      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">If dispatching is your biggest pain point, our <strong style="color:#f0a500;">Qivori AI Dispatch</strong> plan ($199/mo + $99/truck) replaces your dispatcher entirely — AI finds loads, calls brokers, negotiates rates, handles compliance. Works 24/7.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Just reply to this email — I read and respond to every single one.</p>
       <p style="color:#f0a500;font-size:14px;font-weight:700;margin-top:24px;">— Mohamed Wasuge, Founder</p>
     `),
@@ -318,10 +318,10 @@ export const TEMPLATES = {
     html: wrap(`
       <h2 style="color:#f0a500;font-size:20px;margin:0 0 12px;">Free Month Earned!</h2>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Hey ${firstName}, someone you referred just paid their first invoice!</p>
-      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Your reward: <strong style="color:#22c55e;">1 month free</strong> on your Autonomous Fleet AI plan. It'll be applied to your next billing cycle automatically.</p>
+      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Your reward: <strong style="color:#22c55e;">1 month free</strong> on your Qivori AI Dispatch plan. It'll be applied to your next billing cycle automatically.</p>
       <p style="color:#8a8a9a;font-size:14px;line-height:1.6;">Keep sharing your referral link to earn more free months!</p>
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:12px 16px;margin:16px 0;text-align:center;">
-        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Autonomous Fleet AI — $399/truck/mo. AI finds loads, calls brokers, negotiates rates, handles compliance. Works 24/7.</p>
+        <p style="color:#f0a500;font-size:13px;font-weight:700;margin:0;">Qivori AI Dispatch — $199/mo + $99/truck. AI finds loads, calls brokers, negotiates rates, handles compliance. Works 24/7.</p>
       </div>
     `),
   }),

@@ -277,19 +277,57 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
   const buildContext = useCallback(() => {
     const active = loads.filter(l => !['Delivered', 'Invoiced'].includes(l.status))
+    const delivered = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
     const unpaid = invoices.filter(i => i.status !== 'Paid')
     const netProfit = totalRevenue - totalExpenses
+    const margin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0'
+
+    // Driver intelligence — lane history & avg RPM per lane
+    const laneCounts = {}
+    const laneRates = {}
+    delivered.forEach(l => {
+      const o = (l.origin || '').split(',')[0].trim()
+      const d = (l.destination || l.dest || '').split(',')[0].trim()
+      if (!o || !d) return
+      const lane = `${o}\u2192${d}`
+      laneCounts[lane] = (laneCounts[lane] || 0) + 1
+      if (!laneRates[lane]) laneRates[lane] = []
+      if (Number(l.miles) > 0) laneRates[lane].push(Number(l.rate || l.gross || 0) / Number(l.miles))
+    })
+    const topLanes = Object.entries(laneCounts)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([lane, count]) => {
+        const rates = laneRates[lane] || []
+        const avg = rates.length > 0 ? (rates.reduce((s, r) => s + r, 0) / rates.length).toFixed(2) : '?'
+        return `${lane} (${count}x, avg $${avg}/mi)`
+      })
+
+    // Overall avg RPM
+    const rpmVals = delivered.filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0)
+      .map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+    const avgRpm = rpmVals.length > 0 ? (rpmVals.reduce((s, r) => s + r, 0) / rpmVals.length).toFixed(2) : 'N/A'
+
+    // Expense breakdown by category
+    const expByCat = {}
+    expenses.forEach(e => { expByCat[e.category] = (expByCat[e.category] || 0) + Number(e.amount || 0) })
+    const topExp = Object.entries(expByCat).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([cat, amt]) => `${cat}: $${amt.toLocaleString()}`).join(', ')
+
+    // Overdue invoices (30+ days)
+    const now = Date.now()
+    const overdue = unpaid.filter(i => (now - new Date(i.created_at || i.date).getTime()) > 30 * 86400000)
+
     return [
-      `DRIVER NAME: ${profile?.full_name || user?.user_metadata?.full_name || 'Driver'}`,
-      `DRIVER EMAIL: ${user?.email || 'unknown'}`,
-      `CARRIER: ${company?.name || 'Unknown'}`,
-      `MC#: ${company?.mc_number || 'N/A'} | DOT#: ${company?.dot_number || 'N/A'}`,
-      `Revenue MTD: $${totalRevenue.toLocaleString()} | Expenses: $${totalExpenses.toLocaleString()} | Net: $${netProfit.toLocaleString()}`,
-      `Active loads (${active.length}): ${active.map(l => `${l.load_id || l.id} ${l.origin}\u2192${l.destination} $${Number(l.rate || 0).toLocaleString()} [${l.status}]`).join(' | ') || 'none'}`,
-      `Total loads: ${loads.length}`,
-      `Unpaid invoices: ${unpaid.length} totaling $${unpaid.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}`,
-      `Recent expenses: ${expenses.slice(0, 5).map(e => `${e.category} $${e.amount} ${e.merchant || ''}`).join(', ') || 'none'}`,
-      gpsLocation ? `Driver current location: ${gpsLocation}` : '',
+      `DRIVER: ${profile?.full_name || user?.user_metadata?.full_name || 'Driver'} | ${user?.email || ''}`,
+      `CARRIER: ${company?.name || 'Unknown'} | MC#: ${company?.mc_number || 'N/A'} | DOT#: ${company?.dot_number || 'N/A'}`,
+      `FINANCIALS: Revenue $${totalRevenue.toLocaleString()} | Expenses $${totalExpenses.toLocaleString()} | Net $${netProfit.toLocaleString()} | Margin ${margin}%`,
+      `AVG RPM: $${avgRpm} | Completed loads: ${delivered.length}`,
+      topLanes.length > 0 ? `TOP LANES: ${topLanes.join(' | ')}` : '',
+      `ACTIVE (${active.length}): ${active.map(l => `${l.load_id || l.id} ${l.origin}\u2192${l.destination} $${Number(l.rate || 0).toLocaleString()} [${l.status}]`).join(' | ') || 'none'}`,
+      `UNPAID: ${unpaid.length} totaling $${unpaid.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}`,
+      overdue.length > 0 ? `\u26A0 OVERDUE 30+ DAYS: ${overdue.length} invoices $${overdue.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}` : '',
+      topExp ? `EXPENSES: ${topExp}` : '',
+      gpsLocation ? `LOCATION: ${gpsLocation}` : '',
     ].filter(Boolean).join('\n')
   }, [loads, invoices, expenses, totalRevenue, totalExpenses, company, gpsLocation, profile, user])
 
@@ -1088,7 +1126,45 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           break
         }
         case 'find_truck_stops': {
-          result = { success: true, message: 'Searching nearby truck stops... I\'ll use the driver\'s GPS to find the closest options.' }
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+            })
+            const lat = pos.coords.latitude
+            const lng = pos.coords.longitude
+            // Use Overpass API to find real truck stops/fuel/rest areas nearby
+            const typeMap = {
+              truck_stop: '["amenity"="fuel"]["hgv"="yes"]',
+              fuel: '["amenity"="fuel"]',
+              rest_area: '["highway"="rest_area"]',
+              weigh_station: '["amenity"="weighbridge"]',
+            }
+            const tag = typeMap[args.type] || typeMap.truck_stop
+            const radius = 25000 // 25km ≈ 15 miles
+            const query = `[out:json][timeout:10];(node${tag}(around:${radius},${lat},${lng}););out body 10;`
+            const ovRes = await fetch('https://overpass-api.de/api/interpreter', {
+              method: 'POST',
+              body: 'data=' + encodeURIComponent(query),
+            })
+            const ovData = await ovRes.json()
+            const stops = (ovData.elements || []).slice(0, 5).map(el => {
+              const d = haversine(lat, lng, el.lat, el.lon)
+              return {
+                name: el.tags?.name || el.tags?.brand || 'Unknown Stop',
+                brand: el.tags?.brand || '',
+                distance_miles: d.toFixed(1),
+                lat: el.lat,
+                lng: el.lon,
+              }
+            }).sort((a, b) => a.distance_miles - b.distance_miles)
+            if (stops.length > 0) {
+              result = { success: true, stops, message: `Found ${stops.length} nearby ${args.type || 'truck stop'}s` }
+            } else {
+              result = { success: true, stops: [], message: 'No truck stops found within 15 miles. Try expanding your search.' }
+            }
+          } catch {
+            result = { success: false, message: 'Could not search — GPS may be disabled' }
+          }
           break
         }
         case 'get_load_details': {
@@ -1118,15 +1194,32 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           break
         }
         case 'get_revenue_summary': {
+          const deliveredLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const rpmAll = deliveredLoads.filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0)
+            .map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+          const avgRpmVal = rpmAll.length > 0 ? (rpmAll.reduce((s, r) => s + r, 0) / rpmAll.length).toFixed(2) : null
+          const totalMiles = deliveredLoads.reduce((s, l) => s + Number(l.miles || 0), 0)
+          const costPerMile = totalMiles > 0 ? (totalExpenses / totalMiles).toFixed(2) : null
+          const projectedAnnual = totalRevenue > 0 ? Math.round(totalRevenue * 12) : null
+          const expCats = {}
+          expenses.forEach(e => { expCats[e.category] = (expCats[e.category] || 0) + Number(e.amount || 0) })
+          const topCats = Object.entries(expCats).sort((a, b) => b[1] - a[1]).slice(0, 3)
+            .map(([c, a]) => `${c}: $${a.toLocaleString()}`).join(', ')
           result = {
             success: true,
             revenue: totalRevenue,
             expenses: totalExpenses,
             net_profit: totalRevenue - totalExpenses,
             margin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue * 100).toFixed(1) + '%' : '0%',
+            avg_rpm: avgRpmVal,
+            cost_per_mile: costPerMile,
+            total_miles: totalMiles,
+            completed_loads: deliveredLoads.length,
             active_loads: activeLoads.length,
             unpaid_invoices: unpaidInvoices.length,
             unpaid_total: unpaidInvoices.reduce((s, i) => s + Number(i.amount || 0), 0),
+            projected_annual: projectedAnnual,
+            top_expense_categories: topCats,
           }
           break
         }

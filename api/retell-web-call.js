@@ -56,10 +56,24 @@ export default async function handler(req) {
           driver_name: driverName,
           language: language,
         },
+        // Dynamic variables — referenced in Retell agent's prompt as {{variable_name}}
         retell_llm_dynamic_variables: {
+          agent_name: 'Q',
+          agent_role: 'AI dispatcher for Qivori, a trucking TMS for owner-operators',
+          agent_personality: 'You are Q. Never say you are Alex or any other name. You ARE Q, the AI dispatcher. Be warm, confident, direct. Sound like a real dispatcher who knows the driver personally. Keep answers short and natural — this is a phone call.',
           driver_name: driverName,
           context: context,
           language: langMap[language] || 'english',
+        },
+        // Override agent name and first greeting per-call (correct Retell v2 structure)
+        agent_override: {
+          agent: {
+            agent_name: 'Q',
+            language: langMap[language] || 'english',
+          },
+          retell_llm: {
+            begin_message: `Hey ${driverName}, it's Q. What are you working on?`,
+          },
         },
       }),
     })

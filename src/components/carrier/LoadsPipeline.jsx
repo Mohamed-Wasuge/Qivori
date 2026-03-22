@@ -339,10 +339,12 @@ export function InvoiceStatusBadge({ status }) {
 
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 export function LoadDetailDrawer({ loadId, onClose }) {
-  const { loads, invoices, checkCalls, updateLoadStatus, drivers, fuelCostPerMile } = useCarrier()
+  const { loads, invoices, checkCalls, updateLoadStatus, removeLoad, drivers, fuelCostPerMile } = useCarrier()
   const { showToast } = useApp()
   const [invoiceSending, setInvoiceSending] = useState(false)
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
+  const [showTONU, setShowTONU] = useState(false)
+  const [tonuFee, setTonuFee] = useState('250')
   const load = loads.find(l => (l.loadId || l.id) === loadId)
   if (!load) return null
 
@@ -438,6 +440,12 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                 Advance → {nextStatus}
               </button>
             )}
+            {load.status !== 'Cancelled' && load.status !== 'Paid' && (
+              <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--warning)', border:'1px solid rgba(240,165,0,0.25)', background:'rgba(240,165,0,0.06)' }}
+                onClick={() => setShowTONU(true)}>
+                Cancel Load
+              </button>
+            )}
             {nextStatus === 'Delivered' && (
               <button className="btn btn-primary" style={{ fontSize:11, flex:1 }}
                 onClick={handleAdvanceToDelivered}>
@@ -450,6 +458,16 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                 {invoiceSending ? 'Sending...' : 'Generate & Send Invoice'}
               </button>
             )}
+            <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--danger)', border:'1px solid rgba(239,68,68,0.25)', background:'rgba(239,68,68,0.06)' }}
+              onClick={() => {
+                if (window.confirm(`Delete load ${load.loadId || load.id}? This cannot be undone.`)) {
+                  removeLoad(load.loadId || load.id)
+                  showToast('', 'Load Deleted', `${load.loadId || load.id} removed`)
+                  onClose()
+                }
+              }}>
+              Delete Load
+            </button>
           </div>
 
           {/* Auto-Invoice Prompt */}
@@ -470,6 +488,53 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                   Not Now
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* TONU — Truck Order Not Used */}
+          {showTONU && (
+            <div style={{ background:'linear-gradient(135deg,rgba(239,68,68,0.06),rgba(240,165,0,0.04))', border:'1px solid rgba(239,68,68,0.25)', borderRadius:12, padding:16 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--danger)', marginBottom:4 }}>Cancel Load — {load.loadId}</div>
+              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:12 }}>If the broker cancelled after dispatch, you can charge a TONU (Truck Order Not Used) fee.</div>
+              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:12 }}>
+                <label style={{ fontSize:11, color:'var(--muted)', fontWeight:600, flexShrink:0 }}>TONU Fee ($)</label>
+                <input type="number" value={tonuFee} onChange={e => setTonuFee(e.target.value)} placeholder="250"
+                  style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn btn-primary" style={{ fontSize:11, flex:1, background:'var(--danger)' }}
+                  onClick={async () => {
+                    const fee = parseFloat(tonuFee) || 0
+                    updateLoadStatus(load.loadId || load.id, 'Cancelled')
+                    if (fee > 0) {
+                      // Generate TONU invoice via API
+                      try {
+                        await apiFetch('/api/auto-invoice', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ loadId: load._dbId || load.id, tonuFee: fee, isTONU: true }),
+                        })
+                      } catch {}
+                      showToast('', 'Load Cancelled + TONU', `${load.loadId} cancelled — $${fee} TONU fee invoiced to ${load.broker || 'broker'}`)
+                    } else {
+                      showToast('', 'Load Cancelled', `${load.loadId} marked as cancelled`)
+                    }
+                    setShowTONU(false)
+                  }}>
+                  Cancel + Invoice TONU ${tonuFee || '0'}
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:11 }}
+                  onClick={() => {
+                    updateLoadStatus(load.loadId || load.id, 'Cancelled')
+                    showToast('', 'Load Cancelled', `${load.loadId} cancelled — no TONU fee`)
+                    setShowTONU(false)
+                  }}>
+                  Cancel (No Fee)
+                </button>
+              </div>
+              <button onClick={() => setShowTONU(false)} style={{ marginTop:8, fontSize:11, color:'var(--muted)', background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                Go Back
+              </button>
             </div>
           )}
 

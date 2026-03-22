@@ -13,6 +13,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'))
 const PublicLoadBoard = lazy(() => import('./pages/PublicLoadBoard'))
 const TermsPage = lazyNamed(() => import('./pages/LegalPages'), 'TermsPage')
 const PrivacyPage = lazyNamed(() => import('./pages/LegalPages'), 'PrivacyPage')
+const DriverOnboarding = lazy(() => import('./pages/DriverOnboarding'))
 
 // Blog / SEO guide pages (lazy-loaded)
 const IFTAGuidePage = lazyNamed(() => import('./pages/BlogPages'), 'IFTAGuidePage')
@@ -138,6 +139,7 @@ function AppContent() {
   const PageComponent = PAGES[currentPage] || Dashboard
 
   const [publicLoadBoard, setPublicLoadBoard] = useState(false)
+  const [driverOnboarding, setDriverOnboarding] = useState(false)
   const [guidePage, setGuidePage] = useState(null) // 'ifta' | 'start-trucking' | 'rate-negotiation' | 'trucking-expenses' | null
 
   const GUIDE_ROUTES = {
@@ -151,11 +153,12 @@ function AppContent() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash
-      if (hash === '#/terms') { setLegalPage('terms'); setPublicLoadBoard(false); setGuidePage(null) }
-      else if (hash === '#/privacy') { setLegalPage('privacy'); setPublicLoadBoard(false); setGuidePage(null) }
-      else if (hash === '#/loads') { setPublicLoadBoard(true); setLegalPage(null); setGuidePage(null) }
-      else if (GUIDE_ROUTES[hash]) { setGuidePage(GUIDE_ROUTES[hash]); setLegalPage(null); setPublicLoadBoard(false) }
-      else { setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null) }
+      if (hash === '#/terms') { setLegalPage('terms'); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false) }
+      else if (hash === '#/privacy') { setLegalPage('privacy'); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false) }
+      else if (hash === '#/loads') { setPublicLoadBoard(true); setLegalPage(null); setGuidePage(null); setDriverOnboarding(false) }
+      else if (hash.startsWith('#/onboard')) { setDriverOnboarding(true); setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null) }
+      else if (GUIDE_ROUTES[hash]) { setGuidePage(GUIDE_ROUTES[hash]); setLegalPage(null); setPublicLoadBoard(false); setDriverOnboarding(false) }
+      else { setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false) }
     }
     handleHash()
     window.addEventListener('hashchange', handleHash)
@@ -170,6 +173,13 @@ function AppContent() {
         {/* Legal Pages overlay */}
         {legalPage === 'terms' && <TermsPage onBack={closeLegal} />}
         {legalPage === 'privacy' && <PrivacyPage onBack={closeLegal} />}
+
+        {/* Driver Onboarding (public, no auth required) */}
+        {driverOnboarding && !legalPage && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
+            <DriverOnboarding />
+          </div>
+        )}
 
         {/* Public Load Board (no auth required) */}
         {publicLoadBoard && !legalPage && (

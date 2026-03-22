@@ -130,7 +130,9 @@ export default async function handler(req) {
 
     // Send invitation email via Resend
     if (resendKey) {
-      const inviteUrl = `https://qivori.com/?invite=${token}`
+      const inviteUrl = inviteRole === 'driver'
+        ? `https://qivori.com/#/onboard?token=${token}`
+        : `https://qivori.com/?invite=${token}`
       const roleName = inviteRole.charAt(0).toUpperCase() + inviteRole.slice(1)
 
       const html = `
@@ -152,23 +154,23 @@ export default async function handler(req) {
       </p>
 
       <div style="background:#1e1e2a;border:1px solid #2a2a35;border-radius:12px;padding:20px;margin-bottom:24px;">
-        <div style="font-size:12px;color:#f0a500;font-weight:700;letter-spacing:1px;margin-bottom:12px;">WHAT YOU'LL GET</div>
+        <div style="font-size:12px;color:#f0a500;font-weight:700;letter-spacing:1px;margin-bottom:12px;">COMPLETE YOUR ONBOARDING</div>
         <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
-          <span style="color:#f0a500;margin-right:8px;">&#x1F4E6;</span>
-          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Your assigned loads</strong> — see pickup/delivery details, update status on the go</span>
+          <span style="color:#f0a500;margin-right:8px;">&#x1F4CB;</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Personal info & CDL</strong> — takes about 5 minutes</span>
         </div>
         <div style="margin-bottom:10px;display:flex;align-items:flex-start;">
-          <span style="color:#f0a500;margin-right:8px;">&#x1F4B0;</span>
-          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Expense tracking</strong> — log fuel, tolls, and other expenses right from your phone</span>
+          <span style="color:#f0a500;margin-right:8px;">&#x270D;&#xFE0F;</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Drug & alcohol consent</strong> — DOT-required, sign right from your phone</span>
         </div>
         <div style="display:flex;align-items:flex-start;">
-          <span style="color:#f0a500;margin-right:8px;">&#x1F4AC;</span>
-          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">AI assistant</strong> — ask Q anything about your loads, routes, or pay</span>
+          <span style="color:#f0a500;margin-right:8px;">&#x2705;</span>
+          <span style="color:#c8c8d0;font-size:13px;"><strong style="color:#fff;">Emergency contact</strong> — one form, you're done</span>
         </div>
       </div>
 
       <div style="text-align:center;">
-        <a href="${inviteUrl}" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Accept Invitation</a>
+        <a href="${inviteUrl}" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Start Onboarding</a>
       </div>
 
       <p style="color:#555;font-size:11px;text-align:center;margin:16px 0 0;">This invitation expires in 7 days.</p>

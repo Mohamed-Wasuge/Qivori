@@ -130,7 +130,7 @@ function normalizeCompany(c) {
 
 // ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
-  const { demoMode, showToast } = useApp() || {}
+  const { demoMode, showToast, isDriver, myDriverId, companyRole, profile } = useApp() || {}
 
   // Helper: block write operations in demo mode
   const demoGuard = useCallback((label) => {
@@ -597,12 +597,44 @@ export function CarrierProvider({ children }) {
     setQMemories([])
   }, [])
 
+  // ─── Driver filtering ────────────────────────────────────────
+  // For driver-role users, filter data to only their assigned loads/expenses
+  const driverName = isDriver ? (profile?.full_name || '') : ''
+
+  const isMyLoad = useCallback((load) => {
+    if (!isDriver) return true
+    // Match by driver_id if available
+    if (myDriverId && load.driver_id === myDriverId) return true
+    // Fallback: match by driver_name
+    if (driverName && (load.driver_name || load.driver || load.carrier_name || '').toLowerCase() === driverName.toLowerCase()) return true
+    return false
+  }, [isDriver, myDriverId, driverName])
+
+  const isMyExpense = useCallback((exp) => {
+    if (!isDriver) return true
+    if (myDriverId && exp.driver_id === myDriverId) return true
+    if (driverName && (exp.driver_name || exp.driver || '').toLowerCase() === driverName.toLowerCase()) return true
+    return false
+  }, [isDriver, myDriverId, driverName])
+
+  const isMyInvoice = useCallback((inv) => {
+    if (!isDriver) return true
+    // Match by driver_name or by load linkage
+    if (driverName && (inv.driver_name || inv.driver || '').toLowerCase() === driverName.toLowerCase()) return true
+    return false
+  }, [isDriver, driverName])
+
+  // Filtered data views for driver role
+  const visibleLoads = useMemo(() => isDriver ? loads.filter(isMyLoad) : loads, [loads, isDriver, isMyLoad])
+  const visibleExpenses = useMemo(() => isDriver ? expenses.filter(isMyExpense) : expenses, [expenses, isDriver, isMyExpense])
+  const visibleInvoices = useMemo(() => isDriver ? invoices.filter(isMyInvoice) : invoices, [invoices, isDriver, isMyInvoice])
+
   // ─── Computed values ──────────────────────────────────────────
-  const deliveredLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
-  const activeLoads = loads.filter(l => !['Delivered', 'Invoiced', 'Cancelled'].includes(l.status))
-  const unpaidInvoices = invoices.filter(i => i.status === 'Unpaid')
+  const deliveredLoads = visibleLoads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
+  const activeLoads = visibleLoads.filter(l => !['Delivered', 'Invoiced', 'Cancelled'].includes(l.status))
+  const unpaidInvoices = visibleInvoices.filter(i => i.status === 'Unpaid')
   const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0)
-  const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const totalExpenses = visibleExpenses.reduce((s, e) => s + (e.amount || 0), 0)
 
   // Broker intelligence — score brokers from load + invoice history
   const brokerStats = useMemo(() => {
@@ -658,7 +690,9 @@ export function CarrierProvider({ children }) {
 
   return (
     <CarrierContext.Provider value={{
-      loads, invoices, expenses, drivers, vehicles, company, checkCalls, qMemories,
+      loads: visibleLoads, invoices: visibleInvoices, expenses: visibleExpenses,
+      allLoads: loads, allInvoices: invoices, allExpenses: expenses,
+      drivers, vehicles, company, checkCalls, qMemories,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses, brokerStats,
       updateLoadStatus, addLoad, removeLoad, advanceStop,

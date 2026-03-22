@@ -307,8 +307,32 @@ export function DriverSettlement() {
 }
 
 export function DriverProfiles() {
-  const { showToast } = useApp()
+  const { showToast, isAdmin: isCompanyAdmin, companyRole } = useApp()
   const { drivers: dbDrivers, addDriver, editDriver, removeDriver } = useCarrier()
+  const [showInviteUser, setShowInviteUser] = useState(false)
+  const [invEmail, setInvEmail] = useState('')
+  const [invSending, setInvSending] = useState(false)
+
+  const handleInviteAsUser = async (driverId, driverName) => {
+    if (!invEmail) { showToast('error', 'Error', 'Email is required'); return }
+    setInvSending(true)
+    try {
+      const res = await apiFetch('/api/invite-driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: invEmail, role: 'driver', driver_id: driverId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('', 'Invite Sent', `${driverName} will receive a login invite at ${invEmail}`)
+        setInvEmail('')
+        setShowInviteUser(false)
+      } else {
+        showToast('error', 'Error', data.error || 'Failed to send invite')
+      }
+    } catch { showToast('error', 'Error', 'Failed to send invite') }
+    setInvSending(false)
+  }
   const driverList = dbDrivers.length ? dbDrivers.map(d => ({
     id: d.id, name: d.full_name, avatar: (d.full_name || '').split(' ').map(w => w[0]).join('').slice(0,2),
     phone: d.phone || '', email: d.email || '',
@@ -491,7 +515,9 @@ export function DriverProfiles() {
       <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2 }}>DRIVERS ({driverList.length})</div>
-          <button className="btn btn-primary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => setShowAdd(true)}>+ Add</button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="btn btn-primary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => setShowAdd(true)}>+ Add</button>
+          </div>
         </div>
         {driverList.map(dr => {
           const isSel = selected === dr.id
@@ -538,6 +564,12 @@ export function DriverProfiles() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            {(isCompanyAdmin || companyRole === 'owner') && (
+              <button className="btn btn-ghost" style={{ fontSize: 12, color:'var(--accent)' }}
+                onClick={() => { setInvEmail(d.email || ''); setShowInviteUser(d.id) }}>
+                <Ic icon={UserPlus} /> Invite as User
+              </button>
+            )}
             <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={openEditDriver}><Ic icon={PencilIcon} /> Edit</button>
             <button className="btn btn-danger" style={{ fontSize: 12 }} onClick={() => setConfirmDelete({ id: d.id, name: d.name })}><Ic icon={Trash2} /> Remove</button>
           </div>
@@ -608,6 +640,38 @@ export function DriverProfiles() {
       </>}
       </div>
     </div>
+
+    {/* Invite as User Modal */}
+    {showInviteUser && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+        onClick={e => { if (e.target===e.currentTarget) setShowInviteUser(false) }}>
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:420, padding:24 }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+            <UserPlus size={18} color="var(--accent)" />
+            <span style={{ fontSize:16, fontWeight:700 }}>Invite {d?.name || 'Driver'} as User</span>
+          </div>
+          <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>
+            They'll get a login and see their assigned loads, expenses, and AI chat.
+          </div>
+          <div>
+            <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Email Address *</label>
+            <input type="email" value={invEmail} onChange={e => setInvEmail(e.target.value)}
+              placeholder="driver@email.com"
+              style={addInp} />
+          </div>
+          <div style={{ display:'flex', gap:10, marginTop:18 }}>
+            <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }}
+              onClick={() => handleInviteAsUser(showInviteUser, d?.name || 'Driver')}
+              disabled={invSending || !invEmail}>
+              {invSending ? 'Sending...' : 'Send Login Invite'}
+            </button>
+            <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }}
+              onClick={() => setShowInviteUser(false)}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }

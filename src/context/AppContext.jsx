@@ -12,6 +12,9 @@ import {
 
 const AppContext = createContext(null)
 
+// ── Company role constants ────────────────────────────────────
+const COMPANY_ROLES = ['owner', 'admin', 'dispatcher', 'driver']
+
 export const ROLES = {
   admin: {
     name: 'Admin', role: 'Platform Owner', initials: 'QV',
@@ -97,7 +100,15 @@ export function AppProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [demoMode, setDemoMode] = useState(false)
+  const [companyRole, setCompanyRole] = useState(null) // 'owner' | 'admin' | 'dispatcher' | 'driver'
+  const [companyId, setCompanyId] = useState(null)
+  const [myDriverId, setMyDriverId] = useState(null)
   const toastTimer = useRef(null)
+
+  // Computed role helpers
+  const isDriver = companyRole === 'driver'
+  const isAdmin = companyRole === 'owner' || companyRole === 'admin'
+  const isDispatcher = companyRole === 'dispatcher'
 
   // Apply theme class
   useEffect(() => {
@@ -106,6 +117,60 @@ export function AppProvider({ children }) {
     else root.setAttribute('data-theme', theme)
     localStorage.setItem('fm_theme', theme)
   }, [theme])
+
+  // Fetch company membership — returns { role, company_id, driver_id } or null
+  const fetchCompanyMembership = useCallback(async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('company_members')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .limit(1)
+        .maybeSingle()
+      if (data && !error) {
+        setCompanyRole(data.role)
+        setCompanyId(data.company_id)
+        if (data.driver_id) setMyDriverId(data.driver_id)
+        return data
+      }
+    } catch (e) {
+      // Table may not exist yet — graceful fail
+    }
+    return null
+  }, [])
+
+  // Auto-create owner membership for existing users who don't have one
+  const ensureOwnerMembership = useCallback(async (userId, prof) => {
+    try {
+      // Use the user's own ID as company_id for solo owner-operators
+      const cid = prof?.company_id || userId
+      const { data, error } = await supabase
+        .from('company_members')
+        .insert({
+          company_id: cid,
+          user_id: userId,
+          role: 'owner',
+          status: 'active',
+        })
+        .select()
+        .single()
+      if (data && !error) {
+        setCompanyRole('owner')
+        setCompanyId(cid)
+        // Also set company_id on profile if not set
+        if (!prof?.company_id) {
+          await supabase.from('profiles').update({ company_id: cid }).eq('id', userId)
+        }
+        return data
+      }
+    } catch (e) {
+      // Graceful fail — table may not exist
+    }
+    // Default to owner for existing users even if insert fails
+    setCompanyRole('owner')
+    return null
+  }, [])
 
   // Fetch user profile from Supabase (graceful — returns null on error)
   const fetchProfile = useCallback(async (userId) => {
@@ -133,6 +198,39 @@ export function AppProvider({ children }) {
         const prof = await fetchProfile(session.user.id)
         const role = resolveRole(prof, session.user.email)
         setCurrentRole(role)
+
+        // Fetch company membership
+        const membership = await fetchCompanyMembership(session.user.id)
+        if (!membership && role === 'carrier') {
+          // Existing user with no membership — auto-create as owner
+          await ensureOwnerMembership(session.user.id, prof)
+        }
+
+        // Handle invite token in URL or stored from signup
+        const urlParams = new URLSearchParams(window.location.search)
+        let inviteToken = urlParams.get('invite')
+        if (!inviteToken) {
+          try { inviteToken = localStorage.getItem('qivori_pending_invite') } catch {}
+        }
+        if (inviteToken) {
+          try {
+            const res = await apiFetch('/api/accept-invite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: inviteToken }),
+            })
+            const result = await res.json()
+            if (result.success) {
+              // Re-fetch membership after accepting
+              await fetchCompanyMembership(session.user.id)
+              showToast('', 'Team Joined!', `You've joined ${result.companyName || 'the team'} as a ${result.role || 'driver'}`)
+            }
+            // Clean URL and stored token
+            window.history.replaceState({}, '', window.location.pathname)
+            try { localStorage.removeItem('qivori_pending_invite') } catch {}
+          } catch {}
+        }
+
         const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
         setCurrentPage(landingPage)
         setView('app')
@@ -148,6 +246,9 @@ export function AppProvider({ children }) {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
+        setCompanyRole(null)
+        setCompanyId(null)
+        setMyDriverId(null)
         setView('landing')
       }
     })
@@ -190,12 +291,38 @@ export function AppProvider({ children }) {
       showToast('', 'Welcome, ' + displayName, 'Signing in...')
 
       // Fetch profile in background and update role if different
-      fetchProfile(data.user.id).then(prof => {
+      fetchProfile(data.user.id).then(async (prof) => {
         if (prof?.role && prof.role !== quickRole) {
           setCurrentRole(prof.role)
           const correctPage = prof.role === 'carrier' ? 'carrier-dashboard' : prof.role === 'broker' ? 'broker-dashboard' : 'dashboard'
           setCurrentPage(correctPage)
         }
+
+        // Fetch company membership
+        const membership = await fetchCompanyMembership(data.user.id)
+        if (!membership && (prof?.role === 'carrier' || quickRole === 'carrier')) {
+          await ensureOwnerMembership(data.user.id, prof)
+        }
+
+        // Handle invite token in URL
+        const urlParams = new URLSearchParams(window.location.search)
+        const inviteToken = urlParams.get('invite')
+        if (inviteToken) {
+          try {
+            const invRes = await apiFetch('/api/accept-invite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: inviteToken }),
+            })
+            const result = await invRes.json()
+            if (result.success) {
+              await fetchCompanyMembership(data.user.id)
+              showToast('', 'Team Joined!', `You've joined ${result.companyName || 'the team'} as a ${result.role || 'driver'}`)
+            }
+            window.history.replaceState({}, '', window.location.pathname)
+          } catch {}
+        }
+
         showToast('', 'Welcome, ' + displayName, 'Signed in as ' + ROLES[prof?.role || quickRole].badgeText)
       }).catch(e => {
         showToast('', 'Welcome, ' + displayName, 'Signed in')
@@ -228,6 +355,13 @@ export function AppProvider({ children }) {
 
       trackSignup('email', role)
       recordStep(data.user.id, 'signup')
+
+      // If there's an invite token, store it for after email confirmation
+      const urlParams = new URLSearchParams(window.location.search)
+      const inviteToken = urlParams.get('invite')
+      if (inviteToken) {
+        try { localStorage.setItem('qivori_pending_invite', inviteToken) } catch {}
+      }
 
       // Send welcome email (fire and forget)
       fetch('/api/welcome-email', {
@@ -278,6 +412,9 @@ export function AppProvider({ children }) {
     } catch {}
     setUser(null)
     setProfile(null)
+    setCompanyRole(null)
+    setCompanyId(null)
+    setMyDriverId(null)
     setView('landing')
     showToast('', 'Signed Out', 'See you next time!')
   }, [showToast, demoMode])
@@ -363,7 +500,10 @@ export function AppProvider({ children }) {
       loginWithCredentials, signUp, resetPassword, logout, goToLogin, navigatePage,
       toggleSidebar, closeSidebar, showToast,
       theme, setTheme,
-      roleConfig
+      roleConfig,
+      // Multi-user roles
+      companyRole, companyId, myDriverId,
+      isDriver, isAdmin, isDispatcher,
     }}>
       {children}
     </AppContext.Provider>

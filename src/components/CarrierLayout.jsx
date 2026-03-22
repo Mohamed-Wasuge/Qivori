@@ -77,6 +77,14 @@ const NAV = [
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 
+// ── Simplified nav for driver-role users ─────────────────────────────────────
+const DRIVER_NAV = [
+  { id:'loads',        icon: Package,      label:'My Loads',       i18nKey:'nav.loads'        },
+  { id:'financials',   icon: DollarSign,   label:'Expenses',       i18nKey:'nav.financials'   },
+  { id:'_divider' },
+  { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
+]
+
 // ── Drivers Hub ──
 function DriversHub() {
   const [tab, setTab] = useState('profiles')
@@ -176,15 +184,52 @@ function resolveView(viewId, navTo, onOpenDrawer) {
 }
 
 function CarrierLayoutInner() {
-  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin } = useApp()
+  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, companyRole } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('driver')
+  const [inviteDriverId, setInviteDriverId] = useState('')
+  const [inviteSending, setInviteSending] = useState(false)
+
+  // Choose nav based on company role
+  const currentNav = isDriver ? DRIVER_NAV : NAV
+
+  const handleSendInvite = async () => {
+    if (!inviteEmail) { showToast('error', 'Error', 'Email is required'); return }
+    setInviteSending(true)
+    try {
+      const res = await apiFetch('/api/invite-driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole,
+          driver_id: inviteDriverId || null,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('', 'Invitation Sent', `Invite sent to ${inviteEmail}`)
+        setInviteEmail('')
+        setInviteRole('driver')
+        setInviteDriverId('')
+        setShowInvite(false)
+      } else {
+        showToast('error', 'Error', data.error || 'Failed to send invitation')
+      }
+    } catch (err) {
+      showToast('error', 'Error', 'Failed to send invitation')
+    }
+    setInviteSending(false)
+  }
 
   // Check if user needs onboarding
   const isNewUser = !localStorage.getItem('qv_onboarded') && !company?.name && loads.length === 0
   const [showOnboarding, setShowOnboarding] = useState(isNewUser)
 
-  const [activeView,    setActiveView]    = useState('dashboard')
+  const [activeView,    setActiveView]    = useState(isDriver ? 'loads' : 'dashboard')
   const [drawerLoadId,  setDrawerLoadId]  = useState(null)
   const [searchOpen,    setSearchOpen]    = useState(false)
   const [notifOpen,     setNotifOpen]     = useState(false)
@@ -502,10 +547,20 @@ function CarrierLayoutInner() {
         `}</style>
 
         {/* Controls */}
-        <button className="btn btn-primary" style={{ fontSize:12, fontWeight:700, padding:'5px 14px' }}
-          onClick={() => showToast('','Post Truck','Opening truck availability posting...')}>
-          <Truck size={13} /> Post Truck
-        </button>
+        {!isDriver && (
+          <>
+            {isAdmin && (
+              <button className="btn btn-ghost" style={{ fontSize:12, fontWeight:700, padding:'5px 14px', borderColor:'var(--accent)', color:'var(--accent)' }}
+                onClick={() => setShowInvite(true)}>
+                <UserPlus size={13} /> Invite Team
+              </button>
+            )}
+            <button className="btn btn-primary" style={{ fontSize:12, fontWeight:700, padding:'5px 14px' }}
+              onClick={() => showToast('','Post Truck','Opening truck availability posting...')}>
+              <Truck size={13} /> Post Truck
+            </button>
+          </>
+        )}
       </div>
 
       {/* ── BODY: SIDEBAR + CONTENT ───────────────────────────────── */}
@@ -534,14 +589,16 @@ function CarrierLayoutInner() {
                 <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                   {company?.name || profile?.company_name || profile?.full_name || 'Qivori'}
                 </div>
-                <div style={{ fontSize:10, color:'var(--muted)' }}>{company?.mc ? `MC ${company.mc}` : company?.dot ? `DOT ${company.dot}` : 'Carrier'}</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>
+                  {companyRole === 'driver' ? 'Driver' : companyRole === 'dispatcher' ? 'Dispatcher' : company?.mc ? `MC ${company.mc}` : company?.dot ? `DOT ${company.dot}` : 'Carrier'}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Nav items — flat */}
           <div style={{ flex:1, padding:'4px 0', overflowY:'auto', minHeight:0 }}>
-            {NAV.map(item => {
+            {currentNav.map(item => {
               if (item.id === '_divider') return <div key="_div" style={{ margin:'4px 16px', borderTop:'1px solid var(--border)' }} />
               const isActive = activeView === item.id
               return (
@@ -600,6 +657,53 @@ function CarrierLayoutInner() {
       <AIChatbox />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)}
         onTabChange={(viewId) => { navTo(viewId); setSearchOpen(false) }} />
+
+      {/* ── Invite Team Member Modal ─────────────────────────────── */}
+      {showInvite && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={e => { if (e.target===e.currentTarget) setShowInvite(false) }}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:440, padding:24 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Invite Team Member</div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>Send an invitation to join your company on Qivori</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Email Address *</label>
+                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="driver@email.com"
+                  style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, boxSizing:'border-box', outline:'none' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Role</label>
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
+                  style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, boxSizing:'border-box', outline:'none' }}>
+                  <option value="driver">Driver</option>
+                  <option value="dispatcher">Dispatcher</option>
+                  {companyRole === 'owner' && <option value="admin">Admin</option>}
+                </select>
+              </div>
+              {inviteRole === 'driver' && drivers.length > 0 && (
+                <div>
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Link to Existing Driver (optional)</label>
+                  <select value={inviteDriverId} onChange={e => setInviteDriverId(e.target.value)}
+                    style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, boxSizing:'border-box', outline:'none' }}>
+                    <option value="">— None —</option>
+                    {drivers.map(dr => (
+                      <option key={dr.id} value={dr.id}>{dr.full_name || dr.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:18 }}>
+              <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} onClick={handleSendInvite} disabled={inviteSending || !inviteEmail}>
+                {inviteSending ? 'Sending...' : 'Send Invitation'}
+              </button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setShowInvite(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

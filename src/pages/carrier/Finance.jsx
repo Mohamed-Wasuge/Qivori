@@ -1331,10 +1331,10 @@ export function CashFlowForecaster() {
       return bal
     })
 
-    return { incoming, outgoing, balance, items, avgPayRate }
-  }, [loads, invoices, expenses])
+    return { incoming, outgoing, balance, items, avgPayRate, totalExpAmt }
+  }, [loads, invoices, expenses, ctxDrivers])
 
-  const { incoming, outgoing, balance, items, avgPayRate } = forecast
+  const { incoming, outgoing, balance, items, avgPayRate, totalExpAmt } = forecast
 
   const totalIn  = incoming.reduce((s,v) => s + v, 0)
   const totalOut = outgoing.reduce((s,v) => s + v, 0)

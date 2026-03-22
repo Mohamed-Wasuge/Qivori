@@ -6,7 +6,6 @@ import {
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
   CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell, Globe
 } from 'lucide-react'
-import { RetellWebClient } from 'retell-client-js-sdk'
 import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
 import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper, mobileAnimations } from './shared'
@@ -80,7 +79,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const [handsFree, setHandsFree] = useState(false)
   const [inCall, setInCall] = useState(false)
   const [callConnecting, setCallConnecting] = useState(false)
-  const retellClientRef = useRef(null)
+  const retellClientRef = useRef(null) // legacy — kept for safety
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -974,70 +973,129 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     audioRef.current = new Audio()
   }
 
-  // ── RETELL VOICE CALL — real-time conversation with Q ──
-  const startRetellCall = useCallback(async () => {
+  // ── OPENAI REALTIME VOICE — real-time conversation with Q ──
+  const realtimePcRef = useRef(null) // RTCPeerConnection
+  const realtimeDcRef = useRef(null) // data channel
+  const realtimeAudioRef = useRef(null) // <audio> for playback
+
+  const startVoiceCall = useCallback(async () => {
     if (inCall || callConnecting) return
     setCallConnecting(true)
     haptic('medium')
     try {
-      const res = await apiFetch('/api/retell-web-call', {
+      // 1. Get ephemeral token from our backend
+      const res = await apiFetch('/api/realtime-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           driverName: driverName || 'Driver',
           context: buildContext(),
-          language: currentLang || 'en',
         }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Failed to start call')
+        throw new Error(err.error || 'Failed to create session')
       }
-      const { access_token } = await res.json()
-      if (!access_token) throw new Error('No access token')
+      const { client_secret } = await res.json()
+      if (!client_secret) throw new Error('No session token')
 
-      const client = new RetellWebClient()
-      retellClientRef.current = client
+      // 2. Create RTCPeerConnection
+      const pc = new RTCPeerConnection()
+      realtimePcRef.current = pc
 
-      client.on('call_started', () => {
+      // 3. Play remote audio (Q's voice)
+      const audioEl = document.createElement('audio')
+      audioEl.autoplay = true
+      realtimeAudioRef.current = audioEl
+      pc.ontrack = (e) => {
+        audioEl.srcObject = e.streams[0]
+      }
+
+      // 4. Capture mic and add to peer connection
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(track => pc.addTrack(track, stream))
+
+      // 5. Data channel for events
+      const dc = pc.createDataChannel('oai-events')
+      realtimeDcRef.current = dc
+
+      dc.onopen = () => {
         setInCall(true)
         setCallConnecting(false)
-        setSpeaking(false)
         haptic('success')
         setMessages(m => [...m, { role: 'assistant', content: 'Connected. Q is listening — talk naturally.' }])
-      })
+      }
 
-      client.on('call_ended', () => {
-        setInCall(false)
-        setCallConnecting(false)
-        setSpeaking(false)
-        retellClientRef.current = null
+      dc.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data)
+          if (event.type === 'response.audio.started' || event.type === 'output_audio_buffer.speech_started') {
+            setSpeaking(true)
+          }
+          if (event.type === 'response.audio.done' || event.type === 'output_audio_buffer.speech_stopped' || event.type === 'response.done') {
+            setSpeaking(false)
+          }
+          // Show Q's text response in chat
+          if (event.type === 'response.audio_transcript.done' && event.transcript) {
+            setMessages(m => [...m, { role: 'assistant', content: event.transcript }])
+          }
+          // Show driver's transcribed speech
+          if (event.type === 'conversation.item.input_audio_transcription.completed' && event.transcript) {
+            setMessages(m => [...m, { role: 'user', content: event.transcript }])
+          }
+        } catch {}
+      }
+
+      dc.onclose = () => {
+        endVoiceCall()
         setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Tap the phone to call again or type below.' }])
+      }
+
+      // 6. Create SDP offer and connect to OpenAI Realtime
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      const sdpRes = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${client_secret}`,
+          'Content-Type': 'application/sdp',
+        },
+        body: offer.sdp,
       })
 
-      client.on('agent_start_talking', () => setSpeaking(true))
-      client.on('agent_stop_talking', () => setSpeaking(false))
+      if (!sdpRes.ok) {
+        throw new Error('Failed to connect to OpenAI Realtime')
+      }
 
-      client.on('error', (e) => {
-        console.error('Retell error:', e)
-        setInCall(false)
-        setCallConnecting(false)
-        setSpeaking(false)
-        retellClientRef.current = null
-        showToast('error', 'Call Error', 'Connection lost — try again')
-      })
+      const answer = { type: 'answer', sdp: await sdpRes.text() }
+      await pc.setRemoteDescription(answer)
 
-      await client.startCall({ accessToken: access_token })
     } catch (err) {
       setCallConnecting(false)
+      setInCall(false)
       showToast('error', 'Call Failed', err.message || 'Could not connect')
+      // Cleanup on failure
+      if (realtimePcRef.current) {
+        realtimePcRef.current.close()
+        realtimePcRef.current = null
+      }
     }
-  }, [inCall, callConnecting, driverName, buildContext, currentLang, showToast])
+  }, [inCall, callConnecting, driverName, buildContext, showToast])
 
-  const endRetellCall = useCallback(() => {
-    if (retellClientRef.current) {
-      retellClientRef.current.stopCall()
-      retellClientRef.current = null
+  const endVoiceCall = useCallback(() => {
+    if (realtimeDcRef.current) {
+      realtimeDcRef.current.close()
+      realtimeDcRef.current = null
+    }
+    if (realtimePcRef.current) {
+      realtimePcRef.current.getSenders().forEach(s => { if (s.track) s.track.stop() })
+      realtimePcRef.current.close()
+      realtimePcRef.current = null
+    }
+    if (realtimeAudioRef.current) {
+      realtimeAudioRef.current.srcObject = null
+      realtimeAudioRef.current = null
     }
     setInCall(false)
     setCallConnecting(false)
@@ -1047,9 +1105,14 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   // Cleanup call on unmount
   useEffect(() => {
     return () => {
-      if (retellClientRef.current) {
-        retellClientRef.current.stopCall()
-        retellClientRef.current = null
+      if (realtimePcRef.current) {
+        realtimePcRef.current.getSenders().forEach(s => { if (s.track) s.track.stop() })
+        realtimePcRef.current.close()
+        realtimePcRef.current = null
+      }
+      if (realtimeDcRef.current) {
+        realtimeDcRef.current.close()
+        realtimeDcRef.current = null
       }
     }
   }, [])
@@ -1943,7 +2006,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     // ── VOICE MODE — start Retell call ──
     if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*q\b/i.test(lowerText) || /\btalk\s*to\s*q\b/i.test(lowerText)) {
       setMessages(m => [...m, { role: 'assistant', content: 'Connecting you to Q...' }])
-      startRetellCall()
+      startVoiceCall()
       setLoading(false)
       return
     }
@@ -2067,9 +2130,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     if (autoCall && isOverlay && !autoCallTriggeredRef.current && !inCall && !callConnecting) {
       autoCallTriggeredRef.current = true
       // Small delay for overlay animation to finish
-      setTimeout(() => startRetellCall(), 400)
+      setTimeout(() => startVoiceCall(), 400)
     }
-  }, [autoCall, isOverlay, inCall, callConnecting, startRetellCall])
+  }, [autoCall, isOverlay, inCall, callConnecting, startVoiceCall])
 
   // Quick action chips
   const quickActions = [
@@ -2223,7 +2286,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>{callConnecting ? 'Connecting to Q...' : 'Live Call with Q'}</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>Talk naturally — Q hears everything</div>
           </div>
-          <button onClick={endRetellCall} style={{ padding: '5px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 7, fontSize: 10, fontWeight: 700, color: 'var(--danger)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>End Call</button>
+          <button onClick={endVoiceCall} style={{ padding: '5px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 7, fontSize: 10, fontWeight: 700, color: 'var(--danger)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>End Call</button>
         </div>
       )}
 
@@ -2521,7 +2584,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
                 <span style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Listening... talk naturally</span>
               )}
             </div>
-            <button onClick={endRetellCall}
+            <button onClick={endVoiceCall}
               style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
               <Ic icon={Phone} size={18} color="#fff" />
             </button>
@@ -2570,7 +2633,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
             />
 
             {/* Call Q — start Retell real-time voice */}
-            <button onClick={() => { haptic('light'); startRetellCall() }}
+            <button onClick={() => { haptic('light'); startVoiceCall() }}
               style={{ width: 36, height: 36, borderRadius: '50%', background: 'none', border: '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}
               title="Call Q — real-time voice conversation">
               <Ic icon={Phone} size={14} color="var(--success)" />

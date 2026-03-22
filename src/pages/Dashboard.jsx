@@ -49,21 +49,22 @@ export default function Dashboard() {
   const paidInvoices = invoices.filter(i => i.status === 'Paid')
   const totalPaid = paidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.amount) || 0), 0)
 
-  // MRR estimate based on active subscriptions
+  // MRR — only count users with an active Stripe subscription (subscription_status === 'active')
   const planPrices = { autonomous_fleet: 399, autopilot: 399, autopilot_ai: 399, solo: 399, fleet: 399, enterprise: 399, growing: 399, pro: 399 }
-  const mrr = activeUsers.reduce((sum, u) => {
+  const payingUsers = profiles.filter(p => p.subscription_status === 'active' && p.plan && p.plan !== 'trial' && p.plan !== 'owner')
+  const mrr = payingUsers.reduce((sum, u) => {
     const truckCount = parseInt(u.truck_count) || 1
     return sum + ((planPrices[u.plan] || 399) * truckCount)
   }, 0)
 
   // Churn rate (users who cancelled / total who ever subscribed)
   const cancelledUsers = profiles.filter(p => p.status === 'cancelled' || p.status === 'suspended')
-  const churnRate = profiles.length > 0 ? ((cancelledUsers.length / profiles.length) * 100).toFixed(1) : '0.0'
+  const everPaid = payingUsers.length + cancelledUsers.length
+  const churnRate = everPaid > 0 ? ((cancelledUsers.length / everPaid) * 100).toFixed(1) : '0.0'
 
-  // Trial conversion rate
-  const convertedTrials = profiles.filter(p => p.status === 'active' && p.plan)
-  const totalTrials = trialUsers.length + convertedTrials.length
-  const conversionRate = totalTrials > 0 ? Math.round((convertedTrials.length / totalTrials) * 100) : 0
+  // Trial conversion rate — only count actual Stripe-paying users as converted
+  const totalTrials = trialUsers.length + payingUsers.length
+  const conversionRate = totalTrials > 0 ? Math.round((payingUsers.length / totalTrials) * 100) : 0
 
   // Signups today
   const today = new Date().toDateString()
@@ -75,10 +76,10 @@ export default function Dashboard() {
 
   const topStats = [
     { label: 'Total Carriers', value: carriers.length.toString(), sub: activeUsers.filter(u => u.role === 'carrier').length + ' active', color: 'var(--success)', icon: Truck },
-    { label: 'Active Subscriptions', value: activeUsers.length.toString(), sub: trialUsers.length + ' on trial', color: 'var(--accent)', icon: CreditCard },
-    { label: 'Monthly Revenue (MRR)', value: '$' + mrr.toLocaleString(), sub: activeUsers.length + ' paying users', color: 'var(--accent)', icon: DollarSign },
+    { label: 'Active Subscriptions', value: payingUsers.length.toString(), sub: trialUsers.length + ' on trial', color: 'var(--accent)', icon: CreditCard },
+    { label: 'Monthly Revenue (MRR)', value: '$' + mrr.toLocaleString(), sub: payingUsers.length + ' paying users', color: 'var(--accent)', icon: DollarSign },
     { label: 'Churn Rate', value: churnRate + '%', sub: cancelledUsers.length + ' churned', color: parseFloat(churnRate) > 5 ? 'var(--danger)' : 'var(--success)', icon: TrendingUp },
-    { label: 'Trial Conversions', value: conversionRate + '%', sub: convertedTrials.length + '/' + totalTrials + ' converted', color: conversionRate > 50 ? 'var(--success)' : 'var(--warning)', icon: Zap },
+    { label: 'Trial Conversions', value: conversionRate + '%', sub: payingUsers.length + '/' + totalTrials + ' converted', color: conversionRate > 50 ? 'var(--success)' : 'var(--warning)', icon: Zap },
     { label: 'Total Revenue', value: '$' + totalPaid.toLocaleString(), sub: paidInvoices.length + ' paid invoices', color: 'var(--accent2)', icon: BarChart2 },
   ]
 

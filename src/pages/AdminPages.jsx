@@ -281,10 +281,11 @@ export function Analytics() {
   // Drop-off analysis
   const statusCounts = { active: 0, trial: 0, pending: 0, suspended: 0, cancelled: 0 }
   profiles.forEach(p => { statusCounts[p.status] = (statusCounts[p.status] || 0) + 1 })
+  const actualPaying = profiles.filter(p => p.subscription_status === 'active' && p.plan && p.plan !== 'trial' && p.plan !== 'owner').length
   const dropOff = [
     { stage: 'Signed Up', count: profiles.length, color: 'var(--accent)' },
     { stage: 'Activated (Trial)', count: statusCounts.trial + statusCounts.active, color: 'var(--accent2)' },
-    { stage: 'Active (Paying)', count: statusCounts.active, color: 'var(--success)' },
+    { stage: 'Active (Paying)', count: actualPaying, color: 'var(--success)' },
     { stage: 'Churned', count: statusCounts.suspended + statusCounts.cancelled, color: 'var(--danger)' },
   ]
 
@@ -2070,7 +2071,7 @@ export function RevenueDashboard() {
     { label: 'ARPU', value: stats.arpuFormatted, sub: 'Avg revenue per user', color: '#a855f7', icon: User },
     { label: 'LTV', value: stats.ltvFormatted, sub: 'Lifetime value estimate', color: '#f0a500', icon: Star },
     { label: 'Trial Conversion', value: `${stats.trialConversionRate}%`, sub: 'Trial → paid', color: stats.trialConversionRate > 20 ? '#22c55e' : '#ef4444', icon: Zap },
-    { label: 'Founder Spots', value: `${stats.founderSpotsLeft}/100`, sub: `${stats.founderCount} claimed`, color: '#f0a500', icon: Shield },
+    { label: 'Founder Spots', value: `${stats.founderSpotsLeft} left`, sub: `${stats.founderCount}/100 claimed`, color: '#f0a500', icon: Shield },
   ]
 
   return (

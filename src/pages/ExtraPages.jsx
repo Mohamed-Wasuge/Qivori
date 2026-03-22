@@ -252,15 +252,21 @@ export function Settings() {
     maintenance: false,
   })
   const [loading, setLoading] = useState(true)
+  const [planCount, setPlanCount] = useState(0)
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from('platform_settings').select('key, value')
-      if (!error && data) {
+      const [settingsRes, profilesRes] = await Promise.all([
+        supabase.from('platform_settings').select('key, value'),
+        supabase.from('profiles').select('subscription_status, plan').neq('plan', 'trial').neq('plan', 'owner'),
+      ])
+      if (!settingsRes.error && settingsRes.data) {
         const obj = {}
-        data.forEach(r => { obj[r.key] = r.value === true || r.value === 'true' })
+        settingsRes.data.forEach(r => { obj[r.key] = r.value === true || r.value === 'true' })
         setToggles(prev => ({ ...prev, ...obj }))
       }
+      const paying = (profilesRes.data || []).filter(p => p.subscription_status === 'active' && p.plan)
+      setPlanCount(paying.length)
       setLoading(false)
     })()
   }, [])
@@ -342,7 +348,7 @@ export function Settings() {
           <div className="panel-header"><div className="panel-title"><Ic icon={CreditCard} size={14} /> Subscription Plans</div></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { name: 'Autonomous Fleet AI', price: '$399/truck/mo', users: '64 users', color: '#f0a500' },
+              { name: 'Autonomous Fleet AI', price: '$399/truck/mo', users: planCount + ' users', color: '#f0a500' },
             ].map(p => (
               <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--surface2)', borderRadius: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -367,10 +373,10 @@ export function Settings() {
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
               { icon: CreditCard, name: 'Stripe', sub: 'Subscription billing & payouts', connected: true },
-              { icon: Mail, name: 'SendGrid', sub: 'Transactional email & notifications', connected: true },
+              { icon: Mail, name: 'Resend', sub: 'Transactional email & notifications', connected: true },
               { icon: Bot, name: 'Claude AI', sub: 'Load matching & document OCR', connected: true },
               { icon: Search, name: 'FMCSA API', sub: 'MC/DOT carrier verification', connected: true },
-              { icon: Smartphone, name: 'Twilio', sub: 'SMS notifications to carriers', connected: false },
+              { icon: Smartphone, name: 'Twilio', sub: 'SMS & voice calling', connected: true },
             ].map(int => (
               <div key={int.name} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 12, background: 'var(--surface2)', borderRadius: 10 }}>
                 <Ic icon={int.icon} size={22} color="var(--muted)" />

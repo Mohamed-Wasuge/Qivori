@@ -87,7 +87,8 @@ export default async function handler(req) {
     const topPlan = Object.entries(planBreakdown).sort((a, b) => b[1].revenue - a[1].revenue)[0]
 
     // Founder spots (Autopilot AI subscribers)
-    const founderCount = profiles.filter(p => p.subscription_plan === 'autopilot_ai' && ['active', 'trialing'].includes(p.subscription_status)).length
+    const founderPlans = ['autopilot_ai', 'autonomous_fleet', 'autopilot', 'solo', 'fleet', 'pro']
+    const founderCount = profiles.filter(p => founderPlans.includes(p.subscription_plan) && ['active', 'trialing'].includes(p.subscription_status)).length
     const founderSpotsLeft = Math.max(0, 100 - founderCount)
 
     // Recent signups for feed

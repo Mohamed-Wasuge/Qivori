@@ -93,7 +93,7 @@ const ONBOARDING_TEMPLATES = {
       <div style="background:rgba(240,165,0,0.08);border:1px solid rgba(240,165,0,0.2);border-radius:12px;padding:16px 20px;margin:16px 0;">
         <p style="color:#f0a500;font-size:14px;font-weight:700;margin:0 0 8px;">Ready to keep going?</p>
         <p style="color:#c8c8d0;font-size:13px;margin:0;line-height:1.6;">
-          <strong>Autonomous Fleet AI</strong> — $399/truck/mo (founder pricing, normally $599) &middot; AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher.
+          <strong>Qivori AI Dispatch</strong> — $199/mo first truck + $99 each additional (founder pricing, normally $299 + $149/truck) &middot; AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher.
         </p>
       </div>
 
@@ -129,7 +129,7 @@ const ONBOARDING_TEMPLATES = {
         <p style="color:#f0a500;font-size:14px;font-weight:700;margin:0;">Your data will be saved — upgrade anytime to pick up where you left off.</p>
       </div>
 
-      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;"><strong style="color:#fff;">Autonomous Fleet AI — $399/truck/mo</strong> (founder pricing, normally $599). AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher. Save $200/truck vs regular pricing.</p>
+      <p style="color:#8a8a9a;font-size:14px;line-height:1.6;"><strong style="color:#fff;">Qivori AI Dispatch — $199/mo first truck + $99 each additional</strong> (founder pricing, normally $299 + $149/truck). AI finds loads, calls brokers, negotiates rates, handles compliance. Replaces your dispatcher. Locked for life for first 100 carriers.</p>
 
       <div style="text-align:center;margin-top:24px;">
         <a href="https://www.qivori.com" style="display:inline-block;background:#ef4444;color:#fff;font-weight:700;font-size:14px;padding:14px 40px;border-radius:10px;text-decoration:none;">Keep My Account</a>

@@ -982,6 +982,12 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     if (inCall || callConnecting) return
     setCallConnecting(true)
     haptic('medium')
+
+    // Kill any playing TTS/audio so two Q's don't talk at once
+    window.speechSynthesis?.cancel()
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = '' }
+    document.querySelectorAll('audio').forEach(a => { a.pause(); a.src = '' })
+
     try {
       // 1. Get ephemeral token from our backend
       const res = await apiFetch('/api/realtime-session', {

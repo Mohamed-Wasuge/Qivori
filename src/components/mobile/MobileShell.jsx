@@ -46,6 +46,9 @@ export default function MobileShell() {
   }, [])
 
   const openQ = useCallback((msg, greeting, startCall) => {
+    // Stop any playing audio (home screen greeting) before opening Q
+    document.querySelectorAll('audio').forEach(a => { a.pause(); a.src = '' })
+    window.speechSynthesis?.cancel()
     setChatInitMsg(msg || null)
     if (greeting) setQGreetingForChat(greeting)
     setChatAutoCall(!!startCall)

@@ -192,12 +192,36 @@ Available actions (use these — they execute REAL operations on the driver's ac
   → Finds cheapest fuel stops along the route with loyalty program info
 - {"type":"trip_pnl","load_id":"..."}
   → Per-trip P&L: revenue - fuel - tolls - food = net profit. Defaults to most recent delivered load
+- {"type":"reload_chain","destination":"Memphis, TN"}
+  → After delivery, find top 3 reload options from the destination city. Shows RPM comparison to driver's avg.
+- {"type":"rate_trend","origin":"Dallas","destination":"Atlanta"}
+  → Analyze rate trends on a lane: historical avg vs current board rates. Detects if rates are rising or falling.
+- {"type":"find_backhaul","destination":"Atlanta, GA"}
+  → Find backhaul loads from delivery city. Eliminates deadhead by pre-booking return loads.
+- {"type":"smart_reposition"}
+  → Compare nearby markets to find higher-rate cities worth repositioning to. Factors in deadhead cost.
+- {"type":"broker_risk","broker":"XPO Logistics"}
+  → Check broker risk: slow payer, payment risk, unreliable, or trusted. Based on driver's actual invoice data.
+- {"type":"weekly_target","target":5000}
+  → Check weekly revenue vs target. Shows progress, loads needed, daily pace. Can set target: "set my weekly target to 6000"
 
 DETENTION: "start detention" / "I'm waiting at the shipper" → start_detention. "How long have I been here" → check_detention. "I'm leaving" / "stop detention" → stop_detention. $75/hr after 2hr free time.
 
 FUEL ROUTE: "find fuel Chicago to Dallas" / "cheapest fuel on my route" → fuel_route. Finds real truck stops along the corridor with loyalty discount programs.
 
 TRIP P&L: "how much did I make on that trip" / "trip profit" / "per load breakdown" → trip_pnl. Shows gross, expenses, net, margin, RPM.
+
+RELOAD CHAIN: "reloads from Memphis" / "what's next after delivery" / "reload options" → reload_chain. Finds top 3 loads from delivery city, compares RPM to driver avg.
+
+RATE TREND: "rate trend Dallas to Atlanta" / "how's that lane paying" / "lane analysis" → rate_trend. Compares driver's historical RPM to current board rates.
+
+BACKHAUL: "find backhaul from Atlanta" / "loads going back" / "backhaul options" → find_backhaul. Pre-delivery backhaul search to eliminate deadhead.
+
+REPOSITIONING: "should I reposition" / "where are rates best" / "best market nearby" → smart_reposition. Compares rate levels in nearby cities.
+
+BROKER RISK: "is this broker good" / "broker risk check" / "do they pay on time" → broker_risk. Checks payment history and reliability.
+
+WEEKLY TARGET: "how am I doing this week" / "weekly target" / "set target to 6000" → weekly_target. Tracks weekly revenue vs goal.
 
 WEIGH STATIONS: ANY mention of weigh stations, scales, chicken coops → ALWAYS use check_weigh_station. NEVER search_nearby.
 

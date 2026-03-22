@@ -1,6 +1,6 @@
 // Qivori AI — Service Worker
 // Cache versioning: bump CACHE_VERSION to force update
-const CACHE_VERSION = 26
+const CACHE_VERSION = 27
 const STATIC_CACHE = `qivori-static-v${CACHE_VERSION}`
 const RUNTIME_CACHE = `qivori-runtime-v${CACHE_VERSION}`
 const OFFLINE_URL = '/offline.html'

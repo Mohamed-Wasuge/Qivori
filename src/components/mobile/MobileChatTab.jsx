@@ -114,6 +114,12 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const proactiveLoadsRef = useRef([])
   const [proactiveLoadId, setProactiveLoadId] = useState(null)
 
+  // ── AI DISPATCH INTELLIGENCE proactive state ──────────────
+  const reloadAlertShownRef = useRef({})
+  const backhaulAlertShownRef = useRef({})
+  const repositionAlertShownRef = useRef(false)
+  const weeklyTargetAlertShownRef = useRef(false)
+
   // Auto-scroll to bottom with smooth behavior
   useEffect(() => {
     if (scrollRef.current) {
@@ -336,7 +342,13 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       `UNPAID: ${unpaid.length} totaling $${unpaid.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}`,
       overdue.length > 0 ? `\u26A0 OVERDUE 30+ DAYS: ${overdue.length} invoices $${overdue.reduce((s, i) => s + Number(i.amount || 0), 0).toLocaleString()}` : '',
       topExp ? `EXPENSES: ${topExp}` : '',
-      brokerStats.length > 0 ? `BROKER INTEL: ${brokerStats.slice(0, 5).map(b => `${b.name} (${b.totalLoads} loads, $${b.avgRpm}/mi RPM, ${b.avgDaysToPay !== null ? b.avgDaysToPay + 'd pay' : 'pay N/A'}, ${b.onTimeRate !== null ? b.onTimeRate + '% reliable' : 'reliability N/A'})`).join(' | ')}` : '',
+      brokerStats.length > 0 ? `BROKER INTEL: ${brokerStats.slice(0, 5).map(b => {
+        let risk = ''
+        if (b.avgDaysToPay !== null && b.avgDaysToPay < 20 && b.onTimeRate !== null && b.onTimeRate > 90) risk = ' [TRUSTED]'
+        else if (b.avgDaysToPay !== null && b.avgDaysToPay > 45) risk = ' [SLOW PAYER]'
+        else if (b.onTimeRate !== null && b.onTimeRate < 70) risk = ' [UNRELIABLE]'
+        return `${b.name} (${b.totalLoads} loads, $${b.avgRpm}/mi RPM, ${b.avgDaysToPay !== null ? b.avgDaysToPay + 'd pay' : 'pay N/A'}, ${b.onTimeRate !== null ? b.onTimeRate + '% reliable' : 'reliability N/A'}${risk})`
+      }).join(' | ')}` : '',
       gpsLocation ? `LOCATION: ${gpsLocation}` : '',
       qMemories.length > 0 ? `\nQ MEMORY (things you remember about this driver):\n${qMemories.slice(0, 20).map(m => `- [${m.memory_type}] ${m.content}`).join('\n')}` : '',
     ].filter(Boolean).join('\n')
@@ -590,6 +602,147 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       })
     } catch { /* silent */ }
   }, [user])
+
+  // ── PROACTIVE: Post-Delivery Reload Chain ──────────────────
+  useEffect(() => {
+    if (loads.length === 0 || BOARD_LOADS.length === 0) return
+    // Check for loads that just became "Delivered"
+    const justDelivered = loads.filter(l => l.status === 'Delivered')
+    justDelivered.forEach(load => {
+      const loadKey = load.id || load.load_id
+      if (reloadAlertShownRef.current[loadKey]) return
+      const dest = (load.destination || load.dest || '').split(',')[0].trim()
+      if (!dest) return
+      reloadAlertShownRef.current[loadKey] = true
+      // Find reloads from destination
+      const destLower = dest.toLowerCase()
+      const reloads = BOARD_LOADS.filter(l => (l.origin_city || l.origin || '').toLowerCase().includes(destLower))
+        .map(l => {
+          const rpm = Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0
+          return { ...l, _rpm: rpm }
+        }).sort((a, b) => b._rpm - a._rpm).slice(0, 3)
+      if (reloads.length === 0) return
+      // Calculate driver avg RPM
+      const dlvd = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status))
+      const rpmVals = dlvd.filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0).map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+      const avgRpm = rpmVals.length > 0 ? rpmVals.reduce((s, r) => s + r, 0) / rpmVals.length : 2.50
+      proactiveLoadsRef.current = reloads
+      const lines = reloads.map((l, i) => {
+        const o = l.origin_city || l.origin || dest
+        const d = l.destination_city || l.dest || l.destination || '?'
+        return `${o}\u2192${d} **$${l._rpm.toFixed(2)}/mi**`
+      })
+      setMessages(m => [...m, {
+        role: 'assistant',
+        content: `**Reload Chain** \u2014 Load delivered to ${dest}. Here are ${reloads.length} reloads:\n\n${lines.map((l, i) => `**${i + 1}.** ${l}`).join('\n')}\n\nYour avg: $${avgRpm.toFixed(2)}/mi. Say **"book 1"**, **"book 2"**, or **"book 3"**.`,
+        isProactive: true,
+      }])
+      speak(`Load delivered. Found ${reloads.length} reloads from ${dest}. Best is $${reloads[0]._rpm.toFixed(2)} per mile. Say book 1, 2, or 3.`)
+    })
+  }, [loads])
+
+  // ── PROACTIVE: Backhaul Finder (In Transit loads) ──────────────────
+  useEffect(() => {
+    if (BOARD_LOADS.length === 0) return
+    const inTransit = activeLoads.filter(l => {
+      const s = (l.status || '').toLowerCase()
+      return s.includes('in transit') || s === 'loaded'
+    })
+    inTransit.forEach(load => {
+      const loadKey = load.id || load.load_id
+      if (backhaulAlertShownRef.current[loadKey]) return
+      const dest = (load.destination || load.dest || load.destination_city || '').split(',')[0].trim()
+      if (!dest) return
+      const destLower = dest.toLowerCase()
+      const backhauls = BOARD_LOADS.filter(l => (l.origin_city || l.origin || '').toLowerCase().includes(destLower))
+        .map(l => ({ ...l, _rpm: Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0 }))
+        .sort((a, b) => b._rpm - a._rpm).slice(0, 3)
+      if (backhauls.length === 0) return
+      backhaulAlertShownRef.current[loadKey] = true
+      const best = backhauls[0]
+      const bestDest = best.destination_city || best.dest || best.destination || '?'
+      setMessages(m => [...m, {
+        role: 'assistant',
+        content: `**Backhaul Alert** \u2014 You're delivering in ${dest}. I found **${backhauls.length} backhaul options**. Best: **${dest}\u2192${bestDest}** at **$${best._rpm.toFixed(2)}/mi** ($${Number(best.rate || 0).toLocaleString()}). Zero deadhead.\n\nSay **"find backhaul from ${dest}"** for full list.`,
+        isProactive: true,
+      }])
+      speak(`Heads up. You're delivering to ${dest}. I found ${backhauls.length} backhaul options. Best is $${best._rpm.toFixed(2)} per mile to ${bestDest}.`)
+    })
+  }, [activeLoads])
+
+  // ── PROACTIVE: Smart Repositioning (between loads) ──────────────────
+  useEffect(() => {
+    if (repositionAlertShownRef.current) return
+    if (activeLoads.length > 0) return // Only when between loads
+    if (BOARD_LOADS.length < 5) return
+    const lastDelivery = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status))
+      .sort((a, b) => new Date(b.delivery_date || b.updated_at || 0) - new Date(a.delivery_date || a.updated_at || 0))[0]
+    const currentCity = (gpsLocation?.split(',')[0]?.trim() || lastDelivery?.destination?.split(',')[0]?.trim() || lastDelivery?.dest?.split(',')[0]?.trim() || '').toLowerCase()
+    if (!currentCity) return
+    // Group board loads by origin
+    const marketRpms = {}
+    BOARD_LOADS.forEach(l => {
+      const city = (l.origin_city || l.origin || '').split(',')[0].trim()
+      if (!city) return
+      const rpm = Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0
+      if (rpm <= 0) return
+      if (!marketRpms[city]) marketRpms[city] = []
+      marketRpms[city].push(rpm)
+    })
+    const markets = Object.entries(marketRpms).map(([city, rpms]) => ({
+      city, avgRpm: rpms.reduce((s, r) => s + r, 0) / rpms.length, count: rpms.length
+    })).filter(m => m.count >= 2).sort((a, b) => b.avgRpm - a.avgRpm)
+    const currentMarket = markets.find(m => m.city.toLowerCase() === currentCity)
+    const currentRpm = currentMarket?.avgRpm || 0
+    const better = markets.find(m => m.city.toLowerCase() !== currentCity && m.avgRpm > currentRpm + 0.30)
+    if (!better) return
+    repositionAlertShownRef.current = true
+    const diff = (better.avgRpm - currentRpm).toFixed(2)
+    setMessages(m => [...m, {
+      role: 'assistant',
+      content: `**Repositioning Opportunity** \u2014 Outbound rates from **${better.city}** average **$${better.avgRpm.toFixed(2)}/mi** \u2014 that's **$${diff}/mi higher** than ${currentCity || 'your area'}. ${better.count} loads available. Worth the deadhead.`,
+      isProactive: true,
+    }])
+    speak(`Repositioning tip. ${better.city} is paying $${diff} per mile more than your current area. Worth the move.`)
+  }, [activeLoads, loads, gpsLocation])
+
+  // ── PROACTIVE: Weekly Revenue Target (check on load changes) ──────────────────
+  useEffect(() => {
+    if (weeklyTargetAlertShownRef.current) return
+    const target = Number(localStorage.getItem('qivori_weekly_target') || '5000')
+    if (!target) return
+    const dlvd = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status))
+    if (dlvd.length < 2) return // Need some history
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    if (dayOfWeek < 2) return // Only alert Tue-Sat
+    const weekStart = new Date(now)
+    weekStart.setDate(now.getDate() - dayOfWeek)
+    weekStart.setHours(0, 0, 0, 0)
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + 7)
+    const weekLoads = loads.filter(l => {
+      if (!['Delivered', 'Invoiced', 'Paid'].includes(l.status)) return false
+      const d = new Date(l.delivery_date || l.updated_at || l.created_at)
+      return d >= weekStart && d < weekEnd
+    })
+    const weekRevenue = weekLoads.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0)
+    const pct = (weekRevenue / target) * 100
+    const expectedPct = (dayOfWeek / 6) * 100 // Linear pace
+    if (pct < expectedPct * 0.7 && weekRevenue < target) {
+      weeklyTargetAlertShownRef.current = true
+      const remaining = target - weekRevenue
+      const daysLeft = Math.max(1, 6 - dayOfWeek)
+      const avgLoadVal = dlvd.length > 0 ? dlvd.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0) / dlvd.length : 1500
+      const loadsNeeded = Math.ceil(remaining / avgLoadVal)
+      setMessages(m => [...m, {
+        role: 'assistant',
+        content: `**Weekly Target Alert** \u2014 You're at **$${weekRevenue.toLocaleString()}** this week \u2014 need **$${remaining.toLocaleString()} more** (~${loadsNeeded} loads) to hit your **$${target.toLocaleString()}** target. ${daysLeft} days left. Push hard.`,
+        isProactive: true,
+      }])
+      speak(`Weekly target check. You're at $${weekRevenue.toLocaleString()}. Need $${remaining.toLocaleString()} more, about ${loadsNeeded} loads, to hit your target.`)
+    }
+  }, [loads])
 
   // ── Next stop helper ──────────────────────────────
   const getNextStop = useCallback(() => {
@@ -1193,6 +1346,288 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           speak(`Load ${loadId}: Gross $${gross.toLocaleString()}, expenses $${totalExp.toLocaleString()}, net profit $${netProfit.toLocaleString()}. That's a ${marginPct} percent margin. ${verdict}.`)
           return true
         }
+        case 'reload_chain': {
+          const dest = action.destination || ''
+          if (!dest) { setMessages(m => [...m, { role: 'assistant', content: 'Tell me the delivery city to find reloads. Example: **"reloads from Memphis"**' }]); return true }
+          setMessages(m => [...m, { role: 'assistant', content: `Searching for reload options from **${dest}**...` }])
+          const destCity = dest.split(',')[0].trim().toLowerCase()
+          // Calculate driver's avg RPM
+          const dlvd = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const rpmVals = dlvd.filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0).map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+          const driverAvgRpm = rpmVals.length > 0 ? rpmVals.reduce((s, r) => s + r, 0) / rpmVals.length : 2.50
+          // Search board loads from destination
+          const reloads = BOARD_LOADS.filter(l => {
+            const orig = (l.origin_city || l.origin || '').toLowerCase()
+            return orig.includes(destCity)
+          }).map(l => {
+            const rpm = Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0
+            return { ...l, _rpm: rpm }
+          }).sort((a, b) => b._rpm - a._rpm).slice(0, 3)
+          if (reloads.length === 0) {
+            // Fallback: try API
+            try {
+              const lbRes = await apiFetch(`/api/load-board?origin=${encodeURIComponent(dest)}&limit=5`)
+              const lbData = await lbRes.json()
+              const apiLoads = (lbData.loads || []).map(l => ({ ...l, _rpm: Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0 })).sort((a, b) => b._rpm - a._rpm).slice(0, 3)
+              if (apiLoads.length > 0) {
+                reloads.push(...apiLoads)
+              }
+            } catch {}
+          }
+          if (reloads.length === 0) {
+            setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: `No reload options found from **${dest}** right now. I'll keep checking.` }; return u })
+            return true
+          }
+          proactiveLoadsRef.current = reloads
+          const lines = reloads.map((l, i) => {
+            const o = l.origin_city || l.origin || dest
+            const d = l.destination_city || l.dest || l.destination || '?'
+            const rpmDiff = l._rpm - driverAvgRpm
+            const rpmTag = rpmDiff >= 0 ? `+$${rpmDiff.toFixed(2)} vs avg` : `-$${Math.abs(rpmDiff).toFixed(2)} vs avg`
+            const brokerName = l.broker_name || l.broker || 'Unknown'
+            // Check broker risk inline
+            const bs = brokerStats.find(b => b.name?.toLowerCase() === brokerName.toLowerCase())
+            const brokerWarn = bs && bs.avgDaysToPay > 45 ? ' (SLOW PAYER)' : bs && bs.onTimeRate !== null && bs.onTimeRate < 70 ? ' (UNRELIABLE)' : ''
+            return `**${i + 1}. ${o} \u2192 ${d}**\n$${Number(l.rate || 0).toLocaleString()} \u00b7 **$${l._rpm.toFixed(2)}/mi** (${rpmTag}) \u00b7 ${l.miles || '?'} mi\n${brokerName}${brokerWarn} \u00b7 ${l.equipment_type || l.equipment || 'Dry Van'}`
+          })
+          const chainMsg = `**Reload Options from ${dest}**\nYour avg RPM: **$${driverAvgRpm.toFixed(2)}/mi**\n\n${lines.join('\n\n')}\n\nSay **"book 1"**, **"book 2"**, or **"book 3"** to grab one.`
+          setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: chainMsg }; return u })
+          speak(`Found ${reloads.length} reloads from ${dest.split(',')[0]}. Best is $${reloads[0]._rpm.toFixed(2)} per mile. Say book 1, 2, or 3.`)
+          return true
+        }
+        case 'rate_trend': {
+          const tOrigin = (action.origin || '').split(',')[0].trim()
+          const tDest = (action.destination || '').split(',')[0].trim()
+          if (!tOrigin || !tDest) { setMessages(m => [...m, { role: 'assistant', content: 'Tell me the lane. Example: **"rate trend Dallas to Atlanta"**' }]); return true }
+          const lane = `${tOrigin}\u2192${tDest}`
+          const dlvd = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const laneLoads = dlvd.filter(l => {
+            const o = (l.origin || '').split(',')[0].trim().toLowerCase()
+            const d = (l.destination || l.dest || '').split(',')[0].trim().toLowerCase()
+            return o.includes(tOrigin.toLowerCase()) && d.includes(tDest.toLowerCase())
+          }).filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0)
+          if (laneLoads.length < 2) {
+            setMessages(m => [...m, { role: 'assistant', content: `Not enough history on **${lane}** to analyze trends. You need at least 2 completed loads on this lane.` }])
+            return true
+          }
+          // Sort by date
+          laneLoads.sort((a, b) => new Date(a.delivery_date || a.pickup_date || a.created_at || 0) - new Date(b.delivery_date || b.pickup_date || b.created_at || 0))
+          const allRpms = laneLoads.map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+          const overallAvg = allRpms.reduce((s, r) => s + r, 0) / allRpms.length
+          // Split into recent vs older
+          const midpoint = Math.floor(laneLoads.length / 2)
+          const olderRpms = allRpms.slice(0, midpoint)
+          const recentRpms = allRpms.slice(midpoint)
+          const olderAvg = olderRpms.reduce((s, r) => s + r, 0) / olderRpms.length
+          const recentAvg = recentRpms.reduce((s, r) => s + r, 0) / recentRpms.length
+          const trendPct = ((recentAvg - olderAvg) / olderAvg) * 100
+          const trendDir = trendPct > 5 ? 'UP' : trendPct < -5 ? 'DOWN' : 'FLAT'
+          // Check current board rate
+          const boardMatches = BOARD_LOADS.filter(l => {
+            const o = (l.origin_city || l.origin || '').toLowerCase()
+            const d = (l.destination_city || l.dest || l.destination || '').toLowerCase()
+            return o.includes(tOrigin.toLowerCase()) && d.includes(tDest.toLowerCase())
+          })
+          const boardRpms = boardMatches.filter(l => Number(l.miles) > 0).map(l => Number(l.rate || 0) / Number(l.miles))
+          const boardAvg = boardRpms.length > 0 ? boardRpms.reduce((s, r) => s + r, 0) / boardRpms.length : null
+          let trendMsg = `**Rate Trend: ${lane}**\n\n`
+          trendMsg += `**Your History:** ${laneLoads.length} loads\n`
+          trendMsg += `Overall avg: **$${overallAvg.toFixed(2)}/mi**\n`
+          trendMsg += `Older loads avg: $${olderAvg.toFixed(2)}/mi\n`
+          trendMsg += `Recent loads avg: $${recentAvg.toFixed(2)}/mi\n`
+          trendMsg += `**Trend: ${trendDir}** (${trendPct > 0 ? '+' : ''}${trendPct.toFixed(1)}%)\n`
+          if (boardAvg !== null) {
+            const boardVsAvg = ((boardAvg - overallAvg) / overallAvg) * 100
+            trendMsg += `\n**Current Board Rate:** $${boardAvg.toFixed(2)}/mi (${boardVsAvg > 0 ? '+' : ''}${boardVsAvg.toFixed(1)}% vs your avg)\n`
+            if (boardVsAvg >= 15) trendMsg += `\nRates are **hot** on this lane right now. Strike while it's up.`
+            else if (boardVsAvg <= -10) trendMsg += `\nRates are **soft** on this lane. Hold if you can, or negotiate hard.`
+          }
+          setMessages(m => [...m, { role: 'assistant', content: trendMsg }])
+          speak(`${lane}: Your average is $${overallAvg.toFixed(2)} per mile. Rates are trending ${trendDir.toLowerCase()}, ${Math.abs(trendPct).toFixed(0)} percent.${boardAvg ? ` Current board rate is $${boardAvg.toFixed(2)}.` : ''}`)
+          return true
+        }
+        case 'find_backhaul': {
+          const bhDest = action.destination || ''
+          if (!bhDest) { setMessages(m => [...m, { role: 'assistant', content: 'Tell me the delivery city. Example: **"find backhaul from Atlanta"**' }]); return true }
+          setMessages(m => [...m, { role: 'assistant', content: `Searching for backhaul loads from **${bhDest}**...` }])
+          const bhCity = bhDest.split(',')[0].trim().toLowerCase()
+          let backhauls = BOARD_LOADS.filter(l => {
+            const orig = (l.origin_city || l.origin || '').toLowerCase()
+            return orig.includes(bhCity)
+          }).map(l => {
+            const rpm = Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0
+            return { ...l, _rpm: rpm, _deadheadMiles: 0 }
+          }).sort((a, b) => b._rpm - a._rpm).slice(0, 4)
+          if (backhauls.length === 0) {
+            try {
+              const lbRes = await apiFetch(`/api/load-board?origin=${encodeURIComponent(bhDest)}&limit=5`)
+              const lbData = await lbRes.json()
+              backhauls = (lbData.loads || []).map(l => ({ ...l, _rpm: Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0, _deadheadMiles: 0 })).sort((a, b) => b._rpm - a._rpm).slice(0, 4)
+            } catch {}
+          }
+          if (backhauls.length === 0) {
+            setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: `No backhaul loads from **${bhDest}** right now. Consider repositioning to a stronger market.` }; return u })
+            return true
+          }
+          proactiveLoadsRef.current = backhauls
+          const lines = backhauls.map((l, i) => {
+            const o = l.origin_city || l.origin || bhDest
+            const d = l.destination_city || l.dest || l.destination || '?'
+            const brokerName = l.broker_name || l.broker || 'Unknown'
+            const bs = brokerStats.find(b => b.name?.toLowerCase() === brokerName.toLowerCase())
+            const brokerWarn = bs && bs.avgDaysToPay > 45 ? ' (SLOW PAYER)' : ''
+            return `**${i + 1}. ${o} \u2192 ${d}**\n$${Number(l.rate || 0).toLocaleString()} \u00b7 **$${l._rpm.toFixed(2)}/mi** \u00b7 ${l.miles || '?'} mi \u00b7 0 mi deadhead\n${brokerName}${brokerWarn}`
+          })
+          const bhMsg = `**Backhaul Options from ${bhDest}**\n\n${lines.join('\n\n')}\n\nSay **"book 1"**, **"book 2"**, etc. to lock one in.`
+          setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: bhMsg }; return u })
+          speak(`Found ${backhauls.length} backhaul options from ${bhDest.split(',')[0]}. Best is $${backhauls[0]._rpm.toFixed(2)} per mile with zero deadhead. Say book 1 to grab it.`)
+          return true
+        }
+        case 'smart_reposition': {
+          setMessages(m => [...m, { role: 'assistant', content: 'Analyzing nearby markets for repositioning...' }])
+          // Get current location
+          const lastDelivery = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+            .sort((a, b) => new Date(b.delivery_date || b.updated_at || 0) - new Date(a.delivery_date || a.updated_at || 0))[0]
+          const currentCity = gpsLocation?.split(',')[0]?.trim() || lastDelivery?.destination?.split(',')[0]?.trim() || lastDelivery?.dest?.split(',')[0]?.trim() || ''
+          if (!currentCity && BOARD_LOADS.length === 0) {
+            setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'Need your location or load board data to analyze markets. Share your GPS or wait for load board to refresh.' }; return u })
+            return true
+          }
+          // Group BOARD_LOADS by origin city, calculate avg RPM per market
+          const marketRpms = {}
+          BOARD_LOADS.forEach(l => {
+            const city = (l.origin_city || l.origin || '').split(',')[0].trim()
+            if (!city) return
+            const rpm = Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0
+            if (rpm <= 0) return
+            if (!marketRpms[city]) marketRpms[city] = []
+            marketRpms[city].push(rpm)
+          })
+          const markets = Object.entries(marketRpms).map(([city, rpms]) => ({
+            city,
+            avgRpm: rpms.reduce((s, r) => s + r, 0) / rpms.length,
+            loadCount: rpms.length,
+          })).filter(m => m.loadCount >= 2).sort((a, b) => b.avgRpm - a.avgRpm)
+          if (markets.length === 0) {
+            setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'Not enough load board data to compare markets. Check back when more loads are available.' }; return u })
+            return true
+          }
+          const currentMarket = markets.find(m => m.city.toLowerCase() === currentCity.toLowerCase())
+          const currentRpm = currentMarket?.avgRpm || 0
+          const betterMarkets = markets.filter(m => m.city.toLowerCase() !== currentCity.toLowerCase() && m.avgRpm > currentRpm + 0.30).slice(0, 3)
+          let repoMsg = `**Market Analysis**\n`
+          if (currentCity) repoMsg += `Current location: **${currentCity}** ${currentRpm > 0 ? `(avg $${currentRpm.toFixed(2)}/mi, ${currentMarket?.loadCount || 0} loads)` : '(no loads available)'}\n\n`
+          if (betterMarkets.length > 0) {
+            repoMsg += `**Better Markets Nearby:**\n\n`
+            betterMarkets.forEach((m, i) => {
+              const diff = m.avgRpm - currentRpm
+              repoMsg += `**${i + 1}. ${m.city}** \u2014 avg **$${m.avgRpm.toFixed(2)}/mi** (+$${diff.toFixed(2)}/mi) \u00b7 ${m.loadCount} loads available\n`
+            })
+            repoMsg += `\nRepositioning could net you **$${(betterMarkets[0].avgRpm - currentRpm).toFixed(2)}/mi more** per load.`
+          } else {
+            repoMsg += `**Top Markets:**\n\n`
+            markets.slice(0, 5).forEach((m, i) => {
+              repoMsg += `**${i + 1}. ${m.city}** \u2014 avg $${m.avgRpm.toFixed(2)}/mi \u00b7 ${m.loadCount} loads\n`
+            })
+            if (currentCity) repoMsg += `\nYou're already in a competitive market. Hold position.`
+          }
+          setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: repoMsg }; return u })
+          if (betterMarkets.length > 0) {
+            speak(`${betterMarkets[0].city} is paying $${(betterMarkets[0].avgRpm - currentRpm).toFixed(2)} more per mile than ${currentCity || 'your current area'}. Worth repositioning.`)
+          } else {
+            speak(`Your current market looks solid. Top market is ${markets[0]?.city} at $${markets[0]?.avgRpm.toFixed(2)} per mile.`)
+          }
+          return true
+        }
+        case 'broker_risk': {
+          const brokerName = action.broker || ''
+          if (!brokerName) { setMessages(m => [...m, { role: 'assistant', content: 'Tell me the broker name. Example: **"check broker XPO Logistics"**' }]); return true }
+          const bs = brokerStats.find(b => b.name?.toLowerCase().includes(brokerName.toLowerCase()))
+          if (!bs) {
+            setMessages(m => [...m, { role: 'assistant', content: `No history with **${brokerName}**. This would be your first load with them. Proceed with caution \u2014 get the rate con in writing and consider factoring.` }])
+            speak(`No history with ${brokerName}. First time working with them. Get everything in writing.`)
+            return true
+          }
+          // Determine risk level
+          let riskLevel = 'Unknown'
+          let riskColor = ''
+          if (bs.avgDaysToPay !== null && bs.avgDaysToPay < 20 && bs.onTimeRate !== null && bs.onTimeRate > 90) { riskLevel = 'TRUSTED'; riskColor = 'green' }
+          else if (bs.avgDaysToPay !== null && bs.avgDaysToPay > 45) { riskLevel = 'SLOW PAYER'; riskColor = 'red' }
+          else if (bs.onTimeRate !== null && bs.onTimeRate < 70) { riskLevel = 'UNRELIABLE'; riskColor = 'red' }
+          else { riskLevel = 'MODERATE'; riskColor = 'yellow' }
+          // Check for unpaid invoices > 60 days
+          const brokerInvoices = invoices.filter(i => (i.broker_name || i.broker || '').toLowerCase().includes(brokerName.toLowerCase()))
+          const now = Date.now()
+          const ghostRisk = brokerInvoices.some(i => i.status !== 'Paid' && (now - new Date(i.created_at || i.date).getTime()) > 60 * 86400000)
+          if (ghostRisk) { riskLevel = 'PAYMENT RISK'; riskColor = 'red' }
+          let riskMsg = `**Broker Risk: ${bs.name}**\n\n`
+          riskMsg += `**Risk Level: ${riskLevel}**\n\n`
+          riskMsg += `**Your History:**\n`
+          riskMsg += `\u00b7 Total loads: ${bs.totalLoads}\n`
+          riskMsg += `\u00b7 Avg RPM: $${bs.avgRpm || 'N/A'}/mi\n`
+          riskMsg += `\u00b7 Avg days to pay: ${bs.avgDaysToPay !== null ? bs.avgDaysToPay + ' days' : 'N/A'}\n`
+          riskMsg += `\u00b7 On-time rate: ${bs.onTimeRate !== null ? bs.onTimeRate + '%' : 'N/A'}\n`
+          if (ghostRisk) riskMsg += `\n**WARNING:** You have unpaid invoices over 60 days with this broker.`
+          if (riskLevel === 'TRUSTED') riskMsg += `\nThis broker pays fast and delivers consistently. Good to work with.`
+          else if (riskLevel === 'SLOW PAYER') riskMsg += `\nConsider factoring or requiring quik-pay on loads with this broker.`
+          setMessages(m => [...m, { role: 'assistant', content: riskMsg }])
+          speak(`${bs.name}: ${riskLevel}. ${bs.totalLoads} loads, ${bs.avgDaysToPay !== null ? bs.avgDaysToPay + ' days to pay' : 'payment data unavailable'}. ${riskLevel === 'TRUSTED' ? 'Good broker.' : riskLevel === 'SLOW PAYER' ? 'Slow payer. Consider factoring.' : 'Proceed with caution.'}`)
+          return true
+        }
+        case 'weekly_target': {
+          const targetInput = action.target ? Number(action.target) : null
+          const storedTarget = Number(localStorage.getItem('qivori_weekly_target') || '5000')
+          const target = targetInput || storedTarget
+          // Check if setting a new target
+          if (action.set_target && targetInput) {
+            localStorage.setItem('qivori_weekly_target', String(targetInput))
+            setMessages(m => [...m, { role: 'assistant', content: `Weekly target set to **$${targetInput.toLocaleString()}**. I'll track your progress.` }])
+            speak(`Weekly target set to $${targetInput.toLocaleString()}.`)
+            return true
+          }
+          // Calculate this week's revenue (Sunday to Saturday)
+          const now = new Date()
+          const dayOfWeek = now.getDay() // 0=Sun
+          const weekStart = new Date(now)
+          weekStart.setDate(now.getDate() - dayOfWeek)
+          weekStart.setHours(0, 0, 0, 0)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekStart.getDate() + 7)
+          const weekLoads = loads.filter(l => {
+            if (!['Delivered', 'Invoiced', 'Paid'].includes(l.status)) return false
+            const d = new Date(l.delivery_date || l.updated_at || l.created_at)
+            return d >= weekStart && d < weekEnd
+          })
+          const weekRevenue = weekLoads.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0)
+          const remaining = Math.max(0, target - weekRevenue)
+          const pct = target > 0 ? Math.min(100, (weekRevenue / target) * 100) : 0
+          // Avg load value from history
+          const allDlvd = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status) && Number(l.rate || l.gross || 0) > 0)
+          const avgLoadValue = allDlvd.length > 0 ? allDlvd.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0) / allDlvd.length : 1500
+          const loadsNeeded = remaining > 0 ? Math.ceil(remaining / avgLoadValue) : 0
+          const daysLeft = Math.max(1, 6 - dayOfWeek) // Days remaining in the week
+          const dailyPace = remaining > 0 ? (remaining / daysLeft) : 0
+          let wtMsg = `**Weekly Revenue Target**\n\n`
+          wtMsg += `**Target:** $${target.toLocaleString()}\n`
+          wtMsg += `**This Week:** $${weekRevenue.toLocaleString()} (${weekLoads.length} loads)\n`
+          wtMsg += `**Progress:** ${pct.toFixed(0)}%\n\n`
+          if (remaining > 0) {
+            wtMsg += `**Remaining:** $${remaining.toLocaleString()}\n`
+            wtMsg += `\u00b7 ~${loadsNeeded} more load${loadsNeeded !== 1 ? 's' : ''} needed (avg $${Math.round(avgLoadValue).toLocaleString()}/load)\n`
+            wtMsg += `\u00b7 ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left \u2014 need **$${Math.round(dailyPace).toLocaleString()}/day**\n`
+            if (pct < 50 && dayOfWeek >= 3) wtMsg += `\nYou're behind pace. Push hard the next ${daysLeft} days.`
+            else if (pct >= 75) wtMsg += `\nAlmost there. One more solid load closes it out.`
+          } else {
+            wtMsg += `**TARGET HIT!** You've exceeded your $${target.toLocaleString()} goal by $${Math.abs(remaining).toLocaleString()}. Solid week.`
+          }
+          setMessages(m => [...m, { role: 'assistant', content: wtMsg }])
+          if (remaining > 0) {
+            speak(`You're at $${weekRevenue.toLocaleString()} this week. ${pct.toFixed(0)} percent of your $${target.toLocaleString()} target. Need about ${loadsNeeded} more loads.`)
+          } else {
+            speak(`You hit your weekly target. $${weekRevenue.toLocaleString()} on a $${target.toLocaleString()} goal. Solid week.`)
+          }
+          return true
+        }
         default:
           return false
       }
@@ -1677,6 +2112,198 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
                 ? `You've been at the ${locType} for ${elapsedMin >= 60 ? Math.floor(elapsedMin / 60) + 'h ' + (elapsedMin % 60) + 'm' : elapsedMin + ' minutes'}. Free time expired. You're owed $${amountOwed.toFixed(2)} in detention pay ($75/hr x ${overtimeHours.toFixed(1)}h overtime).`
                 : `You've been at the ${locType} for ${elapsedMin} minutes. ${Math.round(freeRemaining)} minutes of free time remaining before detention kicks in.`,
             }
+          }
+          break
+        }
+        case 'get_reload_options': {
+          const dest = args.current_destination || ''
+          const destCity = dest.split(',')[0].trim().toLowerCase()
+          // Driver avg RPM
+          const dlvd = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const rpmVals = dlvd.filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0).map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+          const driverAvgRpm = rpmVals.length > 0 ? rpmVals.reduce((s, r) => s + r, 0) / rpmVals.length : 2.50
+          let reloads = BOARD_LOADS.filter(l => (l.origin_city || l.origin || '').toLowerCase().includes(destCity))
+            .map(l => ({ origin: l.origin_city || l.origin, destination: l.destination_city || l.dest || l.destination, rate: l.rate, miles: l.miles, rpm: Number(l.miles) > 0 ? (Number(l.rate || 0) / Number(l.miles)).toFixed(2) : '0', broker: l.broker_name || l.broker, equipment: l.equipment_type || l.equipment }))
+            .sort((a, b) => Number(b.rpm) - Number(a.rpm)).slice(0, 3)
+          if (reloads.length === 0) {
+            try {
+              const lbRes = await apiFetch(`/api/load-board?origin=${encodeURIComponent(dest)}&limit=5`)
+              const lbData = await lbRes.json()
+              reloads = (lbData.loads || []).map(l => ({ origin: l.origin_city || l.origin, destination: l.destination_city || l.dest || l.destination, rate: l.rate, miles: l.miles, rpm: Number(l.miles) > 0 ? (Number(l.rate || 0) / Number(l.miles)).toFixed(2) : '0', broker: l.broker_name || l.broker, equipment: l.equipment_type || l.equipment }))
+                .sort((a, b) => Number(b.rpm) - Number(a.rpm)).slice(0, 3)
+            } catch {}
+          }
+          result = {
+            success: true,
+            driver_avg_rpm: driverAvgRpm.toFixed(2),
+            reloads,
+            message: reloads.length > 0
+              ? `Found ${reloads.length} reloads from ${dest}. Best: ${reloads[0].origin} to ${reloads[0].destination} at $${reloads[0].rpm}/mi (your avg: $${driverAvgRpm.toFixed(2)}/mi). Say book 1, 2, or 3.`
+              : `No reloads available from ${dest} right now.`
+          }
+          break
+        }
+        case 'get_rate_trend': {
+          const tOrigin = (args.origin || '').split(',')[0].trim()
+          const tDest = (args.destination || '').split(',')[0].trim()
+          const dlvd = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const laneLoads = dlvd.filter(l => {
+            const o = (l.origin || '').split(',')[0].trim().toLowerCase()
+            const d = (l.destination || l.dest || '').split(',')[0].trim().toLowerCase()
+            return o.includes(tOrigin.toLowerCase()) && d.includes(tDest.toLowerCase())
+          }).filter(l => Number(l.miles) > 0 && Number(l.rate || l.gross || 0) > 0)
+          if (laneLoads.length < 2) {
+            result = { success: true, message: `Not enough history on ${tOrigin} to ${tDest} — need at least 2 completed loads on this lane.` }
+            break
+          }
+          laneLoads.sort((a, b) => new Date(a.delivery_date || a.pickup_date || a.created_at || 0) - new Date(b.delivery_date || b.pickup_date || b.created_at || 0))
+          const allRpms = laneLoads.map(l => Number(l.rate || l.gross || 0) / Number(l.miles))
+          const overallAvg = allRpms.reduce((s, r) => s + r, 0) / allRpms.length
+          const midpoint = Math.floor(laneLoads.length / 2)
+          const olderAvg = allRpms.slice(0, midpoint).reduce((s, r) => s + r, 0) / midpoint
+          const recentAvg = allRpms.slice(midpoint).reduce((s, r) => s + r, 0) / (allRpms.length - midpoint)
+          const trendPct = ((recentAvg - olderAvg) / olderAvg) * 100
+          const trendDir = trendPct > 5 ? 'UP' : trendPct < -5 ? 'DOWN' : 'FLAT'
+          // Check board
+          const boardMatches = BOARD_LOADS.filter(l => (l.origin_city || l.origin || '').toLowerCase().includes(tOrigin.toLowerCase()) && (l.destination_city || l.dest || l.destination || '').toLowerCase().includes(tDest.toLowerCase()))
+          const boardRpms = boardMatches.filter(l => Number(l.miles) > 0).map(l => Number(l.rate || 0) / Number(l.miles))
+          const boardAvg = boardRpms.length > 0 ? boardRpms.reduce((s, r) => s + r, 0) / boardRpms.length : null
+          result = {
+            success: true,
+            lane: `${tOrigin} to ${tDest}`,
+            total_loads: laneLoads.length,
+            overall_avg_rpm: overallAvg.toFixed(2),
+            older_avg_rpm: olderAvg.toFixed(2),
+            recent_avg_rpm: recentAvg.toFixed(2),
+            trend_direction: trendDir,
+            trend_percent: trendPct.toFixed(1),
+            current_board_rpm: boardAvg?.toFixed(2) || null,
+            message: `${tOrigin} to ${tDest}: Your avg $${overallAvg.toFixed(2)}/mi over ${laneLoads.length} loads. Trend ${trendDir} ${Math.abs(trendPct).toFixed(0)}%.${boardAvg ? ` Current board: $${boardAvg.toFixed(2)}/mi.` : ''}`
+          }
+          break
+        }
+        case 'find_backhaul': {
+          const bhCity = (args.delivery_city || '').split(',')[0].trim().toLowerCase()
+          let backhauls = BOARD_LOADS.filter(l => (l.origin_city || l.origin || '').toLowerCase().includes(bhCity))
+            .map(l => ({ origin: l.origin_city || l.origin, destination: l.destination_city || l.dest || l.destination, rate: l.rate, miles: l.miles, rpm: Number(l.miles) > 0 ? (Number(l.rate || 0) / Number(l.miles)).toFixed(2) : '0', broker: l.broker_name || l.broker, equipment: l.equipment_type || l.equipment }))
+            .sort((a, b) => Number(b.rpm) - Number(a.rpm)).slice(0, 4)
+          if (backhauls.length === 0) {
+            try {
+              const lbRes = await apiFetch(`/api/load-board?origin=${encodeURIComponent(args.delivery_city)}&limit=5`)
+              const lbData = await lbRes.json()
+              backhauls = (lbData.loads || []).map(l => ({ origin: l.origin_city || l.origin, destination: l.destination_city || l.dest || l.destination, rate: l.rate, miles: l.miles, rpm: Number(l.miles) > 0 ? (Number(l.rate || 0) / Number(l.miles)).toFixed(2) : '0', broker: l.broker_name || l.broker, equipment: l.equipment_type || l.equipment }))
+                .sort((a, b) => Number(b.rpm) - Number(a.rpm)).slice(0, 4)
+            } catch {}
+          }
+          result = {
+            success: true,
+            backhauls,
+            message: backhauls.length > 0
+              ? `Found ${backhauls.length} backhaul loads from ${args.delivery_city}. Best: ${backhauls[0].origin} to ${backhauls[0].destination} at $${backhauls[0].rpm}/mi, zero deadhead.`
+              : `No backhaul loads from ${args.delivery_city} right now. May need to reposition.`
+          }
+          break
+        }
+        case 'check_repositioning': {
+          const lastDelivery = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+            .sort((a, b) => new Date(b.delivery_date || b.updated_at || 0) - new Date(a.delivery_date || a.updated_at || 0))[0]
+          const currentCity = gpsLocation?.split(',')[0]?.trim() || lastDelivery?.destination?.split(',')[0]?.trim() || ''
+          const marketRpms = {}
+          BOARD_LOADS.forEach(l => {
+            const city = (l.origin_city || l.origin || '').split(',')[0].trim()
+            if (!city) return
+            const rpm = Number(l.miles) > 0 ? Number(l.rate || 0) / Number(l.miles) : 0
+            if (rpm <= 0) return
+            if (!marketRpms[city]) marketRpms[city] = []
+            marketRpms[city].push(rpm)
+          })
+          const markets = Object.entries(marketRpms).map(([city, rpms]) => ({
+            city, avgRpm: +(rpms.reduce((s, r) => s + r, 0) / rpms.length).toFixed(2), loadCount: rpms.length
+          })).filter(m => m.loadCount >= 2).sort((a, b) => b.avgRpm - a.avgRpm)
+          const currentMarket = markets.find(m => m.city.toLowerCase() === currentCity.toLowerCase())
+          const currentRpm = currentMarket?.avgRpm || 0
+          const betterMarkets = markets.filter(m => m.city.toLowerCase() !== currentCity.toLowerCase() && m.avgRpm > currentRpm + 0.30).slice(0, 3)
+          result = {
+            success: true,
+            current_location: currentCity || 'Unknown',
+            current_avg_rpm: currentRpm,
+            better_markets: betterMarkets,
+            top_markets: markets.slice(0, 5),
+            message: betterMarkets.length > 0
+              ? `${betterMarkets[0].city} is paying $${(betterMarkets[0].avgRpm - currentRpm).toFixed(2)}/mi more than ${currentCity || 'your area'}. Worth repositioning.`
+              : `You're in a solid market. Top: ${markets[0]?.city} at $${markets[0]?.avgRpm}/mi.`
+          }
+          break
+        }
+        case 'check_broker_risk': {
+          const brokerName = args.broker_name || ''
+          const bs = brokerStats.find(b => b.name?.toLowerCase().includes(brokerName.toLowerCase()))
+          if (!bs) {
+            result = { success: true, risk_level: 'UNKNOWN', message: `No history with ${brokerName}. First time — get everything in writing and consider factoring.` }
+            break
+          }
+          let riskLevel = 'MODERATE'
+          if (bs.avgDaysToPay !== null && bs.avgDaysToPay < 20 && bs.onTimeRate !== null && bs.onTimeRate > 90) riskLevel = 'TRUSTED'
+          else if (bs.avgDaysToPay !== null && bs.avgDaysToPay > 45) riskLevel = 'SLOW PAYER'
+          else if (bs.onTimeRate !== null && bs.onTimeRate < 70) riskLevel = 'UNRELIABLE'
+          const brokerInvs = invoices.filter(i => (i.broker_name || i.broker || '').toLowerCase().includes(brokerName.toLowerCase()))
+          const ghostRisk = brokerInvs.some(i => i.status !== 'Paid' && (Date.now() - new Date(i.created_at || i.date).getTime()) > 60 * 86400000)
+          if (ghostRisk) riskLevel = 'PAYMENT RISK'
+          result = {
+            success: true,
+            broker: bs.name,
+            risk_level: riskLevel,
+            total_loads: bs.totalLoads,
+            avg_rpm: bs.avgRpm,
+            avg_days_to_pay: bs.avgDaysToPay,
+            on_time_rate: bs.onTimeRate,
+            has_unpaid_over_60_days: ghostRisk,
+            message: `${bs.name}: ${riskLevel}. ${bs.totalLoads} loads, ${bs.avgDaysToPay !== null ? bs.avgDaysToPay + ' days to pay' : 'pay N/A'}, ${bs.onTimeRate !== null ? bs.onTimeRate + '% reliable' : 'reliability N/A'}.`
+          }
+          break
+        }
+        case 'check_weekly_target': {
+          const targetInput = args.target ? Number(args.target) : null
+          const storedTarget = Number(localStorage.getItem('qivori_weekly_target') || '5000')
+          const target = targetInput || storedTarget
+          if (args.set_target && targetInput) {
+            localStorage.setItem('qivori_weekly_target', String(targetInput))
+            result = { success: true, message: `Weekly target set to $${targetInput.toLocaleString()}.` }
+            break
+          }
+          const now = new Date()
+          const dayOfWeek = now.getDay()
+          const weekStart = new Date(now)
+          weekStart.setDate(now.getDate() - dayOfWeek)
+          weekStart.setHours(0, 0, 0, 0)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekStart.getDate() + 7)
+          const weekLoads = loads.filter(l => {
+            if (!['Delivered', 'Invoiced', 'Paid'].includes(l.status)) return false
+            const d = new Date(l.delivery_date || l.updated_at || l.created_at)
+            return d >= weekStart && d < weekEnd
+          })
+          const weekRevenue = weekLoads.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0)
+          const remaining = Math.max(0, target - weekRevenue)
+          const pct = target > 0 ? Math.min(100, (weekRevenue / target) * 100) : 0
+          const allDlvd = loads.filter(l => ['Delivered', 'Invoiced', 'Paid'].includes(l.status) && Number(l.rate || l.gross || 0) > 0)
+          const avgLoadValue = allDlvd.length > 0 ? allDlvd.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0) / allDlvd.length : 1500
+          const loadsNeeded = remaining > 0 ? Math.ceil(remaining / avgLoadValue) : 0
+          const daysLeft = Math.max(1, 6 - dayOfWeek)
+          result = {
+            success: true,
+            target,
+            week_revenue: weekRevenue,
+            week_loads: weekLoads.length,
+            progress_percent: +pct.toFixed(0),
+            remaining,
+            loads_needed: loadsNeeded,
+            avg_load_value: Math.round(avgLoadValue),
+            days_left: daysLeft,
+            daily_pace_needed: remaining > 0 ? Math.round(remaining / daysLeft) : 0,
+            message: remaining > 0
+              ? `$${weekRevenue.toLocaleString()} of $${target.toLocaleString()} target (${pct.toFixed(0)}%). Need ~${loadsNeeded} more loads in ${daysLeft} days.`
+              : `Target hit! $${weekRevenue.toLocaleString()} on a $${target.toLocaleString()} goal.`
           }
           break
         }

@@ -179,6 +179,78 @@ const VOICE_TOOLS = [
       required: ['doc_type'],
     },
   },
+  {
+    type: 'function',
+    name: 'get_reload_options',
+    description: 'Find reload options from a delivery destination. Use when a load delivers or driver asks "what reloads from Memphis", "find my next load from here", "reload options". Shows top 3 loads chained from the delivery city with RPM comparison.',
+    parameters: {
+      type: 'object',
+      properties: {
+        current_destination: { type: 'string', description: 'City/state where the current load delivers (e.g., "Memphis, TN")' },
+      },
+      required: ['current_destination'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'get_rate_trend',
+    description: 'Analyze rate trends on a specific lane using the driver\'s historical loads. Use when they ask "how are rates on Dallas to Atlanta", "rate trend", "is that lane paying well", "lane analysis".',
+    parameters: {
+      type: 'object',
+      properties: {
+        origin: { type: 'string', description: 'Origin city for the lane' },
+        destination: { type: 'string', description: 'Destination city for the lane' },
+      },
+      required: ['origin', 'destination'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'find_backhaul',
+    description: 'Find backhaul loads from a delivery city before the driver arrives. Use when driver says "find backhaul", "what loads from my delivery city", "anything going back from Atlanta". Proactively finds loads to eliminate deadhead.',
+    parameters: {
+      type: 'object',
+      properties: {
+        delivery_city: { type: 'string', description: 'The delivery destination city to search backhauls from' },
+      },
+      required: ['delivery_city'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'check_repositioning',
+    description: 'Check if the driver should reposition to a nearby higher-rate market. Use when driver asks "should I reposition", "where should I go next", "best market near me", "where are rates highest". Compares rate levels in nearby cities.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    type: 'function',
+    name: 'check_broker_risk',
+    description: 'Check a broker\'s risk level based on the driver\'s payment history. Use when driver asks "is this broker good", "do they pay on time", "broker risk check", "should I trust this broker". Flags slow payers and unreliable brokers.',
+    parameters: {
+      type: 'object',
+      properties: {
+        broker_name: { type: 'string', description: 'Name of the broker to check' },
+      },
+      required: ['broker_name'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'check_weekly_target',
+    description: 'Check weekly revenue progress against a target. Use when driver asks "how am I doing this week", "weekly target", "am I on pace", "how much more do I need". Can also set a new target: "set my weekly target to 6000".',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'number', description: 'Weekly revenue target in dollars (optional — defaults to stored target or $5000)' },
+        set_target: { type: 'boolean', description: 'If true, updates the stored weekly target to the given amount' },
+      },
+      required: [],
+    },
+  },
 ]
 
 export default async function handler(req) {
@@ -284,6 +356,12 @@ You have tools — USE THEM. When the driver wants something done, DO IT immedia
 - Documents → call prompt_scan_document. Tell them to snap a photo in the app.
 - Fuel on route → call find_fuel_on_route. Finds real fuel stops along their corridor with discount programs.
 - Trip P&L → call get_trip_pnl. Shows gross - expenses = net profit for a specific load. Always use this when they ask about trip profitability.
+- Reload chain → call get_reload_options. After delivery, find top 3 reloads from destination with RPM comparison. "Say book 1, 2, or 3."
+- Rate trends → call get_rate_trend. Analyze a lane's rate history — is it trending up or down? Compare current board rates to driver's average.
+- Backhaul → call find_backhaul. Before delivery, find loads going back from the delivery city. Eliminate deadhead.
+- Repositioning → call check_repositioning. Compare nearby markets — should the driver drive to a higher-rate city?
+- Broker risk → call check_broker_risk. Check if a broker is a slow payer, unreliable, or trusted based on driver's history.
+- Weekly target → call check_weekly_target. Track weekly revenue vs goal. Tell them how many loads they need to hit their number.
 
 ═══ DOCUMENT HANDLING ═══
 The driver is IN the Qivori app. NEVER say email, fax, or mail. Everything is scanned in-app:

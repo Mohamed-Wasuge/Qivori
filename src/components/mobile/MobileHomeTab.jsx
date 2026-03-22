@@ -152,13 +152,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const handleQSubmit = () => {
     if (!qInput.trim()) return
     haptic()
-    onOpenQ?.(qInput.trim())
+    onOpenQ?.(qInput.trim(), displayGreeting)
     setQInput('')
   }
 
   const handleAction = (action) => {
     haptic()
-    if (action.msg) onOpenQ?.(action.msg)
+    if (action.msg) onOpenQ?.(action.msg, displayGreeting)
     else if (action.nav) onNavigate?.(action.nav, action.navExtra)
   }
 
@@ -241,7 +241,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                 color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif",
               }}
             />
-            <button onClick={qInput.trim() ? handleQSubmit : () => onOpenQ?.()}
+            <button onClick={qInput.trim() ? handleQSubmit : () => onOpenQ?.(null, displayGreeting)}
               style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Ic icon={Send} size={14} color="#000" />
             </button>

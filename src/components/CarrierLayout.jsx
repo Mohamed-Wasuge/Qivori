@@ -8,6 +8,7 @@ import {
   Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2, Target, Route
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useSubscription } from '../hooks/useSubscription'
 import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF } from '../utils/generatePDF'
 import Toast from './Toast'
@@ -187,6 +188,10 @@ function CarrierLayoutInner() {
   const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, companyRole, switchView, currentRole } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
+  const { isTrialing, trialDaysLeft, isActive, isPaid } = useSubscription()
+
+  // Trial expired = had a trial that ended and never paid
+  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing'
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('driver')
@@ -356,6 +361,113 @@ function CarrierLayoutInner() {
           <button onClick={goToLogin} style={{ background:'#000', color:'#f0a500', border:'none', borderRadius:8, padding:'6px 16px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
             Sign Up Free
           </button>
+        </div>
+      )}
+
+      {/* Trial countdown banner */}
+      {!demoMode && isTrialing && trialDaysLeft !== null && (
+        <div style={{
+          background: trialDaysLeft <= 3
+            ? 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))'
+            : 'linear-gradient(90deg, rgba(240,165,0,0.12), rgba(240,165,0,0.04))',
+          borderBottom: `1px solid ${trialDaysLeft <= 3 ? 'rgba(239,68,68,0.3)' : 'rgba(240,165,0,0.2)'}`,
+          padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexShrink: 0,
+        }}>
+          <Clock size={14} color={trialDaysLeft <= 3 ? '#ef4444' : '#f0a500'} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: trialDaysLeft <= 3 ? '#ef4444' : '#f0a500' }}>
+            {trialDaysLeft === 0
+              ? 'Your trial ends today!'
+              : `Free trial: ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} remaining`}
+          </span>
+          <button onClick={() => navTo('settings')} style={{
+            background: trialDaysLeft <= 3 ? '#ef4444' : '#f0a500', color: '#000', border: 'none',
+            borderRadius: 6, padding: '4px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            fontFamily: "'DM Sans',sans-serif",
+          }}>
+            Upgrade — $199/mo
+          </button>
+        </div>
+      )}
+
+      {/* Trial expired overlay */}
+      {trialExpired && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
+            maxWidth: 440, width: '90%', padding: 0, overflow: 'hidden',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{
+              padding: '32px 24px 20px', textAlign: 'center',
+              background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(240,165,0,0.02))',
+              borderBottom: '1px solid var(--border)',
+            }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%', margin: '0 auto 16px',
+                background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Clock size={24} color="#ef4444" />
+              </div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 1, marginBottom: 6 }}>
+                YOUR FREE TRIAL HAS ENDED
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
+                Your 14-day trial is over, but all your data is safe. Upgrade to pick up right where you left off.
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 12 }}>
+                FOUNDER PRICING — LOCKED FOR LIFE
+              </div>
+              <div style={{
+                background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)',
+                borderRadius: 10, padding: 14, marginBottom: 16,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#f0a500' }}>$199</span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo first truck</span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
+                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$99</span>/mo each additional truck
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                  Everything included. AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => {
+                import('../lib/api').then(({ apiFetch }) => {
+                  apiFetch('/api/create-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ planId: 'autonomous_fleet', email: profile?.email, userId: profile?.id, truckCount: 1 }),
+                  }).then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })
+                    .catch(() => showToast('error', 'Error', 'Could not start checkout'))
+                })
+              }} style={{
+                width: '100%', padding: '14px', border: 'none', borderRadius: 10, cursor: 'pointer',
+                background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000',
+                fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
+                boxShadow: '0 4px 16px rgba(240,165,0,0.25)',
+              }}>
+                Upgrade Now — $199/mo
+              </button>
+              <button onClick={logout} style={{
+                width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: 10,
+                cursor: 'pointer', background: 'transparent', color: 'var(--muted)', fontSize: 12,
+                fontFamily: "'DM Sans',sans-serif",
+              }}>
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { Home, Package, DollarSign, MoreHorizontal, X } from 'lucide-react'
+import { useSubscription } from '../../hooks/useSubscription'
+import { Home, Package, DollarSign, MoreHorizontal, X, Clock } from 'lucide-react'
 import { Ic, MiniStat, mobileAnimations } from './shared'
 import MobileHomeTab from './MobileHomeTab'
 import MobileLoadsTab from './MobileLoadsTab'
@@ -17,7 +18,9 @@ const TABS = [
 ]
 
 export default function MobileShell() {
-  const { logout, user, profile } = useApp()
+  const { logout, user, profile, demoMode, showToast } = useApp()
+  const { isTrialing, trialDaysLeft, isActive } = useSubscription()
+  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing'
   const ctx = useCarrier() || {}
   const activeLoads = ctx.activeLoads || []
   const totalRevenue = ctx.totalRevenue || 0
@@ -60,6 +63,63 @@ export default function MobileShell() {
 
   return (
     <div style={{ height: '100dvh', width: '100vw', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden' }}>
+
+      {/* Trial countdown */}
+      {!demoMode && isTrialing && trialDaysLeft !== null && (
+        <div style={{
+          background: trialDaysLeft <= 3 ? 'rgba(239,68,68,0.12)' : 'rgba(240,165,0,0.1)',
+          padding: '6px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0,
+        }}>
+          <Clock size={12} color={trialDaysLeft <= 3 ? '#ef4444' : '#f0a500'} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: trialDaysLeft <= 3 ? '#ef4444' : '#f0a500' }}>
+            {trialDaysLeft === 0 ? 'Trial ends today!' : `${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left in trial`}
+          </span>
+        </div>
+      )}
+
+      {/* Trial expired overlay */}
+      {trialExpired && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.9)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div style={{ textAlign: 'center', maxWidth: 360 }}>
+            <Clock size={40} color="#ef4444" style={{ marginBottom: 16 }} />
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 1, color: '#fff', marginBottom: 8 }}>
+              TRIAL ENDED
+            </div>
+            <div style={{ fontSize: 13, color: '#8a8a9a', lineHeight: 1.6, marginBottom: 20 }}>
+              Your 14-day trial is over. Upgrade to keep your data and continue using Qivori.
+            </div>
+            <div style={{ background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: '#f0a500' }}>$199</span>
+              <span style={{ fontSize: 12, color: '#8a8a9a' }}>/mo + $99/truck</span>
+            </div>
+            <button onClick={() => {
+              import('../../lib/api').then(({ apiFetch }) => {
+                apiFetch('/api/create-checkout', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ planId: 'autonomous_fleet', email: profile?.email, userId: profile?.id, truckCount: 1 }),
+                }).then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })
+                  .catch(() => showToast('error', 'Error', 'Could not start checkout'))
+              })
+            }} style={{
+              width: '100%', padding: '14px', border: 'none', borderRadius: 10, cursor: 'pointer',
+              background: '#f0a500', color: '#000', fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
+              marginBottom: 8,
+            }}>
+              Upgrade — $199/mo
+            </button>
+            <button onClick={logout} style={{
+              width: '100%', padding: '10px', border: '1px solid #2a2a35', borderRadius: 10,
+              cursor: 'pointer', background: 'transparent', color: '#8a8a9a', fontSize: 12,
+              fontFamily: "'DM Sans',sans-serif",
+            }}>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── HEADER ── */}
       <div style={{ height: 50, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>

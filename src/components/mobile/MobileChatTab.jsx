@@ -973,6 +973,185 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     audioRef.current = new Audio()
   }
 
+  // ── HANDLE REALTIME FUNCTION CALLS — Q takes actions during voice call ──
+  const handleRealtimeFunctionCall = useCallback(async (dc, event) => {
+    const { name, arguments: argsStr, call_id } = event
+    let args = {}
+    try { args = JSON.parse(argsStr) } catch {}
+    let result = { success: true }
+
+    try {
+      switch (name) {
+        case 'add_expense': {
+          await addExpense({
+            amount: args.amount || 0,
+            category: args.category || 'Other',
+            merchant: args.merchant || '',
+            notes: args.notes || '',
+            date: new Date().toISOString().split('T')[0],
+          })
+          haptic('success')
+          showToast('success', 'Expense Added', `$${args.amount} ${args.category}`)
+          result = { success: true, message: `Added $${args.amount} ${args.category} expense${args.merchant ? ` at ${args.merchant}` : ''}` }
+          break
+        }
+        case 'update_load_status': {
+          const load = args.load_id
+            ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id)
+            : activeLoads[0]
+          if (load) {
+            await updateLoadStatus(load.id || load.load_id, args.status)
+            haptic('success')
+            showToast('success', 'Load Updated', `${load.origin} → ${load.destination || load.dest}: ${args.status}`)
+            result = { success: true, message: `Load ${load.load_id || load.id} updated to ${args.status}` }
+          } else {
+            result = { success: false, message: 'No active load found' }
+          }
+          break
+        }
+        case 'submit_check_call': {
+          const ccLoad = activeLoads[0]
+          if (ccLoad) {
+            await logCheckCall(ccLoad.load_id || ccLoad.id, {
+              status: args.status || 'Check-in',
+              location: args.location || gpsLocation || '',
+              timestamp: new Date().toISOString(),
+            })
+            haptic('success')
+            showToast('success', 'Check Call', 'Submitted')
+            result = { success: true, message: `Check call submitted for load ${ccLoad.load_id || ccLoad.id}: ${args.status}` }
+          } else {
+            result = { success: false, message: 'No active load for check call' }
+          }
+          break
+        }
+        case 'search_loads': {
+          try {
+            const params = new URLSearchParams({ limit: '5' })
+            if (args.origin) params.set('origin', args.origin)
+            if (args.destination) params.set('destination', args.destination)
+            if (args.equipment) params.set('equipment', args.equipment)
+            const lbRes = await apiFetch(`/api/load-board?${params}`)
+            const lbData = await lbRes.json()
+            const found = lbData.loads || []
+            if (found.length > 0) {
+              result = {
+                success: true,
+                loads: found.slice(0, 5).map(l => ({
+                  origin: l.origin_city || l.origin,
+                  destination: l.destination_city || l.dest || l.destination,
+                  rate: l.rate,
+                  miles: l.miles,
+                  rpm: l.miles ? (l.rate / l.miles).toFixed(2) : null,
+                  broker: l.broker_name || l.broker,
+                  equipment: l.equipment_type || l.equipment,
+                })),
+                message: `Found ${found.length} loads`
+              }
+            } else {
+              result = { success: true, loads: [], message: 'No loads available right now' }
+            }
+          } catch {
+            result = { success: false, message: 'Could not search loads right now' }
+          }
+          break
+        }
+        case 'send_invoice': {
+          const invLoad = args.load_id
+            ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id)
+            : loads.find(l => l.status === 'Delivered') || activeLoads[0]
+          if (invLoad) {
+            await updateInvoiceStatus(invLoad.id || invLoad.load_id, 'Invoiced')
+            haptic('success')
+            showToast('success', 'Invoice Sent', `${invLoad.origin} → ${invLoad.destination || invLoad.dest}`)
+            result = { success: true, message: `Invoice sent for load ${invLoad.load_id || invLoad.id}: $${invLoad.rate || invLoad.gross || 0}` }
+          } else {
+            result = { success: false, message: 'No delivered load to invoice' }
+          }
+          break
+        }
+        case 'get_driver_location': {
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+            })
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`)
+            const geoData = await geoRes.json()
+            const city = geoData.address?.city || geoData.address?.town || geoData.address?.village || ''
+            const state = geoData.address?.state || ''
+            const loc = [city, state].filter(Boolean).join(', ')
+            setGpsLocation(loc)
+            result = { success: true, location: loc, lat: pos.coords.latitude, lng: pos.coords.longitude }
+          } catch {
+            result = { success: false, message: 'Could not get location — GPS may be disabled' }
+          }
+          break
+        }
+        case 'find_truck_stops': {
+          result = { success: true, message: 'Searching nearby truck stops... I\'ll use the driver\'s GPS to find the closest options.' }
+          break
+        }
+        case 'get_load_details': {
+          const detailLoad = args.load_id
+            ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id)
+            : activeLoads[0]
+          if (detailLoad) {
+            result = {
+              success: true,
+              load: {
+                id: detailLoad.load_id || detailLoad.id,
+                origin: detailLoad.origin,
+                destination: detailLoad.destination || detailLoad.dest,
+                status: detailLoad.status,
+                rate: detailLoad.rate || detailLoad.gross,
+                miles: detailLoad.miles,
+                rpm: detailLoad.miles ? ((detailLoad.rate || detailLoad.gross || 0) / detailLoad.miles).toFixed(2) : null,
+                broker: detailLoad.broker_name || detailLoad.broker,
+                equipment: detailLoad.equipment || detailLoad.equipment_type,
+                pickup_date: detailLoad.pickup_date,
+                delivery_date: detailLoad.delivery_date,
+              }
+            }
+          } else {
+            result = { success: false, message: 'No load found' }
+          }
+          break
+        }
+        case 'get_revenue_summary': {
+          result = {
+            success: true,
+            revenue: totalRevenue,
+            expenses: totalExpenses,
+            net_profit: totalRevenue - totalExpenses,
+            margin: totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue * 100).toFixed(1) + '%' : '0%',
+            active_loads: activeLoads.length,
+            unpaid_invoices: unpaidInvoices.length,
+            unpaid_total: unpaidInvoices.reduce((s, i) => s + Number(i.amount || 0), 0),
+          }
+          break
+        }
+        default:
+          result = { success: false, message: `Unknown action: ${name}` }
+      }
+    } catch (err) {
+      result = { success: false, message: err.message || 'Action failed' }
+    }
+
+    // Send result back to OpenAI so Q can respond based on what happened
+    if (dc.readyState === 'open') {
+      dc.send(JSON.stringify({
+        type: 'conversation.item.create',
+        item: {
+          type: 'function_call_output',
+          call_id: call_id,
+          output: JSON.stringify(result),
+        },
+      }))
+      // Tell OpenAI to generate a response based on the tool result
+      dc.send(JSON.stringify({ type: 'response.create' }))
+    }
+  }, [loads, activeLoads, invoices, unpaidInvoices, expenses, totalRevenue, totalExpenses, addExpense, updateLoadStatus, updateInvoiceStatus, logCheckCall, gpsLocation, showToast])
+
   // ── OPENAI REALTIME VOICE — real-time conversation with Q ──
   const realtimePcRef = useRef(null) // RTCPeerConnection
   const realtimeDcRef = useRef(null) // data channel
@@ -1048,6 +1227,10 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           // Show driver's transcribed speech
           if (event.type === 'conversation.item.input_audio_transcription.completed' && event.transcript) {
             setMessages(m => [...m, { role: 'user', content: event.transcript }])
+          }
+          // Handle function calls from Q — execute actions and return results
+          if (event.type === 'response.function_call_arguments.done') {
+            handleRealtimeFunctionCall(dc, event)
           }
         } catch {}
       }

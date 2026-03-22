@@ -995,6 +995,204 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           }
           return true
         }
+        case 'start_detention': {
+          const now = Date.now()
+          const freeTime = action.free_time_hours || 2
+          localStorage.setItem('qivori_detention_start', String(now))
+          localStorage.setItem('qivori_detention_location', action.location_type || 'shipper')
+          localStorage.setItem('qivori_detention_free_time', String(freeTime))
+          if (action.load_id) localStorage.setItem('qivori_detention_load_id', action.load_id)
+          else localStorage.removeItem('qivori_detention_load_id')
+          haptic('success')
+          showToast('success', 'Detention Timer Started', `${freeTime}h free time at ${action.location_type || 'shipper'}`)
+          setMessages(m => [...m, { role: 'assistant', content: `**Detention timer started** at the ${action.location_type || 'shipper'}.\n\nFree time: **${freeTime} hours**\nAfter that: **$75/hour** detention pay\n\nI'll track it for you. Ask me "what's my detention?" anytime to check.` }])
+          speak(`Detention timer started at the ${action.location_type || 'shipper'}. You have ${freeTime} hours of free time. After that, detention accrues at $75 per hour.`)
+          return true
+        }
+        case 'check_detention': {
+          const detStart = localStorage.getItem('qivori_detention_start')
+          if (!detStart) {
+            setMessages(m => [...m, { role: 'assistant', content: 'No detention timer is running. Say **"start detention at shipper"** to begin tracking wait time.' }])
+            speak('No detention timer is running. Tell me to start detention when you arrive at a shipper or receiver.')
+          } else {
+            const startMs = Number(detStart)
+            const elapsedMs = Date.now() - startMs
+            const elapsedMin = Math.round(elapsedMs / 60000)
+            const freeHours = Number(localStorage.getItem('qivori_detention_free_time') || '2')
+            const locType = localStorage.getItem('qivori_detention_location') || 'shipper'
+            const overtimeHours = Math.max(0, (elapsedMs / (1000 * 60 * 60)) - freeHours)
+            const amountOwed = Math.round(overtimeHours * 75 * 100) / 100
+            const freeRemaining = Math.max(0, freeHours * 60 - elapsedMin)
+            const elapsed = elapsedMin >= 60 ? `${Math.floor(elapsedMin / 60)}h ${elapsedMin % 60}m` : `${elapsedMin}m`
+            if (overtimeHours > 0) {
+              setMessages(m => [...m, { role: 'assistant', content: `**Detention Status** (${locType})\n\nWait time: **${elapsed}**\nFree time: **expired**\nOvertime: **${overtimeHours.toFixed(1)} hours**\n\n**Amount owed: $${amountOwed.toFixed(2)}** ($75/hr)\n\nSay **"stop detention"** when you're done to log the final amount.` }])
+              speak(`You've been waiting ${elapsed}. Free time is up. You're owed $${amountOwed.toFixed(2)} in detention pay.`)
+            } else {
+              setMessages(m => [...m, { role: 'assistant', content: `**Detention Status** (${locType})\n\nWait time: **${elapsed}**\nFree time remaining: **${Math.round(freeRemaining)} minutes**\n\nDetention pay hasn't started yet. I'll let you know when free time expires.` }])
+              speak(`You've been here ${elapsed}. You still have ${Math.round(freeRemaining)} minutes of free time left.`)
+            }
+          }
+          return true
+        }
+        case 'stop_detention': {
+          const detStart = localStorage.getItem('qivori_detention_start')
+          if (!detStart) {
+            setMessages(m => [...m, { role: 'assistant', content: 'No detention timer is running.' }])
+            speak('No detention timer is running.')
+          } else {
+            const startMs = Number(detStart)
+            const elapsedMs = Date.now() - startMs
+            const elapsedMin = Math.round(elapsedMs / 60000)
+            const freeHours = Number(localStorage.getItem('qivori_detention_free_time') || '2')
+            const locType = localStorage.getItem('qivori_detention_location') || 'shipper'
+            const loadId = localStorage.getItem('qivori_detention_load_id') || null
+            const overtimeHours = Math.max(0, (elapsedMs / (1000 * 60 * 60)) - freeHours)
+            const amountOwed = Math.round(overtimeHours * 75 * 100) / 100
+            const elapsed = elapsedMin >= 60 ? `${Math.floor(elapsedMin / 60)}h ${elapsedMin % 60}m` : `${elapsedMin}m`
+            // Clear localStorage
+            localStorage.removeItem('qivori_detention_start')
+            localStorage.removeItem('qivori_detention_location')
+            localStorage.removeItem('qivori_detention_free_time')
+            localStorage.removeItem('qivori_detention_load_id')
+            haptic('success')
+            if (amountOwed > 0) {
+              // Auto-log as expense
+              try {
+                await addExpense({
+                  amount: amountOwed,
+                  category: 'Other',
+                  merchant: `Detention - ${locType}`,
+                  notes: `Detention pay: ${elapsed} total wait, ${overtimeHours.toFixed(1)}h overtime at $75/hr${loadId ? ` (Load ${loadId})` : ''}`,
+                  date: new Date().toISOString().split('T')[0],
+                })
+                showToast('success', 'Detention Logged', `$${amountOwed.toFixed(2)} added as expense`)
+                setMessages(m => [...m, { role: 'assistant', content: `**Detention timer stopped.**\n\nTotal wait: **${elapsed}** at ${locType}\nOvertime: **${overtimeHours.toFixed(1)} hours**\n**Amount owed: $${amountOwed.toFixed(2)}**\n\nI've logged this as an expense so you can bill the broker. Make sure to note it on the BOL and get a signature.` }])
+                speak(`Detention stopped. You're owed $${amountOwed.toFixed(2)} for ${overtimeHours.toFixed(1)} hours of overtime. I've logged it as an expense.`)
+              } catch {
+                setMessages(m => [...m, { role: 'assistant', content: `**Detention timer stopped.**\n\nTotal wait: **${elapsed}** at ${locType}\n**Amount owed: $${amountOwed.toFixed(2)}**\n\nCouldn't auto-log the expense, but make sure to bill the broker for this detention.` }])
+                speak(`Detention stopped. You're owed $${amountOwed.toFixed(2)}. I couldn't log the expense automatically, so make sure to add it manually.`)
+              }
+            } else {
+              showToast('info', 'Detention Stopped', 'No detention pay accrued')
+              setMessages(m => [...m, { role: 'assistant', content: `**Detention timer stopped.** Total wait: **${elapsed}** at ${locType}. Free time didn't expire, so no detention pay is owed.` }])
+              speak(`Detention timer stopped. You waited ${elapsed}. No detention pay since free time didn't expire.`)
+            }
+          }
+          return true
+        }
+        case 'fuel_route': {
+          const origin = action.origin || ''
+          const dest = action.destination || ''
+          if (!origin || !dest) {
+            setMessages(m => [...m, { role: 'assistant', content: 'Tell me the origin and destination to find fuel stops. Example: **"find fuel Chicago to Dallas"**' }])
+            return true
+          }
+          setMessages(m => [...m, { role: 'assistant', content: `Searching for fuel stops along **${origin} → ${dest}**...` }])
+          try {
+            const geocode = async (place) => {
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`)
+              const data = await res.json()
+              return data[0] ? { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) } : null
+            }
+            const [origCoords, destCoords] = await Promise.all([geocode(origin), geocode(dest)])
+            if (!origCoords || !destCoords) {
+              setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: `Couldn't locate ${!origCoords ? origin : dest}. Try a more specific city.` }; return u })
+              return true
+            }
+            const points = [0.25, 0.5, 0.75].map(pct => ({
+              lat: origCoords.lat + (destCoords.lat - origCoords.lat) * pct,
+              lng: origCoords.lng + (destCoords.lng - origCoords.lng) * pct,
+            }))
+            const allStops = []
+            for (const pt of points) {
+              try {
+                const query = `[out:json][timeout:10];(node["amenity"="fuel"]["brand"](around:40000,${pt.lat},${pt.lng}););out body 8;`
+                const ovRes = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(query) })
+                const ovData = await ovRes.json()
+                ;(ovData.elements || []).forEach(el => {
+                  const name = el.tags?.name || el.tags?.brand || 'Fuel Station'
+                  const brand = el.tags?.brand || ''
+                  const distFromOrig = haversine(origCoords.lat, origCoords.lng, el.lat, el.lon)
+                  if (!allStops.find(s => s.name === name && Math.abs(s.lat - el.lat) < 0.01)) {
+                    allStops.push({ name, brand, miles_from_origin: Math.round(distFromOrig) })
+                  }
+                })
+              } catch { /* skip */ }
+            }
+            allStops.sort((a, b) => a.miles_from_origin - b.miles_from_origin)
+            const top = allStops.slice(0, 8)
+            if (top.length > 0) {
+              const lines = top.map((s, i) => {
+                const discount = s.brand === 'Loves' ? ' (My Love Rewards)' : s.brand === 'Pilot' || s.brand === 'Flying J' ? ' (myRewards Plus)' : s.brand === 'TA' || s.brand === 'Petro' ? ' (UltraONE)' : ''
+                return `**${i + 1}. ${s.name}**${discount}\n${s.miles_from_origin} mi from ${origin}`
+              })
+              setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: `**Fuel Stops: ${origin} \u2192 ${dest}**\n\n${lines.join('\n\n')}\n\n**Tip:** Major chains (Loves, Pilot, TA) typically have the best diesel prices. Use loyalty programs to save 3-10\u00a2/gallon.` }; return u })
+              speak(`Found ${top.length} fuel stops along your route. ${top.filter(s => s.brand).length} are major chains with discount programs.`)
+            } else {
+              setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'No fuel stations found along that route. Try fueling before departure.' }; return u })
+            }
+          } catch {
+            setMessages(m => { const u = [...m]; u[u.length - 1] = { role: 'assistant', content: 'Fuel search failed. Try again.' }; return u })
+          }
+          return true
+        }
+        case 'trip_pnl': {
+          const delivered = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const tripLoad = action.load_id
+            ? loads.find(l => l.id === action.load_id || l.load_id === action.load_id || l.load_number === action.load_id)
+            : delivered.sort((a, b) => new Date(b.delivery_date || b.updated_at || 0) - new Date(a.delivery_date || a.updated_at || 0))[0]
+          if (!tripLoad) {
+            setMessages(m => [...m, { role: 'assistant', content: 'No delivered loads found yet. Complete a load to see your per-trip P&L.' }])
+            return true
+          }
+          const loadId = tripLoad.load_id || tripLoad.id || tripLoad.load_number
+          const gross = Number(tripLoad.rate || tripLoad.gross || tripLoad.gross_pay || 0)
+          const miles = Number(tripLoad.miles || 0)
+          const grossRpm = miles > 0 ? (gross / miles).toFixed(2) : '0'
+          const pickupDate = tripLoad.pickup_date ? new Date(tripLoad.pickup_date) : null
+          const deliveryDate = tripLoad.delivery_date ? new Date(tripLoad.delivery_date) : null
+          let fuelCost = 0, tollCost = 0, foodCost = 0, maintCost = 0, otherCost = 0, isEstimated = false
+          if (pickupDate && deliveryDate) {
+            const start = pickupDate.getTime() - 86400000
+            const end = deliveryDate.getTime() + 86400000
+            const tripExp = expenses.filter(e => {
+              const d = new Date(e.date || e.created_at).getTime()
+              return d >= start && d <= end
+            })
+            fuelCost = tripExp.filter(e => e.category === 'Fuel').reduce((s, e) => s + Number(e.amount || 0), 0)
+            tollCost = tripExp.filter(e => e.category === 'Tolls').reduce((s, e) => s + Number(e.amount || 0), 0)
+            foodCost = tripExp.filter(e => e.category === 'Food').reduce((s, e) => s + Number(e.amount || 0), 0)
+            maintCost = tripExp.filter(e => e.category === 'Maintenance').reduce((s, e) => s + Number(e.amount || 0), 0)
+            otherCost = tripExp.filter(e => !['Fuel', 'Tolls', 'Food', 'Maintenance'].includes(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0)
+          } else {
+            const totalMiles = loads.filter(l => Number(l.miles) > 0).reduce((s, l) => s + Number(l.miles), 0)
+            const avgExpPerMile = totalMiles > 0 ? totalExpenses / totalMiles : 1.50
+            fuelCost = Math.round(avgExpPerMile * miles * 0.6) // ~60% is fuel
+            tollCost = Math.round(avgExpPerMile * miles * 0.1)
+            otherCost = Math.round(avgExpPerMile * miles * 0.3)
+            isEstimated = true
+          }
+          const totalExp = fuelCost + tollCost + foodCost + maintCost + otherCost
+          const netProfit = gross - totalExp
+          const netRpm = miles > 0 ? (netProfit / miles).toFixed(2) : '0'
+          const marginPct = gross > 0 ? ((netProfit / gross) * 100).toFixed(1) : '0'
+          const verdict = netProfit > 0 ? (Number(marginPct) >= 30 ? 'Excellent' : Number(marginPct) >= 15 ? 'Good' : 'Thin Margin') : 'Loss'
+          let msg = `**Per-Trip P&L: Load ${loadId}**\n**${tripLoad.origin} \u2192 ${tripLoad.destination || tripLoad.dest}** | ${miles} mi\n\n`
+          msg += `**Revenue:** $${gross.toLocaleString()} ($${grossRpm}/mi)\n\n`
+          msg += `**Expenses${isEstimated ? ' (estimated)' : ''}:**\n`
+          if (fuelCost > 0) msg += `\u00b7 Fuel: $${fuelCost.toLocaleString()}\n`
+          if (tollCost > 0) msg += `\u00b7 Tolls: $${tollCost.toLocaleString()}\n`
+          if (foodCost > 0) msg += `\u00b7 Food: $${foodCost.toLocaleString()}\n`
+          if (maintCost > 0) msg += `\u00b7 Maintenance: $${maintCost.toLocaleString()}\n`
+          if (otherCost > 0) msg += `\u00b7 Other: $${otherCost.toLocaleString()}\n`
+          msg += `**Total: $${totalExp.toLocaleString()}**\n\n`
+          msg += `**Net Profit: $${netProfit.toLocaleString()}** ($${netRpm}/mi net)\n`
+          msg += `**Margin: ${marginPct}%** — ${verdict}`
+          if (isEstimated) msg += `\n\n_Expenses estimated from your averages. Log fuel/tolls during trips for exact numbers._`
+          setMessages(m => [...m, { role: 'assistant', content: msg }])
+          speak(`Load ${loadId}: Gross $${gross.toLocaleString()}, expenses $${totalExp.toLocaleString()}, net profit $${netProfit.toLocaleString()}. That's a ${marginPct} percent margin. ${verdict}.`)
+          return true
+        }
         default:
           return false
       }
@@ -1303,6 +1501,183 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           // Auto-open camera after a short delay (lets UI update first)
           setTimeout(() => { if (fileInputRef.current) fileInputRef.current.click() }, 300)
           result = { success: true, message: `Camera is opening for ${docLabel}. The driver can snap a photo now.` }
+          break
+        }
+        case 'start_detention_timer': {
+          const now = Date.now()
+          const freeTime = args.free_time_hours || 2
+          localStorage.setItem('qivori_detention_start', String(now))
+          localStorage.setItem('qivori_detention_location', args.location_type || 'shipper')
+          localStorage.setItem('qivori_detention_free_time', String(freeTime))
+          if (args.load_id) localStorage.setItem('qivori_detention_load_id', args.load_id)
+          else localStorage.removeItem('qivori_detention_load_id')
+          haptic('success')
+          showToast('success', 'Detention Timer Started', `${freeTime}h free time at ${args.location_type}`)
+          result = {
+            success: true,
+            message: `Detention timer started at ${args.location_type}. Free time is ${freeTime} hours. After that, detention accrues at $75/hour. I'll track it for you.`,
+            start_time: new Date(now).toLocaleTimeString(),
+            free_time_hours: freeTime,
+            location_type: args.location_type,
+          }
+          break
+        }
+        case 'find_fuel_on_route': {
+          try {
+            const origin = args.origin || ''
+            const dest = args.destination || ''
+            // Geocode origin and destination to get coordinates
+            const geocode = async (place) => {
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`)
+              const data = await res.json()
+              return data[0] ? { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) } : null
+            }
+            const [origCoords, destCoords] = await Promise.all([geocode(origin), geocode(dest)])
+            if (!origCoords || !destCoords) {
+              result = { success: false, message: `Could not locate ${!origCoords ? origin : dest}. Try a more specific city name.` }
+              break
+            }
+            // Sample 3 points along the route (25%, 50%, 75%) to find fuel stops
+            const points = [0.25, 0.5, 0.75].map(pct => ({
+              lat: origCoords.lat + (destCoords.lat - origCoords.lat) * pct,
+              lng: origCoords.lng + (destCoords.lng - origCoords.lng) * pct,
+            }))
+            const allStops = []
+            for (const pt of points) {
+              try {
+                const query = `[out:json][timeout:10];(node["amenity"="fuel"]["brand"](around:40000,${pt.lat},${pt.lng}););out body 8;`
+                const ovRes = await fetch('https://overpass-api.de/api/interpreter', {
+                  method: 'POST',
+                  body: 'data=' + encodeURIComponent(query),
+                })
+                const ovData = await ovRes.json()
+                ;(ovData.elements || []).forEach(el => {
+                  const name = el.tags?.name || el.tags?.brand || 'Fuel Station'
+                  const brand = el.tags?.brand || ''
+                  // Rough distance from origin for sorting
+                  const distFromOrig = haversine(origCoords.lat, origCoords.lng, el.lat, el.lon)
+                  // Avoid duplicates by name+lat
+                  if (!allStops.find(s => s.name === name && Math.abs(s.lat - el.lat) < 0.01)) {
+                    allStops.push({
+                      name, brand,
+                      lat: el.lat, lng: el.lon,
+                      miles_from_origin: Math.round(distFromOrig),
+                      discount_programs: brand === 'Loves' ? 'My Love Rewards' : brand === 'Pilot' || brand === 'Flying J' ? 'myRewards Plus' : brand === 'TA' || brand === 'Petro' ? 'UltraONE' : '',
+                    })
+                  }
+                })
+              } catch { /* skip this sample point */ }
+            }
+            // Sort by distance from origin
+            allStops.sort((a, b) => a.miles_from_origin - b.miles_from_origin)
+            const topStops = allStops.slice(0, 8)
+            if (topStops.length > 0) {
+              result = {
+                success: true,
+                route: `${origin} → ${dest}`,
+                fuel_stops: topStops,
+                tip: 'Major chains (Loves, Pilot, TA) typically have the best diesel prices. Use rewards programs to save 3-10¢/gallon.',
+                message: `Found ${topStops.length} fuel stops along ${origin} to ${dest}. ${topStops.filter(s => s.discount_programs).length} have loyalty discount programs.`,
+              }
+            } else {
+              result = { success: true, fuel_stops: [], message: `No fuel stations found along the route. Try fueling before departure.` }
+            }
+          } catch {
+            result = { success: false, message: 'Fuel search failed. Try again.' }
+          }
+          break
+        }
+        case 'get_trip_pnl': {
+          const deliveredAll = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid')
+          const tripLoad = args.load_id
+            ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id || l.load_number === args.load_id)
+            : deliveredAll.sort((a, b) => new Date(b.delivery_date || b.updated_at || 0) - new Date(a.delivery_date || a.updated_at || 0))[0]
+          if (!tripLoad) {
+            result = { success: false, message: 'No delivered load found. Complete a load first to see trip P&L.' }
+          } else {
+            const loadId = tripLoad.load_id || tripLoad.id || tripLoad.load_number
+            const gross = Number(tripLoad.rate || tripLoad.gross || tripLoad.gross_pay || 0)
+            const miles = Number(tripLoad.miles || 0)
+            const rpm = miles > 0 ? (gross / miles).toFixed(2) : '0'
+            // Find expenses tied to this load's date range
+            const pickupDate = tripLoad.pickup_date ? new Date(tripLoad.pickup_date) : null
+            const deliveryDate = tripLoad.delivery_date ? new Date(tripLoad.delivery_date) : null
+            let tripExpenses = []
+            if (pickupDate && deliveryDate) {
+              const start = pickupDate.getTime() - 86400000 // 1 day buffer before pickup
+              const end = deliveryDate.getTime() + 86400000 // 1 day buffer after delivery
+              tripExpenses = expenses.filter(e => {
+                const d = new Date(e.date || e.created_at).getTime()
+                return d >= start && d <= end
+              })
+            } else {
+              // Fallback: estimate from overall averages
+              const avgExpPerMile = totalRevenue > 0 ? totalExpenses / loads.filter(l => Number(l.miles) > 0).reduce((s, l) => s + Number(l.miles), 0) : 1.50
+              tripExpenses = [{ category: 'Estimated', amount: Math.round(avgExpPerMile * miles) }]
+            }
+            const fuelCost = tripExpenses.filter(e => e.category === 'Fuel').reduce((s, e) => s + Number(e.amount || 0), 0)
+            const tollCost = tripExpenses.filter(e => e.category === 'Tolls').reduce((s, e) => s + Number(e.amount || 0), 0)
+            const foodCost = tripExpenses.filter(e => e.category === 'Food').reduce((s, e) => s + Number(e.amount || 0), 0)
+            const maintenanceCost = tripExpenses.filter(e => e.category === 'Maintenance').reduce((s, e) => s + Number(e.amount || 0), 0)
+            const otherCost = tripExpenses.filter(e => !['Fuel', 'Tolls', 'Food', 'Maintenance', 'Estimated'].includes(e.category)).reduce((s, e) => s + Number(e.amount || 0), 0)
+            const estimatedCost = tripExpenses.find(e => e.category === 'Estimated')
+            const totalTripExp = estimatedCost
+              ? Number(estimatedCost.amount)
+              : fuelCost + tollCost + foodCost + maintenanceCost + otherCost
+            const netProfit = gross - totalTripExp
+            const netRpm = miles > 0 ? (netProfit / miles).toFixed(2) : '0'
+            const marginPct = gross > 0 ? ((netProfit / gross) * 100).toFixed(1) : '0'
+            result = {
+              success: true,
+              load_id: loadId,
+              origin: tripLoad.origin,
+              destination: tripLoad.destination || tripLoad.dest,
+              miles,
+              gross_revenue: gross,
+              gross_rpm: rpm,
+              expenses: estimatedCost ? { estimated_total: totalTripExp, note: 'Based on your average cost-per-mile. Add expenses with dates matching this trip for exact numbers.' }
+                : { fuel: fuelCost, tolls: tollCost, food: foodCost, maintenance: maintenanceCost, other: otherCost, total: totalTripExp },
+              net_profit: netProfit,
+              net_rpm: netRpm,
+              margin: marginPct + '%',
+              broker: tripLoad.broker_name || tripLoad.broker || 'Unknown',
+              verdict: netProfit > 0 ? (Number(marginPct) >= 30 ? 'Excellent trip' : Number(marginPct) >= 15 ? 'Good trip' : 'Thin margin — watch expenses') : 'Lost money on this trip',
+              message: `Load ${loadId}: ${tripLoad.origin} → ${tripLoad.destination || tripLoad.dest} | Gross $${gross.toLocaleString()} | Expenses $${totalTripExp.toLocaleString()} | Net $${netProfit.toLocaleString()} (${marginPct}% margin, $${netRpm}/mi net)`,
+            }
+          }
+          break
+        }
+        case 'check_detention_status': {
+          const detStart = localStorage.getItem('qivori_detention_start')
+          if (!detStart) {
+            result = { success: true, message: 'No detention timer is running. Say "start detention at shipper" to begin tracking.' }
+          } else {
+            const startMs = Number(detStart)
+            const elapsedMs = Date.now() - startMs
+            const elapsedHours = elapsedMs / (1000 * 60 * 60)
+            const freeHours = Number(localStorage.getItem('qivori_detention_free_time') || '2')
+            const locType = localStorage.getItem('qivori_detention_location') || 'shipper'
+            const loadId = localStorage.getItem('qivori_detention_load_id') || null
+            const overtimeHours = Math.max(0, elapsedHours - freeHours)
+            const amountOwed = Math.round(overtimeHours * 75 * 100) / 100
+            const elapsedMin = Math.round(elapsedMs / 60000)
+            const freeRemaining = Math.max(0, freeHours * 60 - elapsedMin)
+            result = {
+              success: true,
+              location_type: locType,
+              load_id: loadId,
+              elapsed_minutes: elapsedMin,
+              elapsed_display: elapsedMin >= 60 ? `${Math.floor(elapsedMin / 60)}h ${elapsedMin % 60}m` : `${elapsedMin}m`,
+              free_time_hours: freeHours,
+              free_time_remaining_minutes: Math.round(freeRemaining),
+              overtime_hours: Math.round(overtimeHours * 100) / 100,
+              amount_owed: amountOwed,
+              rate_per_hour: 75,
+              message: overtimeHours > 0
+                ? `You've been at the ${locType} for ${elapsedMin >= 60 ? Math.floor(elapsedMin / 60) + 'h ' + (elapsedMin % 60) + 'm' : elapsedMin + ' minutes'}. Free time expired. You're owed $${amountOwed.toFixed(2)} in detention pay ($75/hr x ${overtimeHours.toFixed(1)}h overtime).`
+                : `You've been at the ${locType} for ${elapsedMin} minutes. ${Math.round(freeRemaining)} minutes of free time remaining before detention kicks in.`,
+            }
+          }
           break
         }
         default:

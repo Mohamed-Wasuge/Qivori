@@ -185,6 +185,19 @@ Available actions (use these — they execute REAL operations on the driver's ac
 - {"type":"weather_check"}
 - {"type":"rate_check","origin":"...","destination":"...","miles":0,"rate":0,"equipment":"Dry Van|Reefer|Flatbed|Stepdeck"}
 - {"type":"rate_analysis","origin":"City, ST","destination":"City, ST","miles":700,"rate":2500,"equipment":"Dry Van","weight":"42000"}
+- {"type":"start_detention","location_type":"shipper|receiver|warehouse","free_time_hours":2,"load_id":"..."}
+- {"type":"check_detention"}
+- {"type":"stop_detention"}
+- {"type":"fuel_route","origin":"City, ST","destination":"City, ST"}
+  → Finds cheapest fuel stops along the route with loyalty program info
+- {"type":"trip_pnl","load_id":"..."}
+  → Per-trip P&L: revenue - fuel - tolls - food = net profit. Defaults to most recent delivered load
+
+DETENTION: "start detention" / "I'm waiting at the shipper" → start_detention. "How long have I been here" → check_detention. "I'm leaving" / "stop detention" → stop_detention. $75/hr after 2hr free time.
+
+FUEL ROUTE: "find fuel Chicago to Dallas" / "cheapest fuel on my route" → fuel_route. Finds real truck stops along the corridor with loyalty discount programs.
+
+TRIP P&L: "how much did I make on that trip" / "trip profit" / "per load breakdown" → trip_pnl. Shows gross, expenses, net, margin, RPM.
 
 WEIGH STATIONS: ANY mention of weigh stations, scales, chicken coops → ALWAYS use check_weigh_station. NEVER search_nearby.
 

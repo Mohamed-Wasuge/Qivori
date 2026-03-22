@@ -119,6 +119,55 @@ const VOICE_TOOLS = [
   },
   {
     type: 'function',
+    name: 'start_detention_timer',
+    description: 'Start tracking detention/wait time at a shipper or receiver. Use when driver says "I\'m waiting", "been here an hour", "start detention", "at the shipper".',
+    parameters: {
+      type: 'object',
+      properties: {
+        location_type: { type: 'string', enum: ['shipper', 'receiver', 'warehouse'], description: 'Type of location' },
+        free_time_hours: { type: 'number', description: 'Free time before detention starts (default 2 hours)' },
+        load_id: { type: 'string', description: 'Load ID if specified' },
+      },
+      required: ['location_type'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'check_detention_status',
+    description: 'Check current detention timer status and amount owed. Use when driver asks "how long have I been here", "what\'s my detention", "am I owed detention".',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    type: 'function',
+    name: 'find_fuel_on_route',
+    description: 'Find the cheapest fuel stops along a route. Use when driver says "find cheap fuel", "where should I fuel up", "cheapest diesel on the way".',
+    parameters: {
+      type: 'object',
+      properties: {
+        origin: { type: 'string', description: 'Starting city/location' },
+        destination: { type: 'string', description: 'Destination city/location' },
+      },
+      required: ['origin', 'destination'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'get_trip_pnl',
+    description: 'Get per-trip profit & loss breakdown for a specific load or the most recent delivered load. Use when driver asks "how much did I make on that trip", "trip profit", "per-trip breakdown", "what did I net on that load".',
+    parameters: {
+      type: 'object',
+      properties: {
+        load_id: { type: 'string', description: 'Load ID to analyze (optional — defaults to most recent delivered)' },
+      },
+      required: [],
+    },
+  },
+  {
+    type: 'function',
     name: 'prompt_scan_document',
     description: 'Prompt the driver to scan/photograph a document using the in-app camera. Use when they need to upload BOL, POD, rate con, fuel receipt, or any document. This opens the camera scanner in the app.',
     parameters: {
@@ -233,6 +282,8 @@ You have tools — USE THEM. When the driver wants something done, DO IT immedia
 - Revenue check → call get_revenue_summary. Then add insight — compare to last month, project annual.
 - Location → call get_driver_location.
 - Documents → call prompt_scan_document. Tell them to snap a photo in the app.
+- Fuel on route → call find_fuel_on_route. Finds real fuel stops along their corridor with discount programs.
+- Trip P&L → call get_trip_pnl. Shows gross - expenses = net profit for a specific load. Always use this when they ask about trip profitability.
 
 ═══ DOCUMENT HANDLING ═══
 The driver is IN the Qivori app. NEVER say email, fax, or mail. Everything is scanned in-app:

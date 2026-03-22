@@ -62,10 +62,10 @@ export default async function handler(req) {
     const cleanReply = aiReply.replace('[ESCALATE]', '').trim()
 
     // Detect sentiment from AI's analysis
-    const sentiment = aiReply.includes('[SENTIMENT:')
-      ? aiReply.match(/\[SENTIMENT:(\w+)\]/)?.[1] || 'neutral'
+    const sentiment = aiReply.includes('[SENTIMENT')
+      ? (aiReply.match(/\[SENTIMENT:?\s*(\w+)\]/i)?.[1] || 'neutral')
       : 'neutral'
-    const finalReply = cleanReply.replace(/\[SENTIMENT:\w+\]/g, '').trim()
+    const finalReply = cleanReply.replace(/\[SENTIMENT:?\s*\w+\]/gi, '').trim()
 
     // Format and send reply
     const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`

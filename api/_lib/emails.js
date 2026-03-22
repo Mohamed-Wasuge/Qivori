@@ -39,7 +39,7 @@ export async function sendAdminEmail(subject, body) {
 // ── Log email to Supabase to prevent duplicates ──
 export async function logEmail(userId, email, template, metadata = {}) {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
   if (!url || !key) return
   await fetch(`${url}/rest/v1/email_logs`, {
     method: 'POST',
@@ -51,7 +51,7 @@ export async function logEmail(userId, email, template, metadata = {}) {
 // ── Check if email was already sent ──
 export async function wasEmailSent(userId, template) {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
   if (!url || !key) return false
   const res = await fetch(`${url}/rest/v1/email_logs?user_id=eq.${userId}&template=eq.${template}&select=id&limit=1`, {
     headers: { 'apikey': key, 'Authorization': `Bearer ${key}` },
@@ -64,7 +64,7 @@ export async function wasEmailSent(userId, template) {
 // ── Log revenue event ──
 export async function logRevenueEvent(userId, eventType, amountCents = 0, plan = null, metadata = {}) {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
   if (!url || !key) return
   await fetch(`${url}/rest/v1/revenue_events`, {
     method: 'POST',

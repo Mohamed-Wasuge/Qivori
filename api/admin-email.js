@@ -19,7 +19,7 @@ export default async function handler(req) {
   // Check admin email or admin role via profile lookup
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@qivori.com'
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_KEY
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
   let isAdmin = user.email === adminEmail || user.email?.endsWith('@qivori.com')
 
   if (!isAdmin && supabaseUrl && serviceKey) {

@@ -201,7 +201,7 @@ export function AppProvider({ children }) {
 
         // Fetch company membership
         const membership = await fetchCompanyMembership(session.user.id)
-        if (!membership && role === 'carrier') {
+        if (!membership && (role === 'carrier' || role === 'admin')) {
           // Existing user with no membership — auto-create as owner
           await ensureOwnerMembership(session.user.id, prof)
         }
@@ -300,7 +300,7 @@ export function AppProvider({ children }) {
 
         // Fetch company membership
         const membership = await fetchCompanyMembership(data.user.id)
-        if (!membership && (prof?.role === 'carrier' || quickRole === 'carrier')) {
+        if (!membership && (prof?.role === 'carrier' || prof?.role === 'admin' || quickRole === 'carrier')) {
           await ensureOwnerMembership(data.user.id, prof)
         }
 

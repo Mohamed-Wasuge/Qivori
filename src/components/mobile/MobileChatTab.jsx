@@ -6,6 +6,7 @@ import {
   Navigation, Receipt, Plus, ChevronRight, ArrowLeft, Home, X,
   CheckCircle, Mic, FileText, Clock, Volume2, VolumeX, ScanLine, Download, Mail, Bell, Globe
 } from 'lucide-react'
+import { RetellWebClient } from 'retell-client-js-sdk'
 import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
 import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper, mobileAnimations } from './shared'
@@ -77,7 +78,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const [speakerOn, setSpeakerOn] = useState(true)
   const [speaking, setSpeaking] = useState(false)
   const [handsFree, setHandsFree] = useState(false)
-  const retellClientRef = useRef(null) // kept for cleanup only
+  const [inCall, setInCall] = useState(false)
+  const [callConnecting, setCallConnecting] = useState(false)
+  const retellClientRef = useRef(null)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -971,11 +974,81 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     audioRef.current = new Audio()
   }
 
-  // Cleanup on unmount
+  // ── RETELL VOICE CALL — real-time conversation with Q ──
+  const startRetellCall = useCallback(async () => {
+    if (inCall || callConnecting) return
+    setCallConnecting(true)
+    haptic('medium')
+    try {
+      const res = await apiFetch('/api/retell-web-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverName: driverName || 'Driver',
+          context: buildContext(),
+          language: currentLang || 'en',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to start call')
+      }
+      const { access_token } = await res.json()
+      if (!access_token) throw new Error('No access token')
+
+      const client = new RetellWebClient()
+      retellClientRef.current = client
+
+      client.on('call_started', () => {
+        setInCall(true)
+        setCallConnecting(false)
+        setSpeaking(false)
+        haptic('success')
+        setMessages(m => [...m, { role: 'assistant', content: 'Connected. Q is listening — talk naturally.' }])
+      })
+
+      client.on('call_ended', () => {
+        setInCall(false)
+        setCallConnecting(false)
+        setSpeaking(false)
+        retellClientRef.current = null
+        setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Tap the phone to call again or type below.' }])
+      })
+
+      client.on('agent_start_talking', () => setSpeaking(true))
+      client.on('agent_stop_talking', () => setSpeaking(false))
+
+      client.on('error', (e) => {
+        console.error('Retell error:', e)
+        setInCall(false)
+        setCallConnecting(false)
+        setSpeaking(false)
+        retellClientRef.current = null
+        showToast('error', 'Call Error', 'Connection lost — try again')
+      })
+
+      await client.startCall({ accessToken: access_token })
+    } catch (err) {
+      setCallConnecting(false)
+      showToast('error', 'Call Failed', err.message || 'Could not connect')
+    }
+  }, [inCall, callConnecting, driverName, buildContext, currentLang, showToast])
+
+  const endRetellCall = useCallback(() => {
+    if (retellClientRef.current) {
+      retellClientRef.current.stopCall()
+      retellClientRef.current = null
+    }
+    setInCall(false)
+    setCallConnecting(false)
+    setSpeaking(false)
+  }, [])
+
+  // Cleanup call on unmount
   useEffect(() => {
     return () => {
       if (retellClientRef.current) {
-        retellClientRef.current.stopCall?.()
+        retellClientRef.current.stopCall()
         retellClientRef.current = null
       }
     }
@@ -1007,9 +1080,10 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   }, [])
 
   const speak = useCallback(async (text, onDone) => {
-    if (!speakerOn || !text) { onDone?.(); return }
+    // Don't TTS if in a Retell call (Retell handles voice) or speaker is off
+    if (inCall || !speakerOn || !text) { onDone?.(); return }
     speakWithAI(text, onDone)
-  }, [speakerOn, speakWithAI])
+  }, [inCall, speakerOn, speakWithAI])
 
   // Stop speaking when speaker is toggled off
   useEffect(() => {
@@ -1866,6 +1940,14 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       return
     }
 
+    // ── VOICE MODE — start Retell call ──
+    if (/\b(turn\s*on|enable|start|activate)\s*(voice\s*mode|hands[\s-]*free|voice|call)\b/i.test(lowerText) || /\bgo\s*hands[\s-]*free\b/i.test(lowerText) || /\bcall\s*q\b/i.test(lowerText) || /\btalk\s*to\s*q\b/i.test(lowerText)) {
+      setMessages(m => [...m, { role: 'assistant', content: 'Connecting you to Q...' }])
+      startRetellCall()
+      setLoading(false)
+      return
+    }
+
     // Start/reset HOS
     if (/\b(start|begin)\s*(my\s*)?(hos|clock|driving)\b/.test(lowerText)) {
       await executeAction({ type: 'start_hos' })
@@ -2121,17 +2203,17 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         </div>
       )}
 
-      {/* ── HANDS-FREE MODE BANNER ──────────────────── */}
-      {handsFree && (
+      {/* ── LIVE CALL BANNER ──────────────────── */}
+      {(inCall || callConnecting) && (
         <div style={{ flexShrink: 0, margin: '8px 16px 0', padding: '10px 14px', background: 'linear-gradient(135deg, rgba(0,212,170,0.1), rgba(0,212,170,0.04))', border: '1px solid rgba(0,212,170,0.3)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, animation: 'fadeInUp 0.2s ease' }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'pulseGlow 2s ease-in-out infinite' }}>
             <Ic icon={Phone} size={14} color="#fff" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>Hands-Free Mode</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Q will listen after speaking — like a call</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)' }}>{callConnecting ? 'Connecting to Q...' : 'Live Call with Q'}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Talk naturally — Q hears everything</div>
           </div>
-          <button onClick={() => setHandsFree(false)} style={{ padding: '5px 12px', background: 'rgba(0,212,170,0.15)', border: '1px solid rgba(0,212,170,0.3)', borderRadius: 7, fontSize: 10, fontWeight: 700, color: 'var(--success)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>End</button>
+          <button onClick={endRetellCall} style={{ padding: '5px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 7, fontSize: 10, fontWeight: 700, color: 'var(--danger)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>End Call</button>
         </div>
       )}
 
@@ -2407,23 +2489,31 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       {/* ── INPUT BAR ───────────────────────────────── */}
       <div style={{ flexShrink: 0, padding: '8px 16px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
 
-        {/* Speaking state — Q is talking back */}
-        {speaking && handsFree && !listening ? (
+        {/* In-call state — Retell real-time voice */}
+        {(inCall || callConnecting) ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'micPulse 1.5s ease-in-out infinite' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: callConnecting ? 'var(--accent)' : 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: callConnecting ? 'micPulse 1s ease-in-out infinite' : (speaking ? 'micPulse 1.5s ease-in-out infinite' : 'none') }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: callConnecting ? '#000' : '#fff', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                {[0, 1, 2, 3, 4].map(i => (
-                  <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--accent)', animation: `voiceWave 0.5s ease-in-out ${i * 0.1}s infinite alternate` }} />
-                ))}
-              </div>
-              <span style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q is speaking...</span>
+              {callConnecting ? (
+                <span style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Connecting...</span>
+              ) : speaking ? (
+                <>
+                  <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--success)', animation: `voiceWave 0.5s ease-in-out ${i * 0.1}s infinite alternate` }} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q is speaking...</span>
+                </>
+              ) : (
+                <span style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Listening... talk naturally</span>
+              )}
             </div>
-            <button onClick={() => { if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = '' }; setSpeaking(false); setHandsFree(false) }}
-              style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ic icon={X} size={18} color="#fff" />
+            <button onClick={endRetellCall}
+              style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--danger)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+              <Ic icon={Phone} size={18} color="#fff" />
             </button>
           </div>
         ) : listening ? (
@@ -2469,11 +2559,11 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 24, padding: '12px 16px', color: 'var(--text)', fontSize: 15, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
             />
 
-            {/* Hands-free toggle */}
-            <button onClick={() => { haptic('light'); setHandsFree(h => !h) }}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: handsFree ? 'var(--success)' : 'none', border: handsFree ? 'none' : '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', animation: handsFree ? 'pulseGlow 2s ease-in-out infinite' : 'none' }}
-              title={handsFree ? 'Hands-free ON — Q will keep talking' : 'Enable hands-free conversation'}>
-              <Ic icon={Phone} size={14} color={handsFree ? '#fff' : 'var(--muted)'} />
+            {/* Call Q — start Retell real-time voice */}
+            <button onClick={() => { haptic('light'); startRetellCall() }}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: 'none', border: '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}
+              title="Call Q — real-time voice conversation">
+              <Ic icon={Phone} size={14} color="var(--success)" />
             </button>
 
             {/* Send or Mic */}
@@ -2483,9 +2573,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
                 <Ic icon={Send} size={18} color="#000" />
               </button>
             ) : (
-              <button onClick={() => { if (!handsFree) setHandsFree(true); startListening() }}
-                style={{ width: 44, height: 44, borderRadius: '50%', background: handsFree ? 'var(--success)' : 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease', animation: speaking ? 'micPulse 1.2s ease-in-out infinite' : 'none' }}>
-                <Ic icon={Mic} size={18} color={handsFree ? '#fff' : '#000'} />
+              <button onClick={() => startListening()}
+                style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
+                <Ic icon={Mic} size={18} color="#000" />
               </button>
             )}
           </div>

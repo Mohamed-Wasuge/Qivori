@@ -57,11 +57,33 @@ function normalizeLoad(l) {
     driver_name: l.carrier_name || l.driver_name || l.driver || '',
     carrier_name: l.carrier_name || l.driver_name || l.driver || '',
     reference_number: l.reference_number || l.refNum || '',
-    // Stops
-    stops: l.load_stops || l.stops || undefined,
+    // Stops — normalize new fields
+    stops: (l.load_stops || l.stops || []).map(s => ({
+      ...s,
+      contact_name: s.contact_name || '',
+      contact_phone: s.contact_phone || '',
+      reference_number: s.reference_number || '',
+      notes: s.notes || '',
+      scheduled_date: s.scheduled_date || '',
+      actual_arrival: s.actual_arrival || null,
+      actual_departure: s.actual_departure || null,
+      state: s.state || '',
+      zip_code: s.zip_code || '',
+    })),
+    stopCount: (l.load_stops || l.stops || []).length,
     currentStop: l.load_stops
       ? (l.load_stops.findIndex(s => s.status === 'current') ?? 0)
       : (l.currentStop ?? 0),
+    // LTL / Partial fields
+    load_type: l.load_type || 'FTL',
+    freight_class: l.freight_class || null,
+    pallet_count: l.pallet_count || null,
+    stackable: l.stackable || false,
+    length_inches: l.length_inches || null,
+    width_inches: l.width_inches || null,
+    height_inches: l.height_inches || null,
+    handling_unit: l.handling_unit || null,
+    consolidation_id: l.consolidation_id || null,
   }
 }
 
@@ -147,6 +169,7 @@ export function CarrierProvider({ children }) {
   const [vehicles, setVehicles] = useState([])
   const [company, setCompany] = useState(normalizeCompany({}))
   const [qMemories, setQMemories] = useState([])
+  const [consolidations, setConsolidations] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
@@ -172,7 +195,7 @@ export function CarrierProvider({ children }) {
 
     async function init() {
       try {
-        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories] = await Promise.all([
+        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories, dbConsolidations] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
           db.fetchExpenses(),
@@ -180,6 +203,7 @@ export function CarrierProvider({ children }) {
           db.fetchDrivers(),
           db.fetchVehicles(),
           db.fetchMemories(),
+          db.fetchConsolidations(),
         ])
 
         setLoads(dbLoads.map(normalizeLoad))
@@ -188,6 +212,7 @@ export function CarrierProvider({ children }) {
         setDrivers(dbDrivers)
         setVehicles(dbVehicles)
         setQMemories(dbMemories)
+        setConsolidations(dbConsolidations || [])
         if (dbCompany) setCompany(normalizeCompany(dbCompany))
         setUseDb(true)
       } catch (e) {
@@ -274,6 +299,27 @@ export function CarrierProvider({ children }) {
     const fakeId = 'local-' + Date.now()
     const num = 'QV-' + (5000 + Math.floor(Math.random() * 1000))
     const newLoad = normalizeLoad({ ...load, id: fakeId, load_number: num, status: 'Rate Con Received' })
+    setLoads(ls => [newLoad, ...ls])
+    return newLoad
+  }, [useDb, demoGuard])
+
+  const addLoadWithStops = useCallback(async (load, stops) => {
+    if (demoGuard('add loads')) return null
+    if (useDb) {
+      try {
+        const newLoad = await db.createLoadWithStops(load, stops)
+        const normalized = normalizeLoad(newLoad)
+        setLoads(ls => [normalized, ...ls])
+        return normalized
+      } catch (e) {
+        console.error('DB operation failed:', e)
+      }
+    }
+    // Fallback: local-only
+    const fakeId = 'local-' + Date.now()
+    const num = 'QV-' + (5000 + Math.floor(Math.random() * 1000))
+    const fakeStops = (stops || []).map((s, i) => ({ ...s, id: 'local-stop-' + Date.now() + '-' + i, sequence: s.sequence ?? i + 1 }))
+    const newLoad = normalizeLoad({ ...load, id: fakeId, load_number: num, status: 'Rate Con Received', load_stops: fakeStops })
     setLoads(ls => [newLoad, ...ls])
     return newLoad
   }, [useDb, demoGuard])
@@ -393,9 +439,10 @@ export function CarrierProvider({ children }) {
       }))
 
       if (useDb && updatedStops[next]?.id) {
-        db.updateLoadStop(updatedStops[next].id, { status: 'current' }).catch(() => {})
+        const now = new Date().toISOString()
+        db.updateLoadStop(updatedStops[next].id, { status: 'current', actual_arrival: now }).catch(() => {})
         if (currentIdx >= 0 && updatedStops[currentIdx]?.id) {
-          db.updateLoadStop(updatedStops[currentIdx].id, { status: 'complete' }).catch(() => {})
+          db.updateLoadStop(updatedStops[currentIdx].id, { status: 'complete', actual_departure: now }).catch(() => {})
         }
       }
 
@@ -585,6 +632,31 @@ export function CarrierProvider({ children }) {
     setQMemories(prev => prev.filter(m => m.id !== id))
   }, [useDb])
 
+  // ─── Consolidation operations (LTL/Partial grouping) ──────────────
+  const addConsolidation = useCallback(async (consolidation) => {
+    if (demoGuard('create consolidations')) return null
+    if (useDb) {
+      try {
+        const newCon = await db.createConsolidation(consolidation)
+        setConsolidations(prev => [newCon, ...prev])
+        return newCon
+      } catch (e) {
+        console.error('DB operation failed:', e)
+      }
+    }
+    const fake = { ...consolidation, id: 'local-con-' + Date.now(), created_at: new Date().toISOString() }
+    setConsolidations(prev => [fake, ...prev])
+    return fake
+  }, [useDb, demoGuard])
+
+  const editConsolidation = useCallback(async (id, updates) => {
+    if (demoGuard('update consolidations')) return
+    if (useDb && !String(id).startsWith('local')) {
+      try { await db.updateConsolidation(id, updates) } catch (e) { console.error('DB operation failed:', e) }
+    }
+    setConsolidations(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
+  }, [useDb, demoGuard])
+
   // ─── Reset (clears all local data) ──────────────────────────────
   const resetData = useCallback(() => {
     setLoads([])
@@ -595,6 +667,7 @@ export function CarrierProvider({ children }) {
     setCompany(normalizeCompany({}))
     setCheckCalls({})
     setQMemories([])
+    setConsolidations([])
   }, [])
 
   // ─── Driver filtering ────────────────────────────────────────
@@ -692,13 +765,14 @@ export function CarrierProvider({ children }) {
     <CarrierContext.Provider value={{
       loads: visibleLoads, invoices: visibleInvoices, expenses: visibleExpenses,
       allLoads: loads, allInvoices: invoices, allExpenses: expenses,
-      drivers, vehicles, company, checkCalls, qMemories,
+      drivers, vehicles, company, checkCalls, qMemories, consolidations,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses, brokerStats,
-      updateLoadStatus, addLoad, removeLoad, advanceStop,
+      updateLoadStatus, addLoad, addLoadWithStops, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense,
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,
+      addConsolidation, editConsolidation,
       logCheckCall, updateCompany, resetData,
       addQMemory, removeQMemory,
       dataReady, useDb, demoMode,

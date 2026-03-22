@@ -1015,6 +1015,24 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           window.open(url, '_blank')
           return true
         }
+        case 'load_stops': {
+          const targetLoad = action.load_id
+            ? loads.find(l => l.id === action.load_id || l.load_id === action.load_id)
+            : activeLoads[0]
+          if (!targetLoad) {
+            setMessages(m => [...m, { role: 'assistant', content: 'No load found. Book a load first.' }])
+          } else if (targetLoad.stops && targetLoad.stops.length > 0) {
+            const stopsText = targetLoad.stops.map((s, i) => {
+              const typeLabel = s.type === 'pickup' ? 'PICKUP' : 'DELIVERY'
+              const statusIcon = s.status === 'complete' ? ' [done]' : s.status === 'current' ? ' [current]' : ''
+              return `${i + 1}. **${typeLabel}**${statusIcon} — ${s.city}${s.scheduled_date ? ' · ' + s.scheduled_date : ''}${s.contact_name ? ' · ' + s.contact_name : ''}`
+            }).join('\n')
+            setMessages(m => [...m, { role: 'assistant', content: `**Load ${targetLoad.load_id || targetLoad.id} — ${targetLoad.stops.length} Stops**\n${stopsText}` }])
+          } else {
+            setMessages(m => [...m, { role: 'assistant', content: `**Load ${targetLoad.load_id || targetLoad.id}**\n1. **PICKUP** — ${targetLoad.origin}\n2. **DELIVERY** — ${targetLoad.destination || targetLoad.dest}` }])
+          }
+          return true
+        }
         case 'next_stop': {
           const stop = getNextStop()
           if (!stop) {
@@ -1894,6 +1912,47 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
             }
           } else {
             result = { success: false, message: 'No load found' }
+          }
+          break
+        }
+        case 'get_load_stops': {
+          const stopsLoad = args.load_id
+            ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id)
+            : activeLoads[0]
+          if (stopsLoad && stopsLoad.stops && stopsLoad.stops.length > 0) {
+            const currentIdx = stopsLoad.stops.findIndex(s => s.status === 'current')
+            result = {
+              success: true,
+              load_id: stopsLoad.load_id || stopsLoad.id,
+              total_stops: stopsLoad.stops.length,
+              current_stop: currentIdx >= 0 ? currentIdx + 1 : null,
+              stops: stopsLoad.stops.map((s, i) => ({
+                number: i + 1,
+                type: s.type === 'pickup' ? 'Pickup' : 'Delivery',
+                city: s.city || '',
+                state: s.state || '',
+                address: s.address || '',
+                scheduled_date: s.scheduled_date || '',
+                contact_name: s.contact_name || '',
+                contact_phone: s.contact_phone || '',
+                reference_number: s.reference_number || '',
+                status: s.status || 'pending',
+              })),
+              message: `Load has ${stopsLoad.stops.length} stops. ${currentIdx >= 0 ? `Currently at stop ${currentIdx + 1}.` : ''}`,
+            }
+          } else if (stopsLoad) {
+            result = {
+              success: true,
+              load_id: stopsLoad.load_id || stopsLoad.id,
+              total_stops: 2,
+              stops: [
+                { number: 1, type: 'Pickup', city: stopsLoad.origin, status: 'pending' },
+                { number: 2, type: 'Delivery', city: stopsLoad.destination || stopsLoad.dest, status: 'pending' },
+              ],
+              message: `Standard 2-stop load: pickup at ${stopsLoad.origin}, deliver to ${stopsLoad.destination || stopsLoad.dest}.`,
+            }
+          } else {
+            result = { success: false, message: 'No active load found' }
           }
           break
         }

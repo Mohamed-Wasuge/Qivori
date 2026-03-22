@@ -80,7 +80,15 @@ Return ONLY a valid JSON object with these fields. Use null for any field you ca
   "po_number": "",
   "notes": "",
   "load_type": "FTL",
-  "special_instructions": ""
+  "special_instructions": "",
+  "stops": [],
+  "freight_class": null,
+  "pallet_count": null,
+  "length_inches": null,
+  "width_inches": null,
+  "height_inches": null,
+  "handling_unit": null,
+  "stackable": false
 }
 
 Rules:
@@ -91,6 +99,12 @@ Rules:
 - Miles should be a number
 - Equipment: one of Dry Van, Reefer, Flatbed, Step Deck, Power Only, Conestoga, Hotshot
 - load_type: one of FTL, LTL, Partial
+- For LTL/Partial loads: extract freight_class (NMFC class like 50, 55, 60... 500), pallet_count, dimensions (length/width/height in inches), handling_unit (pallet/crate/drum/box/roll/bundle/loose), stackable (true/false)
+- If you see pallet count, freight class, or partial shipment indicators, set load_type to LTL or Partial accordingly
+- MULTI-STOP: If the document has multiple pickup or delivery locations, populate the "stops" array. Each stop object:
+  {"type": "pickup" or "dropoff", "city": "City, ST", "address": "full address", "state": "ST", "zip_code": "12345", "scheduled_date": "YYYY-MM-DD", "scheduled_time": "HH:MM AM/PM", "contact_name": "", "contact_phone": "", "reference_number": "", "notes": ""}
+  Order: all pickups first (in route order), then all deliveries (in route order).
+  If there is only 1 pickup and 1 delivery, leave "stops" as an empty array (the origin/destination fields are sufficient).
 - Return ONLY the JSON, no explanation, no markdown`
 
     const content = isPdf

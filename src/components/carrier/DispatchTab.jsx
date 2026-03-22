@@ -1,12 +1,19 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useMemo } from 'react'
 import {
-  FileText, ClipboardList, CheckCircle, Receipt, Scale, Zap, AlertTriangle
+  FileText, ClipboardList, CheckCircle, Receipt, Scale, Zap, AlertTriangle,
+  Plus, Trash2, ChevronUp, ChevronDown, MapPin, Clock, Package, Layers
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { generateInvoicePDF } from '../../utils/generatePDF'
 import { Ic } from './shared'
+
+// ── LTL / Partial constants ───────────────────────────────────────────────────
+const FREIGHT_CLASSES = ['50','55','60','65','70','77.5','85','92.5','100','110','125','150','175','200','250','300','400','500']
+const HANDLING_UNITS = ['pallet','crate','drum','box','roll','bundle','loose']
+const MAX_TRAILER_WEIGHT = 44000
+const MAX_TRAILER_PALLETS = 26
 
 // ── Dispatch tab ───────────────────────────────────────────────────────────────
 export const DRIVERS = [] // populated from context
@@ -96,6 +103,16 @@ export async function parseRateConWithAI(file) {
     notes: data.notes || '',
     specialInstructions: data.special_instructions || '',
     gross: data.rate ? parseFloat(data.rate) : 0,
+    parsedStops: Array.isArray(data.stops) ? data.stops : [],
+    // LTL fields
+    loadType: data.load_type || 'FTL',
+    freightClass: data.freight_class || '',
+    palletCount: data.pallet_count ? String(data.pallet_count) : '',
+    lengthInches: data.length_inches ? String(data.length_inches) : '',
+    widthInches: data.width_inches ? String(data.width_inches) : '',
+    heightInches: data.height_inches ? String(data.height_inches) : '',
+    handlingUnit: data.handling_unit || 'pallet',
+    stackable: data.stackable || false,
   }
 }
 
@@ -103,9 +120,382 @@ export const DOC_TYPES = ['Rate Con', 'BOL', 'POD', 'Lumper Receipt', 'Scale Tic
 export const DOC_ICONS = { 'Rate Con': FileText, 'BOL': ClipboardList, 'POD': CheckCircle, 'Lumper Receipt': Receipt, 'Scale Ticket': Scale, 'Other': FileText }
 export const DOC_COLORS = { 'Rate Con': 'var(--accent)', 'BOL': 'var(--accent2)', 'POD': 'var(--success)', 'Lumper Receipt': 'var(--accent3)', 'Scale Ticket': 'var(--warning)', 'Other': 'var(--muted)' }
 
+// ── StopBuilder — multi-stop editor for load creation ────────────────────────
+function StopBuilder({ stops, setStops }) {
+  const addStop = () => {
+    const maxSeq = stops.length > 0 ? Math.max(...stops.map(s => s.sequence)) : 0
+    setStops([...stops, {
+      _key: Date.now(),
+      sequence: maxSeq + 1,
+      type: 'pickup',
+      city: '',
+      state: '',
+      address: '',
+      scheduled_date: '',
+      contact_name: '',
+      contact_phone: '',
+      reference_number: '',
+    }])
+  }
+
+  const removeStop = (idx) => {
+    if (stops.length <= 2) return
+    const updated = stops.filter((_, i) => i !== idx).map((s, i) => ({ ...s, sequence: i + 1 }))
+    setStops(updated)
+  }
+
+  const updateStop = (idx, field, value) => {
+    const updated = [...stops]
+    updated[idx] = { ...updated[idx], [field]: value }
+    setStops(updated)
+  }
+
+  const moveStop = (idx, dir) => {
+    const newIdx = idx + dir
+    if (newIdx < 0 || newIdx >= stops.length) return
+    const updated = [...stops]
+    const tmp = updated[idx]
+    updated[idx] = updated[newIdx]
+    updated[newIdx] = tmp
+    setStops(updated.map((s, i) => ({ ...s, sequence: i + 1 })))
+  }
+
+  const inputStyle = (val) => ({
+    width: '100%', background: val ? 'rgba(0,212,170,0.05)' : 'var(--surface2)',
+    border: `1px solid ${val ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`,
+    borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12,
+    fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box',
+  })
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5 }}>
+          STOPS ({stops.length})
+        </div>
+        <button type="button" className="btn btn-ghost" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }} onClick={addStop}>
+          <Ic icon={Plus} size={12} /> Add Stop
+        </button>
+      </div>
+
+      {stops.map((stop, idx) => (
+        <div key={stop._key || idx} style={{
+          background: 'var(--surface2)', border: `1px solid ${stop.type === 'pickup' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+          borderRadius: 10, padding: 14, marginBottom: 10, position: 'relative',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 800, width: 22, height: 22, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: stop.type === 'pickup' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                color: stop.type === 'pickup' ? 'var(--success)' : 'var(--danger)',
+              }}>{idx + 1}</span>
+              <select value={stop.type} onChange={e => updateStop(idx, 'type', e.target.value)}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
+                <option value="pickup">Pickup</option>
+                <option value="dropoff">Delivery</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button type="button" onClick={() => moveStop(idx, -1)} disabled={idx === 0}
+                style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--border)' : 'var(--muted)', padding: 2 }}>
+                <Ic icon={ChevronUp} size={14} />
+              </button>
+              <button type="button" onClick={() => moveStop(idx, 1)} disabled={idx === stops.length - 1}
+                style={{ background: 'none', border: 'none', cursor: idx === stops.length - 1 ? 'default' : 'pointer', color: idx === stops.length - 1 ? 'var(--border)' : 'var(--muted)', padding: 2 }}>
+                <Ic icon={ChevronDown} size={14} />
+              </button>
+              {stops.length > 2 && (
+                <button type="button" onClick={() => removeStop(idx)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 2 }}>
+                  <Ic icon={Trash2} size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>City</label>
+              <input value={stop.city} onChange={e => updateStop(idx, 'city', e.target.value)}
+                placeholder="Dallas" style={inputStyle(stop.city)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>State</label>
+              <input value={stop.state || ''} onChange={e => updateStop(idx, 'state', e.target.value)}
+                placeholder="TX" maxLength={2} style={inputStyle(stop.state)} />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Address</label>
+              <input value={stop.address || ''} onChange={e => updateStop(idx, 'address', e.target.value)}
+                placeholder="123 Warehouse Dr" style={inputStyle(stop.address)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Date</label>
+              <input type="date" value={stop.scheduled_date || ''} onChange={e => updateStop(idx, 'scheduled_date', e.target.value)}
+                style={inputStyle(stop.scheduled_date)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Contact</label>
+              <input value={stop.contact_name || ''} onChange={e => updateStop(idx, 'contact_name', e.target.value)}
+                placeholder="John Doe" style={inputStyle(stop.contact_name)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Phone</label>
+              <input value={stop.contact_phone || ''} onChange={e => updateStop(idx, 'contact_phone', e.target.value)}
+                placeholder="(555) 123-4567" style={inputStyle(stop.contact_phone)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Ref #</label>
+              <input value={stop.reference_number || ''} onChange={e => updateStop(idx, 'reference_number', e.target.value)}
+                placeholder="PO-12345" style={inputStyle(stop.reference_number)} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Stop Timeline — shows multi-stop progress on load detail ─────────────────
+function StopTimeline({ stops }) {
+  if (!stops || stops.length === 0) return null
+  return (
+    <div style={{ padding: '8px 0' }}>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>Stop Timeline</div>
+      {stops.map((stop, idx) => {
+        const isPickup = stop.type === 'pickup'
+        const statusColor = stop.status === 'complete' ? 'var(--success)' : stop.status === 'current' ? 'var(--accent)' : 'var(--muted)'
+        const dotBg = stop.status === 'complete' ? 'var(--success)' : stop.status === 'current' ? 'var(--accent)' : 'var(--border)'
+        return (
+          <div key={stop.id || idx} style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: idx < stops.length - 1 ? 16 : 0 }}>
+            {/* Vertical line + dot */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20 }}>
+              <div style={{
+                width: 12, height: 12, borderRadius: '50%', background: dotBg, border: `2px solid ${statusColor}`,
+                flexShrink: 0, zIndex: 1,
+              }} />
+              {idx < stops.length - 1 && (
+                <div style={{ width: 2, flex: 1, background: 'var(--border)', marginTop: 2 }} />
+              )}
+            </div>
+            {/* Stop info */}
+            <div style={{ flex: 1, minWidth: 0, paddingBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+                  background: isPickup ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                  color: isPickup ? 'var(--success)' : 'var(--danger)',
+                  border: `1px solid ${isPickup ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                }}>{isPickup ? 'PICKUP' : 'DELIVERY'}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: statusColor }}>{stop.city}{stop.state ? ', ' + stop.state : ''}</span>
+                {stop.status === 'complete' && <Ic icon={CheckCircle} size={12} color="var(--success)" />}
+              </div>
+              {stop.address && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{stop.address}</div>}
+              <div style={{ display: 'flex', gap: 12, marginTop: 2, flexWrap: 'wrap' }}>
+                {stop.scheduled_date && <span style={{ fontSize: 10, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 3 }}><Ic icon={Clock} size={10} /> {stop.scheduled_date}</span>}
+                {stop.contact_name && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{stop.contact_name}{stop.contact_phone ? ' · ' + stop.contact_phone : ''}</span>}
+                {stop.reference_number && <span style={{ fontSize: 10, color: 'var(--muted)' }}>Ref: {stop.reference_number}</span>}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Consolidation Panel — group LTL/Partial loads onto one truck ──────────────
+function ConsolidationPanel({ loads, consolidations, addConsolidation, editConsolidation, updateLoadStatus, showToast }) {
+  const [showPanel, setShowPanel] = useState(false)
+  const [selected, setSelected] = useState([])
+
+  // Eligible loads: LTL or Partial, Booked/Rate Con Received status, not yet consolidated
+  const eligibleLoads = useMemo(() =>
+    (loads || []).filter(l =>
+      (l.load_type === 'LTL' || l.load_type === 'Partial') &&
+      !l.consolidation_id &&
+      ['Rate Con Received', 'Assigned to Driver', 'Booked'].includes(l.status)
+    ), [loads])
+
+  if (eligibleLoads.length === 0 && (!consolidations || consolidations.length === 0)) return null
+
+  const toggleSelect = (id) => {
+    setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const selectedLoads = eligibleLoads.filter(l => selected.includes(l.id))
+  const totalWeight = selectedLoads.reduce((s, l) => s + (parseFloat(l.weight) || 0), 0)
+  const totalPallets = selectedLoads.reduce((s, l) => s + (parseInt(l.pallet_count) || 0), 0)
+  const weightPct = Math.min(100, (totalWeight / MAX_TRAILER_WEIGHT) * 100)
+  const palletPct = Math.min(100, (totalPallets / MAX_TRAILER_PALLETS) * 100)
+  const capacityPct = Math.max(weightPct, palletPct)
+
+  const handleCreateConsolidation = async () => {
+    if (selected.length < 2) { showToast?.('', 'Select Loads', 'Select at least 2 LTL/Partial loads to consolidate'); return }
+    try {
+      const con = await addConsolidation({
+        status: 'planning',
+        total_weight: totalWeight,
+        total_pallets: totalPallets,
+        capacity_used_pct: Math.round(capacityPct * 100) / 100,
+        notes: `${selected.length} loads consolidated`,
+      })
+      if (con) {
+        // Update each selected load's consolidation_id
+        const { updateLoad } = await import('../../lib/database')
+        for (const loadId of selected) {
+          try { await updateLoad(loadId, { consolidation_id: con.id }) } catch {}
+        }
+        showToast?.('', 'Consolidation Created', `${selected.length} loads grouped — ${Math.round(capacityPct)}% capacity`)
+        setSelected([])
+      }
+    } catch (e) {
+      showToast?.('', 'Error', e.message || 'Failed to create consolidation')
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button type="button" onClick={() => setShowPanel(!showPanel)}
+        style={{
+          width: '100%', padding: '12px 18px', background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          color: 'var(--text)', fontFamily: "'DM Sans',sans-serif",
+        }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700 }}>
+          <Ic icon={Layers} size={16} color="var(--accent)" /> Consolidate LTL / Partial Loads
+          {eligibleLoads.length > 0 && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.25)' }}>
+              {eligibleLoads.length} eligible
+            </span>
+          )}
+        </span>
+        <span style={{ color: 'var(--muted)', fontSize: 12 }}>{showPanel ? '\u25B2' : '\u25BC'}</span>
+      </button>
+
+      {showPanel && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: 16 }}>
+          {eligibleLoads.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--muted)', fontSize: 12 }}>
+              No unconsolidated LTL/Partial loads in Booked status. Add LTL loads to consolidate them onto one truck.
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>Select loads to group onto one truck:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                {eligibleLoads.map(load => {
+                  const isSelected = selected.includes(load.id)
+                  return (
+                    <div key={load.id}
+                      onClick={() => toggleSelect(load.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                        background: isSelected ? 'rgba(59,130,246,0.06)' : 'var(--surface2)',
+                        border: `1px solid ${isSelected ? 'rgba(59,130,246,0.3)' : 'var(--border)'}`,
+                        transition: 'all 0.15s',
+                      }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: 4, border: `2px solid ${isSelected ? '#3b82f6' : 'var(--border)'}`,
+                        background: isSelected ? '#3b82f6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, transition: 'all 0.15s',
+                      }}>
+                        {isSelected && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>&#10003;</span>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{load.origin} → {load.dest}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                          {load.loadId} · {load.load_type} · {load.pallet_count || '?'} pallets · {load.weight || '?'} lbs
+                          {load.freight_class && ` · Class ${load.freight_class}`}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--accent)' }}>${(load.gross || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Capacity Meter */}
+              {selected.length > 0 && (
+                <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>Capacity Estimate — {selected.length} loads selected</div>
+                  {/* Weight bar */}
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
+                      <span>Weight</span>
+                      <span>{totalWeight.toLocaleString()} / {MAX_TRAILER_WEIGHT.toLocaleString()} lbs</span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 4, width: `${weightPct}%`, background: weightPct > 90 ? 'var(--danger)' : weightPct > 70 ? 'var(--warning)' : 'var(--success)', transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                  {/* Pallet bar */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
+                      <span>Pallets</span>
+                      <span>{totalPallets} / {MAX_TRAILER_PALLETS} (53' trailer)</span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 4, width: `${palletPct}%`, background: palletPct > 90 ? 'var(--danger)' : palletPct > 70 ? 'var(--warning)' : 'var(--success)', transition: 'width 0.3s' }} />
+                    </div>
+                  </div>
+                  {capacityPct > 100 && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: 'var(--danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Ic icon={AlertTriangle} size={12} color="var(--danger)" /> Over capacity — remove loads or split consolidation
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button className="btn btn-primary" style={{ width: '100%', padding: '12px 0', fontSize: 13 }}
+                disabled={selected.length < 2}
+                onClick={handleCreateConsolidation}>
+                <Ic icon={Layers} size={14} /> Create Consolidation ({selected.length} loads)
+              </button>
+            </>
+          )}
+
+          {/* Existing consolidations */}
+          {consolidations && consolidations.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 8 }}>ACTIVE CONSOLIDATIONS</div>
+              {consolidations.map(con => {
+                const conLoads = (loads || []).filter(l => l.consolidation_id === con.id)
+                return (
+                  <div key={con.id} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: 14, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>
+                        <Ic icon={Layers} size={12} color="var(--accent)" /> {conLoads.length} loads
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, marginLeft: 8, background: con.status === 'in_transit' ? 'rgba(34,197,94,0.1)' : 'rgba(240,165,0,0.1)', color: con.status === 'in_transit' ? 'var(--success)' : 'var(--accent)', border: `1px solid ${con.status === 'in_transit' ? 'rgba(34,197,94,0.25)' : 'rgba(240,165,0,0.25)'}` }}>
+                          {con.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{Math.round(con.capacity_used_pct || 0)}% capacity</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {conLoads.map(l => (
+                        <span key={l.id} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                          {l.origin?.split(',')[0]} → {l.dest?.split(',')[0]} · ${(l.gross || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function BookedLoads() {
   const { showToast } = useApp()
-  const { loads: bookedLoads, addLoad: ctxAddLoad, updateLoadStatus: ctxUpdateStatus, removeLoad, company, drivers: ctxDrivers } = useCarrier()
+  const { loads: bookedLoads, addLoad: ctxAddLoad, addLoadWithStops: ctxAddLoadWithStops, updateLoadStatus: ctxUpdateStatus, removeLoad, company, drivers: ctxDrivers, consolidations, addConsolidation, editConsolidation } = useCarrier()
   const driverNames = (ctxDrivers || []).map(d => d.name || d.full_name || d.driver_name).filter(Boolean)
   const [loadDocs, setLoadDocs] = useState({
     1: [{ id: 1, name: 'EC-88421-ratecon.pdf', type: 'Rate Con', size: '124 KB', uploadedAt: 'Mar 8', dataUrl: null }],
@@ -121,7 +511,12 @@ export function BookedLoads() {
   const [signatureModal, setSignatureModal] = useState(null) // { loadId, docId }
   const sigCanvasRef = useRef(null)
   const sigDrawing = useRef(false)
-  const [form, setForm] = useState({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
+  const [form, setForm] = useState({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0, loadType: 'FTL', freightClass: '', palletCount: '', lengthInches: '', widthInches: '', heightInches: '', handlingUnit: 'pallet', stackable: false })
+  const [formStops, setFormStops] = useState([
+    { _key: 1, sequence: 1, type: 'pickup', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },
+    { _key: 2, sequence: 2, type: 'dropoff', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },
+  ])
+  const [showStopBuilder, setShowStopBuilder] = useState(false)
 
   const handleDocUpload = useCallback(async (loadId, file, type) => {
     if (!file) return
@@ -272,8 +667,25 @@ export function BookedLoads() {
     try {
       const parsed = await parseRateConWithAI(file)
       setForm(parsed)
+      // If multi-stop data was parsed, populate the stop builder
+      if (parsed.parsedStops && parsed.parsedStops.length > 0) {
+        const mappedStops = parsed.parsedStops.map((s, i) => ({
+          _key: Date.now() + i,
+          sequence: i + 1,
+          type: s.type || 'pickup',
+          city: s.city || '',
+          state: s.state || '',
+          address: s.address || '',
+          scheduled_date: s.scheduled_date || '',
+          contact_name: s.contact_name || '',
+          contact_phone: s.contact_phone || '',
+          reference_number: s.reference_number || '',
+        }))
+        setFormStops(mappedStops)
+        setShowStopBuilder(true)
+      }
       const filled = Object.values(parsed).filter(v => v && v !== 0 && v !== '').length
-      showToast('', 'Rate Con Parsed', `${filled} fields auto-filled — review and confirm`)
+      showToast('', 'Rate Con Parsed', `${filled} fields auto-filled${parsed.parsedStops?.length > 0 ? ` · ${parsed.parsedStops.length} stops detected` : ''} — review and confirm`)
     } catch (e) {
       showToast('', 'Parse Failed', e.message || 'Check your API key and try again')
       setShowForm(false)
@@ -294,15 +706,23 @@ export function BookedLoads() {
   }
 
   const addLoad = () => {
-    if (!form.origin || !form.dest) { showToast('', 'Missing Fields', 'Origin and destination required'); return }
+    // Auto-fill origin/dest from stops if using stop builder
+    let origin = form.origin
+    let dest = form.dest
+    if (showStopBuilder && formStops.length >= 2) {
+      const pickups = formStops.filter(s => s.type === 'pickup')
+      const deliveries = formStops.filter(s => s.type === 'dropoff')
+      if (pickups.length > 0 && pickups[0].city) origin = origin || (pickups[0].city + (pickups[0].state ? ', ' + pickups[0].state : ''))
+      if (deliveries.length > 0 && deliveries[deliveries.length - 1].city) dest = dest || (deliveries[deliveries.length - 1].city + (deliveries[deliveries.length - 1].state ? ', ' + deliveries[deliveries.length - 1].state : ''))
+    }
+    if (!origin || !dest) { showToast('', 'Missing Fields', 'Origin and destination required'); return }
     const gross = parseFloat(form.rate) || form.gross || 0
     const miles = parseFloat(form.miles) || 0
     const autoId = form.loadId || ('RC-' + Date.now().toString(36).toUpperCase())
-    // Map form fields to DB schema
-    ctxAddLoad({
+    const loadData = {
       load_id: autoId,
-      origin: form.origin,
-      destination: form.dest,
+      origin,
+      destination: dest,
       rate: gross,
       broker_name: form.broker || 'Direct',
       carrier_name: form.driver || null,
@@ -312,12 +732,45 @@ export function BookedLoads() {
       pickup_date: form.pickup || null,
       delivery_date: form.delivery || null,
       status: 'Rate Con Received',
-      // Keep extra fields for local display
+      load_type: form.loadType || 'FTL',
+      // LTL / Partial fields
+      freight_class: (form.loadType !== 'FTL' && form.freightClass) ? form.freightClass : null,
+      pallet_count: (form.loadType !== 'FTL' && form.palletCount) ? parseInt(form.palletCount) : null,
+      stackable: form.loadType !== 'FTL' ? form.stackable : false,
+      length_inches: (form.loadType !== 'FTL' && form.lengthInches) ? parseFloat(form.lengthInches) : null,
+      width_inches: (form.loadType !== 'FTL' && form.widthInches) ? parseFloat(form.widthInches) : null,
+      height_inches: (form.loadType !== 'FTL' && form.heightInches) ? parseFloat(form.heightInches) : null,
+      handling_unit: (form.loadType !== 'FTL' && form.handlingUnit) ? form.handlingUnit : null,
       miles, refNum: form.refNum, rateCon: true,
-    })
-    setForm({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0 })
+    }
+    // Use multi-stop creation if stops have meaningful data
+    const hasStopData = showStopBuilder && formStops.some(s => s.city)
+    if (hasStopData && ctxAddLoadWithStops) {
+      const stopsData = formStops.map((s, i) => ({
+        sequence: i + 1,
+        type: s.type,
+        city: s.city + (s.state ? ', ' + s.state : ''),
+        address: s.address || null,
+        state: s.state || null,
+        zip_code: s.zip_code || null,
+        scheduled_date: s.scheduled_date || null,
+        contact_name: s.contact_name || null,
+        contact_phone: s.contact_phone || null,
+        reference_number: s.reference_number || null,
+        status: i === 0 ? 'current' : 'pending',
+      }))
+      ctxAddLoadWithStops(loadData, stopsData)
+    } else {
+      ctxAddLoad(loadData)
+    }
+    setForm({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0, loadType: 'FTL', freightClass: '', palletCount: '', lengthInches: '', widthInches: '', heightInches: '', handlingUnit: 'pallet', stackable: false })
+    setFormStops([
+      { _key: Date.now(), sequence: 1, type: 'pickup', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },
+      { _key: Date.now() + 1, sequence: 2, type: 'dropoff', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },
+    ])
+    setShowStopBuilder(false)
     setShowForm(false)
-    showToast('', 'Load Added', autoId + ' · ' + form.origin + ' → ' + form.dest)
+    showToast('', 'Load Added', autoId + ' · ' + origin + ' → ' + dest)
   }
 
   return (
@@ -368,11 +821,32 @@ export function BookedLoads() {
               </button>
               <input id="ratecon-input2" type="file" accept=".pdf,image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
               <button className="btn btn-ghost" style={{ fontSize: 11 }}
-                onClick={() => { setShowForm(false); setForm({ loadId:'',broker:'',origin:'',dest:'',miles:'',rate:'',pickup:'',delivery:'',weight:'',commodity:'',refNum:'',driver:'',gross:0 }) }}>
+                onClick={() => { setShowForm(false); setForm({ loadId:'',broker:'',origin:'',dest:'',miles:'',rate:'',pickup:'',delivery:'',weight:'',commodity:'',refNum:'',driver:'',gross:0,loadType:'FTL',freightClass:'',palletCount:'',lengthInches:'',widthInches:'',heightInches:'',handlingUnit:'pallet',stackable:false }) }}>
                 ✕ Cancel
               </button>
             </div>
           </div>
+          {/* Load Type Selector */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 8 }}>LOAD TYPE</div>
+            <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              {['FTL', 'LTL', 'Partial'].map(t => (
+                <button key={t} onClick={() => setForm(fm => ({ ...fm, loadType: t }))}
+                  style={{
+                    flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                    background: form.loadType === t
+                      ? (t === 'FTL' ? 'var(--accent)' : t === 'LTL' ? '#3b82f6' : '#a855f7')
+                      : 'var(--surface2)',
+                    color: form.loadType === t ? '#fff' : 'var(--muted)',
+                    transition: 'all 0.15s',
+                  }}>
+                  {t === 'FTL' ? 'Full Truckload' : t === 'LTL' ? 'Less Than Truckload' : 'Partial'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Broker / Load Info */}
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 8 }}>LOAD INFO</div>
           <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap: 10, marginBottom: 16 }}>
@@ -469,6 +943,97 @@ export function BookedLoads() {
                 style={{ width: '100%', background: (form.notes || form.specialInstructions) ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${(form.notes || form.specialInstructions) ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
             </div>
           </div>
+
+          {/* LTL / Partial Fields — only shown when load type is not FTL */}
+          {(form.loadType === 'LTL' || form.loadType === 'Partial') && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: form.loadType === 'LTL' ? '#3b82f6' : '#a855f7', letterSpacing: 1.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Ic icon={Package} size={12} color={form.loadType === 'LTL' ? '#3b82f6' : '#a855f7'} /> {form.loadType} DETAILS
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
+                {/* Freight Class */}
+                <div>
+                  <label style={{ fontSize: 10, color: form.freightClass ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                    {form.freightClass ? '+ ' : ''}Freight Class
+                  </label>
+                  <select value={form.freightClass} onChange={e => setForm(fm => ({ ...fm, freightClass: e.target.value }))}
+                    style={{ width: '100%', background: form.freightClass ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form.freightClass ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: form.freightClass ? 'var(--text)' : 'var(--muted)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }}>
+                    <option value="">— Select —</option>
+                    {FREIGHT_CLASSES.map(fc => <option key={fc} value={fc}>Class {fc}</option>)}
+                  </select>
+                </div>
+                {/* Pallet Count */}
+                <div>
+                  <label style={{ fontSize: 10, color: form.palletCount ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                    {form.palletCount ? '+ ' : ''}Pallet Count
+                  </label>
+                  <input type="number" min="1" value={form.palletCount} onChange={e => setForm(fm => ({ ...fm, palletCount: e.target.value }))}
+                    placeholder="6"
+                    style={{ width: '100%', background: form.palletCount ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form.palletCount ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+                </div>
+                {/* Handling Unit */}
+                <div>
+                  <label style={{ fontSize: 10, color: form.handlingUnit !== 'pallet' ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                    Handling Unit
+                  </label>
+                  <select value={form.handlingUnit} onChange={e => setForm(fm => ({ ...fm, handlingUnit: e.target.value }))}
+                    style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box', textTransform: 'capitalize' }}>
+                    {HANDLING_UNITS.map(hu => <option key={hu} value={hu} style={{ textTransform: 'capitalize' }}>{hu.charAt(0).toUpperCase() + hu.slice(1)}</option>)}
+                  </select>
+                </div>
+                {/* Dimensions */}
+                <div>
+                  <label style={{ fontSize: 10, color: form.lengthInches ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                    {form.lengthInches ? '+ ' : ''}Length (in)
+                  </label>
+                  <input type="number" value={form.lengthInches} onChange={e => setForm(fm => ({ ...fm, lengthInches: e.target.value }))}
+                    placeholder="48"
+                    style={{ width: '100%', background: form.lengthInches ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form.lengthInches ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: form.widthInches ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                    {form.widthInches ? '+ ' : ''}Width (in)
+                  </label>
+                  <input type="number" value={form.widthInches} onChange={e => setForm(fm => ({ ...fm, widthInches: e.target.value }))}
+                    placeholder="40"
+                    style={{ width: '100%', background: form.widthInches ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form.widthInches ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: form.heightInches ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
+                    {form.heightInches ? '+ ' : ''}Height (in)
+                  </label>
+                  <input type="number" value={form.heightInches} onChange={e => setForm(fm => ({ ...fm, heightInches: e.target.value }))}
+                    placeholder="48"
+                    style={{ width: '100%', background: form.heightInches ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form.heightInches ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+                </div>
+                {/* Stackable toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
+                  <label style={{ fontSize: 10, color: 'var(--muted)' }}>Stackable</label>
+                  <button type="button" onClick={() => setForm(fm => ({ ...fm, stackable: !fm.stackable }))}
+                    style={{
+                      width: 42, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', position: 'relative',
+                      background: form.stackable ? 'var(--success)' : 'var(--border)', transition: 'background 0.2s',
+                    }}>
+                    <div style={{
+                      width: 16, height: 16, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3,
+                      left: form.stackable ? 23 : 3, transition: 'left 0.2s',
+                    }} />
+                  </button>
+                  <span style={{ fontSize: 11, color: form.stackable ? 'var(--success)' : 'var(--muted)' }}>{form.stackable ? 'Yes' : 'No'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Multi-Stop Builder */}
+          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" className="btn btn-ghost" style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, color: showStopBuilder ? 'var(--accent)' : 'var(--muted)' }}
+              onClick={() => setShowStopBuilder(!showStopBuilder)}>
+              <Ic icon={MapPin} size={12} /> {showStopBuilder ? 'Hide Stops' : 'Multi-Stop Load'}
+            </button>
+            {!showStopBuilder && <span style={{ fontSize: 10, color: 'var(--muted)' }}>Add multiple pickup/delivery stops</span>}
+          </div>
+          {showStopBuilder && <StopBuilder stops={formStops} setStops={setFormStops} />}
 
           {/* Driver */}
           <div style={{ marginBottom: 12 }}>
@@ -606,6 +1171,10 @@ export function BookedLoads() {
                   <span style={{ fontWeight: 800, fontSize: 15 }}>{load.origin} <span style={{ color: 'var(--accent)' }}>→</span> {load.dest}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: statusColor + '15', color: statusColor, border: '1px solid ' + statusColor + '30' }}>{load.status}</span>
                   {load.rateCon && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}>Rate Con</span>}
+                  {load.load_type === 'LTL' && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.25)' }}>LTL</span>}
+                  {load.load_type === 'Partial' && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.25)' }}>Partial</span>}
+                  {load.consolidation_id && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', border: '1px solid rgba(240,165,0,0.25)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Ic icon={Layers} size={9} /> Consolidated</span>}
+                  {(load.stopCount || 0) > 2 && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(240,165,0,0.1)', color: 'var(--accent)', border: '1px solid rgba(240,165,0,0.25)' }}>{load.stopCount} stops</span>}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                   {load.loadId} · {load.broker} · {load.miles.toLocaleString()} mi · {load.commodity}
@@ -649,6 +1218,52 @@ export function BookedLoads() {
                     </div>
                   ))}
                 </div>
+
+                {/* LTL / Partial details */}
+                {(load.load_type === 'LTL' || load.load_type === 'Partial') && (
+                  <div style={{ background: load.load_type === 'LTL' ? 'rgba(59,130,246,0.04)' : 'rgba(168,85,247,0.04)', border: `1px solid ${load.load_type === 'LTL' ? 'rgba(59,130,246,0.2)' : 'rgba(168,85,247,0.2)'}`, borderRadius: 10, padding: 14 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: load.load_type === 'LTL' ? '#3b82f6' : '#a855f7', letterSpacing: 1.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Ic icon={Package} size={12} color={load.load_type === 'LTL' ? '#3b82f6' : '#a855f7'} /> {load.load_type} DETAILS
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>
+                      {load.freight_class && (
+                        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Freight Class</div>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{load.freight_class}</div>
+                        </div>
+                      )}
+                      {load.pallet_count && (
+                        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Pallets</div>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{load.pallet_count}</div>
+                        </div>
+                      )}
+                      {load.handling_unit && (
+                        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Handling Unit</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>{load.handling_unit}</div>
+                        </div>
+                      )}
+                      {(load.length_inches || load.width_inches || load.height_inches) && (
+                        <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Dimensions (L x W x H)</div>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{load.length_inches || '—'}" x {load.width_inches || '—'}" x {load.height_inches || '—'}"</div>
+                        </div>
+                      )}
+                      <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '8px 10px' }}>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>Stackable</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: load.stackable ? 'var(--success)' : 'var(--muted)' }}>{load.stackable ? 'Yes' : 'No'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Stop Timeline (multi-stop loads) */}
+                {load.stops && load.stops.length > 0 && (
+                  <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, border: '1px solid var(--border)' }}>
+                    <StopTimeline stops={load.stops} />
+                  </div>
+                )}
 
                 {/* Assign driver */}
                 {!load.driver && (
@@ -735,6 +1350,16 @@ export function BookedLoads() {
           </div>
         )
       })}
+
+      {/* ── Consolidation Panel ── */}
+      <ConsolidationPanel
+        loads={bookedLoads}
+        consolidations={consolidations}
+        addConsolidation={addConsolidation}
+        editConsolidation={editConsolidation}
+        updateLoadStatus={ctxUpdateStatus}
+        showToast={showToast}
+      />
 
       {/* E-Signature Modal */}
       {signatureModal && (

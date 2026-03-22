@@ -27,8 +27,16 @@ async function safeMutate(label, query) {
 // ─── LOADS (uses actual schema: load_id, rate, broker_id, etc.) ──
 export async function fetchLoads() {
   const data = await safeSelect('loads',
-    supabase.from('loads').select('*').order('created_at', { ascending: false }).limit(500)
+    supabase.from('loads').select('*, load_stops(*)').order('created_at', { ascending: false }).limit(500)
   )
+  // Sort stops by sequence within each load
+  if (data) {
+    data.forEach(load => {
+      if (load.load_stops) {
+        load.load_stops.sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+      }
+    })
+  }
   return data || []
 }
 
@@ -54,6 +62,15 @@ export async function createLoad(load) {
         carrier_name: load.carrier_name || load.driver || load.driver_name || null,
         notes: load.notes || load.commodity || null,
         rate_con_url: load.rate_con_url || null,
+        // LTL / Partial fields
+        freight_class: load.freight_class || null,
+        pallet_count: load.pallet_count ? parseInt(load.pallet_count) : null,
+        stackable: load.stackable || false,
+        length_inches: load.length_inches ? parseFloat(load.length_inches) : null,
+        width_inches: load.width_inches ? parseFloat(load.width_inches) : null,
+        height_inches: load.height_inches ? parseFloat(load.height_inches) : null,
+        handling_unit: load.handling_unit || null,
+        consolidation_id: load.consolidation_id || null,
       })
       .select()
       .single()
@@ -390,6 +407,68 @@ export async function sendMessage(loadId, content, senderName, senderRole) {
 }
 
 // ─── LOAD STOPS ─────────────────────────────────────────────
+export async function createLoadWithStops(load, stops) {
+  const userId = await getUserId()
+  // 1. Insert the load
+  const { data: newLoad, error: loadErr } = await safeMutate('createLoadWithStops',
+    supabase.from('loads')
+      .insert({
+        owner_id: userId,
+        load_id: load.load_id || null,
+        origin: load.origin,
+        destination: load.destination || load.dest,
+        rate: parseFloat(load.rate) || parseFloat(load.gross_pay) || parseFloat(load.gross) || 0,
+        load_type: load.load_type || load.loadType || 'FTL',
+        equipment: load.equipment || 'Dry Van',
+        weight: load.weight || null,
+        status: load.status || 'Rate Con Received',
+        pickup_date: load.pickup_date || load.pickupDate || null,
+        delivery_date: load.delivery_date || load.deliveryDate || null,
+        broker_id: load.broker_id || userId,
+        broker_name: load.broker_name || load.broker || null,
+        carrier_id: load.carrier_id || null,
+        carrier_name: load.carrier_name || load.driver || load.driver_name || null,
+        notes: load.notes || load.commodity || null,
+        rate_con_url: load.rate_con_url || null,
+      })
+      .select()
+      .single()
+  )
+  if (loadErr) throw loadErr
+  // 2. Batch-insert stops with the returned load ID
+  if (stops && stops.length > 0) {
+    const stopsToInsert = stops.map((s, i) => ({
+      load_id: newLoad.id,
+      sequence: s.sequence ?? i + 1,
+      type: s.type || 'pickup',
+      city: s.city || '',
+      address: s.address || null,
+      state: s.state || null,
+      zip_code: s.zip_code || null,
+      scheduled_time: s.scheduled_time || null,
+      scheduled_date: s.scheduled_date || null,
+      status: s.status || (i === 0 ? 'current' : 'pending'),
+      contact_name: s.contact_name || null,
+      contact_phone: s.contact_phone || null,
+      reference_number: s.reference_number || null,
+      notes: s.notes || null,
+    }))
+    const { data: newStops, error: stopsErr } = await safeMutate('createLoadStops',
+      supabase.from('load_stops').insert(stopsToInsert).select()
+    )
+    if (stopsErr) console.error('Failed to insert stops:', stopsErr)
+    newLoad.load_stops = (newStops || []).sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+  }
+  return newLoad
+}
+
+export async function fetchLoadStops(loadId) {
+  const data = await safeSelect('load_stops',
+    supabase.from('load_stops').select('*').eq('load_id', loadId).order('sequence', { ascending: true })
+  )
+  return data || []
+}
+
 export async function updateLoadStop(id, updates) {
   const { data } = await safeMutate('updateLoadStop',
     supabase.from('load_stops').update(updates).eq('id', id).select().single()
@@ -425,4 +504,29 @@ export async function deleteMemory(id) {
   await safeMutate('deleteMemory',
     supabase.from('q_memories').delete().eq('id', id)
   )
+}
+
+// ─── CONSOLIDATIONS (LTL/Partial load grouping) ─────────────────
+export async function fetchConsolidations() {
+  const data = await safeSelect('consolidations',
+    supabase.from('consolidations').select('*').order('created_at', { ascending: false }).limit(200)
+  )
+  return data || []
+}
+
+export async function createConsolidation(consolidation) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createConsolidation',
+    supabase.from('consolidations').insert({ ...consolidation, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateConsolidation(id, updates) {
+  const { data, error } = await safeMutate('updateConsolidation',
+    supabase.from('consolidations').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
 }

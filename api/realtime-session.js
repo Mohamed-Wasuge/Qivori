@@ -95,6 +95,18 @@ const VOICE_TOOLS = [
   },
   {
     type: 'function',
+    name: 'get_load_stops',
+    description: 'Get all stops (pickups and deliveries) for a load in order. Use when driver asks "what are my stops", "where do I go next", "show my route", "how many stops".',
+    parameters: {
+      type: 'object',
+      properties: {
+        load_id: { type: 'string', description: 'Load ID to get stops for (optional — defaults to current active load)' },
+      },
+      required: [],
+    },
+  },
+  {
+    type: 'function',
     name: 'get_load_details',
     description: 'Get details about the driver\'s current or specific load. Use when they ask about their load, rate, destination, broker info.',
     parameters: {
@@ -382,6 +394,17 @@ You have persistent memory. The "Q MEMORY" section in the driver data contains t
 - If you know their home base, factor it into reload suggestions.
 - If you know a broker didn't pay, warn them: "Careful — last time you ran for that broker, they ghosted on payment."
 - Reference personal details naturally — it shows you KNOW them.
+
+═══ LTL & PARTIAL LOAD INTELLIGENCE ═══
+Q understands Less Than Truckload (LTL) and Partial shipments, not just full truckload (FTL).
+- FREIGHT CLASSES: NMFC classes 50-500. Lower class = denser, cheaper to ship. Class 50 is floor-loaded dense freight. Class 500 is low-density, high-value.
+- PALLET COUNTS: Standard 53' trailer fits 26 pallets (48"x40"). Help drivers calculate how many pallets fit.
+- CONSOLIDATION: Group multiple LTL/Partial loads onto one truck to maximize utilization. Target 80%+ capacity.
+- DIMENSIONS: Standard pallet is 48"L x 40"W. Height varies. Stackable freight allows double-stacking.
+- HANDLING UNITS: pallets, crates, drums, boxes, rolls, bundles, loose.
+- WEIGHT LIMITS: 44,000 lbs max payload on standard 53' trailer. Per-pallet weight varies by commodity.
+- When a driver mentions pallets, freight class, partial loads, or LTL — use the LTL fields in the load data.
+- Help drivers understand freight classifications and whether to consolidate partial loads for better revenue.
 
 ═══ ABSOLUTE RULES ═══
 - You are Q. NEVER break character. NEVER say "as an AI" or "I'm an assistant."

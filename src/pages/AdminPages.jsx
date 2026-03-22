@@ -50,20 +50,40 @@ export function WaitlistManager() {
   }
 
   const handleInvite = async (email) => {
-    showToast('', 'Invite Sent', 'Invitation email sent to ' + email)
+    try {
+      const res = await apiFetch('/api/invite-driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: 'carrier' })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Failed to send invite')
+      }
+      showToast('', 'Invite Sent', 'Invitation email sent to ' + email)
+    } catch (e) {
+      showToast('', 'Invite Failed', e.message, 'error')
+    }
   }
 
   const handleBulkInvite = async () => {
     if (selected.size === 0) return
     setSending(true)
     const selectedEmails = emails.filter(e => selected.has(e.id))
-    showToast('', 'Bulk Invite', `Sending invitations to ${selectedEmails.length} carriers...`)
-    // In production, this would call an API endpoint to send emails via SendGrid/Resend
-    setTimeout(() => {
-      showToast('', 'Done', `${selectedEmails.length} invitation(s) sent!`)
-      setSending(false)
-      setSelected(new Set())
-    }, 1500)
+    let sent = 0, failed = 0
+    for (const entry of selectedEmails) {
+      try {
+        const res = await apiFetch('/api/invite-driver', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: entry.email, role: 'carrier' })
+        })
+        if (res.ok) sent++; else failed++
+      } catch { failed++ }
+    }
+    showToast('', 'Bulk Invite Done', `${sent} sent, ${failed} failed`)
+    setSending(false)
+    setSelected(new Set())
   }
 
   const handleExportCSV = () => {

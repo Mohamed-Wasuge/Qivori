@@ -318,8 +318,18 @@ export default function Carriers() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                 <Ic icon={Mail} size={13} color="var(--accent)" /> {selectedUser.email}
                 <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 10, marginLeft: 'auto' }}
-                  onClick={() => { navigator.clipboard.writeText(selectedUser.email); showToast('', 'Email Copied', 'Go to Email tab to compose') }}>
-                  <Ic icon={Send} size={10} /> Send Email
+                  onClick={async () => {
+                    try {
+                      const res = await apiFetch('/api/invite-driver', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: selectedUser.email, role: 'carrier' })
+                      })
+                      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed') }
+                      showToast('', 'Invite Sent', 'Invitation email sent to ' + selectedUser.email)
+                    } catch (e) { showToast('', 'Failed', e.message, 'error') }
+                  }}>
+                  <Ic icon={Send} size={10} /> Send Invite
                 </button>
               </div>
               {selectedUser.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><Ic icon={Phone} size={13} color="var(--accent2)" /> {selectedUser.phone}</div>}

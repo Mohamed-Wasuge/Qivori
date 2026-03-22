@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
-import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock, Send } from 'lucide-react'
+import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock, Send, KeyRound } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 const FILTERS = ['All', 'active', 'trial', 'pending', 'suspended']
@@ -75,6 +75,24 @@ export default function Carriers() {
       showToast('', 'Error', 'Failed to create user')
     }
     setAddingUser(false)
+  }
+
+  const sendPasswordReset = async (user) => {
+    try {
+      const res = await apiFetch('/api/admin-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, email: user.email, action: 'send_reset_link' })
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('', 'Reset Link Sent', `Password reset email sent to ${user.email}`)
+      } else {
+        showToast('', 'Error', data.error || 'Failed to send reset link')
+      }
+    } catch {
+      showToast('', 'Error', 'Failed to send password reset')
+    }
   }
 
   const openUserDrawer = async (user) => {
@@ -260,6 +278,10 @@ export default function Carriers() {
                         onClick={() => openUserDrawer(u)}>
                         <Ic icon={Eye} size={12} /> View
                       </button>
+                      <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: 10, color: 'var(--accent2)' }}
+                        onClick={() => sendPasswordReset(u)} title="Send password reset email">
+                        <Ic icon={KeyRound} size={12} />
+                      </button>
                       {u.status === 'pending' && (
                         <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: 10 }}
                           onClick={() => updateStatus(u.id, 'active', u.full_name || u.email)}>
@@ -354,7 +376,11 @@ export default function Carriers() {
             </div>
 
             {/* Quick Actions */}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: 10, fontSize: 12, color: 'var(--accent2)' }}
+                onClick={() => sendPasswordReset(selectedUser)}>
+                <Ic icon={KeyRound} size={14} /> Reset Password
+              </button>
               {selectedUser.status === 'pending' && (
                 <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: 10, fontSize: 12 }}
                   onClick={() => { updateStatus(selectedUser.id, 'active', selectedUser.full_name || selectedUser.email); setSelectedUser(s => ({ ...s, status: 'active' })) }}>

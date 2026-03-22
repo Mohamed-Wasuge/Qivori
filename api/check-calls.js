@@ -6,7 +6,7 @@ const CRON_SECRET = process.env.CRON_SECRET
 function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json'}})}
 const sb=()=>({apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'})
 
-function isAuthorized(req){const a=req.headers.get('authorization');return a==='Bearer '+CRON_SECRET||a==='Bearer '+SUPABASE_KEY}
+function isAuthorized(req){const a=req.headers.get('authorization');if(!a) return false;return (CRON_SECRET && a==='Bearer '+CRON_SECRET)||(SUPABASE_KEY && a==='Bearer '+SUPABASE_KEY)}
 
 export default async function handler(req){
   const url=new URL(req.url)

@@ -9,7 +9,7 @@ const PLAN_TIERS = {
 }
 
 // Which plan tier is required for each gated feature
-// With the single $399 plan, all features are tier 2 (full access)
+// With the $199 + $99/truck plan, all features are tier 2 (full access)
 const FEATURE_GATES = {
   load_board:    1,
   invoicing:     1,

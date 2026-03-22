@@ -28,7 +28,7 @@ export default async function handler(req){
     const totalCents=(firstTruck+Math.max(0,trucks-1)*extraTruck)*100
 
     if(!STRIPE_KEY){
-      return json({ok:true,provider:'mock',isFounder,pricePerTruck,trucks,checkoutUrl:(successUrl||'/app')+'?checkout=mock_success'})
+      return json({ok:true,provider:'mock',isFounder,firstTruck,extraTruck,trucks,checkoutUrl:(successUrl||'/app')+'?checkout=mock_success'})
     }
 
     // Create Stripe checkout session
@@ -55,6 +55,6 @@ export default async function handler(req){
     const session=await stripeRes.json()
     if(!stripeRes.ok) return json({error:session?.error?.message||'Stripe error'},400)
 
-    return json({ok:true,provider:'stripe',sessionId:session.id,checkoutUrl:session.url,isFounder,pricePerTruck,trucks})
+    return json({ok:true,provider:'stripe',sessionId:session.id,checkoutUrl:session.url,isFounder,firstTruck,extraTruck,trucks})
   }catch(e){return json({error:e.message},500)}
 }

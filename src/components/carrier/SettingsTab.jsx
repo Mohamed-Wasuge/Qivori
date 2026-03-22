@@ -46,9 +46,9 @@ export function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    autonomous_fleet: { name: 'Autonomous Fleet AI', price: '$399/truck/mo', color: '#f0a500', tier: 2 },
-    autopilot_ai:     { name: 'Autonomous Fleet AI', price: '$399/truck/mo', color: '#f0a500', tier: 2 },
-    autopilot:        { name: 'Autonomous Fleet AI', price: '$399/truck/mo', color: '#f0a500', tier: 2 },
+    autonomous_fleet: { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', color: '#f0a500', tier: 2 },
+    autopilot_ai:     { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', color: '#f0a500', tier: 2 },
+    autopilot:        { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', color: '#f0a500', tier: 2 },
   }
 
   const STATUS_BADGES = {
@@ -195,19 +195,19 @@ export function SubscriptionSettings() {
 
       {/* Plan Details */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan — Autonomous Fleet AI</div>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan — Qivori AI Dispatch</div>
         <div style={{ padding: 20, maxWidth: 500 }}>
           <div style={{ position: 'relative', padding: 20, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
             <div style={{ position: 'absolute', top: -1, right: 16, fontSize: 9, fontWeight: 800, padding: '2px 12px', borderRadius: '0 0 6px 6px', background: '#f0a500', color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>Autonomous Fleet AI</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>Everything included · Per truck · No upsells</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>Qivori AI Dispatch</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>Everything included · No upsells</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: 'var(--muted)', textDecoration: 'line-through', marginRight: 2 }}>$599</span>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--text)' }}>$399</span>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>/truck/mo</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: 'var(--muted)', textDecoration: 'line-through', marginRight: 2 }}>$299</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--text)' }}>$199</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>/mo first truck · $99 each additional</span>
             </div>
             <div style={{ fontSize: 10, marginBottom: 16 }}>
-              <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>SAVE $200/truck</span>
+              <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>FOUNDER RATE — LOCKED FOR LIFE</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
               {['AI Load Board & Scoring', 'AI-Powered Dispatch', 'Proactive Load Finding Agent', 'Voice AI Assistant',
@@ -243,7 +243,7 @@ export function SubscriptionSettings() {
             boxShadow:'0 24px 80px rgba(0,0,0,0.6)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
               <div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>AUTONOMOUS FLEET AI</div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>QIVORI AI DISPATCH</div>
                 <div style={{ fontSize:12, color:'var(--muted)' }}>How many trucks do you operate?</div>
               </div>
               <button onClick={() => setTruckPicker(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:20 }}>✕</button>
@@ -266,17 +266,23 @@ export function SubscriptionSettings() {
             {/* Price breakdown */}
             <div style={{ background:'var(--surface2)', borderRadius:12, padding:16, marginBottom:20 }}>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                <span style={{ color:'var(--muted)' }}>Autonomous Fleet AI ({truckPicker.trucks} truck{truckPicker.trucks !== 1 ? 's' : ''} × $399)</span>
-                <span style={{ fontWeight:700 }}>${(truckPicker.trucks * 399).toLocaleString()}/mo</span>
+                <span style={{ color:'var(--muted)' }}>First truck</span>
+                <span style={{ fontWeight:700 }}>$199/mo</span>
               </div>
+              {truckPicker.trucks > 1 && (
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
+                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $99</span>
+                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 99).toLocaleString()}/mo</span>
+                </div>
+              )}
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
-                <span>Founder pricing (normally $599/truck)</span>
-                <span style={{ color:'#ef4444', fontWeight:700 }}>Save ${(truckPicker.trucks * 200).toLocaleString()}/mo</span>
+                <span>Founder pricing (normally $299 + $149/truck)</span>
+                <span style={{ color:'#ef4444', fontWeight:700 }}>Save ${(100 + Math.max(0, truckPicker.trucks - 1) * 50).toLocaleString()}/mo</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
                 <span style={{ fontWeight:800 }}>Total</span>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
-                  ${(truckPicker.trucks * 399).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                  ${(199 + Math.max(0, truckPicker.trucks - 1) * 99).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
                 </span>
               </div>
             </div>

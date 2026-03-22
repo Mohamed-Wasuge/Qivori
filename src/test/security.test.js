@@ -221,10 +221,10 @@ describe('Demo Request Anti-Spam', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('Pricing Consistency', () => {
-  it('landing page shows $399 pricing', () => {
+  it('landing page shows $199 pricing', () => {
     const content = readSrc('src/pages/LandingPage.jsx')
     // Should contain correct price
-    expect(content).toContain('399')
+    expect(content).toContain('199')
   })
 })
 

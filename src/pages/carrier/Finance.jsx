@@ -1281,7 +1281,7 @@ const CF_DUE_WEEK = {
 const CF_START_BALANCE = 0
 
 export function CashFlowForecaster() {
-  const { loads, invoices, expenses } = useCarrier()
+  const { loads, invoices, expenses, drivers: ctxDrivers, fuelCostPerMile } = useCarrier()
   const { showToast } = useApp()
   const [selWeek, setSelWeek] = useState(0)
   const [factorId, setFactorId] = useState(null)
@@ -1307,10 +1307,16 @@ export function CashFlowForecaster() {
     })
 
     // 3. Weekly outgoing (deterministic, no Math.random)
+    // Use avg driver pay rate from driver records
+    const avgPayRate = (() => {
+      const pctDrivers = (ctxDrivers || []).filter(d => (d.pay_model || 'percent') === 'percent')
+      if (pctDrivers.length === 0) return 0.28
+      return pctDrivers.reduce((s, d) => s + (parseFloat(d.pay_rate) || 28), 0) / pctDrivers.length / 100
+    })()
     const totalExpAmt = expenses.reduce((s,e) => s + e.amount, 0)
     const weeklyBase  = Math.round(totalExpAmt / 4) // spread over 4 weeks of history
     const outgoing = CF_WEEKS.map((_, i) => {
-      const driverPay = Math.round(incoming[i] * 0.28)
+      const driverPay = Math.round(incoming[i] * avgPayRate)
       const fuel      = Math.round((totalExpAmt || 0) / 4)
       const ops       = i === 0 ? Math.round(weeklyBase * 0.6) : Math.round(weeklyBase * 0.35)
       return driverPay + fuel + ops
@@ -1343,7 +1349,7 @@ export function CashFlowForecaster() {
     unpaidTotal > 3000 && { icon: Lightbulb, color:'var(--accent)',  text:`$${unpaidTotal.toLocaleString()} in unpaid invoices sitting out there. Factor the largest one now for same-day cash at 2.5% fee.` },
     thinWeekIdx >= 0   && { icon: AlertTriangle, color:'var(--warning)', text:`Week of ${CF_WEEKS[thinWeekIdx].label} projects low — $${balance[thinWeekIdx].toLocaleString()} balance. Either factor an invoice or hold a non-urgent expense.` },
     peakWeekIdx >= 0 && incoming[peakWeekIdx] > 0 && { icon: TrendingUp, color:'var(--success)', text:`Strongest week: ${CF_WEEKS[peakWeekIdx].label} — $${incoming[peakWeekIdx].toLocaleString()} expected from ${items[peakWeekIdx].length} source${items[peakWeekIdx].length !== 1 ? 's' : ''}.` },
-    { icon: Truck, color:'var(--accent2)', text:`Reserve ~$${Math.round(totalIn * 0.28).toLocaleString()} for driver pay over 6 weeks (28% of projected revenue).` },
+    { icon: Truck, color:'var(--accent2)', text:`Reserve ~$${Math.round(totalIn * avgPayRate).toLocaleString()} for driver pay over 6 weeks (${Math.round(avgPayRate * 100)}% avg of projected revenue).` },
   ].filter(Boolean)
 
   const kpis = [
@@ -1455,9 +1461,9 @@ export function CashFlowForecaster() {
             {/* Expense line items */}
             <div style={{ marginBottom:8, padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
               {[
-                { label:'Driver Pay (28%)', amount: Math.round(incoming[selWeek] * 0.28), out:true },
-                { label:'Fuel est. · 3 trucks', amount: 840, out:true },
-                { label:'Ops / Maintenance',    amount: outgoing[selWeek] - Math.round(incoming[selWeek] * 0.28) - 840, out:true },
+                { label:`Driver Pay (${Math.round(avgPayRate * 100)}%)`, amount: Math.round(incoming[selWeek] * avgPayRate), out:true },
+                { label:`Fuel est. ($${(fuelCostPerMile || 0.22).toFixed(2)}/mi)`, amount: Math.round((totalExpAmt || 0) / 4), out:true },
+                { label:'Ops / Maintenance',    amount: Math.max(0, outgoing[selWeek] - Math.round(incoming[selWeek] * avgPayRate) - Math.round((totalExpAmt || 0) / 4)), out:true },
               ].filter(e => e.amount > 0).map(e => (
                 <div key={e.label} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0' }}>
                   <span style={{ fontSize:11, color:'var(--muted)' }}>{e.label}</span>

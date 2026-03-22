@@ -3113,7 +3113,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
     // ── ACCOUNT MANAGEMENT — upgrade/downgrade plan ──
     if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(basic|pro|autopilot|autopilot\s*ai|solo|fleet|enterprise|growing|autonomous)\b/.test(lowerText)) {
-      const targetPlan = { id: 'autonomous_fleet', name: 'Autonomous Fleet AI', price: '$399/truck/mo (founder pricing)' }
+      const targetPlan = { id: 'autonomous_fleet', name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck (founder pricing)' }
       try {
         const res = await apiFetch('/api/create-checkout', {
           method: 'POST',
@@ -3123,7 +3123,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         const data = await res.json()
         if (data.url) {
           setMessages(m => [...m, { role: 'assistant', content: `**Subscribe to ${targetPlan.name} (${targetPlan.price})**\n\nI've generated your checkout link. Tap below to complete:\n\n[Subscribe Now](${data.url})\n\nIncludes a 14-day free trial. Cancel anytime. Everything included, no upsells.` }])
-          speak(`Opening checkout for the Autonomous Fleet AI plan at 399 dollars per truck per month.`)
+          speak(`Opening checkout for the Qivori AI Dispatch plan at 199 dollars per month plus 99 per truck.`)
           setTimeout(() => window.open(data.url, '_blank'), 1500)
         } else {
           setMessages(m => [...m, { role: 'assistant', content: `Couldn't create checkout: ${data.error || 'Try again later.'}` }])
@@ -3212,7 +3212,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { autonomous_fleet: '$399/truck/mo', autopilot: '$399/truck/mo', autopilot_ai: '$399/truck/mo' }
+      const planPrices = { autonomous_fleet: '$199/mo + $99/truck', autopilot: '$199/mo + $99/truck', autopilot_ai: '$199/mo + $99/truck' }
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`

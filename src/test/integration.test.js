@@ -209,19 +209,19 @@ describe('Pricing Consistency', () => {
   it('subscribe.js and create-checkout.js agree on founder pricing', () => {
     const sub = readSrc('api/subscribe.js')
     const checkout = readSrc('api/create-checkout.js')
-    // Both should reference 399 as the founder price per truck
-    expect(sub).toMatch(/399/)
-    expect(checkout).toMatch(/39900/) // 399 * 100 cents
+    // Both should reference 199 as the founder base price
+    expect(sub).toMatch(/199/)
+    expect(checkout).toMatch(/19900/) // 199 * 100 cents
   })
 
-  it('landing page displays $399 pricing', () => {
+  it('landing page displays $199 pricing', () => {
     const content = readSrc('src/pages/LandingPage.jsx')
-    expect(content).toContain('$399')
+    expect(content).toContain('$199')
   })
 
-  it('landing page displays full price $599', () => {
+  it('landing page displays full price $299', () => {
     const content = readSrc('src/pages/LandingPage.jsx')
-    expect(content).toContain('$599')
+    expect(content).toContain('$299')
   })
 })
 

@@ -31,7 +31,7 @@ const COPILOT_SUGGESTIONS = (load) => [
 export function SmartDispatch() {
   const { showToast } = useApp()
   const { language: currentLang } = useTranslation()
-  const { loads: ctxLoads, addLoad, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
+  const { loads: ctxLoads, addLoad, addLoadWithStops, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
   const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
     name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
     location: d.location || '', hos: d.hos_remaining || '—', unit: d.unit_number || '',
@@ -113,6 +113,7 @@ export function SmartDispatch() {
   const [addModal, setAddModal]         = useState(false)
   const [addSource, setAddSource]       = useState('broker') // 'broker' | 'amazon_relay'
   const [addForm, setAddForm]           = useState({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'', amazon_block_id:'' })
+  const [relayStops, setRelayStops]     = useState([]) // extra Amazon Relay delivery stops
   const [addParsing, setAddParsing]     = useState(false)
   const addFileRef = useRef(null)
 
@@ -251,10 +252,11 @@ export function SmartDispatch() {
       return
     }
     const isRelay = addSource === 'amazon_relay'
-    addLoad({
+    const lastDest = relayStops.length > 0 ? relayStops[relayStops.length - 1].facility : addForm.dest
+    const loadData = {
       broker: isRelay ? 'Amazon Relay' : (addForm.broker || 'Direct'),
       origin: addForm.origin,
-      dest: addForm.dest,
+      dest: isRelay && relayStops.length > 0 ? lastDest : addForm.dest,
       miles: parseInt(addForm.miles) || 0,
       rate: addForm.miles ? (parseFloat(addForm.gross) / parseInt(addForm.miles)).toFixed(2) : 0,
       gross: parseFloat(addForm.gross) || 0,
@@ -263,15 +265,32 @@ export function SmartDispatch() {
       pickup: addForm.pickup || new Date().toISOString().split('T')[0],
       delivery: addForm.delivery,
       driver: addForm.driver || '',
-      notes: isRelay ? `Amazon Block: ${addForm.amazon_block_id || 'N/A'}${addForm.notes ? ' | ' + addForm.notes : ''}` : addForm.notes,
+      notes: isRelay ? `Amazon Block: ${addForm.amazon_block_id || 'N/A'}${relayStops.length > 0 ? ` | ${relayStops.length + 1} stops` : ''}${addForm.notes ? ' | ' + addForm.notes : ''}` : addForm.notes,
       equipment: isRelay ? 'Dry Van' : addForm.equipment,
       load_source: isRelay ? 'amazon_relay' : 'broker',
       amazon_block_id: isRelay ? addForm.amazon_block_id : null,
       payment_terms: isRelay ? 'biweekly' : null,
-    })
+    }
+
+    // Multi-stop relay: use addLoadWithStops
+    if (isRelay && relayStops.length > 0 && addLoadWithStops) {
+      const stops = [
+        { type: 'pickup', facility_name: addForm.origin, city: addForm.origin, scheduled_date: addForm.pickup || null, sequence: 1 },
+        { type: 'delivery', facility_name: addForm.dest, city: addForm.dest, scheduled_date: null, sequence: 2 },
+        ...relayStops.map((s, i) => ({
+          type: 'delivery', facility_name: s.facility, city: s.facility, scheduled_date: null, sequence: i + 3,
+        })),
+      ]
+      addLoadWithStops(loadData, stops)
+    } else {
+      addLoad(loadData)
+    }
+
+    const stopLabel = relayStops.length > 0 ? ` (${relayStops.length + 1} stops)` : ''
     const label = isRelay ? 'Amazon Relay Load Added' : 'Load Added'
-    showToast('', label, `${addForm.origin} → ${addForm.dest} · $${parseFloat(addForm.gross).toLocaleString()}`)
+    showToast('', label, `${addForm.origin} → ${lastDest}${stopLabel} · $${parseFloat(addForm.gross).toLocaleString()}`)
     setAddForm({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'', amazon_block_id:'' })
+    setRelayStops([])
     setAddSource('broker')
     setAddModal(false)
   }
@@ -728,6 +747,27 @@ export function SmartDispatch() {
                 </div>
               ))}
             </div>
+
+            {/* Amazon Relay Multi-Stop */}
+            {addSource === 'amazon_relay' && (
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:6, letterSpacing:0.5 }}>ADDITIONAL DROPS</div>
+                {relayStops.map((stop, i) => (
+                  <div key={i} style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6 }}>
+                    <span style={{ fontSize:11, color:'#ff9900', fontWeight:700, flexShrink:0 }}>Drop {i + 2}</span>
+                    <input placeholder="e.g. LAX9, ONT2" value={stop.facility}
+                      onChange={e => setRelayStops(s => s.map((st, idx) => idx === i ? { ...st, facility: e.target.value } : st))}
+                      style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none', boxSizing:'border-box' }} />
+                    <button onClick={() => setRelayStops(s => s.filter((_, idx) => idx !== i))}
+                      style={{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:14, padding:'4px' }}>✕</button>
+                  </div>
+                ))}
+                <button onClick={() => setRelayStops(s => [...s, { facility:'' }])}
+                  style={{ fontSize:11, fontWeight:600, color:'#ff9900', background:'rgba(255,153,0,0.08)', border:'1px solid rgba(255,153,0,0.2)', borderRadius:6, padding:'6px 12px', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  + Add Drop
+                </button>
+              </div>
+            )}
 
             {/* Driver */}
             <div style={{ marginBottom:12 }}>

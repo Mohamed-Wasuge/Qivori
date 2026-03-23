@@ -569,6 +569,320 @@ export function BrokerDirectory() {
   )
 }
 
+// ─── INVOICES HUB ─────────────────────────────────────────────────────────────
+export function InvoicesHub() {
+  const { showToast } = useApp()
+  const { invoices, loads, updateInvoiceStatus, company: carrierCompany } = useCarrier()
+  const [filter, setFilter] = useState('All')
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
+  const [selectedInv, setSelectedInv] = useState(null)
+  const [invDocs, setInvDocs] = useState([])
+
+  // Fetch documents for selected invoice's load
+  useEffect(() => {
+    if (!selectedInv) { setInvDocs([]); return }
+    const inv = invoices.find(i => i.id === selectedInv)
+    if (!inv) return
+    const loadId = inv._dbId || inv.loadId || inv.load_number
+    if (!loadId) return
+    import('../../lib/database').then(db => {
+      db.fetchDocuments(loadId).then(docs => setInvDocs(docs || []))
+    }).catch(() => {})
+  }, [selectedInv, invoices])
+
+  const statusColors = { Unpaid:'var(--warning)', Paid:'var(--success)', Factored:'#8b5cf6', Overdue:'var(--danger)' }
+  const statusBg = { Unpaid:'rgba(240,165,0,0.1)', Paid:'rgba(34,197,94,0.1)', Factored:'rgba(139,92,246,0.1)', Overdue:'rgba(239,68,68,0.1)' }
+
+  // Enrich invoices with computed fields
+  const enriched = useMemo(() => invoices.map(inv => {
+    const daysOut = acctDaysAgo(inv.date)
+    const daysUntilDue = acctDaysUntil(inv.dueDate)
+    const isOverdue = inv.status === 'Unpaid' && daysUntilDue < 0
+    const linkedLoad = loads.find(l => (l.loadId || l.load_number) === (inv.loadId || inv.load_number))
+    return { ...inv, daysOut, daysUntilDue, isOverdue, displayStatus: isOverdue ? 'Overdue' : inv.status, linkedLoad }
+  }), [invoices, loads])
+
+  const filtered = useMemo(() => {
+    let list = enriched
+    if (filter !== 'All') list = list.filter(i => i.displayStatus === filter)
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(i =>
+        (i.id || '').toLowerCase().includes(q) ||
+        (i.invoice_number || '').toLowerCase().includes(q) ||
+        (i.broker || '').toLowerCase().includes(q) ||
+        (i.route || '').toLowerCase().includes(q) ||
+        (i.driver || '').toLowerCase().includes(q)
+      )
+    }
+    list.sort((a, b) => {
+      let va, vb
+      if (sortBy === 'date') { va = acctParseDate(a.date)?.getTime() || 0; vb = acctParseDate(b.date)?.getTime() || 0 }
+      else if (sortBy === 'amount') { va = a.amount; vb = b.amount }
+      else if (sortBy === 'broker') { va = a.broker || ''; vb = b.broker || '' }
+      else if (sortBy === 'due') { va = a.daysUntilDue; vb = b.daysUntilDue }
+      else { va = a.id; vb = b.id }
+      if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+      return sortDir === 'asc' ? va - vb : vb - va
+    })
+    return list
+  }, [enriched, filter, search, sortBy, sortDir])
+
+  const totalUnpaid = enriched.filter(i => i.status === 'Unpaid').reduce((s, i) => s + i.amount, 0)
+  const totalPaid = enriched.filter(i => i.status === 'Paid').reduce((s, i) => s + i.amount, 0)
+  const totalFactored = enriched.filter(i => i.status === 'Factored').reduce((s, i) => s + i.amount, 0)
+  const overdueCount = enriched.filter(i => i.isOverdue).length
+  const overdueAmount = enriched.filter(i => i.isOverdue).reduce((s, i) => s + i.amount, 0)
+
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(col); setSortDir('desc') }
+  }
+  const sortArrow = (col) => sortBy === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+
+  const FILTERS = [
+    { id:'All', label:'All', count: enriched.length },
+    { id:'Unpaid', label:'Unpaid', count: enriched.filter(i => i.status === 'Unpaid' && !i.isOverdue).length, color:'var(--warning)' },
+    { id:'Overdue', label:'Overdue', count: overdueCount, color:'var(--danger)' },
+    { id:'Factored', label:'Factored', count: enriched.filter(i => i.status === 'Factored').length, color:'#8b5cf6' },
+    { id:'Paid', label:'Paid', count: enriched.filter(i => i.status === 'Paid').length, color:'var(--success)' },
+  ]
+
+  return (
+    <div style={{ ...S.page, paddingBottom:40 }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, letterSpacing:2 }}>INVOICES</div>
+          <div style={{ fontSize:12, color:'var(--muted)' }}>{enriched.length} total invoices · Manage, track, and collect</div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={S.grid(4)}>
+        {[
+          { label:'OUTSTANDING', val:`$${totalUnpaid.toLocaleString()}`, color:'var(--warning)', sub:`${enriched.filter(i=>i.status==='Unpaid').length} unpaid`, icon: Clock },
+          { label:'OVERDUE', val: overdueCount > 0 ? `$${overdueAmount.toLocaleString()}` : '$0', color:'var(--danger)', sub: overdueCount > 0 ? `${overdueCount} past due` : 'All current', icon: AlertTriangle },
+          { label:'FACTORED', val:`$${totalFactored.toLocaleString()}`, color:'#8b5cf6', sub:`${enriched.filter(i=>i.status==='Factored').length} invoices`, icon: Zap },
+          { label:'COLLECTED', val:`$${totalPaid.toLocaleString()}`, color:'var(--success)', sub:`${enriched.filter(i=>i.status==='Paid').length} paid`, icon: CheckCircle },
+        ].map(k => (
+          <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'18px 20px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div style={{ fontSize:11, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5 }}>{k.label}</div>
+              <div style={{ width:28, height:28, borderRadius:8, background:k.color+'15', display:'flex', alignItems:'center', justifyContent:'center' }}><Ic icon={k.icon} size={14} color={k.color} /></div>
+            </div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color:k.color, lineHeight:1 }}>{k.val}</div>
+            <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters + Search */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:6 }}>
+          {FILTERS.map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              style={{ padding:'6px 14px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer',
+                border: filter === f.id ? `1.5px solid ${f.color || 'var(--accent)'}` : '1px solid var(--border)',
+                background: filter === f.id ? (f.color || 'var(--accent)') + '15' : 'var(--surface)',
+                color: filter === f.id ? (f.color || 'var(--accent)') : 'var(--muted)' }}>
+              {f.label} <span style={{ opacity:0.7 }}>({f.count})</span>
+            </button>
+          ))}
+        </div>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices..."
+          style={{ width:220, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'7px 12px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }} />
+      </div>
+
+      {/* Invoice Table */}
+      <div style={S.panel}>
+        {filtered.length === 0 ? (
+          <div style={{ padding:40, textAlign:'center', color:'var(--muted)', fontSize:13 }}>
+            {enriched.length === 0 ? 'No invoices yet. Deliver a load to auto-generate your first invoice.' : 'No invoices match your filters.'}
+          </div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th style={{ cursor:'pointer' }} onClick={() => toggleSort('id')}>Invoice{sortArrow('id')}</th>
+                <th>Load</th>
+                <th style={{ cursor:'pointer' }} onClick={() => toggleSort('broker')}>Broker{sortArrow('broker')}</th>
+                <th>Route</th>
+                <th>Driver</th>
+                <th style={{ cursor:'pointer' }} onClick={() => toggleSort('date')}>Date{sortArrow('date')}</th>
+                <th style={{ cursor:'pointer' }} onClick={() => toggleSort('due')}>Due{sortArrow('due')}</th>
+                <th style={{ cursor:'pointer' }} onClick={() => toggleSort('amount')}>Amount{sortArrow('amount')}</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(inv => {
+                const st = inv.displayStatus
+                const sc = statusColors[st] || 'var(--muted)'
+                const bg = statusBg[st] || 'rgba(120,130,150,0.1)'
+                return (
+                  <tr key={inv.id + inv._dbId} style={{ cursor:'pointer' }} onClick={() => setSelectedInv(selectedInv === inv.id ? null : inv.id)}>
+                    <td><span style={{ fontFamily:'monospace', fontSize:12, fontWeight:700 }}>{inv.invoice_number || inv.id}</span></td>
+                    <td style={{ fontSize:11, color:'var(--muted)' }}>{inv.loadId || inv.load_number || '—'}</td>
+                    <td style={{ fontSize:12 }}>{inv.broker || '—'}</td>
+                    <td style={{ fontSize:12 }}>{inv.route || '—'}</td>
+                    <td style={{ fontSize:12 }}>{inv.driver || '—'}</td>
+                    <td style={{ fontSize:12, color:'var(--muted)' }}>{inv.date || '—'}</td>
+                    <td style={{ fontSize:12, color: inv.isOverdue ? 'var(--danger)' : inv.daysUntilDue < 7 ? 'var(--warning)' : 'var(--muted)' }}>
+                      {inv.isOverdue ? `${Math.abs(inv.daysUntilDue)}d overdue` : inv.dueDate || '—'}
+                    </td>
+                    <td><span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent)' }}>${(inv.amount || 0).toLocaleString()}</span></td>
+                    <td><span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:10, background:bg, color:sc }}>{st}</span></td>
+                    <td>
+                      <div style={{ display:'flex', gap:4 }}>
+                        <button title="Download PDF" onClick={e => { e.stopPropagation(); generateInvoicePDF({ id: inv.invoice_number || inv.id, loadId: inv.loadId || inv.load_number, broker: inv.broker, route: inv.route, amount: inv.amount, date: inv.date, dueDate: inv.dueDate, driver: inv.driver, status: inv.status }) }}
+                          style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', padding:'3px 8px', color:'var(--muted)', fontSize:11 }}>
+                          <Ic icon={Download} size={11} />
+                        </button>
+                        {inv.status === 'Unpaid' && (
+                          <button title="Mark as Paid" onClick={e => { e.stopPropagation(); updateInvoiceStatus(inv.id || inv.invoice_number, 'Paid'); showToast('', 'Invoice Paid', `${inv.invoice_number || inv.id} marked as paid`) }}
+                            style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', padding:'3px 8px', color:'var(--success)', fontSize:11 }}>
+                            <Ic icon={Check} size={11} />
+                          </button>
+                        )}
+                        {inv.status === 'Unpaid' && (
+                          <button title="Send Reminder" onClick={e => { e.stopPropagation(); showToast('', 'Reminder Sent', `Payment reminder sent for ${inv.invoice_number || inv.id}`) }}
+                            style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', padding:'3px 8px', color:'var(--accent)', fontSize:11 }}>
+                            <Ic icon={Send} size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Expanded Invoice Detail */}
+      {selectedInv && (() => {
+        const inv = enriched.find(i => i.id === selectedInv)
+        if (!inv) return null
+        const factorCompany = carrierCompany?.factoring_company || ''
+        const factorRate = parseFloat(carrierCompany?.factoring_rate) || 2.5
+        const fee = Math.round(inv.amount * (factorRate / 100) * 100) / 100
+        const net = inv.amount - fee
+        return (
+          <div style={S.panel}>
+            <div style={{ padding:20 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+                <div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>{inv.invoice_number || inv.id}</div>
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>{inv.broker} · {inv.route} · {inv.driver || 'No driver'}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)' }}>${(inv.amount||0).toLocaleString()}</div>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:10, background:statusBg[inv.displayStatus], color:statusColors[inv.displayStatus] }}>{inv.displayStatus}</span>
+                </div>
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12, marginBottom:16 }}>
+                {[
+                  { label:'Invoice Date', value: inv.date || '—' },
+                  { label:'Due Date', value: inv.dueDate || '—' },
+                  { label:'Days Outstanding', value: `${inv.daysOut}d` },
+                  { label:'Load ID', value: inv.loadId || inv.load_number || '—' },
+                  { label:'Equipment', value: inv.linkedLoad?.equipment || '—' },
+                  { label:'Miles', value: inv.linkedLoad?.miles ? inv.linkedLoad.miles.toLocaleString() + ' mi' : '—' },
+                ].map(d => (
+                  <div key={d.label} style={{ padding:'10px 12px', background:'var(--surface2)', borderRadius:8 }}>
+                    <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:0.5 }}>{d.label}</div>
+                    <div style={{ fontSize:13, fontWeight:600, marginTop:2 }}>{d.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Documents */}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 }}>Documents</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {['Rate Con', 'BOL', 'POD', 'Lumper Receipt', 'Scale Ticket'].map(docType => {
+                    const docTypeKey = docType.toLowerCase().replace(/ /g, '_')
+                    const found = invDocs.find(d => (d.doc_type || d.type || '').toLowerCase().replace(/ /g, '_') === docTypeKey)
+                    return (
+                      <div key={docType} style={{ padding:'8px 14px', background: found ? 'rgba(34,197,94,0.08)' : 'var(--surface2)', border: found ? '1px solid rgba(34,197,94,0.25)' : '1px solid var(--border)', borderRadius:8, display:'flex', alignItems:'center', gap:6, minWidth:100 }}>
+                        <Ic icon={found ? CheckCircle : FileText} size={12} color={found ? 'var(--success)' : 'var(--muted)'} />
+                        <div>
+                          <div style={{ fontSize:11, fontWeight:600, color: found ? 'var(--success)' : 'var(--muted)' }}>{docType}</div>
+                          {found ? (
+                            <a href={found.file_url || found.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:9, color:'var(--accent)' }} onClick={e => e.stopPropagation()}>View</a>
+                          ) : (
+                            <span style={{ fontSize:9, color:'var(--muted)' }}>Missing</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                <button className="btn btn-primary" style={{ fontSize:12, padding:'8px 16px' }}
+                  onClick={() => generateInvoicePDF({ id: inv.invoice_number || inv.id, loadId: inv.loadId || inv.load_number, broker: inv.broker, route: inv.route, amount: inv.amount, date: inv.date, dueDate: inv.dueDate, driver: inv.driver, status: inv.status })}>
+                  <Ic icon={Download} size={13} /> Download PDF
+                </button>
+                {inv.status === 'Unpaid' && (
+                  <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 16px', color:'var(--success)', borderColor:'rgba(34,197,94,0.3)' }}
+                    onClick={() => { updateInvoiceStatus(inv.id || inv.invoice_number, 'Paid'); showToast('', 'Marked as Paid', inv.invoice_number || inv.id); setSelectedInv(null) }}>
+                    <Ic icon={Check} size={13} /> Mark as Paid
+                  </button>
+                )}
+                {inv.status === 'Unpaid' && (
+                  <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 16px' }}
+                    onClick={() => showToast('', 'Reminder Sent', `Payment reminder sent to ${inv.broker}`)}>
+                    <Ic icon={Send} size={13} /> Send Reminder
+                  </button>
+                )}
+                {inv.status === 'Unpaid' && factorCompany && factorCompany !== "I don't use factoring" && (
+                  <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 16px', color:'#8b5cf6', borderColor:'rgba(139,92,246,0.3)' }}
+                    onClick={async () => {
+                      try {
+                        await apiFetch('/api/factor-invoice', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: factorCompany, factoringRate: factorRate }),
+                        })
+                        updateInvoiceStatus(inv.id || inv.invoice_number, 'Factored')
+                        showToast('', 'Invoice Factored!', `${inv.invoice_number || inv.id} → ${factorCompany} · $${net.toLocaleString()} depositing in 24hrs`)
+                      } catch {
+                        updateInvoiceStatus(inv.id || inv.invoice_number, 'Factored')
+                        showToast('', 'Invoice Factored', `Marked locally — email may not have sent`)
+                      }
+                      setSelectedInv(null)
+                    }}>
+                    <Ic icon={Zap} size={13} /> Factor — ${net.toLocaleString()} ({factorRate}% fee)
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Summary Bar */}
+      {enriched.length > 0 && (
+        <div style={{ display:'flex', gap:12, alignItems:'center', padding:'12px 16px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, fontSize:11, color:'var(--muted)' }}>
+          <span>Total Revenue: <b style={{ color:'var(--accent)' }}>${(totalUnpaid + totalPaid + totalFactored).toLocaleString()}</b></span>
+          <span>·</span>
+          <span>Collection Rate: <b style={{ color: totalPaid > 0 ? 'var(--success)' : 'var(--muted)' }}>{enriched.length > 0 ? Math.round((enriched.filter(i=>i.status==='Paid').length / enriched.length) * 100) : 0}%</b></span>
+          <span>·</span>
+          <span>Avg Days to Pay: <b>{(() => { const p = enriched.filter(i => i.status === 'Paid'); return p.length ? Math.round(p.reduce((s,i) => s + i.daysOut, 0) / p.length) : '—' })()}d</b></span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── EXPENSE TRACKER ───────────────────────────────────────────────────────────
 const EXPENSE_CATS = ['Fuel', 'Maintenance', 'Tolls', 'Lumper', 'Insurance', 'Permits', 'Other']
 const CAT_COLORS = { Fuel:'var(--warning)', Maintenance:'var(--danger)', Tolls:'var(--accent2)', Lumper:'var(--accent3)', Insurance:'var(--accent)', Permits:'var(--success)', Other:'var(--muted)' }

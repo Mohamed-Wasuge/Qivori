@@ -16,7 +16,7 @@ import { SmartDispatch, LaneIntel, CommandCenter, AILoadBoard, CheckCallCenter, 
 import { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, DriverPayReport } from '../pages/carrier/DriverScorecard'
 import { CarrierIFTA, CarrierDVIR, CarrierClearinghouse } from '../pages/carrier/Compliance'
 import { FleetMap, FleetManager, FuelOptimizer, EquipmentManager } from '../pages/carrier/Fleet'
-import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard } from '../pages/carrier/Finance'
+import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard, InvoicesHub } from '../pages/carrier/Finance'
 import { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement } from '../pages/carrier/Settings'
 import { apiFetch } from '../lib/api'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
@@ -132,12 +132,13 @@ function FleetHub() {
 
 // ── Financials Hub ──
 function FinancialsHub() {
-  const [tab, setTab] = useState('pl')
-  const TABS = [{ id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables' },{ id:'cash-flow', label:'Cash Flow' },{ id:'expenses', label:'Expenses' },{ id:'factoring', label:'Factoring' },{ id:'quickbooks', label:'QuickBooks' }]
+  const [tab, setTab] = useState('invoices')
+  const TABS = [{ id:'invoices', label:'Invoices' },{ id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables' },{ id:'cash-flow', label:'Cash Flow' },{ id:'expenses', label:'Expenses' },{ id:'factoring', label:'Factoring' },{ id:'quickbooks', label:'QuickBooks' }]
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+        {tab === 'invoices' && <InvoicesHub />}
         {tab === 'pl' && <PLDashboard />}
         {tab === 'profit-iq' && <ProfitIQTab />}
         {tab === 'receivables' && <ReceivablesAging />}

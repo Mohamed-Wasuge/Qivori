@@ -6,6 +6,9 @@ export function setInvoiceCompany(company) { _cachedCompany = company }
 
 // ── Invoice PDF ────────────────────────────────────────────────────────────────
 export function generateInvoicePDF(invoice) {
+  // Fix Unicode arrow for PDF (helvetica can't render →)
+  if (invoice.route) invoice = { ...invoice, route: invoice.route.replace(/→/g, 'to') }
+
   // Auto-inject company info if not provided
   if (_cachedCompany && !invoice.companyName) {
     invoice = {

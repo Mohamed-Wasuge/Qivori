@@ -417,9 +417,15 @@ export function SmartDispatch() {
                       {aboveMarket && <span style={{ ...S.tag('var(--success)'), fontSize:8 }}>ABOVE MARKET</span>}
                     </div>
                   </div>
-                  <div style={{ textAlign:'right', flexShrink:0, marginLeft:8 }}>
-                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)', lineHeight:1 }}>${(load.gross||0).toLocaleString()}</div>
-                    <div style={{ fontSize:10, color: aboveMarket ? 'var(--success)' : 'var(--muted)', fontWeight: aboveMarket ? 700 : 400 }}>${(load.rpm||0).toFixed(2)}/mi</div>
+                  <div style={{ display:'flex', alignItems:'flex-start', gap:6, flexShrink:0, marginLeft:8 }}>
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)', lineHeight:1 }}>${(load.gross||0).toLocaleString()}</div>
+                      <div style={{ fontSize:10, color: aboveMarket ? 'var(--success)' : 'var(--muted)', fontWeight: aboveMarket ? 700 : 400 }}>${(load.rpm||0).toFixed(2)}/mi</div>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); setLoads(prev => prev.filter(x => x.id !== load.id)); if (selected === load.id) setSelected(null) }}
+                      title="Dismiss load"
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', fontSize:14, padding:'0 2px', lineHeight:1, opacity:0.5 }}
+                      onMouseEnter={e => e.target.style.opacity=1} onMouseLeave={e => e.target.style.opacity=0.5}>✕</button>
                   </div>
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>

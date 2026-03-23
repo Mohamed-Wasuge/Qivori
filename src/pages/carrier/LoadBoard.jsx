@@ -589,7 +589,16 @@ export function SmartDispatch() {
                 <Zap size={13} /> Book Load — ${sel.rpm.toFixed(2)}/mi
               </button>
               <button className="btn btn-ghost" style={{ padding:'11px 14px', fontSize:13 }}
-                onClick={() => showToast('', 'Saved', sel.id + ' added to watchlist')}>
+                onClick={() => {
+                  const wl = JSON.parse(localStorage.getItem('qivori_watchlist_loads') || '[]')
+                  if (wl.includes(sel.id)) {
+                    localStorage.setItem('qivori_watchlist_loads', JSON.stringify(wl.filter(id => id !== sel.id)))
+                    showToast('', 'Removed', sel.id + ' removed from watchlist')
+                  } else {
+                    localStorage.setItem('qivori_watchlist_loads', JSON.stringify([...wl, sel.id]))
+                    showToast('', 'Saved', sel.id + ' added to watchlist')
+                  }
+                }}>
                 <Ic icon={Bookmark} />
               </button>
             </div>
@@ -1072,8 +1081,21 @@ export function LaneIntel() {
                 <div style={{ fontSize:12, color:'var(--muted)' }}>{lane.miles} miles · {lane.equipment} · {lane.loads} loads in last 30 days</div>
               </div>
               <div style={{ display:'flex', gap:8 }}>
-                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Saved','Lane ' + lane.from + '→' + lane.to + ' saved to watchlist')}><Ic icon={Star} /> Watch Lane</button>
-                <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => showToast('','Dispatch','Opening AI Dispatch Copilot for ' + lane.from + '→' + lane.to)}><Ic icon={Zap} /> Find Load</button>
+                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => {
+                  const wl = JSON.parse(localStorage.getItem('qivori_watchlist_lanes') || '[]')
+                  const key = lane.from + '→' + lane.to
+                  if (wl.includes(key)) {
+                    localStorage.setItem('qivori_watchlist_lanes', JSON.stringify(wl.filter(k => k !== key)))
+                    showToast('','Removed','Lane ' + key + ' removed from watchlist')
+                  } else {
+                    localStorage.setItem('qivori_watchlist_lanes', JSON.stringify([...wl, key]))
+                    showToast('','Saved','Lane ' + key + ' saved to watchlist')
+                  }
+                }}><Ic icon={Star} /> Watch Lane</button>
+                <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => {
+                  window.dispatchEvent(new CustomEvent('switchToDispatch', { detail: { origin: lane.fromFull, dest: lane.toFull } }))
+                  showToast('','Dispatch','Switching to Dispatch Board for ' + lane.from + '→' + lane.to)
+                }}><Ic icon={Zap} /> Find Load</button>
               </div>
             </div>
 
@@ -1151,7 +1173,13 @@ export function LaneIntel() {
                             <div style={{ fontSize:11, color:'var(--muted)' }}>Pays {pays[b] || '< 3 days'}</div>
                           </div>
                           <span style={{ fontSize:10, fontWeight:800, padding:'3px 8px', borderRadius:8, background:scoreC+'15', color:scoreC }}>Score {score}</span>
-                          <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => showToast('','Contact',b + ' — opening broker details')}>Call</button>
+                          <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => {
+                            navigator.clipboard.writeText(b).then(() => {
+                              showToast('','Copied', b + ' copied to clipboard')
+                            }).catch(() => {
+                              showToast('','Broker', b + ' — no phone number on file')
+                            })
+                          }}>Contact</button>
                         </div>
                       )
                     })}
@@ -1522,9 +1550,25 @@ export function CommandCenter() {
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <button className="btn btn-ghost" style={{ flex:1, fontSize:11, padding:'7px 4px' }}
-                    onClick={() => showToast('','Call',`Calling ${selected.driver}...`)}><Ic icon={Phone} /> Call</button>
+                    onClick={() => {
+                      const drvRecord = dbDrivers.find(d => d.full_name === selected.driver)
+                      const phone = drvRecord?.phone
+                      if (phone) {
+                        window.open('tel:' + phone)
+                      } else {
+                        showToast('','No Phone','No phone number on file for ' + selected.driver)
+                      }
+                    }}><Ic icon={Phone} /> Call</button>
                   <button className="btn btn-ghost" style={{ flex:1, fontSize:11, padding:'7px 4px' }}
-                    onClick={() => showToast('','Message',`Chat with ${selected.driver} opened`)}><Ic icon={MessageCircle} /> Message</button>
+                    onClick={() => {
+                      const drvRecord = dbDrivers.find(d => d.full_name === selected.driver)
+                      const phone = drvRecord?.phone
+                      if (phone) {
+                        window.open('sms:' + phone)
+                      } else {
+                        showToast('','No Phone','No phone number on file for ' + selected.driver)
+                      }
+                    }}><Ic icon={MessageCircle} /> Message</button>
                 </div>
               </div>
 
@@ -1574,7 +1618,10 @@ export function CommandCenter() {
                   <div style={{ fontSize:13, fontWeight:700, color:'var(--success)', marginBottom:4 }}>Available</div>
                   <div style={{ fontSize:11, color:'var(--muted)', marginBottom:14 }}>No active load — ready to dispatch</div>
                   <button className="btn btn-primary" style={{ fontSize:11 }}
-                    onClick={() => showToast('','Dispatch','Opening AI Dispatch Copilot...')}><Ic icon={Zap} /> Find Load</button>
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('switchToDispatch'))
+                      showToast('','Dispatch','Switching to Dispatch Board...')
+                    }}><Ic icon={Zap} /> Find Load</button>
                 </div>
               )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Target } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
@@ -252,6 +252,15 @@ export function LoadsPipeline({ onOpenDrawer }) {
   const { loads, updateLoadStatus, showToast: _st } = { ...useCarrier(), ...useApp() }
   const [pipeTab, setPipeTab] = useState('pipeline')
   const [dragOver, setDragOver] = useState(null)
+
+  // Listen for custom event to switch to dispatch tab (from CommandCenter/LaneIntel "Find Load" buttons)
+  useEffect(() => {
+    const handler = (e) => {
+      setPipeTab('dispatch')
+    }
+    window.addEventListener('switchToDispatch', handler)
+    return () => window.removeEventListener('switchToDispatch', handler)
+  }, [])
 
   const handleDrop = (e, col) => {
     e.preventDefault()

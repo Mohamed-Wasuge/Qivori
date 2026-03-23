@@ -658,7 +658,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
         ))}
         <div style={{ flex:1 }} />
         <div style={{ fontSize:11, color:'var(--muted)', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap', padding:'0 8px' }}>
-          <CheckCircle size={13} color="var(--success)" /> All compliant
+          <CheckCircle size={13} color={eldStats.violations > 0 || dvirHistory.some(d => d.status === 'defects_found') ? 'var(--danger)' : 'var(--success)'} /> {eldStats.violations > 0 ? 'Issues Found' : 'All compliant'}
         </div>
       </div>
 
@@ -678,10 +678,10 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 </div>
                 {/* Mini gauges row */}
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, width:'100%', marginTop:4 }}>
-                  <MiniGauge label="HOS" value={0} max={5} color="var(--success)" unit="" />
-                  <MiniGauge label="CSA" value={Math.round(BASIC_SCORES.reduce((s,b) => s + b.score, 0) / BASIC_SCORES.length)} max={65} color="var(--success)" unit="%" />
-                  <MiniGauge label="DVIR" value={defects === 0 ? 100 : Math.max(0, 100 - defects * 10)} max={100} color={defects === 0 ? 'var(--success)' : 'var(--danger)'} unit="%" />
-                  <MiniGauge label="Drug" value={0} max={100} color="var(--muted)" unit="%" />{/* N/A when no data */}
+                  <MiniGauge label="HOS" value={eldStats.violations} max={5} color={eldStats.violations === 0 ? 'var(--success)' : 'var(--danger)'} unit="" />
+                  <MiniGauge label="CSA" value={Math.round(liveBasicScores.reduce((s,b) => s + b.score, 0) / liveBasicScores.length)} max={65} color={liveBasicScores.some(b => b.score > b.threshold) ? 'var(--danger)' : 'var(--success)'} unit="%" />
+                  <MiniGauge label="DVIR" value={dvirHistory.length > 0 ? (dvirHistory.filter(d => d.status === 'safe').length / dvirHistory.length * 100) : 100} max={100} color={dvirHistory.some(d => d.status === 'defects_found') ? 'var(--warning)' : 'var(--success)'} unit="%" />
+                  <MiniGauge label="Drug" value={chOrders.length > 0 ? (chOrders.filter(o => o.result === 'Clear').length / chOrders.length * 100) : 0} max={100} color={chOrders.some(o => o.result === 'Positive') ? 'var(--danger)' : chOrders.length > 0 ? 'var(--success)' : 'var(--muted)'} unit="%" />
                 </div>
               </div>
 
@@ -690,9 +690,9 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 {/* Status row */}
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10 }}>
                   {[
-                    { label:'ELD Devices',    value:'3/3',   sub:'All synced',      color:'var(--success)' },
-                    { label:'HOS Violations',  value:'0',     sub:'No data yet',   color:'var(--success)' },
-                    { label:'CSA Rating',      value:'Satisfactory', sub:'FMCSA Status', color:'var(--success)' },
+                    { label:'ELD Devices',    value: eldStats.connected ? `${eldStats.onlineCount}/${eldStats.totalUnits || eldStats.onlineCount}` : `${(ctxVehicles||[]).length}`,   sub: eldStats.connected ? 'Synced' : (ctxVehicles||[]).length > 0 ? 'Manual' : 'Add vehicles',      color: eldStats.connected ? 'var(--success)' : 'var(--muted)' },
+                    { label:'HOS Violations',  value: String(eldStats.violations),     sub: eldStats.violations === 0 ? 'Clean record' : 'Review needed',   color: eldStats.violations === 0 ? 'var(--success)' : 'var(--danger)' },
+                    { label:'CSA Rating',      value: fmcsaCarrier?.safetyRating || (fmcsaCarrier ? 'None' : 'Look Up'), sub: fmcsaCarrier ? 'FMCSA' : 'Enter DOT in CSA tab', color: fmcsaCarrier?.safetyRating === 'Satisfactory' ? 'var(--success)' : fmcsaCarrier ? 'var(--warning)' : 'var(--muted)' },
                   ].map(s => (
                     <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
                       <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
@@ -709,10 +709,20 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:1 }}>AI COMPLIANCE INSIGHTS</span>
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {[
-                      { text:'No compliance issues detected', color:'var(--success)', icon: CheckCircle },
-                      { text:'Add drivers and vehicles to begin tracking compliance', color:'var(--muted)', icon: AlertTriangle },
-                    ].map((r, i) => (
+                    {(() => {
+                      const insights = []
+                      const driverCount = (ctxDrivers || []).length
+                      const vehicleCount = (ctxVehicles || []).length
+                      if (eldStats.violations > 0) insights.push({ text: `${eldStats.violations} HOS violation${eldStats.violations > 1 ? 's' : ''} detected — review immediately`, color: 'var(--danger)', icon: AlertTriangle })
+                      if (dvirHistory.some(d => d.status === 'defects_found')) insights.push({ text: 'Vehicle defects found in recent DVIR — repair before dispatch', color: 'var(--danger)', icon: AlertTriangle })
+                      if (complianceMatrix.some(d => d.medWarn)) insights.push({ text: 'Medical card expiring soon for one or more drivers', color: 'var(--warning)', icon: Clock })
+                      if (!eldStats.connected && vehicleCount > 0) insights.push({ text: 'Connect your ELD (Samsara/Motive) for automatic HOS and DVIR sync', color: 'var(--warning)', icon: Activity })
+                      if (driverCount === 0) insights.push({ text: 'Add your first driver to begin tracking compliance', color: 'var(--muted)', icon: Users })
+                      if (vehicleCount === 0) insights.push({ text: 'Add vehicles in the Fleet tab to track inspections', color: 'var(--muted)', icon: Truck })
+                      if (!fmcsaCarrier) insights.push({ text: 'Enter your DOT number in the CSA tab to pull live FMCSA data', color: 'var(--muted)', icon: Search })
+                      if (insights.length === 0) insights.push({ text: 'All compliance checks passing — no issues detected', color: 'var(--success)', icon: CheckCircle })
+                      return insights
+                    })().map((r, i) => (
                       <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12, color:'var(--muted)' }}>
                         <r.icon size={14} color={r.color} style={{ marginTop:1, flexShrink:0 }} />
                         <span>{r.text}</span>

@@ -1,5 +1,7 @@
-import { React, useState, Ic, S, StatCard, useApp, useCarrier } from './shared'
+import { React, useState, useRef, Ic, S, StatCard, useApp, useCarrier } from './shared'
 import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield } from 'lucide-react'
+import { uploadFile } from '../../lib/storage'
+import { createDocument } from '../../lib/database'
 
 // ─── FLEET MAP CONSTANTS ──────────────────────────────────────────────────────
 const CITIES = {
@@ -248,8 +250,8 @@ export function FleetMap() {
                 )}
                 {isSel && (
                   <div style={{ display:'flex', gap:6, marginTop:10 }}>
-                    <button className="btn btn-ghost" style={{ fontSize:10, flex:1 }} onClick={e => { e.stopPropagation(); showToast('', t.unit, 'Pinging ELD for location update...') }}><Ic icon={Radio} /> Ping</button>
-                    <button className="btn btn-ghost" style={{ fontSize:10, flex:1 }} onClick={e => { e.stopPropagation(); showToast('', 'Message Sent', `Dispatcher → ${t.driver}`) }}><Ic icon={MessageCircle} /> Message</button>
+                    <button className="btn btn-ghost" style={{ fontSize:10, flex:1 }} onClick={async e => { e.stopPropagation(); showToast('', t.unit, 'Pinging ELD for location update...'); try { const res = await fetch('/api/eld-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehicle: t.unit }) }); if (res.ok) { showToast('success', 'ELD Synced', t.unit + ' location updated') } else { showToast('error', 'ELD Sync Failed', 'Could not reach ELD — check connection') } } catch { showToast('error', 'ELD Sync Failed', 'Network error — try again') } }}><Ic icon={Radio} /> Ping</button>
+                    <button className="btn btn-ghost" style={{ fontSize:10, flex:1 }} onClick={e => { e.stopPropagation(); const driverObj = drivers.find(d => (d.name || d.full_name) === t.driver); const phone = driverObj?.phone || driverObj?.phone_number; if (phone) { window.open('sms:' + phone, '_self') } else { showToast('', 'No Phone', 'No phone number on file for ' + t.driver) } }}><Ic icon={MessageCircle} /> Message</button>
                   </div>
                 )}
               </div>
@@ -328,7 +330,7 @@ export function CarrierFleet() {
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t.driver} · ELD: {t.eld}</div>
                 </div>
               </div>
-              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => showToast('', t.unit, 'Live GPS: ' + t.loc)}>Track Live</button>
+              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => { const v = vehicles[trucks.indexOf(t)]; const lat = v?.lat || v?.latitude; const lng = v?.lng || v?.longitude; if (lat && lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank') } else { showToast('', 'No GPS Data', 'Connect ELD to enable live tracking for ' + t.unit) } }}>Track Live</button>
             </div>
             <div style={{ padding: 16, display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
               {[
@@ -922,7 +924,7 @@ export function FleetManager() {
                     <div style={{ fontSize:13, fontWeight:700, color: expiryColor(item.expiry) }}>{item.label} {expiryColor(item.expiry)==='var(--danger)' ? 'EXPIRED' : 'expiring soon'} — {item.expiry}</div>
                     <div style={{ fontSize:11, color:'var(--muted)' }}>Update before dispatching this truck</div>
                   </div>
-                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Renew',item.label + ' renewal form opening...')}>Renew Now</button>
+                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { if (item.label === 'Registration') { window.open('https://www.fmcsa.dot.gov/registration', '_blank') } else if (item.label === 'Insurance') { showToast('', 'Insurance Renewal', 'Contact your insurance agent to renew. Policy expires ' + item.expiry) } else if (item.label === 'DOT Inspection') { window.open('https://ai.fmcsa.dot.gov/RegistrationUpdate/UI/', '_blank') } else { window.open('https://www.fmcsa.dot.gov/', '_blank') } }}>Renew Now</button>
                 </div>
               ))}
 
@@ -974,7 +976,7 @@ export function FleetManager() {
                   <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
                     <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                       <div style={{ fontWeight:700, fontSize:13 }}><Ic icon={Paperclip} /> Documents</div>
-                      <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Upload','Select document to attach...')}>+ Upload</button>
+                      <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'; input.onchange = async (e) => { const file = e.target.files?.[0]; if (!file) return; try { showToast('', 'Uploading', file.name + '...'); const result = await uploadFile(file, 'vehicles/' + (truck.id || 'unknown')); await createDocument({ name: file.name, file_url: result.url, file_path: result.path, doc_type: 'vehicle', vehicle_id: truck.id || null }); showToast('success', 'Uploaded', file.name + ' attached successfully') } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload file') } }; input.click() }}>+ Upload</button>
                     </div>
                     <div style={{ padding:12, display:'flex', flexDirection:'column', gap:8 }}>
                       {[
@@ -988,7 +990,7 @@ export function FleetManager() {
                             <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.name}</div>
                             <div style={{ fontSize:10, color:'var(--muted)' }}>{doc.type} · {doc.date}</div>
                           </div>
-                          <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','View',doc.name)}>View</button>
+                          <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { if (doc.url || doc.file_url) { window.open(doc.url || doc.file_url, '_blank') } else { showToast('', 'No File', doc.name + ' has no file attached — upload one first') } }}>View</button>
                         </div>
                       ))}
                     </div>
@@ -1429,7 +1431,7 @@ export function EquipmentManager() {
                 : <>
                     <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { setEditing(true); setEditForm({ unit_number: sel.unit_number || sel.unit || '', year: sel.year || '', make: sel.make || '', model: sel.model || '', vin: sel.vin || '', license_plate: sel.license_plate || sel.plate || '', license_state: sel.license_state || sel.state || '', current_miles: sel.current_miles || sel.odometer || '', next_service_miles: sel.next_service_miles || sel.nextService || '', registration_expiry: sel.registration_expiry || sel.regExpiry || '', insurance_expiry: sel.insurance_expiry || sel.insExpiry || '', notes: sel.notes || '', status: sel.status || 'Active' }) }}><Ic icon={PencilIcon} /> Edit</button>
                     <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--error, #ef4444)' }} onClick={() => handleDelete(sel.id)}><Ic icon={Trash2} /> Delete</button>
-                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Report','Generating equipment report...')}><Ic icon={FileText} /> Report</button>
+                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const fields = sel.type === 'truck' ? EQ_FIELDS_TRUCK : EQ_FIELDS_TRAILER; const header = fields.map(f => f.label).join(','); const row = fields.map(f => '"' + String(sel[f.key] || '').replace(/"/g, '""') + '"').join(','); const csv = header + '\n' + row + '\n\nStatus,' + (sel.status || '') + '\nExported,' + new Date().toLocaleDateString(); const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = (sel.unit || sel.unit_number || 'equipment') + '_report.csv'; a.click(); URL.revokeObjectURL(url); showToast('success', 'Report Downloaded', (sel.unit || sel.unit_number) + ' report saved') }}><Ic icon={FileText} /> Report</button>
                   </>
               }
             </div>
@@ -1500,9 +1502,9 @@ export function EquipmentManager() {
                       {s === 'Active' ? <Check size={13} /> : s === 'Shop' ? <Wrench size={13} /> : '⏸'} {s}
                     </button>
                   ))}
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => showToast('','Service Scheduled', sel.unit + ' — service reminder set')}><Ic icon={Wrench} /> Schedule Service</button>
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => showToast('','Documents','Opening document vault for ' + sel.unit)}><Ic icon={FileText} /> Documents</button>
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => showToast('','GPS','Opening live location for ' + sel.unit)}><Ic icon={MapPin} /> GPS Location</button>
+                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={async () => { const nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7); const dateStr = nextWeek.toISOString().split('T')[0]; try { await editVehicle(sel.id, { notes: (sel.notes ? sel.notes + ' | ' : '') + 'Service scheduled ' + dateStr }); showToast('success', 'Service Scheduled', (sel.unit || sel.unit_number) + ' — service scheduled for ' + dateStr) } catch (err) { showToast('error', 'Error', err.message || 'Failed to schedule service') } }}><Ic icon={Wrench} /> Schedule Service</button>
+                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'; input.onchange = async (e) => { const file = e.target.files?.[0]; if (!file) return; try { showToast('', 'Uploading', file.name + '...'); const result = await uploadFile(file, 'vehicles/' + (sel.id || 'unknown')); await createDocument({ name: file.name, file_url: result.url, file_path: result.path, doc_type: 'vehicle', vehicle_id: sel.id || null }); showToast('success', 'Document Uploaded', file.name + ' added to ' + (sel.unit || sel.unit_number)) } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload file') } }; input.click() }}><Ic icon={FileText} /> Documents</button>
+                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { const lat = sel.lat || sel.latitude; const lng = sel.lng || sel.longitude; if (lat && lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank') } else { showToast('', 'No GPS Data', 'Connect ELD to enable live tracking for ' + (sel.unit || sel.unit_number)) } }}><Ic icon={MapPin} /> GPS Location</button>
                 </div>
               </div>
             )}

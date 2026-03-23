@@ -223,10 +223,54 @@ export function RevenueIntel() {
   const netMTD = grossMTD - totalExp
   const avgLoadSize = ctxLoads && ctxLoads.length > 0 ? Math.round(grossMTD / ctxLoads.length) : 0
   const [tab, setTab] = useState('overview')
-  const weeks = ['W1','W2','W3','W4']
-  const gross  = [5200, 6800, 4900, 7200]
-  const net    = [2100, 2900, 1800, 3200]
-  const maxVal = 8000
+
+  // Compute weekly revenue from real load data
+  const { weeks, gross, net, maxVal } = useMemo(() => {
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const wks = ['W1','W2','W3','W4']
+    const g = [0,0,0,0]
+    const n = [0,0,0,0]
+    ;(ctxLoads || []).forEach(l => {
+      const d = new Date(l.created_at || l.pickup || l.pickupDate || Date.now())
+      if (d >= monthStart) {
+        const weekIdx = Math.min(3, Math.floor((d.getDate() - 1) / 7))
+        g[weekIdx] += Number(l.gross || l.rate || 0)
+      }
+    })
+    const weekExp = [0,0,0,0]
+    ;(ctxExpenses || []).forEach(e => {
+      const d = new Date(e.date || e.created_at || Date.now())
+      if (d >= monthStart) {
+        const weekIdx = Math.min(3, Math.floor((d.getDate() - 1) / 7))
+        weekExp[weekIdx] += Number(e.amount || 0)
+      }
+    })
+    for (let i = 0; i < 4; i++) n[i] = g[i] - weekExp[i]
+    const mv = Math.max(1, ...g, ...n.map(Math.abs))
+    return { weeks: wks, gross: g, net: n, maxVal: mv }
+  }, [ctxLoads, ctxExpenses])
+
+  // Compute top lanes and best lane RPM from real data
+  const topLanes = useMemo(() => {
+    const laneMap = {}
+    ;(ctxLoads || []).forEach(l => {
+      const origin = (l.origin || '').split(',')[0].trim()
+      const dest = (l.dest || l.destination || '').split(',')[0].trim()
+      if (!origin || !dest) return
+      const key = `${origin} → ${dest}`
+      if (!laneMap[key]) laneMap[key] = { lane: key, gross: 0, miles: 0, loads: 0 }
+      laneMap[key].gross += Number(l.gross || l.rate || 0)
+      laneMap[key].miles += Number(l.miles || 0)
+      laneMap[key].loads += 1
+    })
+    return Object.values(laneMap)
+      .map(l => ({ ...l, rpm: l.miles > 0 ? (l.gross / l.miles).toFixed(2) : '0', net: `$${l.gross.toLocaleString()}` }))
+      .sort((a, b) => b.gross - a.gross)
+      .slice(0, 5)
+  }, [ctxLoads])
+
+  const bestLaneRPM = topLanes.length > 0 ? `$${Math.max(...topLanes.map(l => parseFloat(l.rpm))).toFixed(2)}` : '—'
 
   return (
     <div style={{ ...S.page, gap:0, paddingBottom:0 }}>
@@ -253,7 +297,7 @@ export function RevenueIntel() {
           <div style={S.grid(4)}>
             <StatCard label="Gross MTD"     value={grossMTD > 0 ? `$${(grossMTD/1000).toFixed(1)}K` : "$0"} change={grossMTD > 0 ? `${ctxLoads.length} loads` : "—"} color="var(--accent)" />
             <StatCard label="Net MTD"       value={netMTD !== 0 ? `$${netMTD.toLocaleString()}` : "$0"} change="After all costs" color="var(--success)" />
-            <StatCard label="Best Lane RPM" value="—"  change="Add loads to track" color="var(--accent2)" changeType="neutral"/>
+            <StatCard label="Best Lane RPM" value={bestLaneRPM}  change={topLanes.length > 0 ? topLanes[0].lane : "Add loads to track"} color="var(--accent2)" changeType={topLanes.length > 0 ? "up" : "neutral"}/>
             <StatCard label="Avg Load Size" value={avgLoadSize > 0 ? `$${avgLoadSize.toLocaleString()}` : "$0"} change="—" color="var(--accent3)" />
           </div>
 
@@ -580,6 +624,44 @@ export function InvoicesHub() {
   const [selectedInv, setSelectedInv] = useState(null)
   const [invDocs, setInvDocs] = useState([])
 
+  // Send payment reminder email to broker (or fallback to mailto)
+  const sendPaymentReminder = async (inv, e) => {
+    if (e) e.stopPropagation()
+    const brokerEmail = inv.broker_email || inv.linkedLoad?.broker_email || inv.linkedLoad?.brokerEmail || ''
+    const carrierName = carrierCompany?.company_name || carrierCompany?.name || 'Our Company'
+    const invoiceNum = inv.invoice_number || inv.id
+    const amount = (inv.amount || 0).toLocaleString()
+    const subject = `Payment Reminder — Invoice ${invoiceNum} — $${amount}`
+    const body = `Dear ${inv.broker || 'Broker'},\n\nThis is a friendly reminder that Invoice ${invoiceNum} for $${amount} (${inv.route || 'N/A'}) is ${inv.isOverdue ? Math.abs(inv.daysUntilDue) + ' days overdue' : 'due ' + (inv.dueDate || 'soon')}.\n\nPlease remit payment at your earliest convenience. If payment has already been sent, kindly disregard this notice.\n\nThank you for your business.\n\nBest regards,\n${carrierName}`
+
+    if (brokerEmail) {
+      try {
+        await apiFetch('/api/send-invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: brokerEmail,
+            carrierName,
+            invoiceNumber: `${invoiceNum} — PAYMENT REMINDER`,
+            loadNumber: inv.loadId || inv.load_number || '—',
+            route: inv.route || '—',
+            dueDate: inv.isOverdue ? `OVERDUE (${Math.abs(inv.daysUntilDue)}d)` : (inv.dueDate || 'Net 30'),
+            amount: inv.amount || 0,
+          }),
+        })
+        showToast('', 'Reminder Sent!', `Payment reminder emailed to ${brokerEmail}`)
+      } catch {
+        showToast('', 'Email Failed', 'Could not send — opening mailto instead')
+        window.open(`mailto:${brokerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`)
+      }
+    } else {
+      // No broker email — copy to clipboard and open blank mailto
+      try { await navigator.clipboard.writeText(body) } catch {}
+      window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`)
+      showToast('', 'No Broker Email', 'Opened mailto — paste or type broker email. Reminder text copied to clipboard.')
+    }
+  }
+
   // Fetch documents for selected invoice's load
   useEffect(() => {
     if (!selectedInv) { setInvDocs([]); return }
@@ -751,7 +833,7 @@ export function InvoicesHub() {
                           </button>
                         )}
                         {inv.status === 'Unpaid' && (
-                          <button title="Send Reminder" onClick={e => { e.stopPropagation(); showToast('', 'Reminder Sent', `Payment reminder sent for ${inv.invoice_number || inv.id}`) }}
+                          <button title="Send Reminder" onClick={e => sendPaymentReminder(inv, e)}
                             style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', padding:'3px 8px', color:'var(--accent)', fontSize:11 }}>
                             <Ic icon={Send} size={11} />
                           </button>
@@ -841,7 +923,7 @@ export function InvoicesHub() {
                 )}
                 {inv.status === 'Unpaid' && (
                   <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 16px' }}
-                    onClick={() => showToast('', 'Reminder Sent', `Payment reminder sent to ${inv.broker}`)}>
+                    onClick={() => sendPaymentReminder(inv)}>
                     <Ic icon={Send} size={13} /> Send Reminder
                   </button>
                 )}
@@ -1583,24 +1665,36 @@ export function FactoringCashflow() {
 }
 
 // ─── CASH FLOW FORECASTER ─────────────────────────────────────────────────────
-const CF_WEEKS = [
-  { label:'Mar 9',  range:'Mar 9–15'     },
-  { label:'Mar 16', range:'Mar 16–22'    },
-  { label:'Mar 23', range:'Mar 23–29'    },
-  { label:'Mar 30', range:'Mar 30–Apr 5' },
-  { label:'Apr 6',  range:'Apr 6–12'     },
-  { label:'Apr 13', range:'Apr 13–19'    },
-]
-
-// Map due-date strings to week index 0-5
-const CF_DUE_WEEK = {
-  'Mar 9':0,'Mar 10':0,'Mar 11':0,'Mar 12':0,'Mar 13':0,'Mar 14':0,'Mar 15':0,
-  'Mar 16':1,'Mar 17':1,'Mar 18':1,'Mar 19':1,'Mar 20':1,'Mar 21':1,'Mar 22':1,
-  'Mar 23':2,'Mar 24':2,'Mar 25':2,'Mar 26':2,'Mar 27':2,'Mar 28':2,'Mar 29':2,
-  'Mar 30':3,'Mar 31':3,'Apr 1':3,'Apr 2':3,'Apr 3':3,'Apr 4':3,'Apr 5':3,
-  'Apr 6':4,'Apr 7':4,'Apr 8':4,'Apr 9':4,'Apr 10':4,'Apr 11':4,'Apr 12':4,
-  'Apr 13':5,'Apr 14':5,'Apr 15':5,'Apr 16':5,'Apr 17':5,'Apr 18':5,'Apr 19':5,
+// Generate 6 weeks dynamically starting from current week
+function buildCFWeeks() {
+  const now = new Date()
+  const dayOfWeek = now.getDay()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - dayOfWeek)
+  startOfWeek.setHours(0, 0, 0, 0)
+  const weeks = []
+  const dueMap = {}
+  for (let w = 0; w < 6; w++) {
+    const wStart = new Date(startOfWeek)
+    wStart.setDate(startOfWeek.getDate() + w * 7)
+    const wEnd = new Date(wStart)
+    wEnd.setDate(wStart.getDate() + 6)
+    const sMonth = ACCT_MONTHS[wStart.getMonth()]
+    const eMonth = ACCT_MONTHS[wEnd.getMonth()]
+    const label = `${sMonth} ${wStart.getDate()}`
+    const range = sMonth === eMonth
+      ? `${sMonth} ${wStart.getDate()}–${wEnd.getDate()}`
+      : `${sMonth} ${wStart.getDate()}–${eMonth} ${wEnd.getDate()}`
+    weeks.push({ label, range, start: wStart, end: wEnd })
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(wStart)
+      day.setDate(wStart.getDate() + d)
+      dueMap[`${ACCT_MONTHS[day.getMonth()]} ${day.getDate()}`] = w
+    }
+  }
+  return { weeks, dueMap }
 }
+const { weeks: CF_WEEKS, dueMap: CF_DUE_WEEK } = buildCFWeeks()
 
 const CF_START_BALANCE = 0
 
@@ -1873,21 +1967,32 @@ export function PLDashboard() {
   const [period, setPeriod] = useState('mtd')
   const [breakdown, setBreakdown] = useState('driver')
 
+  const currentMonth = new Date().getMonth()
+  const currentYear = new Date().getFullYear()
+
   const periodLoads = useMemo(() => {
     if (period === 'mtd') return loads.filter(l => {
-      const d = acctParseDate(l.pickup?.split(' · ')[0])
-      return d && d.getMonth() === 2
+      const d = acctParseDate(l.pickup?.split(' · ')[0]) || new Date(l.pickup_date || l.created_at)
+      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear
+    })
+    if (period === 'q1') return loads.filter(l => {
+      const d = acctParseDate(l.pickup?.split(' · ')[0]) || new Date(l.pickup_date || l.created_at)
+      return d && d.getMonth() < 3 && d.getFullYear() === currentYear
     })
     return loads
-  }, [loads, period])
+  }, [loads, period, currentMonth, currentYear])
 
   const periodExpenses = useMemo(() => {
     if (period === 'mtd') return expenses.filter(e => {
-      const d = acctParseDate(e.date)
-      return d && d.getMonth() === 2
+      const d = acctParseDate(e.date) || new Date(e.date)
+      return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear
+    })
+    if (period === 'q1') return expenses.filter(e => {
+      const d = acctParseDate(e.date) || new Date(e.date)
+      return d && d.getMonth() < 3 && d.getFullYear() === currentYear
     })
     return expenses
-  }, [expenses, period])
+  }, [expenses, period, currentMonth, currentYear])
 
   const revenue = useMemo(() => periodLoads.reduce((s, l) => s + (l.gross || 0), 0), [periodLoads])
   const totalExp = useMemo(() => periodExpenses.reduce((s, e) => s + (e.amount || 0), 0), [periodExpenses])
@@ -1919,7 +2024,8 @@ export function PLDashboard() {
   }, [periodExpenses])
 
   const maxRev = breakdownData.length ? Math.max(...breakdownData.map(d => d.rev)) : 1
-  const PERIOD_OPTS = [{ id:'mtd', label:'Mar MTD' }, { id:'q1', label:'Q1 2026' }, { id:'ytd', label:'YTD 2026' }]
+  const monthName = ACCT_MONTHS[currentMonth] || 'MTD'
+  const PERIOD_OPTS = [{ id:'mtd', label:`${monthName} MTD` }, { id:'q1', label:`Q1 ${currentYear}` }, { id:'ytd', label:`YTD ${currentYear}` }]
 
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>

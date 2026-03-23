@@ -585,12 +585,14 @@ export function InvoicesHub() {
     if (!selectedInv) { setInvDocs([]); return }
     const inv = invoices.find(i => i.id === selectedInv)
     if (!inv) return
-    const loadId = inv._dbId || inv.loadId || inv.load_number
-    if (!loadId) return
+    // Find the linked load to get its DB UUID (documents are stored by load UUID)
+    const linkedLoad = loads.find(l => (l.loadId || l.load_number) === (inv.loadId || inv.load_number))
+    const loadDbId = linkedLoad?._dbId || linkedLoad?.id || inv.load_id || inv._dbId
+    if (!loadDbId) return
     import('../../lib/database').then(db => {
-      db.fetchDocuments(loadId).then(docs => setInvDocs(docs || []))
+      db.fetchDocuments(loadDbId).then(docs => setInvDocs(docs || []))
     }).catch(() => {})
-  }, [selectedInv, invoices])
+  }, [selectedInv, invoices, loads])
 
   const statusColors = { Unpaid:'var(--warning)', Paid:'var(--success)', Factored:'#8b5cf6', Overdue:'var(--danger)' }
   const statusBg = { Unpaid:'rgba(240,165,0,0.1)', Paid:'rgba(34,197,94,0.1)', Factored:'rgba(139,92,246,0.1)', Overdue:'rgba(239,68,68,0.1)' }

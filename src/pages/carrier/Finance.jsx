@@ -1236,20 +1236,20 @@ export function FactoringCashflow() {
             <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Briefcase} /> Connected Accounts</div></div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'Business Checking', bank: 'Chase Bank ****4821', status: 'Connected', color: 'var(--success)' },
-                { label: 'Fuel Card',          bank: 'EFS Fleet Card',      status: 'Connected', color: 'var(--success)' },
-                { label: 'Payroll Account',    bank: 'Not connected',        status: 'Add',       color: 'var(--warning)' },
+                { label: 'Business Checking', bank: 'Not connected', color: 'var(--muted)' },
+                { label: 'Fuel Card',          bank: 'Not connected', color: 'var(--muted)' },
+                { label: 'Payroll Account',    bank: 'Not connected', color: 'var(--muted)' },
               ].map(acc => (
                 <div key={acc.label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--surface2)', borderRadius: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: acc.color + '15', border: '1px solid ' + acc.color + '30', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}><Briefcase size={16} /></div>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Briefcase size={16} color="var(--muted)" /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 700 }}>{acc.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>{acc.bank}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 8, background: acc.color + '15', color: acc.color }}>{acc.status}</span>
+                  <button className="btn btn-ghost" style={{ fontSize: 10, padding: '3px 10px' }} onClick={() => showToast('', 'Coming Soon', 'Bank connection via Plaid is coming soon')}>Connect</button>
                 </div>
               ))}
-              <button className="btn btn-ghost" style={{ marginTop: 6 }} onClick={() => showToast('', 'Coming Soon', 'Bank account connection is coming soon')}>+ Connect Bank Account (Coming Soon)</button>
+              <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>Bank linking via Plaid — coming soon</div>
             </div>
           </div>
         </div>

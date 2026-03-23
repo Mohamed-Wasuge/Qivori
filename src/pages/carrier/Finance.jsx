@@ -932,12 +932,13 @@ export function FactoringCashflow() {
   const [tab, setTab] = useState('invoices')
   const [factoringRate, setFactoringRate] = useState(carrierCompany?.factoring_rate || 2.5)
   const [company, setCompany] = useState(carrierCompany?.factoring_company || '')
+  const [factorEmail, setFactorEmail] = useState(carrierCompany?.factoring_email || '')
   const [history, setHistory] = useState(HISTORY)
 
   // Persist factoring settings to Supabase
-  const saveFactoringSettings = (newCompany, newRate) => {
-    updateCompany({ factoring_company: newCompany, factoring_rate: newRate })
-    showToast('', 'Settings Saved', `${newCompany} @ ${newRate}%`)
+  const saveFactoringSettings = (newCompany, newRate, newEmail) => {
+    updateCompany({ factoring_company: newCompany, factoring_rate: newRate, factoring_email: newEmail })
+    showToast('', 'Settings Saved', `${newCompany} @ ${newRate}% · ${newEmail || 'no email set'}`)
   }
 
   // Use real invoices from context — Unpaid = factorable, Factored/Paid = history
@@ -1211,8 +1212,15 @@ export function FactoringCashflow() {
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>% flat fee per invoice</span>
                 </div>
               </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Submission Email</label>
+                <input type="email" value={factorEmail} placeholder="invoices@yourfactor.com"
+                  onChange={e => setFactorEmail(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing:'border-box' }} />
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>The email your factoring company uses to receive invoice submissions</div>
+              </div>
               <button className="btn btn-primary" style={{ padding: '10px 20px', fontSize: 13, marginTop: 4 }}
-                onClick={() => saveFactoringSettings(company, factoringRate)}>
+                onClick={() => saveFactoringSettings(company, factoringRate, factorEmail)}>
                 <Ic icon={Check} size={13} /> Save Factoring Settings
               </button>
               {[

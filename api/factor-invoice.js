@@ -104,8 +104,8 @@ export default async function handler(req) {
     const fee = Math.round(amount * (rate / 100) * 100) / 100
     const net = amount - fee
 
-    // Determine factor email
-    const factorEmail = FACTOR_EMAILS[factoringCompany]
+    // Determine factor email — use carrier's saved email first, fallback to known addresses
+    const factorEmail = company?.factoring_email || FACTOR_EMAILS[factoringCompany]
     const companyName = company?.name || company?.company_name || 'Carrier'
     const mcNumber = company?.mc || company?.mc_number || ''
     const dotNumber = company?.dot || company?.dot_number || ''

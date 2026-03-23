@@ -567,6 +567,7 @@ export function BookedLoads() {
   }
 
   const [invoiceLoad, setInvoiceLoad] = useState(null)
+  const [invoicePayTerms, setInvoicePayTerms] = useState('Net 30')
 
   const viewDoc = (doc) => {
     if (doc.fileUrl) {
@@ -1124,25 +1125,43 @@ export function BookedLoads() {
               {[
                 { label:'Freight Charge', value: '$' + invoiceLoad.gross.toLocaleString(undefined,{maximumFractionDigits:0}), main:false },
                 { label:'Fuel Surcharge', value: '$0.00', main:false },
-                { label:'TOTAL DUE', value: '$' + invoiceLoad.gross.toLocaleString(undefined,{maximumFractionDigits:0}), main:true },
+                ...(invoicePayTerms === 'Same Day Pay' ? [{ label:'QuickPay Fee (2.5%)', value: '−$' + Math.round(invoiceLoad.gross * 0.025).toLocaleString(), main:false, danger:true }] : []),
+                { label:'TOTAL DUE', value: '$' + (invoicePayTerms === 'Same Day Pay' ? Math.round(invoiceLoad.gross * 0.975) : invoiceLoad.gross).toLocaleString(undefined,{maximumFractionDigits:0}), main:true },
               ].map(item => (
                 <div key={item.label} style={{ display:'flex', justifyContent:'space-between', padding: item.main ? '10px 0 0' : '6px 0', borderTop: item.main ? '2px solid var(--border)' : 'none', marginTop: item.main ? 6 : 0 }}>
                   <span style={{ fontSize: item.main ? 14 : 12, fontWeight: item.main ? 800 : 400, color: item.main ? 'var(--text)' : 'var(--muted)' }}>{item.label}</span>
-                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: item.main ? 26 : 18, color: item.main ? 'var(--accent)' : 'var(--text)' }}>{item.value}</span>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize: item.main ? 26 : 18, color: item.danger ? 'var(--danger)' : item.main ? 'var(--accent)' : 'var(--text)' }}>{item.value}</span>
                 </div>
               ))}
             </div>
 
-            <div style={{ fontSize:11, color:'var(--muted)', marginBottom:16, padding:'10px 14px', background:'var(--surface2)', borderRadius:8 }}>
-              Payment Terms: Net 30 · Please reference invoice number {`INV-${String(invoiceLoad.id).slice(-4).padStart(4,'0')}`} on payment.
+            <div style={{ marginBottom:16, padding:'10px 14px', background:'var(--surface2)', borderRadius:8 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:6, letterSpacing:1 }}>PAYMENT TERMS</div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                {['Same Day Pay','Net 15','Net 30','Net 45','Biweekly'].map(term => (
+                  <button key={term} onClick={() => setInvoicePayTerms(term)}
+                    style={{ padding:'5px 12px', borderRadius:8, fontSize:11, fontWeight:600, cursor:'pointer', border: invoicePayTerms === term ? '1.5px solid var(--accent)' : '1px solid var(--border)', background: invoicePayTerms === term ? 'rgba(240,165,0,0.1)' : 'var(--surface)', color: invoicePayTerms === term ? 'var(--accent)' : 'var(--muted)' }}>
+                    {term}
+                  </button>
+                ))}
+              </div>
+              {invoicePayTerms === 'Same Day Pay' && (
+                <div style={{ fontSize:10, color:'var(--accent)', fontWeight:600 }}>QuickPay — 2.5% factoring fee applied for same-day payment</div>
+              )}
+              <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>
+                Please reference invoice number {`INV-${String(invoiceLoad.id).slice(-4).padStart(4,'0')}`} on payment.
+              </div>
             </div>
 
             <div style={{ display:'flex', gap:10 }}>
-              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={() => { showToast('','Invoice Sent', invoiceLoad.broker + ' · $' + invoiceLoad.gross.toLocaleString(undefined,{maximumFractionDigits:0})); setInvoiceLoad(null) }}><Ic icon={FileText} size={14} /> Send to Broker</button>
+              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={() => { showToast('','Invoice Sent', invoiceLoad.broker + ' · $' + invoiceLoad.gross.toLocaleString(undefined,{maximumFractionDigits:0}) + ' · ' + invoicePayTerms); setInvoiceLoad(null) }}><Ic icon={FileText} size={14} /> Send to Broker</button>
               <button className="btn btn-ghost" style={{ flex:1, padding:'12px 0' }} onClick={() => {
                 const invId = 'INV-' + String(invoiceLoad.id).slice(-4).padStart(4,'0')
                 const route = invoiceLoad.origin?.split(',')[0]?.substring(0,3)?.toUpperCase() + ' → ' + invoiceLoad.dest?.split(',')[0]?.substring(0,3)?.toUpperCase()
-                generateInvoicePDF({ id: invId, loadId: invoiceLoad.loadId, broker: invoiceLoad.broker, route, amount: invoiceLoad.gross, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}), dueDate: 'Net 30', driver: invoiceLoad.driver, status: 'Unpaid' })
+                const invDate = new Date()
+                const dueLabel = invoicePayTerms === 'Same Day Pay' ? 'Same Day' : invoicePayTerms
+                const invAmount = invoicePayTerms === 'Same Day Pay' ? Math.round(invoiceLoad.gross * 0.975) : invoiceLoad.gross
+                generateInvoicePDF({ id: invId, loadId: invoiceLoad.loadId, broker: invoiceLoad.broker, route, amount: invAmount, date: invDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}), dueDate: dueLabel, driver: invoiceLoad.driver, status: invoicePayTerms === 'Same Day Pay' ? 'QuickPay' : 'Unpaid', paymentTerms: invoicePayTerms })
                 showToast('','PDF Downloaded', invId + '.pdf')
                 setInvoiceLoad(null)
               }}>Download PDF</button>

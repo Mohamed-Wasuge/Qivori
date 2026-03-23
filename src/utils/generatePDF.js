@@ -125,8 +125,20 @@ export function generateInvoicePDF(invoice) {
     doc.text(invoice.status.toUpperCase(), PAD + 40, totY + 25, { align: 'center' })
   }
 
+  // Same Day Pay / QuickPay notice
+  const isSameDay = invoice.paymentTerms === 'Same Day Pay' || invoice.dueDate === 'Same Day'
+  if (isSameDay) {
+    const sdY = totY + 70
+    doc.setFillColor(240, 165, 0)
+    doc.rect(PAD, sdY, W - PAD*2, 28, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(...dark)
+    doc.text('SAME DAY PAY — QUICKPAY (2.5% FEE APPLIED)', W/2, sdY + 18, { align: 'center' })
+  }
+
   // Payment instructions
-  const piY = totY + 150
+  const piY = totY + (isSameDay ? 115 : 150)
   doc.setFillColor(15, 18, 26)
   doc.rect(PAD, piY, W - PAD*2, 90, 'F')
   doc.setFont('helvetica', 'bold')
@@ -137,10 +149,10 @@ export function generateInvoicePDF(invoice) {
   doc.setFontSize(9)
   doc.setTextColor(255, 255, 255)
   doc.text('ACH / Wire Transfer  ·  Routing: 021000021  ·  Account: 4892810043', PAD + 14, piY + 34)
-  doc.text('QuickPay available via Qivori portal — 2.5% factoring fee', PAD + 14, piY + 49)
+  doc.text(isSameDay ? 'Same Day Pay requested — 2.5% QuickPay fee applied' : 'QuickPay available via Qivori portal — 2.5% factoring fee', PAD + 14, piY + 49)
   doc.setTextColor(...gray)
   doc.setFontSize(8)
-  doc.text(`Payment due by ${invoice.dueDate || '—'}. Late payments subject to 1.5%/month finance charge.`, PAD + 14, piY + 65)
+  doc.text(isSameDay ? 'Payment due immediately upon receipt.' : `Payment due by ${invoice.dueDate || '—'}. Late payments subject to 1.5%/month finance charge.`, PAD + 14, piY + 65)
 
   // Footer
   doc.setDrawColor(...gold)

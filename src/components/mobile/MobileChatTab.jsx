@@ -1821,10 +1821,29 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
             ? loads.find(l => l.id === args.load_id || l.load_id === args.load_id)
             : loads.find(l => l.status === 'Delivered') || activeLoads[0]
           if (invLoad) {
+            const brokerEmail = invLoad.broker_email || args.to || ''
+            const carrierName = company?.name || 'Carrier'
+            const invNum = args.invoiceNumber || `INV-${(invLoad.load_id || invLoad.id || '').replace(/[^0-9]/g, '').slice(-4) || Date.now()}`
+            if (brokerEmail) {
+              try {
+                await apiFetch('/api/send-invoice', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    to: brokerEmail, carrierName, invoiceNumber: invNum,
+                    loadNumber: invLoad.load_id || invLoad.id || '',
+                    route: `${invLoad.origin || ''} → ${invLoad.destination || invLoad.dest || ''}`,
+                    amount: invLoad.rate || invLoad.gross || 0,
+                    dueDate: args.dueDate || 'Net 30',
+                    brokerName: invLoad.broker_name || invLoad.broker || '',
+                  }),
+                })
+              } catch {}
+            }
             await updateInvoiceStatus(invLoad.id || invLoad.load_id, 'Invoiced')
             haptic('success')
             showToast('success', 'Invoice Sent', `${invLoad.origin} → ${invLoad.destination || invLoad.dest}`)
-            result = { success: true, message: `Invoice sent for load ${invLoad.load_id || invLoad.id}: $${invLoad.rate || invLoad.gross || 0}` }
+            result = { success: true, message: `Invoice ${invNum} sent for load ${invLoad.load_id || invLoad.id}: $${invLoad.rate || invLoad.gross || 0}${brokerEmail ? ' — emailed to ' + brokerEmail : ''}` }
           } else {
             result = { success: false, message: 'No delivered load to invoice' }
           }
@@ -3732,7 +3751,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
       {/* ── ACTIVE LOAD STATUS BAR ────────────────────── */}
       {activeLoads.length > 0 && (
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: 0, maxHeight: showLoadDetail ? 220 : 60, overflowY: 'auto', transition: 'max-height 0.2s ease' }}>
           <div style={{ margin: '8px 16px 0', padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: showLoadDetail ? '10px 10px 0 0' : 10, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
             onClick={() => setShowLoadDetail(d => !d)}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -3849,6 +3868,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
               color: m.role === 'user' ? '#000' : 'var(--text)',
               border: m.role === 'assistant' ? '1px solid var(--border)' : 'none',
               fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word', overflow: 'hidden',
             }}>
               {m.wsSummary ? (
                 <div>
@@ -4000,7 +4020,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       </div>
 
       {/* ── INPUT BAR ───────────────────────────────── */}
-      <div style={{ flexShrink: 0, padding: '8px 16px 12px', borderTop: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
+      <div style={{ flexShrink: 0, padding: '8px 16px calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
 
         {/* In-call state — Retell real-time voice */}
         {(inCall || callConnecting) ? (

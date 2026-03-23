@@ -640,9 +640,29 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                         </div>
                         <div style={{ display:'flex', gap:8 }}>
                           <button className="btn btn-primary" style={{ flex:1, fontSize:11, padding:'8px 0', background:'var(--accent2)' }}
-                            onClick={() => {
-                              updateInvoiceStatus(linkedInvoice.id || linkedInvoice.invoice_number, 'Factored')
-                              showToast('', 'Invoice Factored!', `${linkedInvoice.invoice_number} → ${factorCompany} · $${net.toLocaleString()} depositing in 24hrs`)
+                            onClick={async () => {
+                              try {
+                                const res = await apiFetch('/api/factor-invoice', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    invoiceId: linkedInvoice._dbId || linkedInvoice.id,
+                                    factoringCompany: factorCompany,
+                                    factoringRate: factorRate,
+                                  }),
+                                })
+                                const data = await res.json()
+                                if (data.success) {
+                                  updateInvoiceStatus(linkedInvoice.id || linkedInvoice.invoice_number, 'Factored')
+                                  showToast('', 'Invoice Factored!', `${data.invoiceNumber} → ${data.sentTo} · $${data.net.toLocaleString()} depositing in 24hrs`)
+                                } else {
+                                  updateInvoiceStatus(linkedInvoice.id || linkedInvoice.invoice_number, 'Factored')
+                                  showToast('', 'Invoice Factored', `${linkedInvoice.invoice_number} marked as factored (email not sent: ${data.error || 'API unavailable'})`)
+                                }
+                              } catch {
+                                updateInvoiceStatus(linkedInvoice.id || linkedInvoice.invoice_number, 'Factored')
+                                showToast('', 'Invoice Factored', `${linkedInvoice.invoice_number} → ${factorCompany} · marked locally`)
+                              }
                               setShowFactorPrompt(false)
                             }}>
                             Submit to {factorCompany}

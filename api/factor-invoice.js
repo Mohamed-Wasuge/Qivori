@@ -180,6 +180,53 @@ export default async function handler(req) {
         }),
       })
       emailSent = true
+
+      // Send confirmation email to carrier
+      const confirmHtml = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a0c12;color:#fff;padding:30px;border-radius:12px;">
+          <div style="border-bottom:3px solid #f0a500;padding-bottom:20px;margin-bottom:20px;">
+            <h1 style="color:#22c55e;margin:0;font-size:24px;">FACTORING CONFIRMED</h1>
+            <p style="color:#888;margin:5px 0 0;">Your invoice has been submitted for factoring</p>
+          </div>
+
+          <div style="background:#1a1d27;border-radius:10px;padding:20px;margin-bottom:20px;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr><td style="padding:8px 0;color:#888;">Invoice</td><td style="color:#fff;font-weight:bold;">${invoice.invoice_number || invoice.id}</td></tr>
+              <tr><td style="padding:8px 0;color:#888;">Broker</td><td style="color:#fff;">${invoice.broker || '—'}</td></tr>
+              <tr><td style="padding:8px 0;color:#888;">Route</td><td style="color:#fff;">${invoice.route || '—'}</td></tr>
+              <tr><td style="padding:8px 0;color:#888;">Submitted To</td><td style="color:#fff;font-weight:bold;">${factoringCompany}</td></tr>
+              <tr><td style="padding:8px 0;color:#888;">Sent To</td><td style="color:#fff;">${factorEmail || 'your email (no factor email on file)'}</td></tr>
+            </table>
+          </div>
+
+          <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:10px;padding:20px;margin-bottom:20px;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr><td style="padding:6px 0;color:#888;">Invoice Amount</td><td style="text-align:right;color:#fff;font-size:16px;">$${amount.toLocaleString()}</td></tr>
+              <tr><td style="padding:6px 0;color:#888;">Factoring Fee (${rate}%)</td><td style="text-align:right;color:#ef4444;">−$${fee.toLocaleString()}</td></tr>
+              <tr style="border-top:2px solid #22c55e;"><td style="padding:10px 0 0;color:#22c55e;font-weight:bold;">YOU WILL RECEIVE</td><td style="text-align:right;padding:10px 0 0;color:#22c55e;font-size:22px;font-weight:bold;">$${net.toLocaleString()}</td></tr>
+            </table>
+          </div>
+
+          <div style="background:#1a1d27;border-radius:10px;padding:16px;margin-bottom:20px;">
+            <p style="color:#f0a500;font-weight:bold;margin:0 0 8px;">Expected Deposit: Within 24 business hours</p>
+            <p style="color:#888;font-size:12px;margin:0;">Your factoring company will review the submission and deposit funds to your account on file. Check your Qivori dashboard for status updates.</p>
+          </div>
+
+          <div style="border-top:1px solid #333;padding-top:15px;text-align:center;">
+            <p style="color:#666;font-size:11px;">Qivori AI TMS · qivori.com</p>
+          </div>
+        </div>
+      `
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: `Qivori TMS <hello@qivori.com>`,
+          to: [user.email],
+          subject: `Factoring Confirmed — ${invoice.invoice_number || invoice.id} — $${net.toLocaleString()} depositing in 24hrs`,
+          html: confirmHtml,
+        }),
+      }).catch(() => {})
     }
 
     // Update invoice status to Factored

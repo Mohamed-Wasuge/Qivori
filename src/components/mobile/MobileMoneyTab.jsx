@@ -3,7 +3,7 @@ import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
   DollarSign, FileText, Receipt, Plus, CheckCircle, Clock,
-  Camera, X, ChevronDown, ArrowUpRight, Send
+  Camera, X, ChevronDown, ArrowUpRight, Send, Zap
 } from 'lucide-react'
 import { Ic, haptic, fmt$ } from './shared'
 import { apiFetch } from '../../lib/api'
@@ -91,6 +91,40 @@ export default function MobileMoneyTab({ initialSubTab }) {
     haptic('success')
     updateInvoiceStatus(inv.id || inv.invoice_number || inv._dbId, 'Paid')
     showToast?.('success', 'Invoice Paid', inv.invoice_number || inv.id)
+  }
+
+  const [factorModal, setFactorModal] = useState(null)
+
+  const factorInvoice = async (inv) => {
+    const factoringRate = ctx.carrierCompany?.factoring_rate || 2.5
+    const fee = Math.round(inv.amount * factoringRate / 100)
+    const net = inv.amount - fee
+    const factoringCompany = ctx.carrierCompany?.factoring_company || 'Factoring Company'
+    const factoringEmail = ctx.carrierCompany?.factoring_email || ''
+
+    // Send to factoring company via email if email exists
+    if (factoringEmail) {
+      try {
+        await apiFetch('/api/send-invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: factoringEmail,
+            invoiceNumber: `${inv.invoice_number || inv.id} — FACTORING`,
+            loadNumber: inv.load_number || inv.loadId || '',
+            route: inv.route || '',
+            amount: inv.amount || 0,
+            dueDate: 'Same-day / 24hr deposit',
+            brokerName: inv.broker || '',
+            carrierName: ctx.carrierCompany?.company_name || 'Carrier',
+          }),
+        })
+      } catch {}
+    }
+    updateInvoiceStatus(inv.id || inv.invoice_number || inv._dbId, 'Factored')
+    haptic('success')
+    showToast?.('success', 'Invoice Factored', `$${net.toLocaleString()} net · ${factoringCompany} · 24hr deposit`)
+    setFactorModal(null)
   }
 
   const sendInvoice = async (inv) => {
@@ -191,15 +225,19 @@ export default function MobileMoneyTab({ initialSubTab }) {
                       {inv.due_date && <div style={{ fontSize: 9, color: 'var(--muted)' }}>Due {inv.dueDate || inv.due_date}</div>}
                     </div>
                   </div>
-                  {!isPaid && (
+                  {!isPaid && inv.status !== 'Factored' && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button onClick={() => sendInvoice(inv)}
                         style={{ flex: 1, padding: '8px', background: 'var(--accent)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                        <Ic icon={Send} size={12} color="#000" /> Send Invoice
+                        <Ic icon={Send} size={12} color="#000" /> Send
+                      </button>
+                      <button onClick={() => { haptic(); setFactorModal(inv) }}
+                        style={{ flex: 1, padding: '8px', background: '#8b5cf6', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                        <Ic icon={Zap} size={12} color="#fff" /> Factor
                       </button>
                       <button onClick={() => markPaid(inv)}
                         style={{ flex: 1, padding: '8px', background: 'var(--success)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                        <Ic icon={CheckCircle} size={12} color="#000" /> Mark Paid
+                        <Ic icon={CheckCircle} size={12} color="#000" /> Paid
                       </button>
                     </div>
                   )}
@@ -303,6 +341,52 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
         <div style={{ height: 20 }} />
       </div>
+
+      {/* Factor confirmation modal */}
+      {factorModal && (() => {
+        const factoringRate = ctx.carrierCompany?.factoring_rate || 2.5
+        const fee = Math.round(factorModal.amount * factoringRate / 100)
+        const net = factorModal.amount - fee
+        const company = ctx.carrierCompany?.factoring_company || 'Your Factoring Company'
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+            onClick={() => setFactorModal(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: 'var(--surface)', borderRadius: '20px 20px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))', animation: 'fadeInUp 0.2s ease' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 16px' }} />
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <Ic icon={Zap} size={24} color="#8b5cf6" />
+                <div style={{ fontSize: 16, fontWeight: 800, marginTop: 8 }}>Factor Invoice</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{factorModal.invoice_number || factorModal.id} · {factorModal.broker || '—'}</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>Invoice Amount</span>
+                <span style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(factorModal.amount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>Fee ({factoringRate}%)</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--danger)' }}>-{fmt$(fee)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>You Receive</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(net)}</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: '10px 0' }}>
+                {company} · 24-hour deposit
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button onClick={() => setFactorModal(null)}
+                  style={{ flex: 1, padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans',sans-serif" }}>
+                  Cancel
+                </button>
+                <button onClick={() => factorInvoice(factorModal)}
+                  style={{ flex: 1, padding: '12px', background: '#8b5cf6', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ic icon={Zap} size={14} color="#fff" /> Factor Now
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  Search, Package, Receipt, DollarSign, User, Building2, Zap, FileText, Fuel, Truck, BarChart2
+  Search, Package, Receipt, DollarSign, User, Building2, Zap, FileText, Fuel, Truck, BarChart2, CheckCircle
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
+import { useAIActions } from '../../hooks/useAIActions'
 import { Ic } from './shared'
 
 // ── GLOBAL SEARCH MODAL ────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export const SUGGESTED_QUESTIONS = [
   'When is my IFTA filing due?',
 ]
 
-export function AIChatbox() {
+export function AIChatbox({ onTabChange }) {
   const { language: currentLang } = useTranslation()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -123,6 +124,7 @@ export function AIChatbox() {
   const [loading, setLoading] = useState(false)
   const bottomRef = useCallback(el => { if (el) el.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   const { loads, invoices, expenses, totalRevenue, totalExpenses } = useCarrier()
+  const { processReply } = useAIActions(onTabChange)
 
   const buildContext = () => {
     const activeLoads  = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
@@ -158,9 +160,10 @@ export function AIChatbox() {
       }
       const data = await res.json()
       const rawReply = data.reply || data.error || 'No response.'
-      // Strip ```action {...}``` blocks — those are machine-readable, not for display
-      const cleanReply = rawReply.replace(/```action\s*\n?[\s\S]*?```/g, '').trim()
-      setMessages(m => [...m, { role: 'assistant', content: cleanReply }])
+      const { displayText, actions, results } = await processReply(rawReply)
+      // Show AI response + action confirmations
+      const actionSummary = results.length > 0 ? '\n\n' + results.map(r => '✓ ' + r).join('\n') : ''
+      setMessages(m => [...m, { role: 'assistant', content: displayText + actionSummary, hasActions: actions.length > 0 }])
     } catch (err) {
       setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'Check your internet connection.') }])
     } finally {
@@ -211,9 +214,16 @@ export function AIChatbox() {
                   background: m.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
                   color: m.role === 'user' ? '#000' : 'var(--text)',
                   fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+                  border: m.hasActions ? '1px solid rgba(34,197,94,0.3)' : 'none',
                 }}>
                   {m.content}
                 </div>
+                {m.hasActions && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, padding: '0 4px' }}>
+                    <Ic icon={CheckCircle} size={10} color="var(--success)" />
+                    <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 600 }}>Action executed</span>
+                  </div>
+                )}
               </div>
             ))}
             {loading && (

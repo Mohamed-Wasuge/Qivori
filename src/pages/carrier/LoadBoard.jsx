@@ -12,6 +12,8 @@ import {
   Search, Square, Star, Target, TrendingDown, TrendingUp, Truck, Upload, Zap,
 } from 'lucide-react'
 
+import { useAIActions } from '../../hooks/useAIActions'
+
 // ─── AI DISPATCH COPILOT ───────────────────────────────────────────────────────
 // Fallback sample data — used when no load board API keys are configured
 const SAMPLE_MARKET_LOADS = [
@@ -32,6 +34,7 @@ export function SmartDispatch() {
   const { showToast } = useApp()
   const { language: currentLang } = useTranslation()
   const { loads: ctxLoads, addLoad, addLoadWithStops, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
+  const { processReply } = useAIActions()
   const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
     name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
     location: d.location || '', hos: d.hos_remaining || '—', unit: d.unit_number || '',
@@ -331,8 +334,9 @@ export function SmartDispatch() {
       })
       const data = await res.json()
       const rawReply = data.reply || data.error || ''
-      const cleanReply = rawReply.replace(/```action\s*\n?[\s\S]*?```/g, '').trim()
-      setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content: cleanReply }] }))
+      const { displayText, actions, results } = await processReply(rawReply)
+      const actionSummary = results.length > 0 ? '\n\n' + results.map(r => '✓ ' + r).join('\n') : ''
+      setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content: displayText + actionSummary, hasActions: actions.length > 0 }] }))
     } catch {
       setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content:'AI assistant unavailable — please try again later.' }] }))
     } finally {
@@ -629,9 +633,15 @@ export function SmartDispatch() {
             )}
             {msgs.map((m,i) => (
               <div key={i} style={{ display:'flex', flexDirection:'column', alignItems: m.role==='user'?'flex-end':'flex-start' }}>
-                <div style={{ maxWidth:'88%', padding:'9px 12px', borderRadius: m.role==='user'?'12px 12px 4px 12px':'12px 12px 12px 4px', background: m.role==='user'?'var(--accent)':'var(--surface2)', color: m.role==='user'?'#000':'var(--text)', fontSize:12, lineHeight:1.6, whiteSpace:'pre-wrap' }}>
+                <div style={{ maxWidth:'88%', padding:'9px 12px', borderRadius: m.role==='user'?'12px 12px 4px 12px':'12px 12px 12px 4px', background: m.role==='user'?'var(--accent)':'var(--surface2)', color: m.role==='user'?'#000':'var(--text)', fontSize:12, lineHeight:1.6, whiteSpace:'pre-wrap', border: m.hasActions?'1px solid rgba(34,197,94,0.3)':'none' }}>
                   {m.content}
                 </div>
+                {m.hasActions && (
+                  <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:2, padding:'0 4px' }}>
+                    <CheckCircle size={9} color="var(--success)" />
+                    <span style={{ fontSize:9, color:'var(--success)', fontWeight:600 }}>Action executed</span>
+                  </div>
+                )}
               </div>
             ))}
             {aiLoading && (

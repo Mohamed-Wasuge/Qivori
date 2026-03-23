@@ -772,7 +772,7 @@ function CarrierLayoutInner() {
 
       <Toast />
       <QuickActions onTabChange={(viewId) => navTo(viewId)} />
-      <AIChatbox />
+      <AIChatbox onTabChange={(viewId) => navTo(viewId)} />
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)}
         onTabChange={(viewId) => { navTo(viewId); setSearchOpen(false) }} />
 

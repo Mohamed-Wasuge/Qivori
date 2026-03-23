@@ -1535,11 +1535,25 @@ export function FactoringCashflow() {
           <div style={S.panel}>
             <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Bot} /> AI Cashflow Recommendations</div></div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { icon: Zap, title: 'Factor INV-0035 immediately', desc: 'Transplace has 7-day pay terms — you\'d wait until Mar 15. Factoring today gives you $3,298 by tomorrow.', action: 'Factor Now', color: 'var(--danger)' },
-                { icon: Calendar, title: 'Week 3 looks tight at $1,400 net', desc: 'Consider factoring INV-0038 before then to smooth cashflow. You\'d clear $4,972 instead of waiting.', action: 'View Invoice', color: 'var(--warning)' },
-                { icon: Check, title: 'Echo Global — no need to factor', desc: 'Score 98 · Pays in < 24hr. Let them pay direct and save the 2.5% fee — that\'s $96 back in your pocket.', action: 'Got it', color: 'var(--success)' },
-              ].map(r => (
+              {(() => {
+                const recs = []
+                const topUnpaid = readyInvoices.sort((a,b) => b.amount - a.amount)[0]
+                if (topUnpaid) {
+                  const net = Math.round(topUnpaid.amount * (1 - factoringRate / 100))
+                  recs.push({ icon: Zap, title: `Factor ${topUnpaid.id || topUnpaid.invoice_number} immediately`, desc: `${topUnpaid.broker || 'Broker'} owes $${topUnpaid.amount.toLocaleString()}. Factoring today gives you $${net.toLocaleString()} by tomorrow instead of waiting.`, action: 'Factor Now', color: 'var(--danger)' })
+                }
+                if (readyInvoices.length > 1) {
+                  const second = readyInvoices.sort((a,b) => b.amount - a.amount)[1]
+                  recs.push({ icon: Calendar, title: `Consider factoring ${second.id || second.invoice_number}`, desc: `$${second.amount.toLocaleString()} outstanding from ${second.broker || 'broker'}. Factor to smooth cashflow — you'd clear $${Math.round(second.amount * (1 - factoringRate / 100)).toLocaleString()}.`, action: 'View Invoice', color: 'var(--warning)' })
+                }
+                const smallInvoices = readyInvoices.filter(i => i.amount < 1000)
+                if (smallInvoices.length > 0) {
+                  const fee = Math.round(smallInvoices.reduce((s,i) => s + i.amount, 0) * factoringRate / 100)
+                  recs.push({ icon: Check, title: `Skip factoring small invoices`, desc: `${smallInvoices.length} invoices under $1K — factoring fee would be $${fee}. Let brokers pay direct and save the fee.`, action: 'Got it', color: 'var(--success)' })
+                }
+                if (recs.length === 0) recs.push({ icon: Check, title: 'No unpaid invoices to factor', desc: 'All invoices are either paid or factored. Great cash position!', action: 'Got it', color: 'var(--success)' })
+                return recs
+              })().map(r => (
                 <div key={r.title} style={{ display: 'flex', gap: 14, padding: '12px 14px', background: 'var(--surface2)', borderRadius: 10, borderLeft: `3px solid ${r.color}` }}>
                   <span style={{ fontSize: 20, flexShrink: 0 }}>{typeof r.icon === "string" ? r.icon : <r.icon size={20} />}</span>
                   <div style={{ flex: 1 }}>

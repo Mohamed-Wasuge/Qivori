@@ -1032,7 +1032,19 @@ export function PayrollTracker() {
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>1099 & PAYROLL TRACKING</div>
           <div style={{ fontSize:12, color:'var(--muted)' }}>YTD earnings, per diem, W9, direct deposit management</div>
         </div>
-        <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => showToast('','Export','1099 data exported for tax year')}><Ic icon={Download} /> Export 1099s</button>
+        <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => {
+          const rows = [['Driver','Gross Pay','Net Pay','Deductions','Per Diem','Fuel Advance','Loads','Miles','1099 Required']]
+          Object.entries(ytd).forEach(([dId, d]) => {
+            rows.push([driverMap[dId] || dId, d.gross.toFixed(2), d.net.toFixed(2), d.deductions.toFixed(2), d.perDiem.toFixed(2), d.fuel.toFixed(2), d.loads, d.miles, d.gross >= 600 ? 'Yes' : 'No'])
+          })
+          const csv = rows.map(r => r.join(',')).join('\n')
+          const blob = new Blob([csv], { type: 'text/csv' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url; a.download = `1099-report-${new Date().getFullYear()}.csv`; a.click()
+          URL.revokeObjectURL(url)
+          showToast('','Exported',`1099 data for ${Object.keys(ytd).length} drivers downloaded`)
+        }}><Ic icon={Download} /> Export 1099s</button>
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>

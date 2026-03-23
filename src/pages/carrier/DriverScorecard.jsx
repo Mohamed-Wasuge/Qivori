@@ -25,7 +25,7 @@ function calcPay(load, model, val) {
 
 export function DriverSettlement() {
   const { showToast } = useApp()
-  const { loads: ctxLoads, drivers: ctxDrivers, editDriver, fuelCostPerMile } = useCarrier()
+  const { loads: ctxLoads, drivers: ctxDrivers, editDriver, addExpense, fuelCostPerMile } = useCarrier()
   const [activeDriver, setActiveDriver] = useState(null)
   const [models, setModels] = useState({})
   const [modelVals, setModelVals] = useState({})
@@ -34,6 +34,8 @@ export function DriverSettlement() {
   const [newDeduct, setNewDeduct] = useState({ label: 'Fuel Advance', amount: '' })
   const [showSheet, setShowSheet] = useState(false)
   const [payDirty, setPayDirty] = useState(false)
+  const [payConfirm, setPayConfirm] = useState(null) // { method: 'fastpay'|'ach' }
+  const [payProcessing, setPayProcessing] = useState(false)
 
   // Auto-select first driver and load their saved pay model
   useEffect(() => {
@@ -85,6 +87,30 @@ export function DriverSettlement() {
   const totalDeduct = driverDeductions.reduce((s, d) => s + d.amount, 0)
   const netPay = grossPay + totalDeduct
 
+  const processPayment = async (method) => {
+    setPayProcessing(true)
+    try {
+      const methodLabel = method === 'fastpay' ? 'FastPay (24hr deposit)' : 'ACH Transfer (1–3 days)'
+      await addExpense({
+        category: 'Driver Pay',
+        description: `${driverName} settlement — ${methodLabel}`,
+        amount: netPay,
+        date: new Date().toISOString().split('T')[0],
+        driver_name: driverName,
+        payment_method: method,
+      })
+      if (activeDriver && editDriver) {
+        await editDriver(activeDriver, { last_paid: new Date().toISOString().split('T')[0], last_pay_amount: netPay })
+      }
+      showToast('', method === 'fastpay' ? 'FastPay Sent' : 'ACH Transfer Queued',
+        `${driverName} · $${netPay.toLocaleString()} · ${method === 'fastpay' ? '24hr deposit' : '1–3 business days'}`)
+    } catch (e) {
+      showToast('', 'Payment Failed', e.message || 'Could not process payment')
+    }
+    setPayProcessing(false)
+    setPayConfirm(null)
+  }
+
   const addDeduction = () => {
     if (!newDeduct.amount) return
     const amt = parseFloat(newDeduct.amount)
@@ -122,7 +148,7 @@ export function DriverSettlement() {
         <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowSheet(s => !s)}>
           {showSheet ? '✕ Close Sheet' : 'Settlement Sheet'}
         </button>
-        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => showToast('', 'FastPay Sent', `${driverName} · $${netPay.toLocaleString()} · 24hr deposit`)}>
+        <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => setPayConfirm({ method: 'fastpay' })} disabled={payProcessing || netPay <= 0}>
           <Zap size={13} /> FastPay ${netPay.toLocaleString()}
         </button>
       </div>
@@ -177,8 +203,8 @@ export function DriverSettlement() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button className="btn btn-primary" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'FastPay Sent', `${driverName} · $${netPay.toLocaleString()} · 24hr deposit`)}><Ic icon={Zap} /> FastPay — 2.5% fee · 24hr deposit</button>
-            <button className="btn btn-ghost" style={{ flex: 1, padding: '11px 0' }} onClick={() => showToast('', 'ACH Transfer Queued', `${driverName} · $${netPay.toLocaleString()} · 1–3 business days`)}><Ic icon={Briefcase} /> Standard ACH — 1–3 days · Free</button>
+            <button className="btn btn-primary" style={{ flex: 1, padding: '11px 0' }} onClick={() => setPayConfirm({ method: 'fastpay' })} disabled={payProcessing || netPay <= 0}><Ic icon={Zap} /> FastPay — 2.5% fee · 24hr deposit</button>
+            <button className="btn btn-ghost" style={{ flex: 1, padding: '11px 0' }} onClick={() => setPayConfirm({ method: 'ach' })} disabled={payProcessing || netPay <= 0}><Ic icon={Briefcase} /> Standard ACH — 1–3 days · Free</button>
             <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={() => generateSettlementPDF(driverName, mergedLoads, 'Mar 1–15, 2026')} title="Download Settlement PDF"><Ic icon={Download} /> PDF</button>
           </div>
         </div>
@@ -299,12 +325,12 @@ export function DriverSettlement() {
       {/* ── Pay actions ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <button className="btn btn-primary" style={{ padding: '14px 0', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          onClick={() => showToast('', 'FastPay Sent', `${driverName} · $${netPay.toLocaleString()} · 24hr deposit`)}>
+          onClick={() => setPayConfirm({ method: 'fastpay' })} disabled={payProcessing || netPay <= 0}>
           <span><Ic icon={Zap} /> FastPay</span>
           <span style={{ opacity: 0.7, fontSize: 12 }}>2.5% fee · Same-day deposit</span>
         </button>
         <button className="btn btn-ghost" style={{ padding: '14px 0', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          onClick={() => showToast('', 'ACH Queued', `${driverName} · $${netPay.toLocaleString()} · 1–3 business days`)}>
+          onClick={() => setPayConfirm({ method: 'ach' })} disabled={payProcessing || netPay <= 0}>
           <span><Ic icon={Briefcase} /> Standard ACH</span>
           <span style={{ opacity: 0.7, fontSize: 12 }}>Free · 1–3 business days</span>
         </button>
@@ -332,6 +358,32 @@ export function DriverSettlement() {
           </tbody>
         </table></div>
       </div>
+
+      {/* ── Payment Confirmation Modal ── */}
+      {payConfirm && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={() => !payProcessing && setPayConfirm(null)}>
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'28px 32px', maxWidth:420, width:'90%', textAlign:'center' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:18, fontWeight:800, marginBottom:8 }}>
+              {payConfirm.method === 'fastpay' ? 'Confirm FastPay' : 'Confirm ACH Transfer'}
+            </div>
+            <div style={{ fontSize:13, color:'var(--muted)', marginBottom:16 }}>
+              Pay <strong style={{ color:'var(--success)' }}>${netPay.toLocaleString()}</strong> to <strong>{driverName}</strong>
+              {payConfirm.method === 'fastpay' ? ' via FastPay (2.5% fee, 24hr deposit)' : ' via ACH (free, 1–3 business days)'}?
+            </div>
+            <div style={{ fontSize:12, color:'var(--muted)', marginBottom:20, padding:'8px 12px', background:'var(--surface2)', borderRadius:8 }}>
+              This will record a Driver Pay expense of ${netPay.toLocaleString()} and update the driver's settlement record.
+            </div>
+            <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
+              <button className="btn btn-ghost" style={{ padding:'10px 24px' }} onClick={() => setPayConfirm(null)} disabled={payProcessing}>Cancel</button>
+              <button className="btn btn-primary" style={{ padding:'10px 24px' }} onClick={() => processPayment(payConfirm.method)} disabled={payProcessing}>
+                {payProcessing ? 'Processing...' : 'Confirm & Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -720,7 +772,7 @@ const SAMPLE_ONBOARDS = []
 
 export function DriverOnboarding() {
   const { showToast } = useApp()
-  const { addDriver: dbAddDriver } = useCarrier()
+  const { addDriver: dbAddDriver, editDriver: dbEditDriver, drivers: ctxDrivers } = useCarrier()
   const [drivers, setDrivers] = useState(SAMPLE_ONBOARDS)
   const [selected, setSelected] = useState('d2')
   const [showAdd, setShowAdd] = useState(false)
@@ -849,6 +901,26 @@ export function DriverOnboarding() {
     showToast('', 'Driver Added', driverName + ' — ready to order pre-employment checks')
   }
 
+  const activateDriver = async (localDriver) => {
+    const name = localDriver?.name || 'Unknown'
+    // Find the matching driver in the DB by name and update status to Active
+    const dbDriver = (ctxDrivers || []).find(d =>
+      (d.full_name || d.name || '').toLowerCase() === name.toLowerCase()
+    )
+    if (dbDriver && dbEditDriver) {
+      try {
+        await dbEditDriver(dbDriver.id, { status: 'Active' })
+      } catch (e) {
+        console.error('Failed to activate driver:', e)
+      }
+    }
+    // Update local onboarding state
+    setDrivers(ds => ds.map(d =>
+      d.id === localDriver.id ? { ...d, activated: true } : d
+    ))
+    showToast('', 'Driver Activated', name + ' added to active fleet!')
+  }
+
   const inp = { width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', outline:'none' }
 
   return (
@@ -970,8 +1042,8 @@ export function DriverOnboarding() {
               <div style={{ display:'flex', gap:8, flexShrink:0 }}>
                 {requiredCleared
                   ? <button className="btn btn-primary" style={{ fontSize:11 }}
-                      onClick={() => showToast('','Driver Activated', driverName + ' added to active fleet!')}>
-                      <Zap size={13} /> Activate & Add to Fleet
+                      onClick={() => activateDriver(driver)}>
+                      <Zap size={13} /> {driver.activated ? 'Activated' : 'Activate & Add to Fleet'}
                     </button>
                   : allIdle
                     ? <button className="btn btn-primary" style={{ fontSize:12, padding:'8px 20px' }} onClick={orderAllChecks} disabled={ordering}>
@@ -1138,11 +1210,11 @@ export function DriverOnboarding() {
                 <div style={{ padding:'24px 20px', background:'linear-gradient(135deg,rgba(34,197,94,0.08),rgba(0,212,170,0.06))', border:'1px solid rgba(34,197,94,0.3)', borderRadius:12, textAlign:'center', marginTop:4 }}>
                   <div style={{ marginBottom:8 }}><Sparkles size={32} /></div>
                   <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--success)', letterSpacing:1, marginBottom:6 }}>ELIGIBLE TO HIRE</div>
-                  <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>All FMCSA required checks cleared — {driverName} is ready to be dispatched</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>All FMCSA required checks cleared — {driver.name} is ready to be dispatched</div>
                   <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
                     <button className="btn btn-primary" style={{ padding:'11px 28px', fontSize:13 }}
-                      onClick={() => showToast('','Driver Activated', driverName + ' added to active fleet!')}>
-                      <Zap size={13} /> Activate & Add to Fleet
+                      onClick={() => activateDriver(driver)}>
+                      <Zap size={13} /> {driver.activated ? 'Activated' : 'Activate & Add to Fleet'}
                     </button>
                     <button className="btn btn-ghost" style={{ fontSize:12 }}
                       onClick={() => showToast('','Report Generated', 'Pre-employment report saved')}>

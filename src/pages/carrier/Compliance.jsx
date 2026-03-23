@@ -385,12 +385,133 @@ function MiniGauge({ label, value, max, color, unit = '' }) {
 }
 
 function AIComplianceCenter({ defaultTab = 'overview' }) {
-  const { showToast } = useApp()
+  const { showToast, user } = useApp()
   const { vehicles: ctxVehicles, drivers: ctxDrivers } = useCarrier()
   const [compTab, setCompTab] = useState(defaultTab)
   const [items, setItems] = useState(DVIR_ITEMS_DEFAULT)
   const [selectedUnit, setSelectedUnit] = useState('')
   const defects = items.filter(i => i.status === 'Defect').length
+
+  // DVIR history from Supabase
+  const [dvirHistory, setDvirHistory] = useState([])
+
+  // ELD data from Supabase
+  const [eldConnections, setEldConnections] = useState([])
+  const [hosLogs, setHosLogs] = useState([])
+  const [eldVehicles, setEldVehicles] = useState([])
+
+  // Load DVIR history, ELD connections, and HOS logs on mount
+  useEffect(() => {
+    db.fetchDVIRs().then(d => setDvirHistory(d)).catch(() => {})
+    db.fetchELDConnections().then(c => setEldConnections(c)).catch(() => {})
+    db.fetchHOSLogs().then(h => setHosLogs(h)).catch(() => {})
+    db.fetchELDVehicles().then(v => setEldVehicles(v)).catch(() => {})
+  }, [])
+
+  // Compute ELD stats from real data
+  const eldStats = useMemo(() => {
+    const connected = eldConnections.find(c => c.status === 'connected')
+    const provider = connected?.provider || null
+    const onlineCount = eldVehicles.length
+    const totalUnits = (ctxVehicles || []).length || onlineCount
+
+    // Get latest HOS per driver
+    const driverHOS = {}
+    hosLogs.forEach(log => {
+      if (!driverHOS[log.driver_name] || new Date(log.start_time) > new Date(driverHOS[log.driver_name].start_time)) {
+        driverHOS[log.driver_name] = log
+      }
+    })
+
+    const violations = hosLogs.filter(l => l.violations && (Array.isArray(l.violations) ? l.violations.length > 0 : Object.keys(l.violations).length > 0)).length
+    const driverNames = Object.keys(driverHOS)
+    const avgHOS = driverNames.length > 0
+      ? (driverNames.reduce((s, n) => s + (11 - (driverHOS[n].duration_hours || 0)), 0) / driverNames.length).toFixed(1)
+      : null
+
+    return { provider, onlineCount, totalUnits, violations, avgHOS, driverHOS, connected: !!connected }
+  }, [eldConnections, eldVehicles, hosLogs, ctxVehicles])
+
+  // Build driver HOS display data from real logs + context drivers
+  const driverHOSList = useMemo(() => {
+    const drivers = ctxDrivers || []
+    if (drivers.length === 0 && Object.keys(eldStats.driverHOS).length === 0) return []
+
+    // Merge context drivers with HOS data
+    const result = []
+    const seen = new Set()
+
+    // From HOS logs
+    Object.entries(eldStats.driverHOS).forEach(([name, log]) => {
+      seen.add(name)
+      const driveHours = Number(log.duration_hours) || 0
+      const hosLeft = Math.max(0, 11 - driveHours).toFixed(1)
+      const statusMap = { driving: 'Driving', on_duty: 'On Duty', sleeper: 'Sleeper Berth', off_duty: 'Off Duty' }
+      result.push({
+        driver: name,
+        unit: log.vehicle_id || '',
+        status: statusMap[log.status] || log.status || 'Off Duty',
+        hosLeft: hosLeft + 'h',
+        driveToday: driveHours.toFixed(1) + 'h',
+        shiftLeft: Math.max(0, 14 - driveHours - 1).toFixed(1) + 'h',
+        cycleLeft: Math.max(0, 70 - driveHours * 1.2).toFixed(0) + 'h',
+        statusColor: log.status === 'driving' ? 'var(--success)' : log.status === 'sleeper' ? 'var(--accent3)' : 'var(--muted)',
+        restart: log.status === 'off_duty' && driveHours === 0,
+        rec: parseFloat(hosLeft) <= 2 ? 'Find a safe parking spot soon — low HOS remaining'
+          : log.status === 'driving' ? 'Driving — all good, keep rolling'
+          : log.status === 'sleeper' ? '34hr restart in progress'
+          : 'Off duty — ready for next dispatch',
+      })
+    })
+
+    // From context drivers not in HOS logs
+    drivers.forEach(d => {
+      const name = d.full_name || d.name || 'Unknown'
+      if (seen.has(name)) return
+      result.push({
+        driver: name,
+        unit: d.truck_number || d.unit_number || '',
+        status: 'Off Duty',
+        hosLeft: '11.0h',
+        driveToday: '0.0h',
+        shiftLeft: '14.0h',
+        cycleLeft: '70h',
+        statusColor: 'var(--muted)',
+        restart: false,
+        rec: 'No ELD data — HOS tracking starts when ELD is connected or load goes In Transit',
+      })
+    })
+
+    return result
+  }, [ctxDrivers, eldStats.driverHOS])
+
+  // Build driver compliance matrix from real data
+  const complianceMatrix = useMemo(() => {
+    const drivers = ctxDrivers || []
+    if (drivers.length === 0) return []
+    return drivers.map(d => {
+      const name = d.full_name || d.name || 'Unknown'
+      const hosData = eldStats.driverHOS[name]
+      const hosLeft = hosData ? Math.max(0, 11 - (Number(hosData.duration_hours) || 0)).toFixed(1) + 'h' : '11.0h'
+      const latestDvir = dvirHistory.find(dv => dv.driver_name === name)
+      const chQuery = chOrders.find(c => c.driver_name === name)
+      const medExpiry = d.medical_card_expiry || d.med_card_expiry
+      const medDaysLeft = medExpiry ? Math.round((new Date(medExpiry) - new Date()) / 86400000) : null
+
+      return {
+        name,
+        unit: d.truck_number || d.unit_number || '',
+        cdl: d.cdl_number || d.cdl || '',
+        eld: eldStats.connected ? 'Connected' : 'No ELD',
+        hos: hosLeft,
+        dvir: latestDvir ? (latestDvir.status === 'safe' ? 'Pass' : 'Defects') : 'No DVIR',
+        csa: '—',
+        ch: chQuery ? (chQuery.result || 'Pending') : 'Not Queried',
+        med: medExpiry ? (medDaysLeft < 30 ? `${medDaysLeft}d left` : 'Valid') : 'Unknown',
+        medWarn: medDaysLeft !== null && medDaysLeft < 60,
+      }
+    })
+  }, [ctxDrivers, eldStats, dvirHistory, chOrders])
 
   // FMCSA real data state
   const [fmcsaDot, setFmcsaDot] = useState(() => localStorage.getItem('qivori_dot_number') || '')
@@ -606,7 +727,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}><Ic icon={Users} /> Driver Compliance Matrix</div>
-                <span style={{ fontSize:11, color:'var(--success)', fontWeight:700 }}><Ic icon={CheckCircle} /> All Clear</span>
+                <span style={{ fontSize:11, color: complianceMatrix.some(d => d.dvir === 'Defects' || d.medWarn) ? 'var(--warning)' : 'var(--success)', fontWeight:700 }}><Ic icon={CheckCircle} /> {complianceMatrix.some(d => d.dvir === 'Defects' || d.medWarn) ? 'Attention Needed' : complianceMatrix.length > 0 ? 'All Clear' : 'No Drivers'}</span>
               </div>
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', minWidth:700 }}>
@@ -616,16 +737,16 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {[].length > 0 ? [].map(d => (
+                    {complianceMatrix.length > 0 ? complianceMatrix.map(d => (
                       <tr key={d.name} style={{ borderBottom:'1px solid var(--border)' }}>
                         <td style={{ padding:'11px 12px', fontSize:13, fontWeight:700, whiteSpace:'nowrap' }}>{d.name}</td>
                         <td style={{ padding:'11px 12px', fontSize:12, color:'var(--muted)' }}>{d.unit}</td>
                         <td style={{ padding:'11px 12px', fontSize:11, fontFamily:'monospace', color:'var(--muted)' }}>{d.cdl}</td>
-                        <td style={{ padding:'11px 12px' }}><span style={S.tag('var(--success)')}>{d.eld}</span></td>
+                        <td style={{ padding:'11px 12px' }}><span style={S.tag(d.eld === 'Connected' ? 'var(--success)' : 'var(--muted)')}>{d.eld}</span></td>
                         <td style={{ padding:'11px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color: d.hos === 'Restart' ? 'var(--muted)' : parseFloat(d.hos) > 8 ? 'var(--success)' : 'var(--warning)' }}>{d.hos}</td>
-                        <td style={{ padding:'11px 12px' }}><span style={S.tag('var(--success)')}>{d.dvir}</span></td>
-                        <td style={{ padding:'11px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:'var(--success)' }}>{d.csa}</td>
-                        <td style={{ padding:'11px 12px' }}><span style={S.tag('var(--success)')}>{d.ch}</span></td>
+                        <td style={{ padding:'11px 12px' }}><span style={S.tag(d.dvir === 'Pass' ? 'var(--success)' : d.dvir === 'Defects' ? 'var(--danger)' : 'var(--muted)')}>{d.dvir}</span></td>
+                        <td style={{ padding:'11px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:'var(--muted)' }}>{d.csa}</td>
+                        <td style={{ padding:'11px 12px' }}><span style={S.tag(d.ch === 'Clear' ? 'var(--success)' : d.ch === 'Pending' ? 'var(--warning)' : 'var(--muted)')}>{d.ch}</span></td>
                         <td style={{ padding:'11px 12px' }}>
                           <span style={S.tag(d.medWarn ? 'var(--warning)' : 'var(--success)')}>{d.med}</span>
                         </td>
@@ -692,10 +813,10 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
 
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10 }}>
               {[
-                { label:'Units Online',   value:'0/0',  sub:'No devices connected',     color:'var(--muted)' },
-                { label:'HOS Violations',  value:'0',    sub:'No data yet',    color:'var(--muted)' },
-                { label:'Avg HOS Left',    value:'—',    sub:'No drivers yet', color:'var(--muted)' },
-                { label:'ELD Provider',    value:'—',    sub:'Not connected',  color:'var(--muted)' },
+                { label:'Units Online',   value: eldStats.connected ? `${eldStats.onlineCount}/${eldStats.totalUnits || eldStats.onlineCount}` : `${(ctxVehicles||[]).length}`,  sub: eldStats.connected ? 'ELD synced' : (ctxVehicles||[]).length > 0 ? 'Manual tracking' : 'Add vehicles in Fleet',     color: eldStats.connected ? 'var(--success)' : 'var(--muted)' },
+                { label:'HOS Violations',  value: String(eldStats.violations),    sub: eldStats.violations === 0 ? 'Clean record' : 'Review needed',    color: eldStats.violations === 0 ? 'var(--success)' : 'var(--danger)' },
+                { label:'Avg HOS Left',    value: eldStats.avgHOS ? eldStats.avgHOS + 'h' : (driverHOSList.length > 0 ? '11.0h' : '—'),    sub: driverHOSList.length > 0 ? `${driverHOSList.length} driver${driverHOSList.length > 1 ? 's' : ''}` : 'No drivers yet', color: 'var(--success)' },
+                { label:'ELD Provider',    value: eldStats.provider ? eldStats.provider.charAt(0).toUpperCase() + eldStats.provider.slice(1) : 'Manual',    sub: eldStats.connected ? 'Connected' : 'Connect above',  color: eldStats.connected ? 'var(--success)' : 'var(--muted)' },
               ].map(s => (
                 <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', textAlign:'center' }}>
                   <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4, fontWeight:600 }}>{s.label}</div>
@@ -708,9 +829,17 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}><Ic icon={Activity} /> Driver HOS Status — Live</div>
-                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','ELD Sync','All devices synced')}><Ic icon={RefreshCw} /> Sync All</button>
+                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={async () => {
+                  try {
+                    showToast('','Syncing...','Pulling latest ELD data')
+                    await apiFetch('/api/eld-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+                    const [h, v, d] = await Promise.all([db.fetchHOSLogs(), db.fetchELDVehicles(), db.fetchDVIRs()])
+                    setHosLogs(h); setEldVehicles(v); setDvirHistory(d)
+                    showToast('','ELD Synced','All data refreshed')
+                  } catch { showToast('','Sync Failed','Check your ELD connection') }
+                }}><Ic icon={RefreshCw} /> Sync All</button>
               </div>
-              {[].length > 0 ? [].map(d => (
+              {driverHOSList.length > 0 ? driverHOSList.map(d => (
                 <div key={d.driver} style={{ padding:'16px 18px', borderBottom:'1px solid var(--border)' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10, flexWrap:'wrap' }}>
                     <div style={{ width:38, height:38, borderRadius:'50%', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:12, color:'var(--accent)', flexShrink:0 }}>
@@ -721,9 +850,8 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                         <span style={{ fontSize:13, fontWeight:700 }}>{d.driver}</span>
                         <span style={{ fontSize:11, color:'var(--muted)' }}>{d.unit}</span>
                         <span style={S.tag(d.statusColor)}>{d.status}</span>
-                        {d.load !== '—' && <span style={{ fontSize:11, color:'var(--accent)', fontFamily:'monospace' }}>Load: {d.load}</span>}
                       </div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>Samsara CM32 · Drive today: {d.driveToday}</div>
+                      <div style={{ fontSize:11, color:'var(--muted)' }}>{eldStats.connected ? `${eldStats.provider} · ` : ''}Drive today: {d.driveToday}</div>
                     </div>
                     <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Full Log', d.driver + ' HOS log opened')}>Full Log</button>
                   </div>
@@ -757,22 +885,28 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   </div>
                 </div>
               )) : (
-                <div style={{ padding:'24px 18px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet — connect your ELD to see live data</div>
+                <div style={{ padding:'24px 18px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet — add drivers in the Drivers tab to track HOS</div>
               )}
             </div>
 
             {/* HOS Events */}
             <div style={S.panel}>
               <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Clock} /> Recent HOS Events</div></div>
-              {[].length > 0 ? [].map((e, i) => (
-                <div key={i} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-                  <span style={{ fontSize:11, color:'var(--muted)', minWidth:42 }}>{e.date}</span>
-                  <span style={S.tag(e.color)}>{e.type}</span>
-                  <span style={{ fontSize:12, fontWeight:600 }}>{e.driver}</span>
-                  <span style={{ fontSize:12, color:'var(--muted)' }}>{e.event}</span>
-                </div>
-              )) : (
-                <div style={{ padding:'24px 16px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No HOS events yet</div>
+              {hosLogs.length > 0 ? hosLogs.slice(0, 20).map((log, i) => {
+                const dateStr = log.start_time ? new Date(log.start_time).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—'
+                const statusMap = { driving: 'Driving', on_duty: 'On Duty', sleeper: 'Sleeper', off_duty: 'Off Duty' }
+                const colorMap = { driving: 'var(--success)', on_duty: 'var(--warning)', sleeper: 'var(--accent3)', off_duty: 'var(--muted)' }
+                const hasViolation = log.violations && (Array.isArray(log.violations) ? log.violations.length > 0 : Object.keys(log.violations).length > 0)
+                return (
+                  <div key={log.id || i} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+                    <span style={{ fontSize:11, color:'var(--muted)', minWidth:42 }}>{dateStr}</span>
+                    <span style={S.tag(hasViolation ? 'var(--danger)' : (colorMap[log.status] || 'var(--muted)'))}>{hasViolation ? 'VIOLATION' : (statusMap[log.status] || log.status)}</span>
+                    <span style={{ fontSize:12, fontWeight:600 }}>{log.driver_name}</span>
+                    <span style={{ fontSize:12, color:'var(--muted)' }}>{log.duration_hours ? `${Number(log.duration_hours).toFixed(1)}h` : ''} {log.location || ''}</span>
+                  </div>
+                )
+              }) : (
+                <div style={{ padding:'24px 16px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No HOS events yet — data appears when ELD syncs or loads go In Transit</div>
               )}
             </div>
           </>
@@ -823,7 +957,28 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               </div>
               <div style={{ padding:'0 16px 16px' }}>
                 <button className="btn btn-primary" style={{ width:'100%', padding:'12px 0', fontSize:14 }}
-                  onClick={() => showToast('','DVIR Submitted', defects===0 ? selectedUnit + ' cleared for dispatch · No defects' : defects + ' defect(s) noted · Maintenance required before dispatch')}>
+                  onClick={async () => {
+                    if (!selectedUnit) { showToast('','Select Unit','Choose a vehicle to inspect'); return }
+                    const defectItems = items.filter(i => i.status === 'Defect').map(i => i.item)
+                    const dvirReport = {
+                      driver_name: user?.email || 'Owner/Operator',
+                      vehicle_name: selectedUnit,
+                      inspection_type: 'pre_trip',
+                      status: defectItems.length === 0 ? 'safe' : 'defects_found',
+                      defects: defectItems,
+                      submitted_at: new Date().toISOString(),
+                      source_provider: 'manual',
+                    }
+                    try {
+                      const saved = await db.createDVIR(dvirReport)
+                      setDvirHistory(h => [saved || { ...dvirReport, id: Date.now() }, ...h])
+                      setItems(DVIR_ITEMS_DEFAULT) // reset form
+                      showToast('','DVIR Submitted', defects===0 ? selectedUnit + ' cleared for dispatch · No defects' : defects + ' defect(s) noted · Maintenance required before dispatch')
+                    } catch (err) {
+                      showToast('','DVIR Saved Locally', 'Could not save to database')
+                      setDvirHistory(h => [{ ...dvirReport, id: Date.now() }, ...h])
+                    }
+                  }}>
                   <Check size={13} /> Submit DVIR — {selectedUnit}
                 </button>
               </div>
@@ -837,16 +992,21 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                     {['Date','Unit','Driver','Result',''].map(h => <th key={h} style={{ padding:'9px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, whiteSpace:'nowrap' }}>{h}</th>)}
                   </tr></thead>
                   <tbody>
-                    {[].length > 0 ? [].map((r,i) => (
-                      <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
-                        <td style={{ padding:'10px 14px', fontSize:12, color:'var(--muted)' }}>{r.date}</td>
-                        <td style={{ padding:'10px 14px', fontSize:12, fontWeight:700 }}>{r.unit}</td>
-                        <td style={{ padding:'10px 14px', fontSize:12 }}>{r.driver}</td>
-                        <td style={{ padding:'10px 14px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:r.color+'15', color:r.color }}>{r.result}</span></td>
-                        <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','DVIR',r.date + ' · ' + r.unit)}>View</button></td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={5} style={{ padding:'24px 14px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No inspections yet — connect ELD to see DVIR data</td></tr>
+                    {dvirHistory.length > 0 ? dvirHistory.map((r,i) => {
+                      const isSafe = r.status === 'safe'
+                      const color = isSafe ? 'var(--success)' : 'var(--danger)'
+                      const dateStr = r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : '—'
+                      return (
+                        <tr key={r.id || i} style={{ borderBottom:'1px solid var(--border)' }}>
+                          <td style={{ padding:'10px 14px', fontSize:12, color:'var(--muted)' }}>{dateStr}</td>
+                          <td style={{ padding:'10px 14px', fontSize:12, fontWeight:700 }}>{r.vehicle_name || '—'}</td>
+                          <td style={{ padding:'10px 14px', fontSize:12 }}>{r.driver_name || '—'}</td>
+                          <td style={{ padding:'10px 14px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:color+'15', color }}>{isSafe ? 'Pass' : 'Defects'}</span></td>
+                          <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','DVIR', `${dateStr} · ${r.vehicle_name} · ${isSafe ? 'No defects' : (r.defects || []).join(', ')}`)}>View</button></td>
+                        </tr>
+                      )
+                    }) : (
+                      <tr><td colSpan={5} style={{ padding:'24px 14px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No inspections yet — submit your first DVIR above</td></tr>
                     )}
                   </tbody>
                 </table>

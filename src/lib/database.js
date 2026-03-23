@@ -564,3 +564,42 @@ export async function updateConsolidation(id, updates) {
   if (error) throw error
   return data
 }
+
+// ─── ELD / DVIR ─────────────────────────────────────────────
+export async function fetchDVIRs() {
+  const data = await safeSelect('eld_dvirs',
+    supabase.from('eld_dvirs').select('*').order('submitted_at', { ascending: false }).limit(100)
+  )
+  return data || []
+}
+
+export async function createDVIR(dvir) {
+  const userId = await getUserId()
+  if (!userId) throw new Error('Not authenticated')
+  const { data, error } = await safeMutate('createDVIR',
+    supabase.from('eld_dvirs').insert({ ...dvir, user_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function fetchELDConnections() {
+  const data = await safeSelect('eld_connections',
+    supabase.from('eld_connections').select('*')
+  )
+  return data || []
+}
+
+export async function fetchHOSLogs() {
+  const data = await safeSelect('eld_hos_logs',
+    supabase.from('eld_hos_logs').select('*').order('start_time', { ascending: false }).limit(200)
+  )
+  return data || []
+}
+
+export async function fetchELDVehicles() {
+  const data = await safeSelect('eld_vehicles',
+    supabase.from('eld_vehicles').select('*').order('synced_at', { ascending: false })
+  )
+  return data || []
+}

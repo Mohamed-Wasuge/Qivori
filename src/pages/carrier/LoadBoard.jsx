@@ -330,7 +330,9 @@ export function SmartDispatch() {
         body: JSON.stringify({ messages: next, context, language: currentLang }),
       })
       const data = await res.json()
-      setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content: data.reply || data.error }] }))
+      const rawReply = data.reply || data.error || ''
+      const cleanReply = rawReply.replace(/```action\s*\n?[\s\S]*?```/g, '').trim()
+      setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content: cleanReply }] }))
     } catch {
       setAiMessages(m => ({ ...m, [sel.id]: [...next, { role:'assistant', content:'AI assistant unavailable — please try again later.' }] }))
     } finally {

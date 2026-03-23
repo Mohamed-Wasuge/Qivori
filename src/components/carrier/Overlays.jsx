@@ -157,7 +157,10 @@ export function AIChatbox() {
         throw new Error(`API ${res.status}: ${errText.slice(0, 200)}`)
       }
       const data = await res.json()
-      setMessages(m => [...m, { role: 'assistant', content: data.reply || data.error || 'No response.' }])
+      const rawReply = data.reply || data.error || 'No response.'
+      // Strip ```action {...}``` blocks — those are machine-readable, not for display
+      const cleanReply = rawReply.replace(/```action\s*\n?[\s\S]*?```/g, '').trim()
+      setMessages(m => [...m, { role: 'assistant', content: cleanReply }])
     } catch (err) {
       setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'Check your internet connection.') }])
     } finally {

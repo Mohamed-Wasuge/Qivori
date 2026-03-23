@@ -3,6 +3,7 @@ import * as db from '../lib/database'
 import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
+import { setInvoiceCompany } from '../utils/generatePDF'
 import {
   DEMO_LOADS,
   DEMO_INVOICES,
@@ -218,7 +219,11 @@ export function CarrierProvider({ children }) {
         setVehicles(dbVehicles)
         setQMemories(dbMemories)
         setConsolidations(dbConsolidations || [])
-        if (dbCompany) setCompany(normalizeCompany(dbCompany))
+        if (dbCompany) {
+          const nc = normalizeCompany(dbCompany)
+          setCompany(nc)
+          setInvoiceCompany(nc)
+        }
         setUseDb(true)
       } catch (e) {
         setLoads([])
@@ -629,7 +634,9 @@ export function CarrierProvider({ children }) {
   const updateCompany = useCallback(async (updates) => {
     if (demoGuard('update company info')) return
     const merged = { ...company, ...updates }
-    setCompany(normalizeCompany(merged))
+    const nc = normalizeCompany(merged)
+    setCompany(nc)
+    setInvoiceCompany(nc)
     if (useDb) {
       try {
         await db.upsertCompany(merged)

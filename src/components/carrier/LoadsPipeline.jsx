@@ -339,11 +339,12 @@ export function InvoiceStatusBadge({ status }) {
 
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 export function LoadDetailDrawer({ loadId, onClose }) {
-  const { loads, invoices, checkCalls, updateLoadStatus, removeLoad, drivers, fuelCostPerMile } = useCarrier()
+  const { loads, invoices, checkCalls, updateLoadStatus, updateInvoiceStatus, removeLoad, drivers, fuelCostPerMile, company: carrierCompany } = useCarrier()
   const { showToast } = useApp()
   const [invoiceSending, setInvoiceSending] = useState(false)
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
   const [showTONU, setShowTONU] = useState(false)
+  const [showFactorPrompt, setShowFactorPrompt] = useState(false)
   const [tonuFee, setTonuFee] = useState('250')
   const load = loads.find(l => (l.loadId || l.id) === loadId)
   if (!load) return null
@@ -584,7 +585,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                 </div>
                 <InvoiceStatusBadge status={linkedInvoice.status} />
               </div>
-              <div style={{ display:'flex', gap:8 }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                 <button className="btn btn-ghost" style={{ fontSize:10, padding:'4px 12px' }}
                   onClick={() => { window.open(`/api/invoice-pdf?invoiceId=${encodeURIComponent(linkedInvoice._dbId || linkedInvoice.id)}`, '_blank') }}>
                   View Invoice
@@ -593,7 +594,69 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                   onClick={() => handleAutoInvoice()}>
                   Resend to Broker
                 </button>
+                {linkedInvoice.status === 'Unpaid' && (
+                  <button className="btn btn-ghost" style={{ fontSize:10, padding:'4px 12px', color:'var(--accent2)', borderColor:'rgba(139,92,246,0.3)' }}
+                    onClick={() => setShowFactorPrompt(true)}>
+                    Factor This Invoice
+                  </button>
+                )}
               </div>
+
+              {/* Factor Invoice Prompt */}
+              {showFactorPrompt && linkedInvoice.status === 'Unpaid' && (() => {
+                const factorCompany = carrierCompany?.factoring_company || ''
+                const factorRate = parseFloat(carrierCompany?.factoring_rate) || 2.5
+                const invAmount = Number(linkedInvoice.amount || 0)
+                const fee = Math.round(invAmount * (factorRate / 100) * 100) / 100
+                const net = invAmount - fee
+                return (
+                  <div style={{ marginTop:12, background:'linear-gradient(135deg,rgba(139,92,246,0.08),rgba(240,165,0,0.04))', border:'1px solid rgba(139,92,246,0.25)', borderRadius:12, padding:14 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:'var(--accent2)', marginBottom:10 }}>Submit to Factoring</div>
+                    {!factorCompany ? (
+                      <div style={{ fontSize:11, color:'var(--muted)' }}>
+                        No factoring company set up. Go to <b>Financials → Factoring → Settings</b> to select your factor.
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+                          {[
+                            { label:'Factor', value: factorCompany },
+                            { label:'Rate', value: factorRate + '%' },
+                            { label:'Invoice Amount', value: '$' + invAmount.toLocaleString() },
+                            { label:'Fee', value: '−$' + fee.toLocaleString() },
+                          ].map(item => (
+                            <div key={item.label} style={{ padding:'6px 10px', background:'var(--surface2)', borderRadius:8 }}>
+                              <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>{item.label}</div>
+                              <div style={{ fontSize:12, fontWeight:700 }}>{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', background:'rgba(139,92,246,0.1)', borderRadius:8, marginBottom:10 }}>
+                          <span style={{ fontSize:11, fontWeight:600 }}>You Receive (24hr deposit)</span>
+                          <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent2)' }}>${net.toLocaleString()}</span>
+                        </div>
+                        <div style={{ fontSize:10, color:'var(--muted)', marginBottom:10 }}>
+                          Documents included: Invoice + Rate Con + BOL + POD (if uploaded)
+                        </div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          <button className="btn btn-primary" style={{ flex:1, fontSize:11, padding:'8px 0', background:'var(--accent2)' }}
+                            onClick={() => {
+                              updateInvoiceStatus(linkedInvoice.id || linkedInvoice.invoice_number, 'Factored')
+                              showToast('', 'Invoice Factored!', `${linkedInvoice.invoice_number} → ${factorCompany} · $${net.toLocaleString()} depositing in 24hrs`)
+                              setShowFactorPrompt(false)
+                            }}>
+                            Submit to {factorCompany}
+                          </button>
+                          <button className="btn btn-ghost" style={{ fontSize:11, padding:'8px 12px' }}
+                            onClick={() => setShowFactorPrompt(false)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )}
 

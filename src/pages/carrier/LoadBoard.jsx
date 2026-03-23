@@ -168,8 +168,9 @@ export function SmartDispatch() {
 
   // Book a load → addLoad() into context
   const confirmBook = () => {
-    if (!bookModal || !bookDriver) return
+    if (!bookModal) return
     const l = bookModal
+    const driverName = bookDriver || 'Owner/Operator'
     addLoad({
       broker:    l.broker,
       origin:    l.fromFull,
@@ -181,14 +182,14 @@ export function SmartDispatch() {
       commodity: l.commodity,
       pickup:    l.pickup,
       delivery:  l.delivery,
-      driver:    bookDriver,
+      driver:    driverName,
       refNum:    l.id,
     })
     setLoads(ls => ls.filter(x => x.id !== l.id))
     setSelected(null)
     setBookModal(null)
     setBookDriver('')
-    showToast('', 'Load Booked!', `${l.fromFull} → ${l.toFull} · $${l.gross.toLocaleString()} · ${bookDriver}`)
+    showToast('', 'Load Booked!', `${l.fromFull} → ${l.toFull} · $${l.gross.toLocaleString()} · ${driverName}`)
   }
 
   // ── Add Load: compress + AI parse rate con ──
@@ -833,6 +834,15 @@ export function SmartDispatch() {
             {/* Driver selection */}
             <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', letterSpacing:1, marginBottom:10 }}>SELECT DRIVER</div>
             <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+              {/* Owner/Operator default option */}
+              <label style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:10, border:`1px solid ${!bookDriver || bookDriver==='Owner/Operator'?'var(--accent)':'var(--border)'}`, background: !bookDriver || bookDriver==='Owner/Operator'?'rgba(240,165,0,0.06)':'var(--surface2)', cursor:'pointer' }}>
+                <input type="radio" name="driver" value="" checked={!bookDriver || bookDriver==='Owner/Operator'} onChange={() => setBookDriver('')} style={{ accentColor:'var(--accent)' }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700 }}>Owner/Operator <span style={{ fontSize:10, color:'var(--muted)', fontWeight:400 }}>· Me</span></div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>I'm driving this load</div>
+                </div>
+                <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:'rgba(34,197,94,0.1)', color:'var(--success)' }}>Available</span>
+              </label>
               {dispatchDrivers.map(d => (
                 <label key={d.name} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:10, border:`1px solid ${bookDriver===d.name?'var(--accent)':'var(--border)'}`, background: bookDriver===d.name?'rgba(240,165,0,0.06)':'var(--surface2)', cursor: d.status==='On Load'?'not-allowed':'pointer', opacity: d.status==='On Load'?0.5:1 }}>
                   <input type="radio" name="driver" value={d.name} disabled={d.status==='On Load'}
@@ -848,11 +858,11 @@ export function SmartDispatch() {
             </div>
 
             {/* Confirm summary */}
-            {bookDriver && (
+            {(
               <div style={{ background:'rgba(240,165,0,0.06)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:12 }}>
                 <div style={{ color:'var(--accent)', fontWeight:700, marginBottom:6 }}><Ic icon={Check} /> Booking Summary</div>
                 <div style={{ color:'var(--muted)', lineHeight:1.7 }}>
-                  <b style={{ color:'var(--text)' }}>{bookDriver}</b> → {bookModal.fromFull} to {bookModal.toFull}<br/>
+                  <b style={{ color:'var(--text)' }}>{bookDriver || 'Owner/Operator'}</b> → {bookModal.fromFull} to {bookModal.toFull}<br/>
                   Pickup: {bookModal.pickup} · Gross: <b style={{ color:'var(--accent)' }}>${bookModal.gross.toLocaleString()}</b><br/>
                   Est. net: <b style={{ color:'var(--success)' }}>${calcNet.toLocaleString()}</b> ({calcMargin}% margin)
                 </div>
@@ -862,7 +872,7 @@ export function SmartDispatch() {
             <div style={{ display:'flex', gap:10 }}>
               <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setBookModal(null)}>Cancel</button>
               <button className="btn btn-primary" style={{ flex:2, padding:'11px 0', fontSize:13 }}
-                disabled={!bookDriver} onClick={confirmBook}>
+                onClick={confirmBook}>
                 <Zap size={13} /> Confirm & Add to Dispatch
               </button>
             </div>

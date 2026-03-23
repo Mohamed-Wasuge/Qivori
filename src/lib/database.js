@@ -10,6 +10,7 @@ async function getUserId() {
 async function safeSelect(table, query) {
   const { data, error } = await query
   if (error) {
+    console.warn(`[DB] safeSelect(${table}) failed:`, error.message, error.code)
     return null
   }
   return data
@@ -19,6 +20,7 @@ async function safeSelect(table, query) {
 async function safeMutate(label, query) {
   const { data, error } = await query
   if (error) {
+    console.error(`[DB] safeMutate(${label}) failed:`, error.message, error.code)
     return { data: null, error }
   }
   return { data, error: null }
@@ -42,6 +44,7 @@ export async function fetchLoads() {
 
 export async function createLoad(load) {
   const userId = await getUserId()
+  if (!userId) throw new Error('Not authenticated — cannot create load')
   const { data, error } = await safeMutate('createLoad',
     supabase.from('loads')
       .insert({
@@ -116,9 +119,11 @@ export async function fetchInvoices() {
 
 export async function createInvoice(invoice) {
   const userId = await getUserId()
-  const { data } = await safeMutate('createInvoice',
+  if (!userId) throw new Error('Not authenticated — cannot create invoice')
+  const { data, error } = await safeMutate('createInvoice',
     supabase.from('invoices').insert({ ...invoice, owner_id: userId }).select().single()
   )
+  if (error) throw error
   return data
 }
 

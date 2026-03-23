@@ -157,7 +157,7 @@ function normalizeCompany(c) {
 
 // ─── Provider ────────────────────────────────────────────────
 export function CarrierProvider({ children }) {
-  const { demoMode, showToast, isDriver, myDriverId, companyRole, profile } = useApp() || {}
+  const { demoMode, showToast, isDriver, myDriverId, companyRole, profile, user, authLoading } = useApp() || {}
 
   // Helper: block write operations in demo mode
   const demoGuard = useCallback((label) => {
@@ -180,14 +180,23 @@ export function CarrierProvider({ children }) {
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
   const initRef = useRef(false)
+  const prevUserRef = useRef(null)
+
+  // Reset init flag when user changes (logout → login)
+  useEffect(() => {
+    if (prevUserRef.current && (!user || user.id !== prevUserRef.current)) {
+      initRef.current = false
+      setDataReady(false)
+    }
+    prevUserRef.current = user?.id || null
+  }, [user])
 
   // ─── Load initial data ──────────────────────────────────────
   useEffect(() => {
-    if (initRef.current) return
-    initRef.current = true
-
     // Demo mode — use sample data, no Supabase calls
     if (demoMode) {
+      if (initRef.current) return
+      initRef.current = true
       setLoads(DEMO_LOADS.map(normalizeLoad))
       setInvoices(DEMO_INVOICES.map(normalizeInvoice))
       setExpenses(DEMO_EXPENSES.map(normalizeExpense))
@@ -199,8 +208,23 @@ export function CarrierProvider({ children }) {
       return
     }
 
+    // Wait for auth to finish loading — don't fetch until we know if user is logged in
+    if (authLoading) return
+
+    // No user = no data to fetch
+    if (!user) {
+      setUseDb(false)
+      setDataReady(true)
+      return
+    }
+
+    // Only init once per user session
+    if (initRef.current) return
+    initRef.current = true
+
     async function init() {
       try {
+        console.log('[CarrierContext] Fetching data for user:', user.id)
         const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories, dbConsolidations] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
@@ -212,6 +236,7 @@ export function CarrierProvider({ children }) {
           db.fetchConsolidations(),
         ])
 
+        console.log('[CarrierContext] Loaded:', { loads: dbLoads.length, invoices: dbInvoices.length, expenses: dbExpenses.length })
         setLoads(dbLoads.map(normalizeLoad))
         setInvoices(dbInvoices.map(normalizeInvoice))
         setExpenses(dbExpenses.map(normalizeExpense))
@@ -226,6 +251,7 @@ export function CarrierProvider({ children }) {
         }
         setUseDb(true)
       } catch (e) {
+        console.error('[CarrierContext] Init failed:', e.message || e)
         setLoads([])
         setInvoices([])
         setExpenses([])
@@ -237,7 +263,7 @@ export function CarrierProvider({ children }) {
     }
 
     init()
-  }, [demoMode])
+  }, [demoMode, authLoading, user])
 
   // ─── Real-time subscriptions ──────────────────────────────────
   useEffect(() => {

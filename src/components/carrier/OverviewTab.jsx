@@ -378,7 +378,7 @@ export function OverviewTab({ onTabChange }) {
   }
   // If no data at all
   if (qInsights.length === 0 && loads.length === 0) {
-    qInsights.push({ type: 'info', priority: 'low', text: 'System initialized. Add trucks, drivers, and book loads to activate Q intelligence.', action: 'Get started', impact: 'Setup required', nav: 'fleet' })
+    qInsights.push({ type: 'info', priority: 'low', text: vehicles.length === 0 ? 'Q is standing by — register your first truck to activate dispatch intelligence' : drivers.length === 0 ? 'Q is ready — add a driver to begin automated dispatch' : 'Q is scanning — book your first load to start operations', action: 'Activate Q', impact: 'Required to begin', nav: vehicles.length === 0 ? 'fleet' : drivers.length === 0 ? 'drivers' : 'load-board' })
   }
 
   // Load alerts — loads needing attention
@@ -421,9 +421,9 @@ export function OverviewTab({ onTabChange }) {
     qActions.push({ icon: FileText, label: 'Invoice Delivered', desc: `${loads.filter(l => l.status === 'Delivered').length} awaiting invoice`, color: 'var(--accent)', nav: 'loads' })
   }
   if (qActions.length === 0) {
-    qActions.push({ icon: Package, label: 'Find Loads', desc: 'Scan AI load board', color: 'var(--accent)', nav: 'load-board' })
-    qActions.push({ icon: Truck, label: 'Add Truck', desc: 'Register equipment', color: 'var(--accent2)', nav: 'fleet' })
-    qActions.push({ icon: Users, label: 'Add Driver', desc: 'Onboard driver', color: 'var(--accent3)', nav: 'drivers' })
+    qActions.push({ icon: Package, label: 'Ask Q for Load', desc: 'Q scans load boards for matches', color: 'var(--accent)', nav: 'load-board' })
+    qActions.push({ icon: Truck, label: 'Register Truck', desc: 'Activate fleet intelligence', color: 'var(--accent2)', nav: 'fleet' })
+    qActions.push({ icon: Users, label: 'Add Driver', desc: 'Enable dispatch automation', color: 'var(--accent3)', nav: 'drivers' })
   }
 
   // Financial fuel cost
@@ -436,8 +436,23 @@ export function OverviewTab({ onTabChange }) {
   const qGlow = (color) => `0 0 20px ${color}15, 0 0 40px ${color}08`
   const insightColors = { action:'var(--accent)', warning:'var(--warning)', alert:'var(--danger)', opportunity:'var(--success)', info:'var(--accent3)' }
 
+  // Q recommendation — always one clear action
+  const qRecommendation = vehicles.length === 0
+    ? { text: 'Add your first truck to begin operations', action: 'Register Truck', nav: 'fleet', color: 'var(--accent)' }
+    : drivers.length === 0
+    ? { text: 'Add a driver to enable dispatch intelligence', action: 'Add Driver', nav: 'drivers', color: 'var(--accent2)' }
+    : loads.length === 0
+    ? { text: 'Book your first load — Q will scan the market for you', action: 'Ask Q for Load', nav: 'load-board', color: 'var(--accent3)' }
+    : unassignedLoads.length > 0 && idleDrivers.length > 0
+    ? { text: `${unassignedLoads.length} load${unassignedLoads.length > 1 ? 's' : ''} ready — assign to ${idleDrivers.length} idle driver${idleDrivers.length > 1 ? 's' : ''}`, action: 'Assign Now', nav: 'loads', color: 'var(--accent)' }
+    : loads.filter(l => l.status === 'Delivered').length > 0
+    ? { text: `${loads.filter(l => l.status === 'Delivered').length} delivered — generate invoices to get paid`, action: 'Invoice Now', nav: 'loads', color: 'var(--success)' }
+    : activeLoads.length > 0
+    ? { text: `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} — Q is monitoring your fleet`, action: 'View Fleet', nav: 'fleet', color: 'var(--success)' }
+    : { text: 'All clear. Find your next load to keep trucks moving', action: 'Ask Q for Load', nav: 'load-board', color: 'var(--accent)' }
+
   return (
-    <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:10 }}>
+    <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:12, maxWidth:'100%', overflowX:'hidden' }}>
 
       {/* ═══ 1. Q STATUS BAR ═══════════════════════════════════════════ */}
       <div style={{
@@ -478,8 +493,10 @@ export function OverviewTab({ onTabChange }) {
           <div style={{ padding:'8px 14px', borderBottom:'1px solid rgba(240,165,0,0.1)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', animation:'q-online-pulse 2s ease-in-out infinite' }} />
-              <span style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5 }}>Q INSIGHTS</span>
-              <span style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>{qInsights.length} active</span>
+              <span style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5 }}>Q INSIGHT</span>
+              <span style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>
+                {activeLoads.length > 0 ? `${activeLoads.length} load${activeLoads.length > 1 ? 's' : ''} active` : vehicles.length === 0 ? 'Waiting for fleet data' : loads.length === 0 ? 'Ready to deploy' : `${qInsights.length} active`}
+              </span>
             </div>
             {dismissed.length > 0 && <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => setDismissed([])}>Show all</button>}
           </div>
@@ -507,32 +524,54 @@ export function OverviewTab({ onTabChange }) {
         </div>
       )}
 
+      {/* ═══ Q RECOMMENDATION CARD ═══════════════════════════════════ */}
+      <div style={{
+        background:'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))',
+        border:'1px solid rgba(240,165,0,0.2)', borderRadius:10, padding:'14px 18px',
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap'
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flex:'1 1 auto', minWidth:0 }}>
+          <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, color:'#000', fontWeight:800, lineHeight:1 }}>Q</span>
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:9, fontWeight:800, color:'var(--accent)', letterSpacing:1.5, marginBottom:2 }}>Q RECOMMENDATION</div>
+            <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', lineHeight:1.4, wordWrap:'break-word' }}>{qRecommendation.text}</div>
+          </div>
+        </div>
+        <button onClick={() => onTabChange(qRecommendation.nav)}
+          style={{ padding:'8px 20px', fontSize:11, fontWeight:700, border:'none', borderRadius:8, background:qRecommendation.color, color:'#000', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", flexShrink:0, whiteSpace:'nowrap' }}>
+          {qRecommendation.action}
+        </button>
+      </div>
+
       {/* ═══ ONBOARDING (new carriers only) ════════════════════════════ */}
       {isNewCarrier && (
         <div style={{ ...pan, padding:'20px 18px' }}>
           <div style={{ textAlign:'center', marginBottom:16 }}>
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:3, marginBottom:4 }}>
-              SYSTEM <span style={{ color:'var(--accent)' }}>SETUP</span>
+              Q IS <span style={{ color:'var(--accent)' }}>WAITING</span> FOR YOUR FIRST MOVE
             </div>
-            <div style={{ fontSize:11, color:'var(--muted)' }}>Q requires fleet data to begin operations</div>
+            <div style={{ fontSize:11, color:'var(--muted)' }}>Add a truck or driver to activate dispatch intelligence</div>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:8 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:10 }}>
             {[
-              { icon: Truck, label:'Register Truck', desc:'Equipment type, specs, location', color:'var(--accent)', tab:'fleet', done: vehicles.length > 0 },
-              { icon: Users, label:'Add Driver', desc:'CDL, medical card, pay rate', color:'var(--accent2)', tab:'drivers', done: drivers.length > 0 },
-              { icon: Package, label:'Book First Load', desc:'AI scans load boards', color:'var(--accent3)', tab:'loads', done: loads.length > 0 },
-              { icon: Radio, label:'Connect ELD', desc:'HOS, location, dispatch', color:'var(--success)', tab:'compliance', done: false },
+              { icon: Truck, label:'Register Truck', desc:'Activate fleet — equipment type, specs, location', color:'var(--accent)', tab:'fleet', done: vehicles.length > 0 },
+              { icon: Users, label:'Add Driver', desc:'Enable dispatch — CDL, medical card, pay rate', color:'var(--accent2)', tab:'drivers', done: drivers.length > 0 },
+              { icon: Package, label:'Ask Q for Load', desc:'Q scans load boards and finds matches', color:'var(--accent3)', tab:'load-board', done: loads.length > 0 },
+              { icon: Radio, label:'Connect ELD', desc:'Live tracking — HOS, location, dispatch', color:'var(--success)', tab:'compliance', done: false },
             ].map((step, i) => (
               <div key={i} onClick={() => onTabChange(step.tab)}
                 style={{
                   background: step.done ? 'rgba(52,176,104,0.04)' : 'var(--surface2)',
                   border: `1px solid ${step.done ? 'var(--success)' : 'var(--border)'}`,
-                  borderRadius:8, padding:'12px', cursor:'pointer', transition:'all 0.2s'
+                  borderRadius:8, padding:'14px', cursor:'pointer', transition:'all 0.2s',
+                  wordWrap:'break-word', overflow:'hidden'
                 }}
                 onMouseOver={e => { e.currentTarget.style.borderColor = step.color; e.currentTarget.style.transform = 'translateY(-1px)' }}
                 onMouseOut={e => { e.currentTarget.style.borderColor = step.done ? 'var(--success)' : 'var(--border)'; e.currentTarget.style.transform = 'none' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                  <div style={{ width:28, height:28, borderRadius:7, background:step.color+'12', border:`1px solid ${step.color}25`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ width:28, height:28, borderRadius:7, background:step.color+'12', border:`1px solid ${step.color}25`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                     {step.done ? <Ic icon={CheckCircle} size={14} color="var(--success)" /> : <Ic icon={step.icon} size={14} color={step.color} />}
                   </div>
                   <div style={{ fontSize:11, fontWeight:700, color: step.done ? 'var(--success)' : 'var(--text)' }}>
@@ -543,24 +582,24 @@ export function OverviewTab({ onTabChange }) {
               </div>
             ))}
           </div>
-          <div style={{ marginTop:12, height:3, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
+          <div style={{ marginTop:12, height:4, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
             <div style={{ height:'100%', width:`${([vehicles.length > 0, drivers.length > 0, loads.length > 0, false].filter(Boolean).length / 4) * 100}%`, background:'linear-gradient(90deg,var(--accent),var(--success))', borderRadius:2, transition:'width 0.5s ease' }} />
           </div>
         </div>
       )}
 
       {/* ═══ 3. LIVE PERFORMANCE METRICS ═══════════════════════════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:10 }}>
         {[
-          { label:'REVENUE', value: fmtMoney(animRevenue), color:'var(--accent)', icon: DollarSign, sub: totalRevenue === 0 ? 'No revenue yet' : 'MTD', click:() => onTabChange('financials') },
-          { label:'NET PROFIT', value: fmtMoney(animProfit), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, sub: `${margin}% margin`, click:() => onTabChange('financials') },
-          { label:'ACTIVE', value: String(animActiveLoads), color:'var(--accent2)', icon: Package, sub: inTransitCount > 0 ? `${inTransitCount} moving` : activeLoads.length > 0 ? 'Dispatched' : 'None', click:() => onTabChange('loads') },
-          { label:'FLEET', value: `${animUtil}%`, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : 'var(--muted)', icon: Truck, sub: `${fleetRows.filter(f=>f.active).length}/${fleetSize} utilized`, click:() => onTabChange('fleet') },
+          { label:'REVENUE', value: fmtMoney(animRevenue), color:'var(--accent)', icon: DollarSign, sub: totalRevenue === 0 ? 'Q: Deploy your first load' : 'MTD', click:() => onTabChange('financials') },
+          { label:'NET PROFIT', value: fmtMoney(animProfit), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, sub: totalRevenue === 0 ? 'Q: Profit starts after delivery' : `${margin}% margin`, click:() => onTabChange('financials') },
+          { label:'ACTIVE', value: String(animActiveLoads), color:'var(--accent2)', icon: Package, sub: inTransitCount > 0 ? `${inTransitCount} moving` : activeLoads.length > 0 ? 'Dispatched' : 'Q: No active loads', click:() => onTabChange('loads') },
+          { label:'FLEET', value: `${animUtil}%`, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : 'var(--muted)', icon: Truck, sub: vehicles.length === 0 ? 'Q: Add a truck' : `${fleetRows.filter(f=>f.active).length}/${fleetSize} utilized`, click:() => onTabChange('fleet') },
         ].map(k => (
           <div key={k.label} onClick={k.click}
             style={{
-              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'14px 14px 12px',
-              cursor:'pointer', transition:'all 0.15s', position:'relative', overflow:'hidden'
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'14px 16px 12px',
+              cursor:'pointer', transition:'all 0.15s', position:'relative', overflow:'hidden', wordWrap:'break-word'
             }}
             onMouseOver={e => { e.currentTarget.style.borderColor = k.color; e.currentTarget.style.boxShadow = qGlow(k.color) }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
@@ -568,35 +607,35 @@ export function OverviewTab({ onTabChange }) {
               <span style={{ fontSize:9, fontWeight:800, color:'var(--muted)', letterSpacing:1.5 }}>{k.label}</span>
               <Ic icon={k.icon} size={12} color={k.color} />
             </div>
-            <div style={{ fontFamily:"'Bebas Neue','JetBrains Mono',sans-serif", fontSize:30, color:k.color, lineHeight:1, fontWeight:700, letterSpacing:1 }}>{k.value}</div>
-            <div style={{ fontSize:9, color:'var(--muted)', marginTop:5, fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>{k.sub}</div>
+            <div style={{ fontFamily:"'Bebas Neue','JetBrains Mono',sans-serif", fontSize:28, color:k.color, lineHeight:1, fontWeight:700, letterSpacing:1 }}>{k.value}</div>
+            <div style={{ fontSize:9, color:'var(--muted)', marginTop:6, fontWeight:600, lineHeight:1.3 }}>{k.sub}</div>
             <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:`linear-gradient(90deg, transparent, ${k.color}40, transparent)` }} />
           </div>
         ))}
       </div>
 
       {/* ═══ 4. Q ACTIONS ══════════════════════════════════════════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:`repeat(${Math.min(qActions.length, 5)},1fr)`, gap:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:10 }}>
         {qActions.slice(0,5).map((a, i) => (
           <div key={i} onClick={() => onTabChange(a.nav)}
             style={{
-              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'12px',
-              cursor:'pointer', transition:'all 0.2s', position:'relative', overflow:'hidden'
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'14px',
+              cursor:'pointer', transition:'all 0.2s', position:'relative', overflow:'hidden', wordWrap:'break-word'
             }}
             onMouseOver={e => { e.currentTarget.style.borderColor = a.color; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = qGlow(a.color) }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}>
-            <div style={{ width:30, height:30, borderRadius:8, background:a.color+'10', border:`1px solid ${a.color}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:8 }}>
+            <div style={{ width:30, height:30, borderRadius:8, background:a.color+'10', border:`1px solid ${a.color}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:8, flexShrink:0 }}>
               <Ic icon={a.icon} size={14} color={a.color} />
             </div>
-            <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', marginBottom:2 }}>{a.label}</div>
-            <div style={{ fontSize:9, color:'var(--muted)', lineHeight:1.3, fontWeight:600 }}>{a.desc}</div>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', marginBottom:3 }}>{a.label}</div>
+            <div style={{ fontSize:9, color:'var(--muted)', lineHeight:1.4, fontWeight:600 }}>{a.desc}</div>
             <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg, transparent, ${a.color}30, transparent)` }} />
           </div>
         ))}
       </div>
 
       {/* ═══ 5. LOAD ALERTS + 6. DRIVER STATUS (side by side) ═════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:10 }}>
 
         {/* Load Alerts */}
         <div style={pan}>
@@ -611,7 +650,7 @@ export function OverviewTab({ onTabChange }) {
           {loadAlerts.length === 0 ? (
             <div style={{ padding:'20px 14px', textAlign:'center' }}>
               <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
-                {loads.length === 0 ? 'No loads in system. Q will surface alerts when loads need attention.' : 'All loads on track. No action required.'}
+                {loads.length === 0 ? 'Q has not deployed any loads yet. Activate Q to begin scanning the market.' : 'All loads on track. Q is monitoring — no action required.'}
               </div>
             </div>
           ) : loadAlerts.slice(0,4).map((la, i) => (
@@ -645,7 +684,7 @@ export function OverviewTab({ onTabChange }) {
           </div>
           {fleetRows.length === 0 ? (
             <div style={{ padding:'20px 14px', textAlign:'center' }}>
-              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>No drivers registered. Add drivers to enable Q dispatch intelligence.</div>
+              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>Q needs drivers to automate dispatch. Add your first driver to activate.</div>
               <button className="btn btn-ghost" style={{ fontSize:10, marginTop:8 }} onClick={() => onTabChange('drivers')}>Add Driver</button>
             </div>
           ) : fleetRows.slice(0,5).map((t, i) => (
@@ -685,7 +724,7 @@ export function OverviewTab({ onTabChange }) {
           </div>
           <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => onTabChange('financials')}>Full P&L</button>
         </div>
-        <div style={{ padding:'12px 14px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+        <div style={{ padding:'12px 14px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:10 }}>
           {[
             { label:'REVENUE', value: fmtMoney(totalRevenue), color:'var(--accent)', sub:'MTD' },
             { label:'PROFIT', value: fmtMoney(totalRevenue - totalExpenses), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', sub:`${margin}% margin` },
@@ -713,7 +752,7 @@ export function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ═══ PIPELINE + ACTIVITY (compact bottom row) ═════════════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:10 }}>
 
         {/* Pipeline Summary */}
         <div style={pan}>
@@ -760,7 +799,7 @@ export function OverviewTab({ onTabChange }) {
               ...activeLoads.slice(0,2).map(l => ({ icon:Package, color:'var(--accent2)', text:`${l.loadId} ${l.status?.toLowerCase()}`, time: l.pickup ? l.pickup.split(' · ')[0] : '' })),
             ].slice(0,4)
             if (activity.length === 0) return (
-              <div style={{ padding:'16px 14px', textAlign:'center', color:'var(--muted)', fontSize:10 }}>Q will log system events here — loads booked, dispatches, invoices, payments.</div>
+              <div style={{ padding:'16px 14px', textAlign:'center', color:'var(--muted)', fontSize:10, lineHeight:1.5 }}>Q will log events here as you operate — loads booked, dispatches, invoices, payments.</div>
             )
             return activity.map((a, i) => (
               <div key={i} style={{ padding:'6px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:6, alignItems:'center' }}>

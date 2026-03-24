@@ -452,7 +452,7 @@ export function OverviewTab({ onTabChange }) {
     : { text: 'All clear. Find your next load to keep trucks moving', action: 'Ask Q for Load', nav: 'load-board', color: 'var(--accent)' }
 
   return (
-    <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:12, width:'100%', maxWidth:'100%', overflowX:'hidden' }}>
+    <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:12, width:'100%', maxWidth:'100%', overflowX:'hidden' }} className="overview-scroll-root">
 
       {/* ═══ 1. Q STATUS BAR ═══════════════════════════════════════════ */}
       <div style={{
@@ -545,7 +545,7 @@ export function OverviewTab({ onTabChange }) {
 
       {/* ═══ ONBOARDING (new carriers only) ════════════════════════════ */}
       {isNewCarrier && (
-        <div style={{ ...pan, padding:'20px 18px' }}>
+        <div style={{ ...pan, padding:'20px 18px', flexShrink:0 }}>
           <div style={{ textAlign:'center', marginBottom:16 }}>
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:3, marginBottom:4 }}>
               Q IS <span style={{ color:'var(--accent)' }}>WAITING</span> FOR YOUR FIRST MOVE

@@ -413,7 +413,7 @@ function CarrierLayoutInner() {
 
   const notifTypeIcon = { load: '🚛', invoice: '💰', compliance: '📋', system: '⚙️', referral: '🤝', summary: '📊' }
 
-  const sStyle = { fontFamily:"'DM Sans',sans-serif", width:'100vw', height:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', overflow:'hidden' }
+  const sStyle = { fontFamily:"'DM Sans',sans-serif", width:'100%', height:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', overflow:'hidden' }
   const inp    = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 12px', color:'var(--text)', fontSize:12, outline:'none', fontFamily:"'DM Sans',sans-serif" }
 
   return (

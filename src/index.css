@@ -77,19 +77,25 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
   font-family: 'DM Sans', sans-serif;
   line-height: 1.55;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
   overflow: hidden;
+  margin: 0;
 }
 
 #root {
   height: 100vh;
-  width: 100vw;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -474,6 +480,11 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 .carrier-main > * {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Overview scroll root — children must not shrink so panels keep full height */
+.overview-scroll-root > * {
+  flex-shrink: 0;
 }
 
 /* Settings scroll area — children should not flex-shrink */

@@ -176,6 +176,7 @@ export function CarrierProvider({ children }) {
   const [qMemories, setQMemories] = useState([])
   const [consolidations, setConsolidations] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
+  const [aiFees, setAiFees] = useState([])
   const [fuelCostPerMile, setFuelCostPerMile] = useState(0.22) // default, updated from EIA
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
@@ -225,7 +226,7 @@ export function CarrierProvider({ children }) {
     async function init() {
       try {
         console.log('[CarrierContext] Fetching data for user:', user.id)
-        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories, dbConsolidations] = await Promise.all([
+        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories, dbConsolidations, dbAiFees] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
           db.fetchExpenses(),
@@ -234,6 +235,7 @@ export function CarrierProvider({ children }) {
           db.fetchVehicles(),
           db.fetchMemories(),
           db.fetchConsolidations(),
+          db.fetchAIFees(),
         ])
 
         console.log('[CarrierContext] Loaded:', { loads: dbLoads.length, invoices: dbInvoices.length, expenses: dbExpenses.length })
@@ -244,6 +246,7 @@ export function CarrierProvider({ children }) {
         setVehicles(dbVehicles)
         setQMemories(dbMemories)
         setConsolidations(dbConsolidations || [])
+        setAiFees(dbAiFees || [])
         if (dbCompany) {
           const nc = normalizeCompany(dbCompany)
           setCompany(nc)
@@ -459,6 +462,28 @@ export function CarrierProvider({ children }) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ loadId: l._dbId || l.id }),
             }).catch(() => {})
+          }
+
+          // Q Intelligence — charge 3% AI fee on delivered load
+          const loadRate = l.gross || l.gross_pay || l.rate || 0
+          if (loadRate > 0) {
+            apiFetch('/api/charge-ai-fee', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                loadId: l._dbId || l.id,
+                loadNumber: l.loadId || l.load_number,
+                loadRate,
+                origin: l.origin,
+                destination: l.dest || l.destination,
+                broker: l.broker || l.broker_name,
+                featureUsed: 'dispatch',
+              }),
+            }).then(r => r.json()).then(result => {
+              if (result.charged) {
+                console.log(`[Q Intelligence] AI fee charged: $${result.feeAmount} for ${l.loadId || l.load_number}`)
+              }
+            }).catch(err => { console.error('[Q Intelligence] Fee charge failed:', err) })
           }
         } else {
           const fakeInv = normalizeInvoice({
@@ -834,7 +859,7 @@ export function CarrierProvider({ children }) {
     <CarrierContext.Provider value={{
       loads: visibleLoads, invoices: visibleInvoices, expenses: visibleExpenses,
       allLoads: loads, allInvoices: invoices, allExpenses: expenses,
-      drivers, vehicles, company, checkCalls, qMemories, consolidations,
+      drivers, vehicles, company, checkCalls, qMemories, consolidations, aiFees,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses, brokerStats, fuelCostPerMile,
       updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,

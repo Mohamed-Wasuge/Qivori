@@ -603,3 +603,34 @@ export async function fetchELDVehicles() {
   )
   return data || []
 }
+
+// ─── Q AI FEES ────────────────────────────────────────────────
+export async function fetchAIFees() {
+  const data = await safeSelect('q_ai_fees',
+    supabase.from('q_ai_fees').select('*').order('created_at', { ascending: false }).limit(200)
+  )
+  return data || []
+}
+
+export async function createAIFee(fee) {
+  const userId = await getUserId()
+  if (!userId) throw new Error('Not authenticated — cannot create AI fee')
+  const { data, error } = await safeMutate('createAIFee',
+    supabase.from('q_ai_fees').insert({
+      owner_id: userId,
+      load_id: fee.load_id || null,
+      load_number: fee.load_number || null,
+      load_rate: parseFloat(fee.load_rate) || 0,
+      fee_percent: fee.fee_percent || 0.03,
+      fee_amount: parseFloat(fee.fee_amount) || 0,
+      stripe_charge_id: fee.stripe_charge_id || null,
+      stripe_status: fee.stripe_status || 'pending',
+      feature_used: fee.feature_used || 'dispatch',
+      origin: fee.origin || null,
+      destination: fee.destination || null,
+      broker: fee.broker || null,
+    }).select().single()
+  )
+  if (error) throw error
+  return data
+}

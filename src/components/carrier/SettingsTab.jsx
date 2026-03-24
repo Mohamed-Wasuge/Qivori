@@ -12,7 +12,7 @@ import { SMSSettings, InvoicingSettings, TeamManagement } from '../../pages/carr
 // ── Subscription Settings (inside Settings tab) ────────────────────────────────
 export function SubscriptionSettings() {
   const { showToast, user, profile, subscription, openBillingPortal, demoMode } = useApp()
-  const { loads, deliveredLoads, invoices } = useCarrier()
+  const { loads, deliveredLoads, invoices, aiFees } = useCarrier()
   const [subData, setSubData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [upgradeLoading, setUpgradeLoading] = useState(false)
@@ -52,24 +52,20 @@ export function SubscriptionSettings() {
     autopilot:        { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
   }
 
-  // Q Intelligence — AI usage metrics (3% per load)
-  const AI_FEE_RATE = 0.03
+  // Q Intelligence — AI usage metrics from real q_ai_fees table
   const now = new Date()
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
   weekStart.setHours(0, 0, 0, 0)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
-  const qLoadsThisWeek = (deliveredLoads || []).filter(l => {
-    const d = l.delivered_at || l.updated_at || l.created_at
-    return d && new Date(d) >= weekStart
-  })
-  const qLoadsThisMonth = (deliveredLoads || []).filter(l => {
-    const d = l.delivered_at || l.updated_at || l.created_at
-    return d && new Date(d) >= monthStart
-  })
-  const weeklyAIFees = qLoadsThisWeek.reduce((sum, l) => sum + (Number(l.rate || l.gross_pay || 0) * AI_FEE_RATE), 0)
-  const monthlyAIFees = qLoadsThisMonth.reduce((sum, l) => sum + (Number(l.rate || l.gross_pay || 0) * AI_FEE_RATE), 0)
-  const monthlyGross = qLoadsThisMonth.reduce((sum, l) => sum + Number(l.rate || l.gross_pay || 0), 0)
+  const feesThisWeek = (aiFees || []).filter(f => f.created_at && new Date(f.created_at) >= weekStart)
+  const feesThisMonth = (aiFees || []).filter(f => f.created_at && new Date(f.created_at) >= monthStart)
+
+  const qLoadsThisWeek = feesThisWeek
+  const qLoadsThisMonth = feesThisMonth
+  const weeklyAIFees = feesThisWeek.reduce((sum, f) => sum + Number(f.fee_amount || 0), 0)
+  const monthlyAIFees = feesThisMonth.reduce((sum, f) => sum + Number(f.fee_amount || 0), 0)
+  const monthlyGross = feesThisMonth.reduce((sum, f) => sum + Number(f.load_rate || 0), 0)
 
   const STATUS_BADGES = {
     active:   { label: 'ACTIVE',    bg: 'rgba(34,197,94,0.1)',  color: 'var(--success)', border: 'rgba(34,197,94,0.2)' },

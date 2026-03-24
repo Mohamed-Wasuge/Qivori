@@ -3,7 +3,7 @@ import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
 export const config = { runtime: 'edge' }
 
 const PLANS = {
-  autonomous_fleet: { name: 'Qivori AI Dispatch', first_truck_cents: 19900, extra_truck_cents: 9900, trial_days: 14 },
+  autonomous_fleet: { name: 'Q Platform', first_truck_cents: 19900, extra_truck_cents: 7500, trial_days: 14 },
 }
 
 // Legacy plan aliases — all old plans redirect to the single plan
@@ -30,7 +30,7 @@ export default async function handler(req) {
     const plan = PLANS[resolvedId]
     if (!plan) return Response.json({ error: 'Invalid plan' }, { status: 400, headers: corsHeaders(req) })
 
-    // $199 first truck + $99 each additional (founder pricing)
+    // $199 first truck + $75 each additional (founder pricing)
     const trucks = Math.max(1, parseInt(truckCount) || 1)
     const totalCents = plan.first_truck_cents + (Math.max(0, trucks - 1) * plan.extra_truck_cents)
 
@@ -41,7 +41,7 @@ export default async function handler(req) {
     params.append('success_url', `${origin}/?checkout=success&plan=${resolvedId}`)
     params.append('cancel_url', `${origin}/?checkout=cancel`)
     params.append('line_items[0][price_data][currency]', 'usd')
-    params.append('line_items[0][price_data][product_data][name]', `Qivori AI Dispatch (${trucks} truck${trucks > 1 ? 's' : ''})`)
+    params.append('line_items[0][price_data][product_data][name]', `Q Platform (${trucks} truck${trucks > 1 ? 's' : ''})`)
     params.append('line_items[0][price_data][recurring][interval]', 'month')
     params.append('line_items[0][price_data][unit_amount]', totalCents.toString())
     params.append('line_items[0][quantity]', '1')

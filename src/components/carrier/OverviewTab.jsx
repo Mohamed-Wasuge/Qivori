@@ -443,30 +443,30 @@ export function OverviewTab({ onTabChange }) {
       <div style={{
         display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8,
         padding:'10px 16px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
-        position:'relative', overflow:'hidden'
+        position:'relative', minHeight:48
       }}>
         {/* Subtle scan line */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(240,165,0,0.008) 3px, rgba(240,165,0,0.008) 4px)', pointerEvents:'none' }} />
-        <div style={{ display:'flex', alignItems:'center', gap:10, position:'relative', zIndex:1 }}>
-          <div style={{ position:'relative' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(240,165,0,0.008) 3px, rgba(240,165,0,0.008) 4px)', pointerEvents:'none', borderRadius:10 }} />
+        <div style={{ display:'flex', alignItems:'center', gap:10, position:'relative', zIndex:1, minWidth:0, flex:'1 1 auto' }}>
+          <div style={{ position:'relative', flexShrink:0 }}>
             <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)', animation:'q-online-pulse 2s ease-in-out infinite' }} />
           </div>
-          <div>
+          <div style={{ minWidth:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:3, color:'var(--accent)', lineHeight:1 }}>Q</span>
               <span style={{ fontSize:11, fontWeight:700, color:'var(--success)', letterSpacing:1 }}>ONLINE</span>
             </div>
-            <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, fontFamily:"'JetBrains Mono',monospace", marginTop:1 }}>
+            <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, fontFamily:"'JetBrains Mono',monospace", marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
               Monitoring {activeLoads.length} load{activeLoads.length !== 1 ? 's' : ''} · {fleetRows.filter(f=>f.active).length}/{fleetSize} trucks active · {drivers.length} driver{drivers.length !== 1 ? 's' : ''}
             </div>
           </div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12, position:'relative', zIndex:1 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, position:'relative', zIndex:1, flexShrink:0 }}>
           <LiveClock />
           <FuelTicker />
         </div>
         {/* Bottom glow line */}
-        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, var(--accent), var(--success), var(--accent), transparent)', opacity:0.3 }} />
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, var(--accent), var(--success), var(--accent), transparent)', opacity:0.3, borderRadius:'0 0 10px 10px' }} />
       </div>
 
       {/* ═══ 2. Q INSIGHT CARD ═════════════════════════════════════════ */}

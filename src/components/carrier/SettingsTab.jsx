@@ -12,6 +12,7 @@ import { SMSSettings, InvoicingSettings, TeamManagement } from '../../pages/carr
 // ── Subscription Settings (inside Settings tab) ────────────────────────────────
 export function SubscriptionSettings() {
   const { showToast, user, profile, subscription, openBillingPortal, demoMode } = useApp()
+  const { loads, deliveredLoads, invoices } = useCarrier()
   const [subData, setSubData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [upgradeLoading, setUpgradeLoading] = useState(false)
@@ -46,10 +47,29 @@ export function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    autonomous_fleet: { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', color: '#f0a500', tier: 2 },
-    autopilot_ai:     { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', color: '#f0a500', tier: 2 },
-    autopilot:        { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', color: '#f0a500', tier: 2 },
+    autonomous_fleet: { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
+    autopilot_ai:     { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
+    autopilot:        { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
   }
+
+  // Q Intelligence — AI usage metrics (3% per load)
+  const AI_FEE_RATE = 0.03
+  const now = new Date()
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
+  weekStart.setHours(0, 0, 0, 0)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const qLoadsThisWeek = (deliveredLoads || []).filter(l => {
+    const d = l.delivered_at || l.updated_at || l.created_at
+    return d && new Date(d) >= weekStart
+  })
+  const qLoadsThisMonth = (deliveredLoads || []).filter(l => {
+    const d = l.delivered_at || l.updated_at || l.created_at
+    return d && new Date(d) >= monthStart
+  })
+  const weeklyAIFees = qLoadsThisWeek.reduce((sum, l) => sum + (Number(l.rate || l.gross_pay || 0) * AI_FEE_RATE), 0)
+  const monthlyAIFees = qLoadsThisMonth.reduce((sum, l) => sum + (Number(l.rate || l.gross_pay || 0) * AI_FEE_RATE), 0)
+  const monthlyGross = qLoadsThisMonth.reduce((sum, l) => sum + Number(l.rate || l.gross_pay || 0), 0)
 
   const STATUS_BADGES = {
     active:   { label: 'ACTIVE',    bg: 'rgba(34,197,94,0.1)',  color: 'var(--success)', border: 'rgba(34,197,94,0.2)' },
@@ -193,44 +213,125 @@ export function SubscriptionSettings() {
         </div>
       </div>
 
-      {/* Plan Details */}
+      {/* Plan Details — Two Components */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan — Qivori AI Dispatch</div>
-        <div style={{ padding: 20, maxWidth: 500 }}>
-          <div style={{ position: 'relative', padding: 20, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
+        <div style={{ padding: 20, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {/* Q Platform Card */}
+          <div style={{ flex: '1 1 240px', position: 'relative', padding: 20, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
             <div style={{ position: 'absolute', top: -1, right: 16, fontSize: 9, fontWeight: 800, padding: '2px 12px', borderRadius: '0 0 6px 6px', background: '#f0a500', color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>Qivori AI Dispatch</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>Everything included · No upsells</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: 'var(--muted)', textDecoration: 'line-through', marginRight: 2 }}>$299</span>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--text)' }}>$199</span>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>/mo first truck · $99 each additional</span>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>Q Platform</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Your trucking operating system</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: 'var(--text)' }}>$199</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>/mo first truck · $75 each additional</span>
             </div>
-            <div style={{ fontSize: 10, marginBottom: 16 }}>
-              <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>FOUNDER RATE — LOCKED FOR LIFE</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
-              {['AI Load Board & Scoring', 'AI-Powered Dispatch', 'Proactive Load Finding Agent', 'Voice AI Assistant',
-                'Fleet Map & GPS Tracking', 'P&L Dashboard & Analytics', 'IFTA Auto-Filing', 'Invoicing & Auto-Factoring',
-                'Fuel Optimizer', 'Full Compliance Suite', 'HR & DQ File Management', 'Driver Portal & Scorecards',
-                'Smart Document Handling', 'Dedicated Support'].map((f, i) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {['Fleet & dispatch management', 'P&L dashboard & analytics', 'Invoicing & factoring', 'IFTA & compliance suite',
+                'Fleet map & GPS tracking', 'Driver portal & scorecards', 'Document management', 'Fuel optimizer'].map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text)' }}>
                   <span style={{ color: '#f0a500', fontSize: 12, flexShrink: 0 }}>{'\u2713'}</span>
                   <span>{f}</span>
                 </div>
               ))}
             </div>
-            {!subData?.isActive && !subscription?.isActive && (
-              <button onClick={handleUpgrade} disabled={upgradeLoading}
-                style={{ width: '100%', padding: '12px 12px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
-                  border: 'none', background: '#f0a500', color: '#000' }}>
-                {upgradeLoading ? 'Loading...' : 'Start Free Trial'}
-              </button>
-            )}
+          </div>
+
+          {/* Q Intelligence Card */}
+          <div style={{ flex: '1 1 240px', padding: 20, borderRadius: 12, border: '2px solid rgba(0,212,170,0.3)', background: 'rgba(0,212,170,0.04)' }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--success)', marginBottom: 2 }}>Q Intelligence</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>AI that runs your business</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: 'var(--text)' }}>3%</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>per load · only when Q is used</span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12, fontStyle: 'italic' }}>
+              $2,000 load = $60 AI fee · You keep $1,940
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {['AI load scoring & selection', 'Smart dispatch automation', 'Rate negotiation AI', 'Voice AI assistant',
+                'Proactive load finding', 'Broker risk intelligence', 'Market & lane analysis', 'Profit optimization'].map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text)' }}>
+                  <span style={{ color: 'var(--success)', fontSize: 12, flexShrink: 0 }}>{'\u2713'}</span>
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+
+        {!subData?.isActive && !subscription?.isActive && (
+          <div style={{ padding: '0 20px 20px' }}>
+            <button onClick={handleUpgrade} disabled={upgradeLoading}
+              style={{ width: '100%', padding: '12px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                border: 'none', background: '#f0a500', color: '#000' }}>
+              {upgradeLoading ? 'Loading...' : 'Start Free Trial'}
+            </button>
+          </div>
+        )}
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
-          14-day free trial · No credit card required · Cancel anytime
+          14-day free trial · No credit card required · You only pay more when Q makes you more
+        </div>
+      </div>
+
+      {/* Q Intelligence — AI Usage Tracking */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Q Intelligence Usage</div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: 'rgba(0,212,170,0.1)', color: 'var(--success)', border: '1px solid rgba(0,212,170,0.2)' }}>
+            3% PER LOAD
+          </span>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>Loads This Week</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)' }}>{qLoadsThisWeek.length}</div>
+            </div>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>AI Fees This Week</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--success)' }}>${weeklyAIFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+            </div>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>Loads This Month</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)' }}>{qLoadsThisMonth.length}</div>
+            </div>
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>Est. Monthly AI Fee</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--success)' }}>${monthlyAIFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+            </div>
+          </div>
+
+          {/* Monthly breakdown */}
+          {qLoadsThisMonth.length > 0 && (
+            <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>This Month's Breakdown</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--muted)' }}>Gross revenue (Q-handled loads)</span>
+                <span style={{ fontWeight: 700 }}>${monthlyGross.toLocaleString()}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ color: 'var(--muted)' }}>AI fee (3%)</span>
+                <span style={{ fontWeight: 700, color: 'var(--success)' }}>${monthlyAIFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 2px', fontSize: 12 }}>
+                <span style={{ fontWeight: 700 }}>You keep</span>
+                <span style={{ fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>
+                  ${(monthlyGross - monthlyAIFees).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {qLoadsThisMonth.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '16px 0', fontSize: 12, color: 'var(--muted)' }}>
+              No Q-handled loads yet this month. When Q dispatches loads, usage appears here.
+            </div>
+          )}
+
+          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.12)', fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--accent)' }}>How it works:</strong> Q Intelligence charges 3% only on loads where Q's AI was used (dispatch, negotiation, scoring). No AI usage = no fee. You only pay more when Q makes you more.
+          </div>
         </div>
       </div>
 
@@ -271,18 +372,17 @@ export function SubscriptionSettings() {
               </div>
               {truckPicker.trucks > 1 && (
                 <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $99</span>
-                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 99).toLocaleString()}/mo</span>
+                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $75</span>
+                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 75).toLocaleString()}/mo</span>
                 </div>
               )}
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
-                <span>Founder pricing (normally $299 + $149/truck)</span>
-                <span style={{ color:'#ef4444', fontWeight:700 }}>Save ${(100 + Math.max(0, truckPicker.trucks - 1) * 50).toLocaleString()}/mo</span>
+                <span>Q Platform (subscription) + Q Intelligence (3% per load)</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
-                <span style={{ fontWeight:800 }}>Total</span>
+                <span style={{ fontWeight:800 }}>Platform Total</span>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
-                  ${(199 + Math.max(0, truckPicker.trucks - 1) * 99).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                  ${(199 + Math.max(0, truckPicker.trucks - 1) * 75).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
                 </span>
               </div>
             </div>

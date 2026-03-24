@@ -473,6 +473,21 @@ export function CarrierProvider({ children }) {
     }))
   }, [loads, useDb, demoGuard])
 
+  // Assign a driver to a load (updates both driver field and status)
+  const assignLoadToDriver = useCallback(async (loadId, driverName) => {
+    if (demoGuard('assign driver')) return
+    const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.id === loadId)
+    if (!load) return
+    const updates = { driver: driverName, driver_name: driverName, status: 'Assigned to Driver' }
+    if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
+      try { await db.updateLoad(load.id, updates) } catch (e) { console.error('DB assign failed:', e) }
+    }
+    setLoads(ls => ls.map(l => {
+      const match = l.loadId === loadId || l.load_id === loadId || l.id === loadId
+      return match ? normalizeLoad({ ...l, ...updates }) : l
+    }))
+  }, [loads, useDb, demoGuard])
+
   const advanceStop = useCallback(async (loadId) => {
     if (demoGuard('advance stops')) return
     setLoads(ls => ls.map(l => {
@@ -822,7 +837,7 @@ export function CarrierProvider({ children }) {
       drivers, vehicles, company, checkCalls, qMemories, consolidations,
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses, brokerStats, fuelCostPerMile,
-      updateLoadStatus, addLoad, addLoadWithStops, removeLoad, advanceStop,
+      updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense,
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,

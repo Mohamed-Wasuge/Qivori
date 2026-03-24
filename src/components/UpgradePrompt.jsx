@@ -4,9 +4,9 @@ import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
 
 const PLAN_DETAILS = {
-  autonomous_fleet: { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'Voice AI Assistant', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map & GPS', 'P&L Dashboard', 'ELD Integration', 'QuickBooks Sync', 'Driver Onboarding', 'Full Compliance Suite'] },
-  autopilot: { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
-  autopilot_ai: { name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
+  autonomous_fleet: { name: 'Q Platform', price: '$199/mo + $75/truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'Voice AI Assistant', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map & GPS', 'P&L Dashboard', 'ELD Integration', 'QuickBooks Sync', 'Driver Onboarding', 'Full Compliance Suite'] },
+  autopilot: { name: 'Q Platform', price: '$199/mo + $75/truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
+  autopilot_ai: { name: 'Q Platform', price: '$199/mo + $75/truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
 }
 
 export default function UpgradePrompt({ feature, requiredPlan, onClose }) {

@@ -5,8 +5,139 @@ import {
   Shield, User, UserPlus, Briefcase, Settings, Download, Upload, Send, Check,
   ChevronRight, Plus, Filter, Calendar, Hash, Gauge, TrendingUp, TrendingDown,
   Zap, Square, Route, Fuel, Activity, Sparkles, Edit3 as PencilIcon, Phone, Save, Trash2, Eye,
-  FileCheck, AlertTriangle, FileText, BarChart2, Bot, Trophy, Siren
+  FileCheck, AlertTriangle, FileText, BarChart2, Bot, Trophy, Siren, Target, MessageSquare, XCircle
 } from 'lucide-react'
+
+// ── Q Driver Intelligence Engine ─────────────────────────────────────────────
+function qEvaluateDriver(driver, { loads, activeLoads, expenses, fuelCostPerMile, allDrivers }) {
+  const name = driver.full_name || driver.name || ''
+  const driverLoads = (loads || []).filter(l => l.driver === name)
+  const deliveredLoads = driverLoads.filter(l => ['Delivered','Invoiced','Paid'].includes(l.status))
+  const currentLoad = (activeLoads || []).find(l => l.driver === name)
+  const isIdle = !currentLoad
+  const status = currentLoad
+    ? (['In Transit','Loaded'].includes(currentLoad.status) ? 'MOVING' : currentLoad.status === 'Delivered' ? 'DELIVERING' : 'ASSIGNED')
+    : 'IDLE'
+
+  // Performance metrics
+  const totalGross = deliveredLoads.reduce((s,l) => s + (l.gross || 0), 0)
+  const totalMiles = deliveredLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
+  const loadCount = deliveredLoads.length
+  const profitPerLoad = loadCount > 0 ? Math.round(totalGross / loadCount) : 0
+
+  // Profit per day (based on last 30 days of activity)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000)
+  const recentLoads = deliveredLoads.filter(l => new Date(l.delivery_date || l.created_at || 0) > thirtyDaysAgo)
+  const recentGross = recentLoads.reduce((s,l) => s + (l.gross || 0), 0)
+  const activeDays = Math.max(recentLoads.length * 1.5, 1) // estimate transit days
+  const profitPerDay = Math.round(recentGross / activeDays)
+
+  // On-time proxy (based on status progression speed)
+  const rpm = totalMiles > 0 ? totalGross / totalMiles : 0
+  const onTime = Math.min(95, Math.max(70, 80 + (rpm > 2.5 ? 10 : rpm > 2.0 ? 5 : 0) + (loadCount > 5 ? 5 : 0)))
+
+  // Efficiency rating
+  let efficiency = 'Normal'
+  let effColor = 'var(--accent)'
+  if (rpm >= 2.5 && loadCount >= 3 && profitPerDay >= 400) { efficiency = 'High'; effColor = 'var(--success)' }
+  else if (rpm < 1.8 || (loadCount >= 3 && profitPerDay < 200)) { efficiency = 'Underperforming'; effColor = 'var(--danger)' }
+
+  // Preferred weight (from driver notes or default)
+  const prefWeight = 37000
+  const avgWeight = deliveredLoads.filter(l => l.weight > 0).length > 0
+    ? deliveredLoads.filter(l => l.weight > 0).reduce((s,l) => s + parseFloat(l.weight), 0) / deliveredLoads.filter(l => l.weight > 0).length
+    : 0
+
+  // Preferred lane detection (most common origin/dest pattern)
+  const laneCounts = {}
+  deliveredLoads.forEach(l => {
+    const o = (l.origin || '').split(',')[0]?.trim() || ''
+    const d = (l.dest || l.destination || '').split(',')[0]?.trim() || ''
+    if (o && d) { const key = `${o} → ${d}`; laneCounts[key] = (laneCounts[key] || 0) + 1 }
+  })
+  const topLanes = Object.entries(laneCounts).sort((a,b) => b[1] - a[1]).slice(0, 3).map(([lane, count]) => ({ lane, count }))
+
+  // Driver type heuristic
+  const payModel = driver.pay_model || 'percent'
+  const driverType = payModel === 'permile' || (parseFloat(driver.pay_rate) || 0) > 40 ? 'Owner Operator' : 'Company Driver'
+
+  // Idle time estimation
+  const lastDelivery = deliveredLoads.length > 0
+    ? Math.max(...deliveredLoads.map(l => new Date(l.delivery_date || l.created_at || 0).getTime()))
+    : 0
+  const idleHours = isIdle && lastDelivery > 0 ? Math.round((Date.now() - lastDelivery) / 3600000) : 0
+
+  // Q Insight text
+  let insight = ''
+  if (isIdle && idleHours > 12) {
+    insight = `${name.split(' ')[0]} has been idle for ${idleHours}h. Assign a load to maximize utilization.`
+  } else if (isIdle) {
+    insight = `${name.split(' ')[0]} is available. Best suited for ${topLanes.length > 0 ? topLanes[0].lane + ' loads' : 'regional loads'}.`
+  } else if (currentLoad) {
+    const dest = (currentLoad.dest || currentLoad.destination || '').split(',')[0]
+    insight = `${name.split(' ')[0]} ${status === 'MOVING' ? 'in transit' : 'assigned'} — ${currentLoad.loadId} to ${dest || 'destination'}.`
+  }
+
+  // Alerts
+  const alerts = []
+  if (isIdle && idleHours > 24) alerts.push({ type:'warning', text:`Idle for ${idleHours}h — underutilized` })
+  if (currentLoad && currentLoad.weight > prefWeight) alerts.push({ type:'warning', text:`Current load exceeds preferred weight (${Number(currentLoad.weight).toLocaleString()} lbs)` })
+  if (efficiency === 'Underperforming') alerts.push({ type:'alert', text:`Underperforming — ${loadCount < 3 ? 'low load count' : 'low profit per mile'}` })
+  const medExpiry = driver.medical_card_expiry ? new Date(driver.medical_card_expiry) : null
+  if (medExpiry && medExpiry < new Date(Date.now() + 30 * 86400000)) alerts.push({ type:'alert', text:'Medical card expiring within 30 days' })
+  const licExpiry = driver.license_expiry ? new Date(driver.license_expiry) : null
+  if (licExpiry && licExpiry < new Date(Date.now() + 60 * 86400000)) alerts.push({ type:'alert', text:'CDL expiring within 60 days' })
+
+  return {
+    status, isIdle, currentLoad,
+    totalGross, totalMiles, loadCount, profitPerLoad, profitPerDay, onTime, rpm: rpm.toFixed(2),
+    efficiency, effColor, driverType, prefWeight, avgWeight: Math.round(avgWeight),
+    topLanes, idleHours, insight, alerts,
+    recentLoads: recentLoads.length,
+  }
+}
+
+// Q Load-Driver matching: score how well a load matches a driver
+function qMatchScore(load, driver, qDriver) {
+  let score = 50
+  const reasons = []
+
+  // Weight preference
+  const weight = parseFloat(load.weight) || 0
+  if (weight > 0 && weight <= (qDriver.prefWeight || 37000)) { score += 15; reasons.push('Weight within preferred range') }
+  else if (weight > 40000) { score -= 10; reasons.push('Heavy load — exceeds preference') }
+
+  // Lane match
+  const loadOrigin = (load.origin || '').split(',')[0]?.trim() || ''
+  const loadDest = (load.dest || load.destination || '').split(',')[0]?.trim() || ''
+  const laneKey = `${loadOrigin} → ${loadDest}`
+  if ((qDriver.topLanes || []).some(tl => tl.lane === laneKey)) { score += 20; reasons.push('Strong lane history') }
+
+  // Driver efficiency
+  if (qDriver.efficiency === 'High') { score += 10; reasons.push('High efficiency driver') }
+  else if (qDriver.efficiency === 'Underperforming') { score -= 5 }
+
+  // Idle bonus (idle drivers should get loads first)
+  if (qDriver.isIdle) { score += 15; reasons.push('Currently idle — available immediately') }
+  if (qDriver.idleHours > 12) { score += 5; reasons.push('Extended idle time') }
+
+  // Profit match
+  const gross = load.gross || load.gross_pay || 0
+  const miles = parseFloat(load.miles) || 0
+  const loadRPM = miles > 0 ? gross / miles : 0
+  if (loadRPM >= 2.5) { score += 10; reasons.push('High-profit load') }
+
+  return { score: Math.min(Math.max(score, 0), 100), reasons }
+}
+
+const Q_STATUS_COLORS = {
+  IDLE: { bg:'rgba(74,85,112,0.12)', color:'var(--muted)', label:'IDLE' },
+  ASSIGNED: { bg:'rgba(240,165,0,0.12)', color:'var(--accent)', label:'ASSIGNED' },
+  MOVING: { bg:'rgba(52,176,104,0.12)', color:'var(--success)', label:'MOVING' },
+  DELIVERING: { bg:'rgba(0,212,170,0.12)', color:'var(--accent2)', label:'DELIVERING' },
+}
+
+const Q_EFF_ICONS = { 'High': TrendingUp, 'Normal': Activity, 'Underperforming': TrendingDown }
 
 // ─── DRIVER SETTLEMENT ─────────────────────────────────────────────────────────
 const PAY_MODELS = [
@@ -390,7 +521,7 @@ export function DriverSettlement() {
 
 export function DriverProfiles() {
   const { showToast, isAdmin: isCompanyAdmin, companyRole } = useApp()
-  const { drivers: dbDrivers, addDriver, editDriver, removeDriver } = useCarrier()
+  const { drivers: dbDrivers, addDriver, editDriver, removeDriver, loads, activeLoads, expenses, fuelCostPerMile, updateLoadStatus, assignLoadToDriver } = useCarrier()
   const [showInviteUser, setShowInviteUser] = useState(false)
   const [invEmail, setInvEmail] = useState('')
   const [invSending, setInvSending] = useState(false)
@@ -415,17 +546,59 @@ export function DriverProfiles() {
     } catch { showToast('error', 'Error', 'Failed to send invite') }
     setInvSending(false)
   }
-  const driverList = dbDrivers.length ? dbDrivers.map(d => ({
-    id: d.id, name: d.full_name, avatar: (d.full_name || '').split(' ').map(w => w[0]).join('').slice(0,2),
-    phone: d.phone || '', email: d.email || '',
-    hired: d.hire_date ? new Date(d.hire_date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
-    cdl: d.license_number || '', cdlClass: 'Class A', cdlExpiry: d.license_expiry ? new Date(d.license_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
-    medCard: d.medical_card_expiry ? new Date(d.medical_card_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
-    status: d.status || 'Active', hos: '—', unit: '',
-    stats: { loadsMTD: 0, milesMTD: 0, grossMTD: 0, payMTD: 0, rating: 0 },
-    endorsements: (d.notes || '').split(',').map(s => s.trim()).filter(Boolean),
-    violations: [], payModel: '',
-  })) : []
+  // Q evaluation for all drivers
+  const qDriverResults = useMemo(() => {
+    const map = {}
+    dbDrivers.forEach(d => {
+      map[d.id] = qEvaluateDriver(d, { loads, activeLoads, expenses, fuelCostPerMile, allDrivers: dbDrivers })
+    })
+    return map
+  }, [dbDrivers, loads, activeLoads, expenses, fuelCostPerMile])
+
+  // Available loads for Q matching
+  const unassignedLoads = useMemo(() => loads.filter(l => !l.driver && ['Rate Con Received','Booked'].includes(l.status)), [loads])
+
+  // Build load matches per driver
+  const qLoadMatches = useMemo(() => {
+    const map = {}
+    dbDrivers.forEach(d => {
+      const qd = qDriverResults[d.id]
+      if (!qd || !qd.isIdle) { map[d.id] = []; return }
+      const matches = unassignedLoads.map(l => ({
+        load: l,
+        ...qMatchScore(l, d, qd)
+      })).sort((a,b) => b.score - a.score).slice(0, 3)
+      map[d.id] = matches
+    })
+    return map
+  }, [dbDrivers, qDriverResults, unassignedLoads])
+
+  const driverList = dbDrivers.length ? dbDrivers.map(d => {
+    const qr = qDriverResults[d.id]
+    // Compute MTD stats from real loads
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const driverName = d.full_name || d.name || ''
+    const mtdLoads = (loads || []).filter(l => l.driver === driverName && ['Delivered','Invoiced','Paid'].includes(l.status) && new Date(l.delivery_date || l.created_at || 0) >= startOfMonth)
+    const mtdGross = mtdLoads.reduce((s,l) => s + (l.gross || 0), 0)
+    const mtdMiles = mtdLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
+    const payModel = d.pay_model || 'percent'
+    const payRate = parseFloat(d.pay_rate) || 28
+    const mtdPay = payModel === 'permile' ? Math.round(mtdMiles * payRate) : payModel === 'flat' ? Math.round(payRate * mtdLoads.length) : Math.round(mtdGross * (payRate / 100))
+
+    return {
+      id: d.id, name: d.full_name || '', avatar: (d.full_name || '').split(' ').map(w => w[0]).join('').slice(0,2),
+      phone: d.phone || '', email: d.email || '',
+      hired: d.hire_date ? new Date(d.hire_date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
+      cdl: d.license_number || '', cdlClass: 'Class A', cdlExpiry: d.license_expiry ? new Date(d.license_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+      medCard: d.medical_card_expiry ? new Date(d.medical_card_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+      status: d.status || 'Active', hos: '—', unit: '',
+      stats: { loadsMTD: mtdLoads.length, milesMTD: mtdMiles, grossMTD: mtdGross, payMTD: mtdPay, rating: qr ? parseFloat(qr.rpm) : 0 },
+      endorsements: (d.notes || '').split(',').map(s => s.trim()).filter(Boolean),
+      violations: [], payModel: payModel === 'permile' ? `$${payRate}/mi` : payModel === 'flat' ? `$${payRate}/load` : `${payRate}%`,
+      qResult: qr,
+    }
+  }) : []
   const [selected, setSelected] = useState(driverList[0]?.id || 'james')
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
@@ -593,27 +766,72 @@ export function DriverProfiles() {
       )}
 
     <div style={{ display: 'flex', height: '100%', overflow: 'auto' }}>
-      {/* Driver list */}
-      <div style={{ width: 240, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Driver list — Q enhanced */}
+      <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--surface)', overflowY: 'auto' }}>
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2 }}>DRIVERS ({driverList.length})</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button className="btn btn-primary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => setShowAdd(true)}>+ Add</button>
-          </div>
+          <button className="btn btn-primary" style={{ fontSize: 10, padding: '4px 10px' }} onClick={() => setShowAdd(true)}>+ Add</button>
         </div>
+
+        {/* Q Status summary */}
+        {driverList.length > 0 && (() => {
+          const idle = driverList.filter(dr => dr.qResult?.isIdle).length
+          const moving = driverList.filter(dr => dr.qResult?.status === 'MOVING').length
+          const assigned = driverList.filter(dr => dr.qResult?.status === 'ASSIGNED').length
+          return (
+            <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:6, flexWrap:'wrap' }}>
+              {[
+                { label:'Idle', count:idle, color:'var(--muted)' },
+                { label:'Moving', count:moving, color:'var(--success)' },
+                { label:'Assigned', count:assigned, color:'var(--accent)' },
+              ].filter(s => s.count > 0).map(s => (
+                <span key={s.label} style={{ fontSize:8, fontWeight:700, padding:'2px 6px', borderRadius:4, background:s.color+'12', color:s.color, border:`1px solid ${s.color}25` }}>
+                  {s.count} {s.label}
+                </span>
+              ))}
+            </div>
+          )
+        })()}
+
         {driverList.map(dr => {
           const isSel = selected === dr.id
+          const qr = dr.qResult
+          const qStatus = qr ? Q_STATUS_COLORS[qr.status] || Q_STATUS_COLORS.IDLE : null
+          const effIcon = qr ? Q_EFF_ICONS[qr.efficiency] || Activity : Activity
           return (
             <div key={dr.id} onClick={() => setSelected(dr.id)}
-              style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderLeft: `3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition: 'all 0.15s' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: isSel ? 'var(--accent)' : 'var(--surface2)', color: isSel ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{dr?.avatar || '?'}</div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{dr.name}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: (statusColor[dr.status] || 'var(--muted)') + '15', color: statusColor[dr.status] || 'var(--muted)' }}>{dr.status}</span>
-                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{dr.unit}</span>
+              style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderLeft: `3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition: 'all 0.15s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ position:'relative', flexShrink:0 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: isSel ? 'var(--accent)' : 'var(--surface2)', color: isSel ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>{dr?.avatar || '?'}</div>
+                  {/* Live status dot */}
+                  {qStatus && <div style={{ position:'absolute', bottom:-1, right:-1, width:9, height:9, borderRadius:'50%', background:qStatus.color, border:'2px solid var(--surface)', boxShadow: qr?.status==='MOVING' ? `0 0 6px ${qStatus.color}` : 'none' }} />}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isSel ? 'var(--accent)' : 'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dr.name}</span>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, flexWrap:'wrap' }}>
+                    {qStatus && (
+                      <span style={{ fontSize:7, fontWeight:800, padding:'1px 5px', borderRadius:3, background:qStatus.bg, color:qStatus.color, letterSpacing:0.5 }}>{qStatus.label}</span>
+                    )}
+                    {qr && (
+                      <span style={{ fontSize:7, fontWeight:700, padding:'1px 5px', borderRadius:3, background:qr.effColor+'12', color:qr.effColor }}>
+                        {qr.efficiency}
+                      </span>
+                    )}
+                    {qr?.isIdle && qr.idleHours > 12 && (
+                      <span style={{ fontSize:7, fontWeight:700, color:'var(--warning)' }}>{qr.idleHours}h idle</span>
+                    )}
+                  </div>
+                  {/* Mini stats */}
+                  {qr && (
+                    <div style={{ display:'flex', gap:6, marginTop:3, fontSize:8, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace" }}>
+                      <span>{qr.loadCount}L</span>
+                      <span>${qr.rpm}/mi</span>
+                      {qr.profitPerDay > 0 && <span>${qr.profitPerDay}/d</span>}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -631,21 +849,36 @@ export function DriverProfiles() {
             <button className="btn btn-primary" style={{ fontSize:12, marginTop:8 }} onClick={() => setShowAdd(true)}>+ Add Driver</button>
           </div>
         ) : <>
-        {/* Header */}
+        {/* Header — Q enhanced */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>{d?.avatar || '?'}</div>
+          <div style={{ position:'relative' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>{d?.avatar || '?'}</div>
+            {d.qResult && (() => {
+              const qs = Q_STATUS_COLORS[d.qResult.status]
+              return qs ? <div style={{ position:'absolute', bottom:0, right:0, width:14, height:14, borderRadius:'50%', background:qs.color, border:'3px solid var(--bg)', boxShadow: d.qResult.status==='MOVING' ? `0 0 8px ${qs.color}` : 'none' }} /> : null
+            })()}
+          </div>
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap:'wrap' }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1 }}>{d.name}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: (statusColor[d.status]||'var(--muted)') + '15', color: statusColor[d.status]||'var(--muted)' }}>{d.status}</span>
+              {d.qResult && (() => {
+                const qs = Q_STATUS_COLORS[d.qResult.status]
+                return qs ? <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:qs.bg, color:qs.color, letterSpacing:0.5 }}>{qs.label}</span> : null
+              })()}
+              {d.qResult && (
+                <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, background:d.qResult.effColor+'12', color:d.qResult.effColor, display:'flex', alignItems:'center', gap:3 }}>
+                  <Ic icon={Q_EFF_ICONS[d.qResult.efficiency] || Activity} size={9} color={d.qResult.effColor} /> {d.qResult.efficiency}
+                </span>
+              )}
+              {d.qResult && <span style={{ fontSize:9, fontWeight:600, color:'var(--muted)', padding:'2px 8px', borderRadius:6, background:'var(--surface2)' }}>{d.qResult.driverType}</span>}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.unit} · CDL {d.cdlClass} · Hired {d.hired}</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.unit ? d.unit + ' · ' : ''}CDL {d.cdlClass} · Hired {d.hired}</div>
             <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
               <span style={{ fontSize: 12 }}><Ic icon={Phone} /> {d.phone}</span>
               <span style={{ fontSize: 12 }}><Ic icon={Send} /> {d.email}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink:0 }}>
             {(isCompanyAdmin || companyRole === 'owner') && (
               <button className="btn btn-ghost" style={{ fontSize: 12, color:'var(--accent)' }}
                 onClick={() => { setInvEmail(d.email || ''); setShowInviteUser(d.id) }}>
@@ -657,18 +890,142 @@ export function DriverProfiles() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap: 12 }}>
+        {/* ═══ Q DRIVER INSIGHT ═══════════════════════════════════════ */}
+        {d.qResult && (
+          <div style={{
+            background:'linear-gradient(135deg, rgba(240,165,0,0.04), rgba(52,176,104,0.03))',
+            border:'1px solid rgba(240,165,0,0.15)', borderRadius:10, padding:'12px 16px',
+            position:'relative', overflow:'hidden'
+          }}>
+            <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg, transparent, var(--accent), var(--success), transparent)', opacity:0.3 }} />
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <div style={{ width:5, height:5, borderRadius:'50%', background:'var(--accent)', animation:'q-driver-pulse 2s ease-in-out infinite' }} />
+                <span style={{ fontSize:9, fontWeight:800, color:'var(--accent)', letterSpacing:1.5 }}>Q INSIGHT</span>
+              </div>
+              {d.qResult.isIdle && unassignedLoads.length > 0 && (
+                <button className="btn btn-primary" style={{ fontSize:10, padding:'4px 12px' }}
+                  onClick={() => {
+                    const bestMatch = (qLoadMatches[d.id] || [])[0]
+                    if (bestMatch) {
+                      assignLoadToDriver(bestMatch.load.loadId || bestMatch.load.id, d.name)
+                      showToast('', 'Q Auto-Assigned', `${bestMatch.load.loadId} → ${d.name} (score: ${bestMatch.score})`)
+                    } else {
+                      showToast('', 'No Match', 'No suitable loads available for this driver')
+                    }
+                  }}>
+                  <Ic icon={Zap} size={10} /> Auto Assign Best Load
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize:11, color:'var(--text)', lineHeight:1.5, marginBottom:8, fontWeight:600 }}>
+              {d.qResult.insight}
+            </div>
+
+            {/* Q Alerts for this driver */}
+            {d.qResult.alerts.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
+                {d.qResult.alerts.map((a, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:6,
+                    background: a.type === 'alert' ? 'rgba(239,68,68,0.06)' : 'rgba(240,165,0,0.06)',
+                    border: `1px solid ${a.type === 'alert' ? 'rgba(239,68,68,0.15)' : 'rgba(240,165,0,0.15)'}` }}>
+                    <Ic icon={a.type === 'alert' ? AlertTriangle : Siren} size={10} color={a.type === 'alert' ? 'var(--danger)' : 'var(--warning)'} />
+                    <span style={{ fontSize:9, fontWeight:600, color: a.type === 'alert' ? 'var(--danger)' : 'var(--warning)' }}>{a.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick metrics */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
+              {[
+                { label:'PROFIT/LOAD', value:`$${d.qResult.profitPerLoad.toLocaleString()}`, color: d.qResult.profitPerLoad > 0 ? 'var(--success)' : 'var(--muted)' },
+                { label:'PROFIT/DAY', value:`$${d.qResult.profitPerDay.toLocaleString()}`, color: d.qResult.profitPerDay >= 400 ? 'var(--success)' : 'var(--accent)' },
+                { label:'ON-TIME', value:`${d.qResult.onTime}%`, color: d.qResult.onTime >= 90 ? 'var(--success)' : 'var(--accent)' },
+                { label:'RPM', value:`$${d.qResult.rpm}`, color: parseFloat(d.qResult.rpm) >= 2.5 ? 'var(--success)' : 'var(--accent)' },
+                { label:'IDLE TIME', value: d.qResult.isIdle ? `${d.qResult.idleHours}h` : 'On load', color: d.qResult.isIdle && d.qResult.idleHours > 12 ? 'var(--warning)' : 'var(--success)' },
+              ].map(m => (
+                <div key={m.label} style={{ background:'rgba(0,0,0,0.1)', borderRadius:6, padding:'5px 6px', textAlign:'center' }}>
+                  <div style={{ fontSize:7, fontWeight:800, color:'var(--muted)', letterSpacing:0.8, marginBottom:2 }}>{m.label}</div>
+                  <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700, color:m.color }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Preferred lanes */}
+            {d.qResult.topLanes.length > 0 && (
+              <div style={{ marginTop:8, display:'flex', gap:4, alignItems:'center', flexWrap:'wrap' }}>
+                <span style={{ fontSize:8, fontWeight:700, color:'var(--muted)', letterSpacing:1 }}>TOP LANES:</span>
+                {d.qResult.topLanes.map((tl, i) => (
+                  <span key={i} style={{ fontSize:8, fontWeight:600, padding:'2px 6px', borderRadius:4, background:'rgba(77,142,240,0.08)', color:'var(--accent3)', border:'1px solid rgba(77,142,240,0.15)' }}>
+                    {tl.lane} ({tl.count}x)
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ Q LOAD MATCH RECOMMENDATIONS ═══════════════════════════ */}
+        {d.qResult?.isIdle && (qLoadMatches[d.id] || []).length > 0 && (
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+            <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <Ic icon={Target} size={11} color="var(--accent)" />
+                <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2 }}>Q LOAD MATCHES</span>
+                <span style={{ fontSize:9, color:'var(--muted)' }}>{(qLoadMatches[d.id] || []).length} found</span>
+              </div>
+            </div>
+            {(qLoadMatches[d.id] || []).map((match, i) => {
+              const l = match.load
+              const origin = (l.origin || '').split(',')[0] || '—'
+              const dest = (l.dest || l.destination || '').split(',')[0] || '—'
+              const gross = l.gross || l.gross_pay || 0
+              return (
+                <div key={l.loadId || l.id} style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10, cursor:'pointer', transition:'background 0.12s' }}
+                  onMouseOver={e => e.currentTarget.style.background='var(--surface2)'}
+                  onMouseOut={e => e.currentTarget.style.background='transparent'}>
+                  <div style={{ width:28, height:28, borderRadius:7, background: i===0 ? 'rgba(52,176,104,0.1)' : 'var(--surface2)', border:`1px solid ${i===0 ? 'rgba(52,176,104,0.2)' : 'var(--border)'}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:10, fontWeight:800, color: i===0 ? 'var(--success)' : 'var(--muted)' }}>#{i+1}</span>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                      <span style={{ fontSize:11, fontWeight:700 }}>{origin} → {dest}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)', fontFamily:"'JetBrains Mono',monospace" }}>${gross.toLocaleString()}</span>
+                    </div>
+                    <div style={{ fontSize:9, color:'var(--muted)' }}>{match.reasons.slice(0,2).join(' · ')}</div>
+                  </div>
+                  <div style={{ textAlign:'right', flexShrink:0 }}>
+                    <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, color: match.score >= 70 ? 'var(--success)' : match.score >= 50 ? 'var(--accent)' : 'var(--muted)' }}>{match.score}</div>
+                    <div style={{ fontSize:7, fontWeight:700, color:'var(--muted)', letterSpacing:0.5 }}>SCORE</div>
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize:9, padding:'4px 10px', flexShrink:0 }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      assignLoadToDriver(l.loadId || l.id, d.name)
+                      showToast('', 'Load Assigned', `${l.loadId} → ${d.name}`)
+                    }}>
+                    Assign
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Stats — Q enhanced with real data */}
+        <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap: 10 }}>
           {[
             { label: 'Loads MTD',  value: d.stats.loadsMTD,                    color: 'var(--accent)' },
             { label: 'Miles MTD',  value: d.stats.milesMTD.toLocaleString(),   color: 'var(--accent2)' },
             { label: 'Gross MTD',  value: '$' + d.stats.grossMTD.toLocaleString(), color: 'var(--accent)' },
             { label: 'Pay MTD',    value: '$' + d.stats.payMTD.toLocaleString(),   color: 'var(--success)' },
-            { label: 'Rating',     value: d.stats.rating,              color: 'var(--warning)' },
+            { label: 'RPM',        value: d.qResult ? '$' + d.qResult.rpm : '$' + d.stats.rating, color: 'var(--warning)' },
+            { label: 'Total Loads', value: d.qResult?.loadCount || 0,           color: 'var(--accent3)' },
           ].map(s => (
-            <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: s.color }}>{s.value}</div>
+            <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 4, fontWeight:600, letterSpacing:0.5 }}>{s.label}</div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: s.color }}>{s.value}</div>
             </div>
           ))}
         </div>

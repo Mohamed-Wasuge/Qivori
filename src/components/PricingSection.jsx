@@ -7,10 +7,10 @@ const PRICING_PLANS = [
   {
     id: 'autonomous_fleet',
     name: 'Qivori AI Dispatch',
-    sub: '$199 first truck · $99 each additional · Everything included',
+    sub: '$199 first truck · $75 each additional · + 3% AI fee per load',
     price: '$199',
     period: '/mo',
-    extraTruck: '$99',
+    extraTruck: '$75',
     color: '#f0a500',
     icon: Crown,
     popular: true,

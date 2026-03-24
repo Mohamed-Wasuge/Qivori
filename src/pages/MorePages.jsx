@@ -149,7 +149,7 @@ export function Payments() {
   }, [])
 
   const planPrices = { autonomous_fleet: 199, autopilot: 199, autopilot_ai: 199 }
-  const planLabels = { autonomous_fleet: 'Qivori AI Dispatch ($199/mo)', autopilot: 'Qivori AI Dispatch ($199/mo)', autopilot_ai: 'Qivori AI Dispatch ($199/mo)' }
+  const planLabels = { autonomous_fleet: 'Q Platform ($199/mo)', autopilot: 'Q Platform ($199/mo)', autopilot_ai: 'Q Platform ($199/mo)' }
   const activeUsers = profiles.filter(p => p.status === 'active')
   const trialUsers = profiles.filter(p => p.status === 'trial')
   const failedUsers = profiles.filter(p => p.status === 'failed')

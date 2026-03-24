@@ -1,16 +1,42 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
-  DollarSign, Package, Truck, BarChart2, MapPin, Scale, User, Building2
+  DollarSign, Package, Truck, BarChart2, MapPin, Scale, User, Building2,
+  Bot, AlertTriangle, TrendingUp, TrendingDown, Fuel, Zap, Target, Shield, Clock,
+  ChevronUp, ChevronDown, Calendar
 } from 'lucide-react'
 import { useCarrier } from '../../context/CarrierContext'
 import { Ic } from './shared'
 
-// ── PROFIT IQ ─────────────────────────────────────────────────────────────────
-export const PIQ_TABS = ['Overview', 'Per Load', 'By Driver', 'By Broker']
+// ── Q PROFIT ENGINE ──────────────────────────────────────────────────────────
+export const PIQ_TABS = ['Q Engine', 'Overview', 'Per Load', 'By Driver', 'By Broker']
+
+// Helpers: date filters
+const isToday = (dateStr) => {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  if (isNaN(d)) return false
+  const now = new Date()
+  return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+}
+const isThisWeek = (dateStr) => {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  if (isNaN(d)) return false
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - now.getDay())
+  startOfWeek.setHours(0,0,0,0)
+  return d >= startOfWeek && d <= now
+}
+const getLoadDate = (l) => l.delivery_date || l.pickup_date || l.pickupDate || l.created_at
+
+// Estimate transit days from miles
+const estTransitDays = (miles) => Math.max(1, Math.ceil((parseFloat(miles) || 0) / 500))
 
 export function ProfitIQTab() {
-  const { loads, expenses, totalRevenue, totalExpenses, drivers: ctxDrivers, fuelCostPerMile } = useCarrier()
-  const [tab, setTab] = useState('Overview')
+  const { loads, invoices, expenses, totalRevenue, totalExpenses, drivers: ctxDrivers, vehicles, fuelCostPerMile } = useCarrier()
+  const [tab, setTab] = useState('Q Engine')
+  const [marginTarget, setMarginTarget] = useState(30)
 
   const fuelRate = fuelCostPerMile || 0.22
 
@@ -37,8 +63,25 @@ export function ProfitIQTab() {
     const net        = gross - driverPay - fuelCost
     const margin     = gross > 0 ? ((net / gross) * 100).toFixed(1) : '0.0'
     const rpm        = parseFloat(l.rate) || (miles > 0 ? gross / miles : 0)
-    return { ...l, driverPay, fuelCost, net, margin: parseFloat(margin), rpm }
+    const profitPerMile = miles > 0 ? (net / miles) : 0
+    const days       = estTransitDays(miles)
+    const profitPerDay = net / days
+    return { ...l, driverPay, fuelCost, net, margin: parseFloat(margin), rpm, profitPerMile, profitPerDay, days }
   }).sort((a,b) => b.net - a.net)
+
+  // Time-filtered profit: today + this week
+  const todayProfit = useMemo(() => {
+    return loadProfit.filter(l => isToday(getLoadDate(l))).reduce((s,l) => s + l.net, 0)
+  }, [loadProfit])
+  const weekProfit = useMemo(() => {
+    return loadProfit.filter(l => isThisWeek(getLoadDate(l))).reduce((s,l) => s + l.net, 0)
+  }, [loadProfit])
+  const todayRevenue = useMemo(() => {
+    return loadProfit.filter(l => isToday(getLoadDate(l))).reduce((s,l) => s + l.gross, 0)
+  }, [loadProfit])
+  const weekRevenue = useMemo(() => {
+    return loadProfit.filter(l => isThisWeek(getLoadDate(l))).reduce((s,l) => s + l.gross, 0)
+  }, [loadProfit])
 
   // Expense breakdown from real context
   const expCats = ['Fuel','Driver Pay','Insurance','Maintenance','Tolls','Lumper','Permits','Other']
@@ -127,6 +170,125 @@ export function ProfitIQTab() {
   const statBg  = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', textAlign:'center' }
   const valStyle= (color, size=26) => ({ fontFamily:"'Bebas Neue',sans-serif", fontSize:size, color, lineHeight:1.1 })
 
+  // ── Q PROFIT ENGINE COMPUTATIONS ────────────────────────────────────────────
+  const MARGIN_TARGET = marginTarget
+  const qData = useMemo(() => {
+    const truckCount = Math.max((ctxDrivers || []).length, 1)
+    const vehicleCount = Math.max((vehicles || []).length, truckCount)
+    const fuelRate = fuelCostPerMile || 0.22
+    const totalMi = completedLoads.reduce((s,l) => s + (parseFloat(l.miles)||0), 0)
+
+    // Per-truck profit tracking
+    const truckMap = {}
+    completedLoads.forEach(l => {
+      const truck = l.vehicle || l.truck || l.driver || 'Unassigned'
+      if (!truckMap[truck]) truckMap[truck] = { name:truck, gross:0, net:0, miles:0, loads:0, fuelCost:0, driverPay:0 }
+      const gross = l.gross || 0
+      const miles = parseFloat(l.miles) || 0
+      const driverPay = calcDriverPay(l.driver, gross, miles)
+      const fuel = Math.round(miles * fuelRate)
+      truckMap[truck].gross += gross
+      truckMap[truck].net += (gross - driverPay - fuel)
+      truckMap[truck].miles += miles
+      truckMap[truck].loads++
+      truckMap[truck].fuelCost += fuel
+      truckMap[truck].driverPay += driverPay
+    })
+    // Per-truck daily/weekly breakdown
+    const truckTodayMap = {}
+    const truckWeekMap = {}
+    completedLoads.forEach(l => {
+      const truck = l.vehicle || l.truck || l.driver || 'Unassigned'
+      const lDate = getLoadDate(l)
+      const gross = l.gross || 0
+      const miles = parseFloat(l.miles) || 0
+      const driverPay = calcDriverPay(l.driver, gross, miles)
+      const fuel = Math.round(miles * fuelRate)
+      const net = gross - driverPay - fuel
+      if (isToday(lDate)) {
+        if (!truckTodayMap[truck]) truckTodayMap[truck] = 0
+        truckTodayMap[truck] += net
+      }
+      if (isThisWeek(lDate)) {
+        if (!truckWeekMap[truck]) truckWeekMap[truck] = 0
+        truckWeekMap[truck] += net
+      }
+    })
+    // Idle time: drivers with no active loads
+    const idleDrivers = (ctxDrivers || []).filter(d => {
+      const name = d.full_name || d.name
+      return !activeLoads.some(l => l.driver === name)
+    })
+
+    const truckStats = Object.values(truckMap).sort((a,b) => b.net - a.net).map(t => ({
+      ...t,
+      margin: t.gross > 0 ? ((t.net / t.gross) * 100) : 0,
+      rpm: t.miles > 0 ? (t.gross / t.miles) : 0,
+      costPerMile: t.miles > 0 ? ((t.fuelCost + t.driverPay) / t.miles) : 0,
+      profitToday: truckTodayMap[t.name] || 0,
+      profitWeek: truckWeekMap[t.name] || 0,
+      avgProfitPerLoad: t.loads > 0 ? Math.round(t.net / t.loads) : 0,
+      isIdle: idleDrivers.some(d => (d.full_name || d.name) === t.name),
+    }))
+
+    // Fuel intelligence
+    const totalFuelCost = completedLoads.reduce((s,l) => s + Math.round((parseFloat(l.miles)||0) * fuelRate), 0)
+    const avgFuelPerLoad = completedLoads.length > 0 ? Math.round(totalFuelCost / completedLoads.length) : 0
+    const fuelAsPercent = totalRevenue > 0 ? ((totalFuelCost / totalRevenue) * 100) : 0
+    const estMPG = 6.5 // avg semi-truck
+    const gallonsUsed = totalMi / estMPG
+    const dieselPricePerGal = fuelRate * estMPG // derive from per-mile rate
+    const fuelSavings7pct = Math.round(totalFuelCost * 0.07) // 7% fuel savings potential
+
+    // Invoice/factoring intelligence
+    const unpaidInvoices = (invoices || []).filter(i => i.status === 'Unpaid')
+    const unpaidTotal = unpaidInvoices.reduce((s,i) => s + (i.amount || 0), 0)
+    const paidInvoices = (invoices || []).filter(i => i.status === 'Paid')
+    const overdueInvoices = unpaidInvoices.filter(i => {
+      if (!i.dueDate) return false
+      return new Date(i.dueDate) < new Date()
+    })
+    const avgDaysToPayment = paidInvoices.length > 0 ? Math.round(paidInvoices.reduce((s,i) => {
+      const created = new Date(i.created_at || i.date)
+      const paid = new Date(i.paid_at || i.updated_at || i.date)
+      return s + Math.max(0, (paid - created) / 86400000)
+    }, 0) / paidInvoices.length) : 30
+    const factoringCost = Math.round(unpaidTotal * 0.025) // 2.5% factor fee
+    const factoringNet = unpaidTotal - factoringCost
+
+    // Profit alerts
+    const alerts = []
+    if (margin < 20) alerts.push({ severity:'critical', icon: AlertTriangle, color:'var(--danger)', text:`Margin at ${margin}% — below 20% threshold. Review expenses and rate acceptance criteria.` })
+    else if (margin < MARGIN_TARGET) alerts.push({ severity:'warning', icon: Target, color:'var(--warning)', text:`Margin at ${margin}% — ${(MARGIN_TARGET - parseFloat(margin)).toFixed(1)}% below ${MARGIN_TARGET}% target. Tighten rate acceptance.` })
+    if (unpaidTotal > totalRevenue * 0.4) alerts.push({ severity:'warning', icon: Clock, color:'var(--accent)', text:`$${unpaidTotal.toLocaleString()} in unpaid invoices (${(unpaidTotal/Math.max(totalRevenue,1)*100).toFixed(0)}% of revenue). Cash flow risk.` })
+    if (overdueInvoices.length > 0) alerts.push({ severity:'critical', icon: AlertTriangle, color:'var(--danger)', text:`${overdueInvoices.length} overdue invoice${overdueInvoices.length!==1?'s':''} — $${overdueInvoices.reduce((s,i)=>s+(i.amount||0),0).toLocaleString()} past due. Chase immediately.` })
+    if (fuelAsPercent > 35) alerts.push({ severity:'warning', icon: Fuel, color:'var(--warning)', text:`Fuel is ${fuelAsPercent.toFixed(1)}% of revenue — above 35% threshold. Route optimization needed.` })
+    const worstTruck = truckStats[truckStats.length - 1]
+    if (worstTruck && worstTruck.margin < 15 && worstTruck.loads >= 2) alerts.push({ severity:'warning', icon: Truck, color:'var(--warning)', text:`${worstTruck.name} running at ${worstTruck.margin.toFixed(1)}% margin — underperforming. Review lane assignments.` })
+    // Positive signals
+    const bestTruck = truckStats[0]
+    if (bestTruck && bestTruck.margin >= 35) alerts.push({ severity:'positive', icon: TrendingUp, color:'var(--success)', text:`${bestTruck.name} leading at ${bestTruck.margin.toFixed(1)}% margin — $${bestTruck.net.toLocaleString()} net profit.` })
+    if (margin >= MARGIN_TARGET) alerts.push({ severity:'positive', icon: Shield, color:'var(--success)', text:`Margin at ${margin}% — above ${MARGIN_TARGET}% target. Profit engine performing.` })
+
+    // Q Insight (most actionable)
+    let qInsight = ''
+    if (margin < 20) qInsight = `Profit below threshold. ${unpaidTotal > 3000 ? `Factor $${unpaidTotal.toLocaleString()} in invoices for immediate cash.` : 'Cut non-essential expenses and negotiate higher rates.'}`
+    else if (margin < MARGIN_TARGET) qInsight = `Operating within range but below target. ${fuelAsPercent > 30 ? `Fuel optimization could save ~$${fuelSavings7pct.toLocaleString()}/mo.` : `Focus on higher-RPM lanes to close the gap.`}`
+    else qInsight = `Profit engine online. ${bestTruck ? `Replicate ${bestTruck.name}'s lane strategy across fleet.` : 'Maintain current rate discipline.'} ${unpaidTotal > 0 ? `$${unpaidTotal.toLocaleString()} in receivables outstanding.` : ''}`
+
+    // Cash flow projection (next 30 days)
+    const projectedIncoming = unpaidTotal + activeLoads.reduce((s,l) => s + (l.gross || 0), 0)
+    const monthlyBurn = totalExpenses || (completedLoads.length > 0 ? completedLoads.reduce((s,l) => s + calcDriverPay(l.driver, l.gross||0, parseFloat(l.miles)||0) + Math.round((parseFloat(l.miles)||0) * fuelRate), 0) : 5000)
+    const cashRunway = monthlyBurn > 0 ? Math.round((projectedIncoming / monthlyBurn) * 30) : 999
+
+    return {
+      truckCount, truckStats, totalFuelCost, avgFuelPerLoad, fuelAsPercent, fuelSavings7pct,
+      gallonsUsed, dieselPricePerGal, unpaidInvoices, unpaidTotal, paidInvoices, overdueInvoices,
+      avgDaysToPayment, factoringCost, factoringNet, alerts, qInsight, margin: parseFloat(margin),
+      projectedIncoming, monthlyBurn, cashRunway, totalMi, fuelRate, idleDrivers
+    }
+  }, [loads, invoices, expenses, ctxDrivers, vehicles, fuelCostPerMile, totalRevenue, totalExpenses, completedLoads, activeLoads, margin, marginTarget])
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto' }}>
 
@@ -134,17 +296,359 @@ export function ProfitIQTab() {
       <div style={{ flexShrink:0, background:'var(--surface)', borderBottom:'1px solid var(--border)', padding:'0 20px', display:'flex', alignItems:'center', gap:2 }}>
         {PIQ_TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
-            style={{ padding:'11px 18px', border:'none', borderBottom: tab===t ? '2px solid var(--accent)' : '2px solid transparent', background:'transparent', color: tab===t ? 'var(--accent)' : 'var(--muted)', fontSize:13, fontWeight: tab===t ? 700 : 500, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:-1 }}>
+            style={{ padding:'11px 18px', border:'none', borderBottom: tab===t ? '2px solid var(--accent)' : '2px solid transparent', background:'transparent', color: tab===t ? 'var(--accent)' : 'var(--muted)', fontSize:13, fontWeight: tab===t ? 700 : 500, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:-1, display:'flex', alignItems:'center', gap:5 }}>
+            {t === 'Q Engine' && <Bot size={13} />}
             {t}
           </button>
         ))}
         <div style={{ flex:1 }} />
-        <div style={{ fontSize:11, color:'var(--muted)', padding:'0 8px' }}>
-          {completedLoads.length} completed loads · ${totalRevenue.toLocaleString()} MTD
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ fontSize:11, color:'var(--muted)', padding:'0 8px' }}>
+            {completedLoads.length} completed · ${totalRevenue.toLocaleString()} MTD
+          </div>
+          <div style={{ padding:'3px 8px', borderRadius:6, fontSize:10, fontWeight:800, background: qData.margin >= MARGIN_TARGET ? 'rgba(34,197,94,0.12)' : qData.margin >= 20 ? 'rgba(240,165,0,0.12)' : 'rgba(239,68,68,0.12)', color: qData.margin >= MARGIN_TARGET ? 'var(--success)' : qData.margin >= 20 ? 'var(--warning)' : 'var(--danger)' }}>
+            {qData.margin.toFixed(1)}% MARGIN
+          </div>
         </div>
       </div>
 
       <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+
+        {/* ── Q ENGINE ── */}
+        {tab === 'Q Engine' && (<>
+          {/* Q Financial Insight Card */}
+          <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(34,197,94,0.04))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:14, padding:'18px 22px', display:'flex', gap:16, alignItems:'flex-start' }}>
+            <div style={{ width:40, height:40, borderRadius:10, background:'rgba(240,165,0,0.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Bot size={22} color="var(--accent)" />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, letterSpacing:2 }}>Q <span style={{ color:'var(--accent)' }}>PROFIT ANALYSIS</span></span>
+                <span style={{ fontSize:9, padding:'2px 7px', background:'rgba(34,197,94,0.12)', color:'var(--success)', borderRadius:6, fontWeight:800 }}>LIVE</span>
+              </div>
+              <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.7 }}>{qData.qInsight}</div>
+            </div>
+            <div style={{ textAlign:'right', flexShrink:0 }}>
+              <div style={{ fontSize:9, color:'var(--muted)', marginBottom:2 }}>NET PROFIT MTD</div>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:32, color: netProfit >= 0 ? 'var(--success)' : 'var(--danger)', lineHeight:1 }}>${netProfit.toLocaleString()}</div>
+              <div style={{ fontSize:10, color:'var(--muted)', marginTop:4 }}>{qData.margin.toFixed(1)}% margin · target {MARGIN_TARGET}%</div>
+            </div>
+          </div>
+
+          {/* Q Profit Alerts */}
+          {qData.alerts.length > 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {qData.alerts.map((a, i) => (
+                <div key={i} style={{ padding:'10px 16px', background: a.color + '08', border:`1px solid ${a.color}25`, borderRadius:10, display:'flex', alignItems:'center', gap:10 }}>
+                  <a.icon size={16} color={a.color} style={{ flexShrink:0 }} />
+                  <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{a.text}</span>
+                  <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:5, background: a.color + '15', color: a.color, flexShrink:0 }}>
+                    {a.severity === 'critical' ? 'CRITICAL' : a.severity === 'positive' ? 'STRONG' : 'WATCH'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Q Profit Timeline — Today / Week / MTD */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            {[
+              { label:'Q PROFIT TODAY', value:'$'+todayProfit.toLocaleString(), rev:'$'+todayRevenue.toLocaleString()+' rev', color: todayProfit>=0?'var(--success)':'var(--danger)', icon: Calendar },
+              { label:'Q PROFIT THIS WEEK', value:'$'+weekProfit.toLocaleString(), rev:'$'+weekRevenue.toLocaleString()+' rev', color: weekProfit>=0?'var(--success)':'var(--danger)', icon: Calendar },
+              { label:'Q PROFIT MTD', value:'$'+netProfit.toLocaleString(), rev:'$'+totalRevenue.toLocaleString()+' rev', color: netProfit>=0?'var(--success)':'var(--danger)', icon: BarChart2, big:true },
+            ].map(s => (
+              <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 18px', display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:38, height:38, borderRadius:10, background: s.color+'12', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <s.icon size={18} color={s.color} />
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:9, color:'var(--muted)', letterSpacing:1, fontWeight:600, marginBottom:3 }}>{s.label}</div>
+                  <div style={valStyle(s.color, s.big?30:26)}>{s.value}</div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{s.rev}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* KPI Grid — 6 cards */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12 }}>
+            {[
+              { label:'Q MARGIN %', value:qData.margin.toFixed(1)+'%', color: qData.margin>=MARGIN_TARGET?'var(--success)':qData.margin>=20?'var(--warning)':'var(--danger)', sub:`Target: ${MARGIN_TARGET}%` },
+              { label:'REVENUE vs PROFIT', value: totalRevenue > 0 ? Math.round(netProfit/totalRevenue*100)+'%' : '—', color:'var(--accent)', sub:`$${totalRevenue.toLocaleString()} → $${netProfit.toLocaleString()}` },
+              { label:'FUEL COST IMPACT', value:'$'+qData.totalFuelCost.toLocaleString(), color:'var(--warning)', sub:`${qData.fuelAsPercent.toFixed(1)}% of revenue` },
+              { label:'PROFIT / TRUCK', value:'$'+Math.round(netProfit/qData.truckCount).toLocaleString(), color:'var(--accent2)', sub:`${qData.truckCount} truck${qData.truckCount!==1?'s':''}` },
+              { label:'COST PER MILE', value: cpm==='—'?'—':'$'+cpm, color:'var(--accent3)', sub:`${totalMiles.toLocaleString()} total mi` },
+              { label:'UNPAID AR', value:'$'+qData.unpaidTotal.toLocaleString(), color:'var(--accent)', sub:`${qData.unpaidInvoices.length} invoice${qData.unpaidInvoices.length!==1?'s':''}` },
+            ].map(s => (
+              <div key={s.label} style={statBg}>
+                <div style={{ fontSize:9, color:'var(--muted)', marginBottom:4, letterSpacing:1, fontWeight:600 }}>{s.label}</div>
+                <div style={valStyle(s.color, 24)}>{s.value}</div>
+                <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Margin Target Tracker */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <Target size={14} color="var(--accent)" />
+                <span style={{ fontSize:13, fontWeight:700 }}>Margin Target Tracker</span>
+                <span style={{ fontSize:10, color:'var(--muted)', fontWeight:400 }}>
+                  Gap: {qData.margin >= MARGIN_TARGET ? '+' : ''}{(qData.margin - MARGIN_TARGET).toFixed(1)}%
+                </span>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color: qData.margin>=MARGIN_TARGET?'var(--success)':qData.margin>=20?'var(--warning)':'var(--danger)' }}>
+                  {qData.margin.toFixed(1)}%
+                </span>
+                <span style={{ fontSize:12, color:'var(--muted)' }}>/</span>
+                {/* Adjustable target */}
+                <div style={{ display:'flex', alignItems:'center', gap:2, background:'var(--surface2)', borderRadius:8, padding:'2px 6px', border:'1px solid var(--border)' }}>
+                  <button onClick={() => setMarginTarget(t => Math.max(5, t - 5))}
+                    style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px', display:'flex', color:'var(--muted)' }}>
+                    <ChevronDown size={14} />
+                  </button>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent)', minWidth:28, textAlign:'center' }}>{MARGIN_TARGET}%</span>
+                  <button onClick={() => setMarginTarget(t => Math.min(60, t + 5))}
+                    style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px', display:'flex', color:'var(--muted)' }}>
+                    <ChevronUp size={14} />
+                  </button>
+                </div>
+                <span style={{ fontSize:10, color:'var(--muted)' }}>target</span>
+              </div>
+            </div>
+            <div style={{ height:12, background:'var(--border)', borderRadius:6, position:'relative', overflow:'hidden' }}>
+              <div style={{ height:'100%', width:`${Math.min(qData.margin / MARGIN_TARGET * 100, 100)}%`, background: qData.margin>=MARGIN_TARGET ? 'var(--success)' : qData.margin>=20 ? 'linear-gradient(90deg, var(--warning), var(--accent))' : 'var(--danger)', borderRadius:6, transition:'width 0.6s ease' }} />
+              {/* Target line */}
+              <div style={{ position:'absolute', top:0, bottom:0, left:'100%', width:2, background:'var(--text)', opacity:0.3 }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)', marginTop:6 }}>
+              <span>0%</span>
+              <span style={{ color:'var(--warning)' }}>20%</span>
+              <span style={{ color:'var(--success)', fontWeight:700 }}>{MARGIN_TARGET}% TARGET</span>
+              <span>50%+</span>
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            {/* Profit Per Truck */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+                <Truck size={14} color="var(--accent2)" />
+                <span style={{ fontSize:13, fontWeight:700 }}>Profit Per Truck</span>
+                <span style={{ marginLeft:'auto', fontSize:10, color:'var(--muted)' }}>{qData.truckStats.length} unit{qData.truckStats.length!==1?'s':''}</span>
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:8 }}>
+                {qData.truckStats.length === 0
+                  ? <div style={{ textAlign:'center', padding:20, color:'var(--muted)', fontSize:12 }}>No completed loads yet</div>
+                  : qData.truckStats.map((t, i) => {
+                    const mc = t.margin >= 35 ? 'var(--success)' : t.margin >= 25 ? 'var(--accent)' : t.margin >= 15 ? 'var(--warning)' : 'var(--danger)'
+                    return (
+                      <div key={t.name} style={{ padding:'12px 14px', background: i===0 ? 'rgba(34,197,94,0.04)' : 'transparent', border:`1px solid ${i===0 ? 'rgba(34,197,94,0.2)' : 'var(--border)'}`, borderRadius:10 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            {i === 0 && <span style={{ fontSize:8, fontWeight:800, color:'var(--success)', letterSpacing:1 }}>TOP</span>}
+                            <span style={{ fontSize:12, fontWeight:700 }}>{t.name}</span>
+                            {t.isIdle && <span style={{ fontSize:8, fontWeight:800, padding:'1px 5px', borderRadius:4, background:'rgba(239,68,68,0.12)', color:'var(--danger)' }}>IDLE</span>}
+                          </div>
+                          <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--success)' }}>${t.net.toLocaleString()}</span>
+                        </div>
+                        {/* Daily / Weekly / Avg per Load */}
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginBottom:6 }}>
+                          <div style={{ background:'var(--surface2)', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+                            <div style={{ fontSize:7, color:'var(--muted)', letterSpacing:0.5 }}>TODAY</div>
+                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, color: t.profitToday > 0 ? 'var(--success)' : 'var(--muted)' }}>${t.profitToday.toLocaleString()}</div>
+                          </div>
+                          <div style={{ background:'var(--surface2)', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+                            <div style={{ fontSize:7, color:'var(--muted)', letterSpacing:0.5 }}>THIS WEEK</div>
+                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, color: t.profitWeek > 0 ? 'var(--success)' : 'var(--muted)' }}>${t.profitWeek.toLocaleString()}</div>
+                          </div>
+                          <div style={{ background:'var(--surface2)', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+                            <div style={{ fontSize:7, color:'var(--muted)', letterSpacing:0.5 }}>AVG/LOAD</div>
+                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, color:'var(--accent)' }}>${t.avgProfitPerLoad.toLocaleString()}</div>
+                          </div>
+                          <div style={{ background:'var(--surface2)', borderRadius:6, padding:'5px 8px', textAlign:'center' }}>
+                            <div style={{ fontSize:7, color:'var(--muted)', letterSpacing:0.5 }}>MARGIN</div>
+                            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, color: mc }}>{t.margin.toFixed(1)}%</div>
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', gap:12, fontSize:10 }}>
+                          <span style={{ color:'var(--muted)' }}>{t.loads} loads · {t.miles.toLocaleString()} mi</span>
+                          <span style={{ color:'var(--muted)' }}>RPM: <span style={{ fontWeight:700 }}>${t.rpm.toFixed(2)}</span></span>
+                          <span style={{ color:'var(--muted)' }}>CPM: <span style={{ fontWeight:700 }}>${t.costPerMile.toFixed(2)}</span></span>
+                        </div>
+                        {/* Q Insight per truck */}
+                        {t.isIdle && (
+                          <div style={{ marginTop:6, fontSize:10, color:'var(--warning)', fontStyle:'italic' }}>
+                            Q: Truck idle — needs better load selection. Idle time eroding daily profit.
+                          </div>
+                        )}
+                        {!t.isIdle && t.margin < 15 && t.loads >= 2 && (
+                          <div style={{ marginTop:6, fontSize:10, color:'var(--danger)', fontStyle:'italic' }}>
+                            Q: Underperforming at {t.margin.toFixed(1)}% margin. Review lane assignments.
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                }
+              </div>
+            </div>
+
+            {/* Fuel Intelligence */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+                <Fuel size={14} color="var(--warning)" />
+                <span style={{ fontSize:13, fontWeight:700 }}>Fuel Intelligence</span>
+                <span style={{ marginLeft:'auto', fontSize:10, padding:'2px 6px', background:'rgba(240,165,0,0.1)', color:'var(--accent)', borderRadius:5, fontWeight:700 }}>${(fuelCostPerMile||0.22).toFixed(2)}/mi</span>
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
+                  {[
+                    { label:'TOTAL FUEL COST', value:'$'+qData.totalFuelCost.toLocaleString(), color:'var(--warning)' },
+                    { label:'AVG PER LOAD', value:'$'+qData.avgFuelPerLoad.toLocaleString(), color:'var(--accent)' },
+                    { label:'% OF REVENUE', value:qData.fuelAsPercent.toFixed(1)+'%', color: qData.fuelAsPercent > 35 ? 'var(--danger)' : 'var(--accent2)' },
+                    { label:'EST GALLONS', value:Math.round(qData.gallonsUsed).toLocaleString(), color:'var(--muted)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'var(--surface2)', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+                      <div style={{ fontSize:8, color:'var(--muted)', letterSpacing:1, marginBottom:3 }}>{s.label}</div>
+                      <div style={valStyle(s.color, 18)}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Fuel savings potential */}
+                <div style={{ padding:'10px 14px', background:'rgba(34,197,94,0.04)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:10 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                    <Zap size={12} color="var(--success)" />
+                    <span style={{ fontSize:11, fontWeight:700, color:'var(--success)' }}>SAVINGS POTENTIAL</span>
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5 }}>
+                    Route optimization could save ~<strong>${qData.fuelSavings7pct.toLocaleString()}/mo</strong> (7% reduction).
+                    {qData.totalMi > 0 && ` Running $${(qData.fuelRate).toFixed(2)}/mi across ${qData.totalMi.toLocaleString()} miles.`}
+                  </div>
+                </div>
+                {/* Fuel % bar */}
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)', marginBottom:4 }}>
+                    <span>Fuel as % of Revenue</span>
+                    <span style={{ fontWeight:700, color: qData.fuelAsPercent > 35 ? 'var(--danger)' : qData.fuelAsPercent > 25 ? 'var(--warning)' : 'var(--success)' }}>{qData.fuelAsPercent.toFixed(1)}%</span>
+                  </div>
+                  <div style={{ height:6, background:'var(--border)', borderRadius:3, position:'relative' }}>
+                    <div style={{ height:'100%', width:`${Math.min(qData.fuelAsPercent, 50)}%`, background: qData.fuelAsPercent > 35 ? 'var(--danger)' : qData.fuelAsPercent > 25 ? 'var(--warning)' : 'var(--success)', borderRadius:3, transition:'width 0.5s' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            {/* Invoice / Factoring Intelligence */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+                <DollarSign size={14} color="var(--accent)" />
+                <span style={{ fontSize:13, fontWeight:700 }}>Invoice Intelligence</span>
+                {qData.overdueInvoices.length > 0 && (
+                  <span style={{ marginLeft:'auto', fontSize:9, padding:'2px 6px', background:'rgba(239,68,68,0.12)', color:'var(--danger)', borderRadius:5, fontWeight:800 }}>{qData.overdueInvoices.length} OVERDUE</span>
+                )}
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
+                  {[
+                    { label:'UNPAID', value:'$'+qData.unpaidTotal.toLocaleString(), color:'var(--accent)' },
+                    { label:'AVG DAYS TO PAY', value:qData.avgDaysToPayment+'d', color: qData.avgDaysToPayment > 35 ? 'var(--danger)' : 'var(--accent2)' },
+                    { label:'FACTOR VALUE', value:'$'+qData.factoringNet.toLocaleString(), color:'var(--success)' },
+                    { label:'FACTOR FEE', value:'$'+qData.factoringCost.toLocaleString(), color:'var(--warning)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'var(--surface2)', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+                      <div style={{ fontSize:8, color:'var(--muted)', letterSpacing:1, marginBottom:3 }}>{s.label}</div>
+                      <div style={valStyle(s.color, 18)}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Unpaid invoice list */}
+                {qData.unpaidInvoices.slice(0, 4).map((inv, i) => (
+                  <div key={inv.id || i} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
+                    <div style={{ width:5, height:5, borderRadius:'50%', background: qData.overdueInvoices.includes(inv) ? 'var(--danger)' : 'var(--accent)', flexShrink:0 }} />
+                    <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'var(--accent)' }}>{inv.id}</span>
+                    <span style={{ fontSize:11, color:'var(--muted)', flex:1 }}>{inv.broker || inv.route || ''}</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:'var(--success)' }}>${(inv.amount||0).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Cash Flow Visibility */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+                <TrendingUp size={14} color="var(--success)" />
+                <span style={{ fontSize:13, fontWeight:700 }}>Cash Flow Visibility</span>
+              </div>
+              <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>
+                  {[
+                    { label:'PROJECTED IN', value:'$'+qData.projectedIncoming.toLocaleString(), color:'var(--success)' },
+                    { label:'MONTHLY BURN', value:'$'+qData.monthlyBurn.toLocaleString(), color:'var(--danger)' },
+                    { label:'CASH RUNWAY', value:qData.cashRunway+'d', color: qData.cashRunway > 45 ? 'var(--success)' : qData.cashRunway > 20 ? 'var(--warning)' : 'var(--danger)' },
+                    { label:'NET POSITION', value:'$'+(qData.projectedIncoming - qData.monthlyBurn).toLocaleString(), color: (qData.projectedIncoming - qData.monthlyBurn) >= 0 ? 'var(--success)' : 'var(--danger)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'var(--surface2)', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+                      <div style={{ fontSize:8, color:'var(--muted)', letterSpacing:1, marginBottom:3 }}>{s.label}</div>
+                      <div style={valStyle(s.color, 18)}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Visual flow */}
+                <div style={{ padding:'12px 14px', background:'var(--surface2)', borderRadius:10 }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                    <span style={{ fontSize:11, fontWeight:700 }}>30-Day Projection</span>
+                    <span style={{ fontSize:10, color:'var(--muted)' }}>AR + Active Loads vs Burn Rate</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, height:20 }}>
+                    <div style={{ flex: Math.max(qData.projectedIncoming, 1), height:'100%', background:'var(--success)', borderRadius:'4px 0 0 4px', opacity:0.7 }} />
+                    <div style={{ flex: Math.max(qData.monthlyBurn, 1), height:'100%', background:'var(--danger)', borderRadius:'0 4px 4px 0', opacity:0.7 }} />
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)', marginTop:4 }}>
+                    <span style={{ color:'var(--success)' }}>+${qData.projectedIncoming.toLocaleString()} incoming</span>
+                    <span style={{ color:'var(--danger)' }}>-${qData.monthlyBurn.toLocaleString()} outgoing</span>
+                  </div>
+                </div>
+                {/* Runway bar */}
+                <div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)', marginBottom:4 }}>
+                    <span>Cash Runway</span>
+                    <span style={{ fontWeight:700, color: qData.cashRunway > 45 ? 'var(--success)' : qData.cashRunway > 20 ? 'var(--warning)' : 'var(--danger)' }}>{qData.cashRunway} days</span>
+                  </div>
+                  <div style={{ height:6, background:'var(--border)', borderRadius:3 }}>
+                    <div style={{ height:'100%', width:`${Math.min(qData.cashRunway / 90 * 100, 100)}%`, background: qData.cashRunway > 45 ? 'var(--success)' : qData.cashRunway > 20 ? 'var(--warning)' : 'var(--danger)', borderRadius:3, transition:'width 0.5s' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Decision Integration */}
+          <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.05), rgba(0,0,0,0))', border:'1px solid rgba(240,165,0,0.15)', borderRadius:12, padding:'14px 20px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+              <Bot size={14} color="var(--accent)" />
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, letterSpacing:2 }}>Q <span style={{ color:'var(--accent)' }}>DECISION LOGIC</span></span>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:10 }}>
+              {[
+                { label:'MIN RATE TO ACCEPT', value: `$${Math.max(1.80, (qData.fuelRate + 0.50) * 1.3).toFixed(2)}/mi`, sub:'Based on cost + 30% margin', color:'var(--accent)' },
+                { label:'BREAK-EVEN RPM', value: `$${(qData.totalMi > 0 ? (totalExpenses / qData.totalMi) : 1.50).toFixed(2)}/mi`, sub:'All costs / total miles', color:'var(--danger)' },
+                { label:'TARGET NET/LOAD', value: `$${loadProfit.length > 0 ? Math.round(loadProfit.reduce((s,l)=>s+l.net,0)/loadProfit.length * 1.15).toLocaleString() : '500'}`, sub:'Avg net + 15% growth', color:'var(--success)' },
+                { label:'MAX DEADHEAD', value: `${Math.round(qData.totalMi > 0 ? (qData.totalMi / Math.max(completedLoads.length,1)) * 0.15 : 75)} mi`, sub:'15% of avg haul length', color:'var(--warning)' },
+              ].map(d => (
+                <div key={d.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 16px' }}>
+                  <div style={{ fontSize:9, color:'var(--muted)', letterSpacing:1, marginBottom:4, fontWeight:600 }}>{d.label}</div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:d.color, lineHeight:1 }}>{d.value}</div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{d.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>)}
 
         {/* ── OVERVIEW ── */}
         {tab === 'Overview' && (<>
@@ -250,23 +754,20 @@ export function ProfitIQTab() {
 
         {/* ── PER LOAD ── */}
         {tab === 'Per Load' && (<>
-          {/* Top 3 summary */}
+          {/* Top summary with profit/mile and profit/day */}
           {loadProfit.length > 0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:12 }}>
               {[
-                { label:'Best Load', load: loadProfit[0], color:'var(--success)' },
-                { label:'Avg Net Profit', load: null, avg: loadProfit.length ? Math.round(loadProfit.reduce((s,l)=>s+l.net,0)/loadProfit.length) : 0, color:'var(--accent)' },
-                { label:'Worst Load', load: loadProfit[loadProfit.length-1], color:'var(--danger)' },
+                { label:'Best Load', value:'$'+loadProfit[0].net.toLocaleString(), sub:loadProfit[0].loadId+' · '+loadProfit[0].broker, color:'var(--success)' },
+                { label:'Avg Net Profit', value:'$'+Math.round(loadProfit.reduce((s,l)=>s+l.net,0)/loadProfit.length).toLocaleString(), sub:'per completed load', color:'var(--accent)' },
+                { label:'Avg Profit/Mile', value:'$'+(loadProfit.reduce((s,l)=>s+l.profitPerMile,0)/loadProfit.length).toFixed(2), sub:'net per loaded mile', color:'var(--accent2)' },
+                { label:'Avg Profit/Day', value:'$'+Math.round(loadProfit.reduce((s,l)=>s+l.profitPerDay,0)/loadProfit.length).toLocaleString(), sub:'based on transit time', color:'var(--accent3)' },
+                { label:'Worst Load', value:'$'+loadProfit[loadProfit.length-1].net.toLocaleString(), sub:loadProfit[loadProfit.length-1].loadId, color:'var(--danger)' },
               ].map(s => (
                 <div key={s.label} style={statBg}>
                   <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>{s.label}</div>
-                  {s.load
-                    ? <>
-                        <div style={valStyle(s.color, 22)}>${s.load.net.toLocaleString()}</div>
-                        <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{s.load.loadId} · {s.load.broker}</div>
-                      </>
-                    : <div style={valStyle(s.color, 22)}>${s.avg.toLocaleString()}</div>
-                  }
+                  <div style={valStyle(s.color, 22)}>{s.value}</div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:3 }}>{s.sub}</div>
                 </div>
               ))}
             </div>
@@ -280,16 +781,18 @@ export function ProfitIQTab() {
             {loadProfit.length === 0
               ? <div style={{ padding:40, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No completed loads yet — mark loads as Delivered to see profitability.</div>
               : <>
-                  <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 90px 80px 80px 80px 80px 80px', padding:'8px 18px', borderBottom:'1px solid var(--border)', gap:8 }}>
-                    {['Load ID','Route / Broker','Driver','Gross','Driver Pay','Fuel Est','Net','Margin'].map(h => (
+                  <div style={{ display:'grid', gridTemplateColumns:'70px 1fr 80px 70px 70px 70px 70px 65px 65px', padding:'8px 18px', borderBottom:'1px solid var(--border)', gap:6 }}>
+                    {['Load ID','Route / Broker','Driver','Gross','Net','$/Mile','$/Day','Margin','Fuel'].map(h => (
                       <div key={h} style={{ fontSize:9, fontWeight:800, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1 }}>{h}</div>
                     ))}
                   </div>
                   {loadProfit.map((l, i) => {
                     const mc = l.margin >= 35 ? 'var(--success)' : l.margin >= 25 ? 'var(--accent)' : l.margin >= 15 ? 'var(--warning)' : 'var(--danger)'
+                    const ppmColor = l.profitPerMile >= 0.80 ? 'var(--success)' : l.profitPerMile >= 0.40 ? 'var(--accent)' : 'var(--warning)'
+                    const ppdColor = l.profitPerDay >= 500 ? 'var(--success)' : l.profitPerDay >= 250 ? 'var(--accent)' : 'var(--warning)'
                     const route = l.origin && l.dest ? l.origin.split(',')[0].substring(0,3).toUpperCase() + ' → ' + l.dest.split(',')[0].substring(0,3).toUpperCase() : l.loadId
                     return (
-                      <div key={l.loadId} style={{ display:'grid', gridTemplateColumns:'80px 1fr 90px 80px 80px 80px 80px 80px', padding:'12px 18px', borderBottom:'1px solid var(--border)', gap:8, alignItems:'center', background: i===0 ? 'rgba(34,197,94,0.03)' : 'transparent' }}>
+                      <div key={l.loadId} style={{ display:'grid', gridTemplateColumns:'70px 1fr 80px 70px 70px 70px 70px 65px 65px', padding:'12px 18px', borderBottom:'1px solid var(--border)', gap:6, alignItems:'center', background: i===0 ? 'rgba(34,197,94,0.03)' : 'transparent' }}>
                         <div style={{ fontFamily:'monospace', fontSize:11, fontWeight:700, color:'var(--accent)' }}>{l.loadId}</div>
                         <div>
                           <div style={{ fontSize:12, fontWeight:700, marginBottom:2 }}>{route}</div>
@@ -297,12 +800,13 @@ export function ProfitIQTab() {
                         </div>
                         <div style={{ fontSize:11, color:'var(--muted)' }}>{l.driver || '—'}</div>
                         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>${l.gross.toLocaleString()}</div>
-                        <div style={{ fontSize:12, color:'var(--danger)' }}>−${l.driverPay.toLocaleString()}</div>
-                        <div style={{ fontSize:12, color:'var(--warning)' }}>−${l.fuelCost.toLocaleString()}</div>
-                        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--success)' }}>${l.net.toLocaleString()}</div>
+                        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--success)' }}>${l.net.toLocaleString()}</div>
+                        <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700, color:ppmColor }}>${l.profitPerMile.toFixed(2)}</div>
+                        <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700, color:ppdColor }}>${Math.round(l.profitPerDay).toLocaleString()}<span style={{ fontSize:9, color:'var(--muted)', fontWeight:400 }}>/{l.days}d</span></div>
                         <div>
                           <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:8, background:mc+'18', color:mc }}>{l.margin}%</span>
                         </div>
+                        <div style={{ fontSize:11, color:'var(--warning)' }}>−${l.fuelCost.toLocaleString()}</div>
                       </div>
                     )
                   })}

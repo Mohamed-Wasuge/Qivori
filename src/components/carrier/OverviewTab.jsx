@@ -284,8 +284,9 @@ export function RevenueGoalWidget({ company, deliveredLoads, invoices, totalReve
 
 export function OverviewTab({ onTabChange }) {
   const { showToast } = useApp()
-  const { loads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles, removeLoad, company, updateCompany, invoices } = useCarrier()
+  const { loads, allLoads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles, removeLoad, company, updateCompany, invoices, fuelCostPerMile, expenses } = useCarrier()
   const [dismissed, setDismissed] = useState([])
+  const [qPulse, setQPulse] = useState(true)
 
   // Animated KPI values
   const animRevenue = useAnimatedNumber(totalRevenue)
@@ -303,367 +304,492 @@ export function OverviewTab({ onTabChange }) {
     if (load) {
       const oc = load.origin?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
       const dc = load.dest?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
-      fleetRows.push({ unit, driver, status: load.status, statusC: STATUS_DOT[load.status] || 'var(--accent)', load: load.loadId, route: `${oc}→${dc}`, active: true })
+      fleetRows.push({ unit, driver, status: load.status, statusC: STATUS_DOT[load.status] || 'var(--accent)', load: load.loadId, route: `${oc}→${dc}`, active: true, driverData: d, loadData: load })
     } else {
-      fleetRows.push({ unit, driver, status: 'Available', statusC: 'var(--muted)', load: '—', route: '—', active: false })
+      fleetRows.push({ unit, driver, status: 'Available', statusC: 'var(--muted)', load: '—', route: '—', active: false, driverData: d })
     }
   })
-  // Also show drivers from active loads who aren't formally added
   activeLoads.forEach(l => {
     const driver = l.driver || l.driver_name || ''
     if (driver && !seenDrivers.has(driver)) {
       seenDrivers.add(driver)
       const oc = l.origin?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
       const dc = l.dest?.split(',')[0]?.substring(0,3)?.toUpperCase() || '—'
-      fleetRows.push({ unit: '—', driver, status: l.status, statusC: STATUS_DOT[l.status] || 'var(--accent)', load: l.loadId, route: `${oc}→${dc}`, active: true })
+      fleetRows.push({ unit: '—', driver, status: l.status, statusC: STATUS_DOT[l.status] || 'var(--accent)', load: l.loadId, route: `${oc}→${dc}`, active: true, loadData: l })
     }
   })
 
-  // Fleet utilization: active trucks / total fleet size, capped at 100%
   const fleetSize = Math.max(fleetRows.length, vehicles.length, 1)
   const utilPct = Math.min(Math.round((fleetRows.filter(f => f.active).length / fleetSize) * 100), 100)
   const animUtil = useAnimatedNumber(utilPct)
-
-  const avgRPM = activeLoads.length
-    ? (activeLoads.reduce((s,l) => s + (l.rate || 0), 0) / activeLoads.length).toFixed(2)
-    : '0.00'
-
   const inTransitCount = activeLoads.filter(l => l.status === 'In Transit' || l.status === 'Loaded').length
+  const idleDrivers = fleetRows.filter(f => !f.active)
+  const margin = totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue * 100).toFixed(1) : '0.0'
+  const fmtMoney = (v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${Math.round(v)}`
 
-  // Alerts
-  const generatedAlerts = []
+  // Q Intelligence — generate insights from real data
+  const qInsights = []
+  // Idle driver insight
+  if (idleDrivers.length > 0 && loads.length > 0) {
+    const unassigned = loads.filter(l => !l.driver && ['Rate Con Received','Booked'].includes(l.status))
+    if (unassigned.length > 0) {
+      qInsights.push({ type: 'action', priority: 'high', text: `${idleDrivers.length} driver${idleDrivers.length > 1 ? 's' : ''} idle. ${unassigned.length} unassigned load${unassigned.length > 1 ? 's' : ''} waiting.`, action: 'Assign now', impact: `+$${(unassigned.reduce((s,l) => s + (l.gross||0), 0)).toLocaleString()} potential`, nav: 'loads' })
+    } else {
+      qInsights.push({ type: 'opportunity', priority: 'medium', text: `${idleDrivers.length} driver${idleDrivers.length > 1 ? 's' : ''} idle. Find loads to maximize utilization.`, action: 'Find loads', impact: `Fleet at ${utilPct}%`, nav: 'load-board' })
+    }
+  }
+  // Unpaid invoices insight
   if (unpaidInvoices.length > 0) {
     const totalUnpaid = unpaidInvoices.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-    generatedAlerts.push({ icon: CreditCard, text: `${unpaidInvoices.length} unpaid invoice(s) totaling $${totalUnpaid.toLocaleString()}`, color: 'var(--accent)', action: 'View' })
+    const oldestUnpaid = unpaidInvoices.reduce((oldest, i) => {
+      const d = new Date(i.invoiceDate || i.created_at || 0)
+      return d < oldest ? d : oldest
+    }, new Date())
+    const daysSince = Math.floor((Date.now() - oldestUnpaid.getTime()) / 86400000)
+    qInsights.push({ type: 'warning', priority: daysSince > 30 ? 'high' : 'medium', text: `$${totalUnpaid.toLocaleString()} in unpaid invoices. Oldest: ${daysSince}d.`, action: daysSince > 30 ? 'Escalate' : 'Review', impact: daysSince > 30 ? 'Cash flow risk' : `${unpaidInvoices.length} pending`, nav: 'financials' })
   }
-  if (vehicles.some(v => v.current_miles > 0 && v.next_service_miles && v.current_miles >= v.next_service_miles - 1000)) {
-    generatedAlerts.push({ icon: AlertTriangle, text: 'Vehicle maintenance due soon', color: 'var(--warning)', action: 'Schedule' })
+  // Low margin insight
+  if (totalRevenue > 0 && parseFloat(margin) < 20) {
+    qInsights.push({ type: 'warning', priority: 'high', text: `Operating margin at ${margin}%. Target: 25%+.`, action: 'Analyze costs', impact: `$${Math.round(totalRevenue * 0.05).toLocaleString()} recovery potential`, nav: 'financials' })
   }
-  if (drivers.some(d => d.medical_card_expiry && new Date(d.medical_card_expiry) < new Date(Date.now() + 30 * 86400000))) {
-    generatedAlerts.push({ icon: AlertCircle, text: 'Driver medical card expiring within 30 days', color: 'var(--danger)', action: 'Renew' })
+  // Compliance insight
+  const expiringDocs = drivers.filter(d => d.medical_card_expiry && new Date(d.medical_card_expiry) < new Date(Date.now() + 30 * 86400000))
+  if (expiringDocs.length > 0) {
+    qInsights.push({ type: 'alert', priority: 'high', text: `${expiringDocs.length} driver medical card${expiringDocs.length > 1 ? 's' : ''} expiring within 30 days.`, action: 'Resolve', impact: 'Compliance risk', nav: 'compliance' })
   }
-  const alerts = generatedAlerts.filter((_, i) => !dismissed.includes(i))
+  // Maintenance insight
+  const maintenanceDue = vehicles.filter(v => v.current_miles > 0 && v.next_service_miles && v.current_miles >= v.next_service_miles - 1000)
+  if (maintenanceDue.length > 0) {
+    qInsights.push({ type: 'alert', priority: 'medium', text: `${maintenanceDue.length} vehicle${maintenanceDue.length > 1 ? 's' : ''} approaching service interval.`, action: 'Schedule', impact: 'Prevent breakdown', nav: 'fleet' })
+  }
+  // Revenue goal insight
+  if (company?.revenue_goal_weekly || company?.revenue_goal_monthly) {
+    const goalType = company.revenue_goal_type || 'weekly'
+    const goal = goalType === 'weekly' ? (company.revenue_goal_weekly || 0) : (company.revenue_goal_monthly || 0)
+    const now = new Date()
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0,0,0,0)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const periodStart = goalType === 'weekly' ? startOfWeek : startOfMonth
+    const periodRev = (deliveredLoads || []).filter(l => new Date(l.delivery_date || l.created_at || 0) >= periodStart).reduce((s,l) => s + (l.gross || l.rate_total || 0), 0)
+    const pct = goal > 0 ? Math.round((periodRev / goal) * 100) : 0
+    if (pct < 100) {
+      qInsights.push({ type: 'info', priority: 'low', text: `${goalType === 'weekly' ? 'Weekly' : 'Monthly'} target: ${pct}% complete. $${Math.max(goal - periodRev, 0).toLocaleString()} remaining.`, action: 'View goal', impact: `${Math.ceil((goal - periodRev) / 2500)} loads needed`, nav: 'financials' })
+    }
+  }
+  // If no data at all
+  if (qInsights.length === 0 && loads.length === 0) {
+    qInsights.push({ type: 'info', priority: 'low', text: 'System initialized. Add trucks, drivers, and book loads to activate Q intelligence.', action: 'Get started', impact: 'Setup required', nav: 'fleet' })
+  }
+
+  // Load alerts — loads needing attention
+  const loadAlerts = []
+  // Loads without drivers
+  loads.filter(l => !l.driver && ['Rate Con Received','Booked','Assigned to Driver'].includes(l.status)).slice(0,3).forEach(l => {
+    const route = l.origin && l.dest ? `${(l.origin||'').split(',')[0]} → ${(l.dest||'').split(',')[0]}` : 'Unknown route'
+    loadAlerts.push({ loadId: l.loadId, route, gross: l.gross || 0, rate: l.rate || 0, miles: l.miles || 0, type: 'unassigned', recommendation: idleDrivers.length > 0 ? 'Assign idle driver' : 'Find driver', color: 'var(--accent)' })
+  })
+  // Loads approaching pickup with no movement
+  loads.filter(l => l.status === 'Assigned to Driver' && l.pickup_date).slice(0,2).forEach(l => {
+    const hoursUntil = (new Date(l.pickup_date) - Date.now()) / 3600000
+    if (hoursUntil < 12 && hoursUntil > -24) {
+      const route = l.origin && l.dest ? `${(l.origin||'').split(',')[0]} → ${(l.dest||'').split(',')[0]}` : 'Unknown route'
+      loadAlerts.push({ loadId: l.loadId, route, gross: l.gross || 0, rate: l.rate || 0, miles: l.miles || 0, type: 'pickup-soon', recommendation: 'Confirm dispatch', color: 'var(--warning)' })
+    }
+  })
+  // Delivered but not invoiced
+  loads.filter(l => l.status === 'Delivered').slice(0,2).forEach(l => {
+    const route = l.origin && l.dest ? `${(l.origin||'').split(',')[0]} → ${(l.dest||'').split(',')[0]}` : 'Unknown route'
+    loadAlerts.push({ loadId: l.loadId, route, gross: l.gross || 0, rate: l.rate || 0, miles: l.miles || 0, type: 'needs-invoice', recommendation: 'Generate invoice', color: 'var(--accent2)' })
+  })
+
+  // Q Actions — computed from real state
+  const qActions = []
+  const unassignedLoads = loads.filter(l => !l.driver && ['Rate Con Received','Booked'].includes(l.status))
+  if (unassignedLoads.length > 0 && idleDrivers.length > 0) {
+    qActions.push({ icon: Users, label: 'Assign Best Load', desc: `${unassignedLoads.length} loads → ${idleDrivers.length} drivers`, color: 'var(--accent)', nav: 'loads' })
+  }
+  if (activeLoads.length > 0) {
+    qActions.push({ icon: TrendingUp, label: 'Negotiate Rate', desc: `${activeLoads.length} active — check market rates`, color: 'var(--success)', nav: 'load-board' })
+  }
+  if (inTransitCount > 0) {
+    qActions.push({ icon: Truck, label: 'Track Fleet', desc: `${inTransitCount} in transit — view positions`, color: 'var(--accent2)', nav: 'fleet' })
+  }
+  if (idleDrivers.length > 0) {
+    qActions.push({ icon: Package, label: 'Find Loads', desc: `${idleDrivers.length} idle — scan load boards`, color: 'var(--accent3)', nav: 'load-board' })
+  }
+  if (loads.filter(l => l.status === 'Delivered').length > 0) {
+    qActions.push({ icon: FileText, label: 'Invoice Delivered', desc: `${loads.filter(l => l.status === 'Delivered').length} awaiting invoice`, color: 'var(--accent)', nav: 'loads' })
+  }
+  if (qActions.length === 0) {
+    qActions.push({ icon: Package, label: 'Find Loads', desc: 'Scan AI load board', color: 'var(--accent)', nav: 'load-board' })
+    qActions.push({ icon: Truck, label: 'Add Truck', desc: 'Register equipment', color: 'var(--accent2)', nav: 'fleet' })
+    qActions.push({ icon: Users, label: 'Add Driver', desc: 'Onboard driver', color: 'var(--accent3)', nav: 'drivers' })
+  }
+
+  // Financial fuel cost
+  const fuelTotal = (expenses || []).filter(e => (e.category || '').toLowerCase().includes('fuel')).reduce((s,e) => s + (parseFloat(e.amount) || 0), 0)
 
   const isNewCarrier = loads.length === 0 && drivers.length === 0 && vehicles.length === 0
-  const fmtMoney = (v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${v}`
 
-  // Panel style
-  const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10 }
-  const panHead = (label, icon, right) => (
-    <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-      <div style={{ fontWeight:700, fontSize:12, display:'flex', alignItems:'center', gap:6, letterSpacing:0.5 }}><Ic icon={icon} size={13} />{label}</div>
-      {right}
-    </div>
-  )
+  // Styles
+  const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }
+  const qGlow = (color) => `0 0 20px ${color}15, 0 0 40px ${color}08`
+  const insightColors = { action:'var(--accent)', warning:'var(--warning)', alert:'var(--danger)', opportunity:'var(--success)', info:'var(--accent3)' }
 
   return (
-    <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:12 }}>
+    <div style={{ padding:16, paddingBottom:60, overflowY:'auto', height:'100%', boxSizing:'border-box', display:'flex', flexDirection:'column', gap:10 }}>
 
-      {/* ── TOP BAR: Clock + Fuel Ticker ───────────────────────────── */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
-        <LiveClock />
-        <FuelTicker />
-      </div>
-
-      {/* ── AI DAILY BRIEFING ──────────────────────────────────────── */}
+      {/* ═══ 1. Q STATUS BAR ═══════════════════════════════════════════ */}
       <div style={{
-        background:'linear-gradient(135deg, rgba(240,165,0,0.06) 0%, rgba(44,184,150,0.04) 50%, rgba(77,142,240,0.04) 100%)',
-        border:'1px solid rgba(240,165,0,0.2)', borderRadius:10, padding:'14px 18px',
-        display:'flex', gap:14, alignItems:'flex-start', position:'relative', flexWrap:'wrap'
+        display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8,
+        padding:'10px 16px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
+        position:'relative', overflow:'hidden'
       }}>
-        {/* Subtle scanline effect */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(240,165,0,0.015) 2px, rgba(240,165,0,0.015) 4px)', pointerEvents:'none', borderRadius:10 }} />
-        <div style={{ width:36, height:36, borderRadius:10, background:'rgba(240,165,0,0.12)', border:'1px solid rgba(240,165,0,0.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-          <Ic icon={Bot} size={18} color="var(--accent)" />
-        </div>
-        <div style={{ flex:1, position:'relative', zIndex:1, minWidth:200 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4, lineHeight:1.5 }}>
-            {getGreeting()}! Here's your day:
+        {/* Subtle scan line */}
+        <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(240,165,0,0.008) 3px, rgba(240,165,0,0.008) 4px)', pointerEvents:'none' }} />
+        <div style={{ display:'flex', alignItems:'center', gap:10, position:'relative', zIndex:1 }}>
+          <div style={{ position:'relative' }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)', animation:'q-online-pulse 2s ease-in-out infinite' }} />
           </div>
-          <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.7 }}>
-            {activeLoads.length === 0 && drivers.length === 0
-              ? <>Qivori AI is ready — let's get your first truck and driver set up so AI can start finding loads.</>
-              : <>
-                  {activeLoads.length} load{activeLoads.length !== 1 ? 's' : ''} active
-                  {inTransitCount > 0 && <>, <span style={{ color:'var(--success)' }}>{inTransitCount} in transit</span></>}
-                  {unpaidInvoices.length > 0 && <> · <span style={{ color:'var(--accent)' }}>{unpaidInvoices.length} invoice{unpaidInvoices.length !== 1 ? 's' : ''} awaiting payment</span></>}
-                  {totalRevenue > 0 && <> · <span style={{ color:'var(--accent)' }}>{fmtMoney(totalRevenue)} revenue MTD</span></>}
-                </>
-            }
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:3, color:'var(--accent)', lineHeight:1 }}>Q</span>
+              <span style={{ fontSize:11, fontWeight:700, color:'var(--success)', letterSpacing:1 }}>ONLINE</span>
+            </div>
+            <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, fontFamily:"'JetBrains Mono',monospace", marginTop:1 }}>
+              Monitoring {activeLoads.length} load{activeLoads.length !== 1 ? 's' : ''} · {fleetRows.filter(f=>f.active).length}/{fleetSize} trucks active · {drivers.length} driver{drivers.length !== 1 ? 's' : ''}
+            </div>
           </div>
         </div>
-        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-          <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => onTabChange('load-board')}>Find Loads</button>
-          <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => onTabChange('loads')}>Pipeline</button>
+        <div style={{ display:'flex', alignItems:'center', gap:12, position:'relative', zIndex:1 }}>
+          <LiveClock />
+          <FuelTicker />
         </div>
+        {/* Bottom glow line */}
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, var(--accent), var(--success), var(--accent), transparent)', opacity:0.3 }} />
       </div>
 
-      {/* ── ONBOARDING — beautiful empty state for new carriers ──── */}
-      {isNewCarrier && (
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'24px 20px' }}>
-          <div style={{ textAlign:'center', marginBottom:20 }}>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:3, marginBottom:4 }}>
-              GET <span style={{ color:'var(--accent)' }}>STARTED</span>
+      {/* ═══ 2. Q INSIGHT CARD ═════════════════════════════════════════ */}
+      {qInsights.length > 0 && (
+        <div style={{
+          background:'linear-gradient(135deg, rgba(240,165,0,0.04) 0%, rgba(52,176,104,0.03) 50%, rgba(77,142,240,0.03) 100%)',
+          border:'1px solid rgba(240,165,0,0.15)', borderRadius:10, overflow:'hidden'
+        }}>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid rgba(240,165,0,0.1)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', animation:'q-online-pulse 2s ease-in-out infinite' }} />
+              <span style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5 }}>Q INSIGHTS</span>
+              <span style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>{qInsights.length} active</span>
             </div>
-            <div style={{ fontSize:12, color:'var(--muted)' }}>Complete these steps to unlock your full dashboard</div>
+            {dismissed.length > 0 && <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => setDismissed([])}>Show all</button>}
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:10 }}>
+          {qInsights.filter((_, i) => !dismissed.includes(i)).slice(0, 4).map((insight, i) => {
+            const ic = insightColors[insight.type] || 'var(--accent)'
+            return (
+              <div key={i} style={{ padding:'10px 14px', borderBottom:'1px solid rgba(240,165,0,0.06)', display:'flex', alignItems:'center', gap:10, cursor:'pointer', transition:'background 0.15s' }}
+                onMouseOver={e => e.currentTarget.style.background='rgba(240,165,0,0.04)'}
+                onMouseOut={e => e.currentTarget.style.background='transparent'}
+                onClick={() => onTabChange(insight.nav)}>
+                <div style={{ width:3, height:28, borderRadius:2, background:ic, flexShrink:0 }} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', lineHeight:1.4 }}>{insight.text}</div>
+                  <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, marginTop:2 }}>{insight.impact}</div>
+                </div>
+                <button className="btn btn-ghost" style={{ fontSize:10, color:ic, border:`1px solid ${ic}30`, padding:'3px 10px', borderRadius:6, fontWeight:700, flexShrink:0 }}
+                  onClick={(e) => { e.stopPropagation(); onTabChange(insight.nav) }}>
+                  {insight.action}
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); setDismissed(d => [...d, i]) }}
+                  style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:10, padding:2, opacity:0.4 }}>✕</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ═══ ONBOARDING (new carriers only) ════════════════════════════ */}
+      {isNewCarrier && (
+        <div style={{ ...pan, padding:'20px 18px' }}>
+          <div style={{ textAlign:'center', marginBottom:16 }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:3, marginBottom:4 }}>
+              SYSTEM <span style={{ color:'var(--accent)' }}>SETUP</span>
+            </div>
+            <div style={{ fontSize:11, color:'var(--muted)' }}>Q requires fleet data to begin operations</div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:8 }}>
             {[
-              { icon: Truck, label:'Add Your Truck', desc:'Tell Qivori what you run so AI can match the right loads', color:'var(--accent)', tab:'fleet', done: vehicles.length > 0 },
-              { icon: Users, label:'Add Your Driver', desc:'Qivori needs driver info to dispatch loads and track compliance', color:'var(--accent2)', tab:'drivers', done: drivers.length > 0 },
-              { icon: Package, label:'Find Your First Load', desc:'Let AI scan DAT & 123Loadboard for the best loads on your lanes', color:'var(--accent3)', tab:'loads', done: loads.length > 0 },
-              { icon: Radio, label:'Connect Your ELD', desc:'Automatic HOS tracking, location updates, and dispatch coordination', color:'var(--accent4)', tab:'compliance', done: false },
+              { icon: Truck, label:'Register Truck', desc:'Equipment type, specs, location', color:'var(--accent)', tab:'fleet', done: vehicles.length > 0 },
+              { icon: Users, label:'Add Driver', desc:'CDL, medical card, pay rate', color:'var(--accent2)', tab:'drivers', done: drivers.length > 0 },
+              { icon: Package, label:'Book First Load', desc:'AI scans load boards', color:'var(--accent3)', tab:'loads', done: loads.length > 0 },
+              { icon: Radio, label:'Connect ELD', desc:'HOS, location, dispatch', color:'var(--success)', tab:'compliance', done: false },
             ].map((step, i) => (
               <div key={i} onClick={() => onTabChange(step.tab)}
                 style={{
-                  background: step.done ? 'rgba(52,176,104,0.05)' : 'var(--surface2)',
+                  background: step.done ? 'rgba(52,176,104,0.04)' : 'var(--surface2)',
                   border: `1px solid ${step.done ? 'var(--success)' : 'var(--border)'}`,
-                  borderRadius:10, padding:'16px 14px', cursor:'pointer',
-                  transition:'all 0.2s', position:'relative', overflow:'hidden'
+                  borderRadius:8, padding:'12px', cursor:'pointer', transition:'all 0.2s'
                 }}
-                onMouseOver={e => { e.currentTarget.style.borderColor = step.color; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                onMouseOver={e => { e.currentTarget.style.borderColor = step.color; e.currentTarget.style.transform = 'translateY(-1px)' }}
                 onMouseOut={e => { e.currentTarget.style.borderColor = step.done ? 'var(--success)' : 'var(--border)'; e.currentTarget.style.transform = 'none' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-                  <div style={{ width:32, height:32, borderRadius:8, background:step.color+'15', border:`1px solid ${step.color}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    {step.done ? <Ic icon={CheckCircle} size={16} color="var(--success)" /> : <Ic icon={step.icon} size={16} color={step.color} />}
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                  <div style={{ width:28, height:28, borderRadius:7, background:step.color+'12', border:`1px solid ${step.color}25`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {step.done ? <Ic icon={CheckCircle} size={14} color="var(--success)" /> : <Ic icon={step.icon} size={14} color={step.color} />}
                   </div>
-                  {!step.done && <div style={{ marginLeft:'auto', width:22, height:22, borderRadius:6, background:step.color+'15', border:`1px solid ${step.color}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Ic icon={Plus} size={12} color={step.color} />
-                  </div>}
+                  <div style={{ fontSize:11, fontWeight:700, color: step.done ? 'var(--success)' : 'var(--text)' }}>
+                    {step.done ? 'Complete' : step.label}
+                  </div>
                 </div>
-                <div style={{ fontSize:12, fontWeight:700, color: step.done ? 'var(--success)' : 'var(--text)', marginBottom:2 }}>
-                  {step.done ? 'Completed' : step.label}
-                </div>
-                <div style={{ fontSize:10, color:'var(--muted)', lineHeight:1.4 }}>
-                  {step.done ? 'Done' : step.desc}
-                </div>
+                <div style={{ fontSize:9, color:'var(--muted)', lineHeight:1.4 }}>{step.desc}</div>
               </div>
             ))}
           </div>
-          {/* Progress bar */}
-          <div style={{ marginTop:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-              <span style={{ fontSize:10, fontWeight:700, color:'var(--muted)', letterSpacing:1 }}>SETUP PROGRESS</span>
-              <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>{[vehicles.length > 0, drivers.length > 0, loads.length > 0, false].filter(Boolean).length}/4</span>
-            </div>
-            <div style={{ height:4, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${([vehicles.length > 0, drivers.length > 0, loads.length > 0, false].filter(Boolean).length / 4) * 100}%`, background:'linear-gradient(90deg,var(--accent),var(--accent2))', borderRadius:2, transition:'width 0.5s ease' }} />
-            </div>
+          <div style={{ marginTop:12, height:3, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
+            <div style={{ height:'100%', width:`${([vehicles.length > 0, drivers.length > 0, loads.length > 0, false].filter(Boolean).length / 4) * 100}%`, background:'linear-gradient(90deg,var(--accent),var(--success))', borderRadius:2, transition:'width 0.5s ease' }} />
           </div>
         </div>
       )}
 
-      {/* ── KPI CARDS — trading terminal style ─────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
+      {/* ═══ 3. LIVE PERFORMANCE METRICS ═══════════════════════════════ */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
         {[
-          { label:'REVENUE MTD', value: fmtMoney(animRevenue), raw: totalRevenue, color:'var(--accent)', icon: DollarSign, sub: totalRevenue === 0 ? 'Book your first load to start tracking' : undefined, click:() => onTabChange('financials') },
-          { label:'NET PROFIT', value: fmtMoney(animProfit), raw: totalRevenue - totalExpenses, color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, sub: totalRevenue === 0 ? 'Tracked per load automatically' : undefined, click:() => onTabChange('financials') },
-          { label:'ACTIVE LOADS', value: String(animActiveLoads), raw: activeLoads.length, color:'var(--accent2)', icon: Package, sub: activeLoads.length === 0 ? 'AI is ready to find loads on your lanes' : inTransitCount > 0 ? `${inTransitCount} in transit` : 'None moving', click:() => onTabChange('loads') },
-          { label:'FLEET UTIL', value: `${animUtil}%`, raw: utilPct, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : utilPct > 0 ? 'var(--warning)' : 'var(--muted)', icon: Truck, sub: fleetSize === 0 ? 'Add trucks to see utilization' : `${fleetRows.filter(f=>f.active).length}/${fleetSize} active`, click:() => onTabChange('fleet') },
-          { label:'AVG RPM', value: `$${avgRPM}`, raw: parseFloat(avgRPM), color:'var(--accent3)', icon: BarChart2, sub: parseFloat(avgRPM) === 0 ? 'Rate per mile tracked in real-time' : 'Per mile rate', click:() => onTabChange('financials') },
+          { label:'REVENUE', value: fmtMoney(animRevenue), color:'var(--accent)', icon: DollarSign, sub: totalRevenue === 0 ? 'No revenue yet' : 'MTD', click:() => onTabChange('financials') },
+          { label:'NET PROFIT', value: fmtMoney(animProfit), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, sub: `${margin}% margin`, click:() => onTabChange('financials') },
+          { label:'ACTIVE', value: String(animActiveLoads), color:'var(--accent2)', icon: Package, sub: inTransitCount > 0 ? `${inTransitCount} moving` : activeLoads.length > 0 ? 'Dispatched' : 'None', click:() => onTabChange('loads') },
+          { label:'FLEET', value: `${animUtil}%`, color: utilPct > 80 ? 'var(--success)' : utilPct > 50 ? 'var(--accent)' : 'var(--muted)', icon: Truck, sub: `${fleetRows.filter(f=>f.active).length}/${fleetSize} utilized`, click:() => onTabChange('fleet') },
         ].map(k => (
           <div key={k.label} onClick={k.click}
             style={{
-              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'12px 14px',
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'14px 14px 12px',
               cursor:'pointer', transition:'all 0.15s', position:'relative', overflow:'hidden'
             }}
-            onMouseOver={e => { e.currentTarget.style.borderColor = k.color; e.currentTarget.style.boxShadow = `0 0 20px ${k.color}08` }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = k.color; e.currentTarget.style.boxShadow = qGlow(k.color) }}
             onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
               <span style={{ fontSize:9, fontWeight:800, color:'var(--muted)', letterSpacing:1.5 }}>{k.label}</span>
               <Ic icon={k.icon} size={12} color={k.color} />
             </div>
-            <div style={{ fontFamily:"'JetBrains Mono','Bebas Neue',monospace", fontSize:26, color:k.color, lineHeight:1, fontWeight:700, letterSpacing:-0.5 }}>{k.value}</div>
-            {k.sub && <div style={{ fontSize:9, color:'var(--muted)', marginTop:6, fontWeight:600 }}>{k.sub}</div>}
-            {/* Glow line at bottom */}
+            <div style={{ fontFamily:"'Bebas Neue','JetBrains Mono',sans-serif", fontSize:30, color:k.color, lineHeight:1, fontWeight:700, letterSpacing:1 }}>{k.value}</div>
+            <div style={{ fontSize:9, color:'var(--muted)', marginTop:5, fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>{k.sub}</div>
             <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:`linear-gradient(90deg, transparent, ${k.color}40, transparent)` }} />
           </div>
         ))}
       </div>
 
-      {/* Revenue Goal moved to Financials tab */}
-
-      {/* ── PIPELINE BAR ──────────────────────────────────────────── */}
-      <div style={pan}>
-        {panHead('LOAD PIPELINE', Layers, <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => onTabChange('loads')}>Open Pipeline</button>)}
-        <div style={{ padding:'10px 14px', display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:6 }}>
-          {[
-            { label:'Booked', statuses:['Rate Con Received','Booked'], color:'var(--accent)' },
-            { label:'Dispatched', statuses:['Assigned to Driver','En Route to Pickup'], color:'var(--accent3)' },
-            { label:'In Transit', statuses:['Loaded','In Transit','At Pickup','At Delivery'], color:'var(--success)' },
-            { label:'Delivered', statuses:['Delivered'], color:'var(--accent2)' },
-            { label:'Invoiced', statuses:['Invoiced'], color:'var(--accent3)' },
-            { label:'Paid', statuses:['Paid'], color:'var(--success)' },
-          ].map(col => {
-            const count = loads.filter(l => col.statuses.includes(l.status)).length
-            const total = loads.length || 1
-            return (
-              <div key={col.label} onClick={() => onTabChange('loads')}
-                style={{ cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'10px 4px', borderRadius:8, background:'var(--surface2)', border:'1px solid var(--border)', transition:'all 0.12s' }}
-                onMouseOver={e => { e.currentTarget.style.borderColor=col.color; e.currentTarget.style.background=col.color+'08' }}
-                onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.background='var(--surface2)' }}>
-                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:22, color:col.color, lineHeight:1, fontWeight:700 }}>{count}</div>
-                <div style={{ fontSize:9, color:'var(--muted)', marginTop:5, fontWeight:700, letterSpacing:0.5, textAlign:'center' }}>{col.label.toUpperCase()}</div>
-                <div style={{ width:'80%', height:2, background:'var(--border)', borderRadius:1, marginTop:6, overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:`${Math.min((count/total)*100, 100)}%`, background:col.color, borderRadius:1 }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        {loads.length === 0 && (
-          <div style={{ padding:'6px 14px 12px', textAlign:'center', fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
-            Your load pipeline tracks every load from booking to payment. Qivori handles invoicing and settlement automatically — you just drive.
+      {/* ═══ 4. Q ACTIONS ══════════════════════════════════════════════ */}
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${Math.min(qActions.length, 5)},1fr)`, gap:8 }}>
+        {qActions.slice(0,5).map((a, i) => (
+          <div key={i} onClick={() => onTabChange(a.nav)}
+            style={{
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'12px',
+              cursor:'pointer', transition:'all 0.2s', position:'relative', overflow:'hidden'
+            }}
+            onMouseOver={e => { e.currentTarget.style.borderColor = a.color; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = qGlow(a.color) }}
+            onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}>
+            <div style={{ width:30, height:30, borderRadius:8, background:a.color+'10', border:`1px solid ${a.color}20`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:8 }}>
+              <Ic icon={a.icon} size={14} color={a.color} />
+            </div>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text)', marginBottom:2 }}>{a.label}</div>
+            <div style={{ fontSize:9, color:'var(--muted)', lineHeight:1.3, fontWeight:600 }}>{a.desc}</div>
+            <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:`linear-gradient(90deg, transparent, ${a.color}30, transparent)` }} />
           </div>
-        )}
+        ))}
       </div>
 
-      {/* ── MIDDLE: Active Loads + Fleet ────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+      {/* ═══ 5. LOAD ALERTS + 6. DRIVER STATUS (side by side) ═════════ */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
 
-        {/* Active Loads */}
+        {/* Load Alerts */}
         <div style={pan}>
-          {panHead('ACTIVE LOADS', Package, <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => onTabChange('loads')}>View all</button>)}
-          {activeLoads.length === 0 ? (
-            <div style={{ padding:28, textAlign:'center' }}>
-              <div style={{ width:40, height:40, borderRadius:10, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
-                <Ic icon={Package} size={18} color="var(--accent)" />
-              </div>
-              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>No active loads yet</div>
-              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10, lineHeight:1.5, maxWidth:280, margin:'0 auto 10px' }}>Once you add a truck and driver, Qivori AI will start finding the highest-paying loads on your lanes.</div>
-              <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => onTabChange('load-board')}>Find Loads</button>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <Ic icon={AlertTriangle} size={12} color="var(--accent)" />
+              <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2, color:'var(--text)' }}>LOAD ALERTS</span>
+              {loadAlerts.length > 0 && <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'rgba(240,165,0,0.1)', padding:'1px 6px', borderRadius:4 }}>{loadAlerts.length}</span>}
             </div>
-          ) : activeLoads.slice(0,5).map(load => {
-            const sc = STATUS_DOT[load.status] || 'var(--muted)'
-            const route = load.origin && load.dest ? (load.origin||'').split(',')[0].substring(0,3).toUpperCase() + ' → ' + (load.dest||'').split(',')[0].substring(0,3).toUpperCase() : '—'
-            return (
-              <div key={load.loadId} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}
-                onMouseOver={e => e.currentTarget.style.background='var(--surface2)'}
-                onMouseOut={e => e.currentTarget.style.background='transparent'}>
-                <div style={{ minWidth:54 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--accent)', fontFamily:"'JetBrains Mono',monospace" }}>{load.loadId}</div>
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:12, fontWeight:700, marginBottom:1 }}>{route}</div>
-                  <div style={{ fontSize:10, color:'var(--muted)' }}>{load.broker || '—'} · {load.driver || 'Unassigned'}</div>
-                </div>
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:15, color:'var(--accent)', fontWeight:700 }}>${(load.gross||0).toLocaleString()}</div>
-                  <div style={{ fontSize:9, color:'var(--muted)' }}>${load.rate || '—'}/mi</div>
-                </div>
-                <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:6, background:sc+'18', color:sc, whiteSpace:'nowrap' }}>{load.status}</span>
-                <button onClick={(e) => { e.stopPropagation(); if(window.confirm(`Delete load ${load.loadId}?`)) removeLoad(load.loadId) }}
-                  style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:11, padding:2, lineHeight:1, opacity:0.5 }}
-                  onMouseOver={e => e.currentTarget.style.opacity='1'}
-                  onMouseOut={e => e.currentTarget.style.opacity='0.5'}
-                  title="Delete load">✕</button>
+            <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => onTabChange('loads')}>Pipeline</button>
+          </div>
+          {loadAlerts.length === 0 ? (
+            <div style={{ padding:'20px 14px', textAlign:'center' }}>
+              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+                {loads.length === 0 ? 'No loads in system. Q will surface alerts when loads need attention.' : 'All loads on track. No action required.'}
               </div>
-            )
-          })}
+            </div>
+          ) : loadAlerts.slice(0,4).map((la, i) => (
+            <div key={i} style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', cursor:'pointer', transition:'background 0.12s' }}
+              onClick={() => onTabChange('loads')}
+              onMouseOver={e => e.currentTarget.style.background='var(--surface2)'}
+              onMouseOut={e => e.currentTarget.style.background='transparent'}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:700, color:la.color }}>{la.loadId}</span>
+                  <span style={{ fontSize:9, fontWeight:700, color:la.color, background:la.color+'12', padding:'1px 5px', borderRadius:3 }}>
+                    {la.type === 'unassigned' ? 'NO DRIVER' : la.type === 'pickup-soon' ? 'PICKUP SOON' : 'NEEDS INVOICE'}
+                  </span>
+                </div>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700, color:'var(--accent)' }}>${la.gross.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>{la.route}</div>
+              <div style={{ fontSize:9, fontWeight:700, color:la.color }}>{la.recommendation}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Fleet Status */}
+        {/* Driver Status Panel */}
         <div style={pan}>
-          {panHead('FLEET STATUS', Truck, <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => onTabChange('fleet')}>Live Map</button>)}
-          {fleetRows.length === 0 ? (
-            <div style={{ padding:28, textAlign:'center' }}>
-              <div style={{ width:40, height:40, borderRadius:10, background:'rgba(44,184,150,0.08)', border:'1px solid rgba(44,184,150,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 10px' }}>
-                <Ic icon={Truck} size={18} color="var(--success)" />
-              </div>
-              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>No fleet added yet</div>
-              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10, lineHeight:1.5, maxWidth:280, margin:'0 auto 10px' }}>Add your first truck so Qivori knows what equipment you run. We'll match loads to your truck type, location, and preferred lanes.</div>
-              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => onTabChange('fleet')}>Add Truck</button>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <Ic icon={Users} size={12} color="var(--accent2)" />
+              <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2, color:'var(--text)' }}>DRIVER STATUS</span>
             </div>
-          ) : fleetRows.map(t => (
-            <div key={t.unit} style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10 }}>
-              {/* Pulse dot for active trucks */}
-              <div style={{ width:8, height:8, borderRadius:'50%', background:t.statusC, flexShrink:0, boxShadow: t.active ? `0 0 8px ${t.statusC}` : 'none', animation: t.active ? 'qv-pulse 2s ease-in-out infinite' : 'none' }} />
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                  <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace" }}>{t.unit}</span>
-                  <span style={{ fontSize:9, fontWeight:700, color:t.statusC, padding:'1px 6px', borderRadius:4, background:t.statusC+'15' }}>{t.status}</span>
+            <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => onTabChange('drivers')}>Manage</button>
+          </div>
+          {fleetRows.length === 0 ? (
+            <div style={{ padding:'20px 14px', textAlign:'center' }}>
+              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>No drivers registered. Add drivers to enable Q dispatch intelligence.</div>
+              <button className="btn btn-ghost" style={{ fontSize:10, marginTop:8 }} onClick={() => onTabChange('drivers')}>Add Driver</button>
+            </div>
+          ) : fleetRows.slice(0,5).map((t, i) => (
+            <div key={i} style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8, transition:'background 0.12s' }}
+              onMouseOver={e => e.currentTarget.style.background='var(--surface2)'}
+              onMouseOut={e => e.currentTarget.style.background='transparent'}>
+              <div style={{ width:7, height:7, borderRadius:'50%', background:t.statusC, flexShrink:0, boxShadow: t.active ? `0 0 6px ${t.statusC}` : 'none', animation: t.active ? 'qv-pulse 2s ease-in-out infinite' : 'none' }} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:11, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.driver}</span>
+                  <span style={{ fontSize:8, fontWeight:700, color:t.statusC, background:t.statusC+'12', padding:'1px 5px', borderRadius:3, flexShrink:0 }}>
+                    {t.active ? (t.status === 'In Transit' || t.status === 'Loaded' ? 'MOVING' : 'ON LOAD') : 'IDLE'}
+                  </span>
                 </div>
-                <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{t.driver}</div>
+                {t.active ? (
+                  <div style={{ fontSize:9, color:'var(--muted)', marginTop:1, fontFamily:"'JetBrains Mono',monospace" }}>{t.load} · {t.route}</div>
+                ) : (
+                  <div style={{ fontSize:9, color:'var(--accent)', marginTop:1, fontWeight:600 }}>
+                    {unassignedLoads.length > 0 ? `${unassignedLoads.length} load${unassignedLoads.length > 1 ? 's' : ''} available` : 'Awaiting dispatch'}
+                  </div>
+                )}
               </div>
-              {t.load !== '—' && (
-                <div style={{ fontSize:10, color:'var(--accent)', fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>{t.load} · {t.route}</div>
+              {t.active && t.loadData && (
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:'var(--accent)', fontWeight:700 }}>${(t.loadData.gross||0).toLocaleString()}</span>
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── BOTTOM: Alerts + Activity + Quick Access ──────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+      {/* ═══ 7. FINANCIAL SNAPSHOT ═════════════════════════════════════ */}
+      <div style={pan}>
+        <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <Ic icon={DollarSign} size={12} color="var(--accent)" />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2, color:'var(--text)' }}>FINANCIAL SNAPSHOT</span>
+          </div>
+          <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => onTabChange('financials')}>Full P&L</button>
+        </div>
+        <div style={{ padding:'12px 14px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+          {[
+            { label:'REVENUE', value: fmtMoney(totalRevenue), color:'var(--accent)', sub:'MTD' },
+            { label:'PROFIT', value: fmtMoney(totalRevenue - totalExpenses), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', sub:`${margin}% margin` },
+            { label:'FUEL', value: fuelTotal > 0 ? fmtMoney(fuelTotal) : `$${(fuelCostPerMile || 0).toFixed(2)}/mi`, color:'var(--warning)', sub: fuelTotal > 0 ? 'MTD spend' : 'Per mile' },
+            { label:'UNPAID', value: unpaidInvoices.length > 0 ? fmtMoney(unpaidInvoices.reduce((s,i) => s + (parseFloat(i.amount)||0), 0)) : '$0', color: unpaidInvoices.length > 0 ? 'var(--accent)' : 'var(--success)', sub: `${unpaidInvoices.length} invoice${unpaidInvoices.length !== 1 ? 's' : ''}` },
+          ].map(f => (
+            <div key={f.label} style={{ textAlign:'center', padding:'8px 4px', background:'var(--surface2)', borderRadius:8 }}>
+              <div style={{ fontSize:8, fontWeight:800, color:'var(--muted)', letterSpacing:1.5, marginBottom:4 }}>{f.label}</div>
+              <div style={{ fontFamily:"'Bebas Neue','JetBrains Mono',sans-serif", fontSize:22, color:f.color, lineHeight:1, fontWeight:700, letterSpacing:0.5 }}>{f.value}</div>
+              <div style={{ fontSize:8, color:'var(--muted)', marginTop:3, fontWeight:600 }}>{f.sub}</div>
+            </div>
+          ))}
+        </div>
+        {/* Q financial insight */}
+        {totalRevenue > 0 && (
+          <div style={{ padding:'6px 14px 10px', display:'flex', alignItems:'center', gap:6, borderTop:'1px solid var(--border)' }}>
+            <div style={{ width:4, height:4, borderRadius:'50%', background:'var(--accent)', flexShrink:0 }} />
+            <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, fontFamily:"'JetBrains Mono',monospace" }}>
+              {parseFloat(margin) >= 25 ? `Margin healthy at ${margin}%. Operating above target.`
+                : parseFloat(margin) >= 15 ? `Margin at ${margin}%. Target 25% — review fuel and deadhead costs.`
+                : `Margin low at ${margin}%. Immediate cost review recommended.`}
+            </div>
+          </div>
+        )}
+      </div>
 
-        {/* Alerts */}
+      {/* ═══ PIPELINE + ACTIVITY (compact bottom row) ═════════════════ */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+
+        {/* Pipeline Summary */}
         <div style={pan}>
-          {panHead('ALERTS', AlertTriangle, alerts.length > 0 && <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => setDismissed(generatedAlerts.map((_,i)=>i))}>Clear</button>)}
-          {alerts.length === 0
-            ? <div style={{ padding:20, textAlign:'center', fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>No alerts right now. Qivori monitors insurance expiry, CDL renewals, HOS violations, and load deadlines — you'll see alerts here when something needs attention.</div>
-            : alerts.map((a, i) => (
-              <div key={i} style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:8, alignItems:'flex-start' }}>
-                <Ic icon={a.icon} size={14} color={a.color} style={{ flexShrink:0, marginTop:1 }} />
-                <div style={{ flex:1, fontSize:11, color:'var(--text)', lineHeight:1.4 }}>{a.text}</div>
-                <button onClick={() => setDismissed(d => [...d, generatedAlerts.indexOf(a)])} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:12, lineHeight:1 }}>✕</button>
-              </div>
-            ))
-          }
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <Ic icon={Layers} size={12} />
+              <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2, color:'var(--text)' }}>PIPELINE</span>
+            </div>
+            <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => onTabChange('loads')}>Open</button>
+          </div>
+          <div style={{ padding:'8px 10px', display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:4 }}>
+            {[
+              { label:'BKD', statuses:['Rate Con Received','Booked'], color:'var(--accent)' },
+              { label:'DSP', statuses:['Assigned to Driver','En Route to Pickup'], color:'var(--accent3)' },
+              { label:'TRAN', statuses:['Loaded','In Transit','At Pickup','At Delivery'], color:'var(--success)' },
+              { label:'DEL', statuses:['Delivered'], color:'var(--accent2)' },
+              { label:'INV', statuses:['Invoiced'], color:'var(--accent3)' },
+              { label:'PAID', statuses:['Paid'], color:'var(--success)' },
+            ].map(col => {
+              const count = loads.filter(l => col.statuses.includes(l.status)).length
+              return (
+                <div key={col.label} onClick={() => onTabChange('loads')}
+                  style={{ cursor:'pointer', textAlign:'center', padding:'6px 2px', borderRadius:6, background:'var(--surface2)', transition:'all 0.12s' }}
+                  onMouseOver={e => e.currentTarget.style.background=col.color+'10'}
+                  onMouseOut={e => e.currentTarget.style.background='var(--surface2)'}>
+                  <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:18, color:col.color, lineHeight:1, fontWeight:700 }}>{count}</div>
+                  <div style={{ fontSize:7, color:'var(--muted)', marginTop:3, fontWeight:800, letterSpacing:0.5 }}>{col.label}</div>
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         {/* Activity Feed */}
         <div style={pan}>
-          {panHead('ACTIVITY', Activity)}
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+            <Ic icon={Activity} size={12} />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2, color:'var(--text)' }}>ACTIVITY LOG</span>
+          </div>
           {(() => {
             const activity = [
               ...deliveredLoads.slice(0,3).map(l => ({ icon:CheckCircle, color:'var(--success)', text:`${l.loadId} delivered`, time: l.delivery ? l.delivery.split(' · ')[0] : '' })),
-              ...unpaidInvoices.slice(0,2).map(i => ({ icon:FileText, color:'var(--accent)', text:`Invoice ${i.id} · $${(i.amount||0).toLocaleString()}`, time: i.invoiceDate || '' })),
-              ...activeLoads.slice(0,2).map(l => ({ icon:Package, color:'var(--accent2)', text:`${l.loadId} ${l.status}`, time: l.pickup ? l.pickup.split(' · ')[0] : '' })),
-            ].slice(0,5)
+              ...unpaidInvoices.slice(0,2).map(i => ({ icon:FileText, color:'var(--accent)', text:`INV ${i.id} · $${(i.amount||0).toLocaleString()}`, time: i.invoiceDate || '' })),
+              ...activeLoads.slice(0,2).map(l => ({ icon:Package, color:'var(--accent2)', text:`${l.loadId} ${l.status?.toLowerCase()}`, time: l.pickup ? l.pickup.split(' · ')[0] : '' })),
+            ].slice(0,4)
             if (activity.length === 0) return (
-              <div style={{ padding:20, textAlign:'center', color:'var(--muted)', fontSize:11, lineHeight:1.5 }}>Your AI activity feed will show loads found, calls made, rate negotiations, and bookings — all in real time.</div>
+              <div style={{ padding:'16px 14px', textAlign:'center', color:'var(--muted)', fontSize:10 }}>Q will log system events here — loads booked, dispatches, invoices, payments.</div>
             )
             return activity.map((a, i) => (
-              <div key={i} style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:8, alignItems:'center' }}>
-                <div style={{ width:24, height:24, borderRadius:6, background:a.color+'12', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={a.icon} size={12} color={a.color} /></div>
-                <div style={{ flex:1, fontSize:11, lineHeight:1.3 }}>{a.text}</div>
-                <div style={{ fontSize:9, color:'var(--muted)', flexShrink:0 }}>{a.time}</div>
+              <div key={i} style={{ padding:'6px 14px', borderBottom:'1px solid var(--border)', display:'flex', gap:6, alignItems:'center' }}>
+                <div style={{ width:20, height:20, borderRadius:5, background:a.color+'10', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><Ic icon={a.icon} size={10} color={a.color} /></div>
+                <div style={{ flex:1, fontSize:10, lineHeight:1.2, fontWeight:600 }}>{a.text}</div>
+                <div style={{ fontSize:8, color:'var(--muted)', flexShrink:0, fontFamily:"'JetBrains Mono',monospace" }}>{a.time}</div>
               </div>
             ))
           })()}
         </div>
-
-        {/* Quick Access */}
-        <div style={pan}>
-          {panHead('QUICK ACCESS', Zap)}
-          <div style={{ padding:10, display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
-            {[
-              { icon:Package, label:'Loads', nav:'loads' }, { icon:Users, label:'Drivers', nav:'drivers' },
-              { icon:Truck, label:'Fleet', nav:'fleet' }, { icon:DollarSign, label:'Money', nav:'financials' },
-              { icon:Shield, label:'Comply', nav:'compliance' }, { icon:BarChart2, label:'Analytics', nav:'analytics' },
-              { icon:Zap, label:'AI Board', nav:'load-board' }, { icon:SettingsIcon, label:'Settings', nav:'settings' },
-            ].map(m => (
-              <div key={m.nav} onClick={() => onTabChange(m.nav)}
-                style={{ padding:'8px 4px', background:'var(--surface2)', borderRadius:8, cursor:'pointer', textAlign:'center', transition:'all 0.15s', border:'1px solid transparent' }}
-                onMouseOver={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.background='rgba(240,165,0,0.05)' }}
-                onMouseOut={e => { e.currentTarget.style.borderColor='transparent'; e.currentTarget.style.background='var(--surface2)' }}>
-                <Ic icon={m.icon} size={16} style={{ marginBottom:3 }} />
-                <div style={{ fontSize:8, fontWeight:700, color:'var(--muted)', letterSpacing:0.3 }}>{m.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* Pulse animation for active trucks */}
+      {/* ═══ Q ANIMATIONS ═════════════════════════════════════════════ */}
       <style>{`
         @keyframes qv-pulse {
           0%, 100% { opacity:1; box-shadow: 0 0 4px currentColor; }
           50% { opacity:0.6; box-shadow: 0 0 12px currentColor; }
         }
-        @keyframes qv-ai-pulse {
-          0%, 100% { opacity:1; box-shadow: 0 0 6px var(--accent); transform: scale(1); }
-          50% { opacity:0.5; box-shadow: 0 0 14px var(--accent); transform: scale(1.3); }
+        @keyframes q-online-pulse {
+          0%, 100% { opacity:1; box-shadow: 0 0 4px var(--success); }
+          50% { opacity:0.5; box-shadow: 0 0 12px var(--success); }
+        }
+        @keyframes q-scan {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(100vh); }
+        }
+        @keyframes q-glow {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
         }
       `}</style>
     </div>

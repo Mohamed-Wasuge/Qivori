@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
 import { Home, Package, DollarSign, MoreHorizontal, X, Clock } from 'lucide-react'
-import { Ic, MiniStat, mobileAnimations } from './shared'
+import { Ic, MiniStat, mobileAnimations, getQSystemState, haptic } from './shared'
 import MobileHomeTab from './MobileHomeTab'
 import MobileLoadsTab from './MobileLoadsTab'
 import MobileMoneyTab from './MobileMoneyTab'
@@ -25,6 +25,7 @@ export default function MobileShell() {
   const activeLoads = ctx.activeLoads || []
   const totalRevenue = ctx.totalRevenue || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
+  const qState = getQSystemState(ctx)
 
   const [activeTab, setActiveTab] = useState('home')
   const [moneySubTab, setMoneySubTab] = useState(null)
@@ -32,6 +33,25 @@ export default function MobileShell() {
   const [chatInitMsg, setChatInitMsg] = useState(null)
   const [qGreetingForChat, setQGreetingForChat] = useState(null)
   const [chatAutoCall, setChatAutoCall] = useState(false)
+  const [qOverlayState, setQOverlayState] = useState('idle') // idle | listening | analyzing | speaking
+  const [proactiveAlert, setProactiveAlert] = useState(null)
+
+  // Proactive Q alerts — check periodically
+  useEffect(() => {
+    const checkAlerts = () => {
+      if (chatOpen) return
+      const margin = totalRevenue > 0 ? ((totalRevenue - (ctx.totalExpenses || 0)) / totalRevenue * 100) : 0
+      if (unpaidInvoices.length >= 4 && !sessionStorage.getItem('q_alert_unpaid')) {
+        setProactiveAlert({ text: `${unpaidInvoices.length} invoices unpaid — cash flow at risk`, color: 'var(--danger)', action: () => { setActiveTab('money'); setProactiveAlert(null) } })
+        sessionStorage.setItem('q_alert_unpaid', '1')
+      } else if (margin > 0 && margin < 15 && totalRevenue > 1000 && !sessionStorage.getItem('q_alert_margin')) {
+        setProactiveAlert({ text: `Margin at ${margin.toFixed(0)}% — below target. Review load selection.`, color: '#f59e0b', action: () => { setActiveTab('money'); setProactiveAlert(null) } })
+        sessionStorage.setItem('q_alert_margin', '1')
+      }
+    }
+    const t = setTimeout(checkAlerts, 5000)
+    return () => clearTimeout(t)
+  }, [chatOpen, totalRevenue, unpaidInvoices.length, ctx.totalExpenses])
 
   const handleNavigate = useCallback((tab, extra) => {
     if (tab === 'chat') {
@@ -93,7 +113,7 @@ export default function MobileShell() {
             </div>
             <div style={{ background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: '#f0a500' }}>$199</span>
-              <span style={{ fontSize: 12, color: '#8a8a9a' }}>/mo + $99/truck</span>
+              <span style={{ fontSize: 12, color: '#8a8a9a' }}>/mo + $75/truck</span>
             </div>
             <button onClick={() => {
               import('../../lib/api').then(({ apiFetch }) => {
@@ -124,9 +144,12 @@ export default function MobileShell() {
       {/* ── HEADER ── */}
       <div style={{ height: 50, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1 }}>
             <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>Q</span>
-            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500, marginLeft: 6, letterSpacing: 0.5, fontFamily: "'DM Sans',sans-serif" }}>by Qivori</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite', flexShrink: 0 }} />
+              <span style={{ fontSize: 9, color: qState.color, fontWeight: 600, letterSpacing: 0.3, fontFamily: "'DM Sans',sans-serif" }}>{qState.label}</span>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -151,69 +174,145 @@ export default function MobileShell() {
         </div>
       </div>
 
-      {/* ── FLOATING Q BUTTON ── */}
-      {!chatOpen && (
-        <button
-          onClick={() => openQ(null, null, true)}
-          style={{
-            position: 'fixed',
-            bottom: `calc(72px + env(safe-area-inset-bottom, 0px))`,
-            right: 16,
-            width: 56,
-            height: 56,
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 20px rgba(240,165,0,0.3), 0 2px 8px rgba(0,0,0,0.3)',
-            zIndex: 100,
-            animation: 'fabPop 0.3s ease',
-            transition: 'transform 0.15s ease',
-          }}
-        >
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
-        </button>
+      {/* ── FLOATING Q BUTTON — alive, state-driven ── */}
+      {!chatOpen && (() => {
+        const isAlert = qState.state === 'alert'
+        const isTracking = qState.state === 'tracking'
+        const glowAnim = isAlert
+          ? 'fabPop 0.3s ease, qPulse 1.5s ease-in-out infinite'
+          : isTracking
+          ? 'fabPop 0.3s ease, qGlow 2s ease-in-out infinite'
+          : 'fabPop 0.3s ease, qGlow 3s ease-in-out infinite'
+        const ringSpeed = isAlert ? '1.5s' : isTracking ? '2s' : '2.5s'
+        const stateLabel = isAlert ? 'ALERT' : isTracking ? 'TRACKING' : qState.state === 'monitoring' ? 'ACTIVE' : 'ONLINE'
+        return (
+          <div style={{ position: 'fixed', bottom: `calc(72px + env(safe-area-inset-bottom, 0px))`, right: 16, zIndex: 100 }}>
+            {/* Outer ring pulse */}
+            <div style={{
+              position: 'absolute', inset: -6, borderRadius: '50%',
+              border: `2px solid ${qState.color}`,
+              animation: `qRingPulse ${ringSpeed} ease-out infinite`,
+              pointerEvents: 'none',
+            }} />
+            {/* Second ring for alert state */}
+            {isAlert && (
+              <div style={{
+                position: 'absolute', inset: -6, borderRadius: '50%',
+                border: '2px solid var(--danger)',
+                animation: 'qRingPulse 1.5s ease-out 0.75s infinite',
+                pointerEvents: 'none',
+              }} />
+            )}
+            <button
+              onClick={() => openQ(null, null, true)}
+              style={{
+                position: 'relative',
+                width: 56, height: 56, borderRadius: '50%',
+                background: isAlert ? 'var(--danger)' : 'var(--accent)',
+                border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                animation: glowAnim,
+                transition: 'transform 0.15s ease, background 0.3s ease',
+              }}
+            >
+              <span style={{
+                fontFamily: "'Bebas Neue',sans-serif", fontSize: 26,
+                color: isAlert ? '#fff' : '#000', fontWeight: 800, lineHeight: 1,
+                animation: isTracking ? 'qBreath 2s ease-in-out infinite' : 'none',
+              }}>Q</span>
+            </button>
+            {/* State label */}
+            <div style={{
+              position: 'absolute', bottom: -16, left: '50%', transform: 'translateX(-50%)',
+              fontSize: 7, fontWeight: 700, color: qState.color, whiteSpace: 'nowrap',
+              letterSpacing: 0.5, fontFamily: "'DM Sans',sans-serif",
+              animation: isAlert ? 'qStatusPulse 1s ease-in-out infinite' : 'none',
+            }}>
+              {stateLabel}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Q CHAT OVERLAY — premium slide-up with dimmed backdrop ── */}
+      {chatOpen && (
+        <>
+          {/* Backdrop dim */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 199,
+            background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)',
+            animation: 'qOverlayDim 0.2s ease',
+          }} />
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 200, display: 'flex', flexDirection: 'column',
+            background: 'var(--bg)',
+            animation: 'qOverlayIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}>
+            {/* Overlay header — live Q state */}
+            <div style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center',
+              padding: '0 16px', gap: 12, background: 'var(--surface)',
+              borderBottom: '1px solid var(--border)',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              minHeight: 54,
+            }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%', background: 'var(--accent)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                animation: 'qGlow 3s ease-in-out infinite',
+              }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Q ACTIVE</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--success)', animation: 'qStatusPulse 2s ease-in-out infinite' }} />
+                  <span style={{ color: 'var(--success)', fontWeight: 600 }}>Voice control active</span>
+                </div>
+              </div>
+              <button onClick={() => setChatOpen(false)}
+                style={{
+                  width: 36, height: 36, borderRadius: '50%', background: 'var(--surface2)',
+                  border: '1px solid var(--border)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.15s ease',
+                }}>
+                <Ic icon={X} size={18} color="var(--muted)" />
+              </button>
+            </div>
+
+            {/* Chat content */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay autoCall={chatAutoCall} />
+            </div>
+          </div>
+        </>
       )}
 
-      {/* ── Q CHAT OVERLAY ── */}
-      {chatOpen && (
+      {/* ── PROACTIVE Q ALERT — slides in above tab bar ── */}
+      {proactiveAlert && !chatOpen && (
         <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex: 200,
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'var(--bg)',
-          animation: 'overlaySlideUp 0.25s ease-out',
-        }}>
-          {/* Overlay header */}
+          flexShrink: 0, margin: '0 16px 6px', padding: '10px 14px',
+          background: 'var(--surface)', border: `1px solid ${proactiveAlert.color}30`,
+          borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10,
+          animation: 'qInsightSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          cursor: 'pointer',
+        }} onClick={proactiveAlert.action}>
           <div style={{
-            flexShrink: 0, display: 'flex', alignItems: 'center',
-            padding: '0 16px', gap: 12, background: 'var(--surface)',
-            borderBottom: '1px solid var(--border)',
-            paddingTop: 'env(safe-area-inset-top, 0px)',
-            minHeight: 50,
+            width: 24, height: 24, borderRadius: '50%', background: `${proactiveAlert.color}15`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>Q</div>
-              <div style={{ fontSize: 10, color: 'var(--success)' }}>Online</div>
-            </div>
-            <button onClick={() => setChatOpen(false)}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface2)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Ic icon={X} size={18} color="var(--muted)" />
-            </button>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, color: proactiveAlert.color, fontWeight: 800 }}>Q</span>
           </div>
-
-          {/* Chat content */}
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay autoCall={chatAutoCall} />
+          <div style={{ flex: 1, fontSize: 11, fontWeight: 500, color: 'var(--text)', lineHeight: 1.4 }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color: proactiveAlert.color, letterSpacing: 1, display: 'block', marginBottom: 2 }}>Q ALERT</span>
+            {proactiveAlert.text}
           </div>
+          <button onClick={(e) => { e.stopPropagation(); setProactiveAlert(null) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+            <Ic icon={X} size={14} color="var(--muted)" />
+          </button>
         </div>
       )}
 
@@ -234,7 +333,7 @@ export default function MobileShell() {
             : tab.id === 'money' && unpaidInvoices.length > 0 ? unpaidInvoices.length
             : null
           return (
-            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setMoneySubTab(null) }}
+            <button key={tab.id} onClick={() => { haptic('light'); setActiveTab(tab.id); setMoneySubTab(null) }}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,

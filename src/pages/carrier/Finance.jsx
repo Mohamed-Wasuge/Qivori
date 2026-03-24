@@ -2142,15 +2142,29 @@ export function PLDashboard() {
         </div>
       </div>
 
-      <div style={{ background:'linear-gradient(135deg,rgba(240,165,0,0.06),rgba(77,142,240,0.04))', border:'1px solid rgba(240,165,0,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'flex-start' }}>
-        <div style={{ fontSize:22 }}><Bot size={20} /></div>
-        <div>
-          <div style={{ fontWeight:700, marginBottom:4 }}>AI Insight</div>
-          <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.7 }}>
-            {parseFloat(margin) >= 20
-              ? `Strong ${margin}% margin this period. Echo Global is your most profitable broker — consider prioritizing their lanes. Fuel is your largest expense category at ${totalExp>0?((expCats.find(c=>c[0]==='Fuel')?.[1]||0)/totalExp*100).toFixed(0):0}% — fuel-optimizer routes could save ~$180/week.`
-              : `Margin is ${margin}% — below the 20% healthy threshold. Review lumper fees and non-revenue expenses. Best performing: ${breakdownData[0]?.label||'N/A'} at $${(breakdownData[0]?.rev||0).toLocaleString()} this period.`}
+      {/* Q Profit Engine Insight */}
+      <div style={{ background:'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(34,197,94,0.04))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:14, padding:'16px 20px', display:'flex', gap:14, alignItems:'flex-start' }}>
+        <div style={{ width:36, height:36, borderRadius:10, background:'rgba(240,165,0,0.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <Bot size={20} color="var(--accent)" />
+        </div>
+        <div style={{ flex:1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+            <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:14, letterSpacing:2 }}>Q <span style={{ color:'var(--accent)' }}>P&L ANALYSIS</span></span>
+            <span style={{ fontSize:9, padding:'2px 7px', background:'rgba(34,197,94,0.12)', color:'var(--success)', borderRadius:6, fontWeight:800 }}>LIVE</span>
           </div>
+          <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.7 }}>
+            {parseFloat(margin) >= 30
+              ? `Strong ${margin}% margin — above 30% target. ${breakdownData[0]?.label || 'Top performer'} generating $${(breakdownData[0]?.rev||0).toLocaleString()} this period. Profit engine performing.`
+              : parseFloat(margin) >= 20
+              ? `Margin at ${margin}% — within range but below 30% target. ${breakdownData[0]?.label || 'Best lane'} is your highest earner at $${(breakdownData[0]?.rev||0).toLocaleString()}. Fuel at ${totalExp>0?((expCats.find(c=>c[0]==='Fuel')?.[1]||0)/totalExp*100).toFixed(0):0}% of expenses — route optimization could recover ~$180/wk.`
+              : `Margin at ${margin}% — below 20% threshold. Immediate action: review rate acceptance, cut non-essential expenses. Top earner: ${breakdownData[0]?.label||'N/A'} at $${(breakdownData[0]?.rev||0).toLocaleString()}.`}
+          </div>
+        </div>
+        {/* Margin badge */}
+        <div style={{ textAlign:'center', flexShrink:0, padding:'6px 14px', borderRadius:10, background: parseFloat(margin)>=30 ? 'rgba(34,197,94,0.08)' : parseFloat(margin)>=20 ? 'rgba(240,165,0,0.08)' : 'rgba(239,68,68,0.08)', border:`1px solid ${parseFloat(margin)>=30 ? 'rgba(34,197,94,0.2)' : parseFloat(margin)>=20 ? 'rgba(240,165,0,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
+          <div style={{ fontSize:9, color:'var(--muted)', marginBottom:2 }}>MARGIN</div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color: parseFloat(margin)>=30?'var(--success)':parseFloat(margin)>=20?'var(--warning)':'var(--danger)', lineHeight:1 }}>{margin}%</div>
+          <div style={{ fontSize:9, fontWeight:700, marginTop:2, color: parseFloat(margin)>=30?'var(--success)':parseFloat(margin)>=20?'var(--warning)':'var(--danger)' }}>{parseFloat(margin)>=30?'HEALTHY':parseFloat(margin)>=20?'WATCH':'BELOW'}</div>
         </div>
       </div>
     </div>

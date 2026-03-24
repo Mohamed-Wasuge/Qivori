@@ -9,7 +9,7 @@ const PLAN_TIERS = {
 }
 
 // Which plan tier is required for each gated feature
-// With the $199 + $99/truck plan, all features are tier 2 (full access)
+// With the $199 + $75/truck plan, all features are tier 2 (full access)
 const FEATURE_GATES = {
   load_board:    1,
   invoicing:     1,
@@ -24,9 +24,9 @@ const FEATURE_GATES = {
 }
 
 const PLAN_DISPLAY = {
-  autonomous_fleet: { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },
-  autopilot_ai:     { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy mapping
-  autopilot:        { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy mapping
+  autonomous_fleet: { name: 'Q Platform', price: 199, extraTruck: 75, color: '#f0a500' },
+  autopilot_ai:     { name: 'Q Platform', price: 199, extraTruck: 75, color: '#f0a500' },  // legacy mapping
+  autopilot:        { name: 'Q Platform', price: 199, extraTruck: 75, color: '#f0a500' },  // legacy mapping
 }
 
 export function useSubscription() {

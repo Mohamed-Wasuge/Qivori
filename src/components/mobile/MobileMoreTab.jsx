@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
 import { FileText, Settings, User, HelpCircle, LogOut, ChevronRight, Shield, Fuel } from 'lucide-react'
-import { Ic, haptic } from './shared'
+import { Ic, haptic, getQSystemState, fmt$ } from './shared'
 import MobileIFTATab from './MobileIFTATab'
 
 const MENU_ITEMS = [
@@ -13,6 +14,8 @@ const MENU_ITEMS = [
 
 export default function MobileMoreTab() {
   const { logout, user, profile } = useApp()
+  const ctx = useCarrier() || {}
+  const qState = getQSystemState(ctx)
   const [activeSection, setActiveSection] = useState(null)
 
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
@@ -41,6 +44,37 @@ export default function MobileMoreTab() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{profile?.full_name || user?.user_metadata?.full_name || 'Driver'}</div>
           <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email || ''}</div>
+        </div>
+      </div>
+
+      {/* Q System Status */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+        padding: '16px', marginBottom: 16, animation: 'qInsightSlide 0.3s ease',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'qGlow 3s ease-in-out infinite' }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 2 }}>Q SYSTEM STATUS</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: qState.color }}>{qState.label}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          {[
+            ['Loads', ctx.activeLoads?.length || 0, 'var(--accent)'],
+            ['Revenue', fmt$(ctx.totalRevenue || 0), 'var(--success)'],
+            ['Unpaid', ctx.unpaidInvoices?.length || 0, (ctx.unpaidInvoices?.length || 0) > 0 ? 'var(--danger)' : 'var(--muted)'],
+          ].map(([label, val, color]) => (
+            <div key={label} style={{ textAlign: 'center', padding: '8px 4px', background: 'var(--bg)', borderRadius: 8 }}>
+              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600, letterSpacing: 0.5 }}>{label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color, fontFamily: "'Bebas Neue',sans-serif", marginTop: 2 }}>{val}</div>
+            </div>
+          ))}
         </div>
       </div>
 

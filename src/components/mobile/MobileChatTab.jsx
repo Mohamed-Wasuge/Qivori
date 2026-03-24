@@ -12,6 +12,21 @@ import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper,
 
 let BOARD_LOADS = []
 
+// Q Thinking text — cycles through processing states
+const Q_THINK_STATES = ['Processing request', 'Analyzing data', 'Checking context', 'Preparing response']
+function QThinkingText() {
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % Q_THINK_STATES.length), 2200)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div key={idx} style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, animation: 'fadeInUp 0.3s ease' }}>
+      {Q_THINK_STATES[idx]}
+    </div>
+  )
+}
+
 // Simple markdown renderer for chat messages
 function renderMarkdown(text) {
   if (!text) return text
@@ -3132,7 +3147,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
     // ── ACCOUNT MANAGEMENT — upgrade/downgrade plan ──
     if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(basic|pro|autopilot|autopilot\s*ai|solo|fleet|enterprise|growing|autonomous)\b/.test(lowerText)) {
-      const targetPlan = { id: 'autonomous_fleet', name: 'Qivori AI Dispatch', price: '$199/mo + $99/truck (founder pricing)' }
+      const targetPlan = { id: 'autonomous_fleet', name: 'Q Platform', price: '$199/mo + $75/truck (founder pricing)' }
       try {
         const res = await apiFetch('/api/create-checkout', {
           method: 'POST',
@@ -3231,7 +3246,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { autonomous_fleet: '$199/mo + $99/truck', autopilot: '$199/mo + $99/truck', autopilot_ai: '$199/mo + $99/truck' }
+      const planPrices = { autonomous_fleet: '$199/mo + $75/truck', autopilot: '$199/mo + $75/truck', autopilot_ai: '$199/mo + $75/truck' }
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`
@@ -3849,10 +3864,10 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', animation: i >= messages.length - 2 ? 'msgSlideIn 0.25s ease' : 'none' }}>
             {m.role === 'assistant' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ic icon={Zap} size={10} color="var(--accent)" />
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>Q</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 0.5 }}>Q SYSTEM</span>
                 <button onClick={(e) => { e.stopPropagation(); speak(m.content) }}
                   style={{ width: 20, height: 20, borderRadius: '50%', background: speaking ? 'rgba(0,212,170,0.2)' : 'transparent', border: '1px solid rgba(0,212,170,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, marginLeft: 2 }}
                   title="Replay">
@@ -3975,18 +3990,23 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           </div>
         ))}
 
-        {/* Loading indicator */}
+        {/* Loading indicator — Q thinking states */}
         {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Ic icon={Zap} size={10} color="var(--accent)" />
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, animation: 'fadeInUp 0.2s ease' }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              animation: 'qBreath 2s ease-in-out infinite',
+            }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px 14px 14px 4px', padding: '10px 16px' }}>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <span className="ai-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'aipulse 1.2s ease-in-out infinite' }} />
-                <span className="ai-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'aipulse 1.2s ease-in-out 0.2s infinite' }} />
-                <span className="ai-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'aipulse 1.2s ease-in-out 0.4s infinite' }} />
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px 14px 14px 4px', padding: '12px 16px' }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qDotPulse 1.2s ease-in-out infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qDotPulse 1.2s ease-in-out 0.2s infinite' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qDotPulse 1.2s ease-in-out 0.4s infinite' }} />
               </div>
+              <QThinkingText />
             </div>
           </div>
         )}
@@ -4022,26 +4042,42 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       {/* ── INPUT BAR ───────────────────────────────── */}
       <div style={{ flexShrink: 0, padding: '8px 16px calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--surface)', marginBottom: 'var(--kb-offset, 0px)', transition: 'margin-bottom 0.2s ease' }}>
 
-        {/* In-call state — Retell real-time voice */}
+        {/* In-call state — Retell real-time voice (upgraded) */}
         {(inCall || callConnecting) ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: callConnecting ? 'var(--accent)' : 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: callConnecting ? 'micPulse 1s ease-in-out infinite' : (speaking ? 'micPulse 1.5s ease-in-out infinite' : 'none') }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: callConnecting ? '#000' : '#fff', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.2s ease' }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: callConnecting ? 'var(--accent)' : speaking ? 'var(--success)' : 'var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              animation: callConnecting ? 'qBreath 1.5s ease-in-out infinite' : speaking ? 'qGlow 2s ease-in-out infinite' : 'qListenGlow 2s ease-in-out infinite',
+              transition: 'background 0.3s ease',
+            }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 19, color: speaking ? '#fff' : '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
               {callConnecting ? (
-                <span style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Connecting...</span>
-              ) : speaking ? (
-                <>
-                  <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-                    {[0, 1, 2, 3, 4].map(i => (
-                      <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--success)', animation: `voiceWave 0.5s ease-in-out ${i * 0.1}s infinite alternate` }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', animation: `qDotPulse 1s ease-in-out ${i * 0.15}s infinite` }} />
                     ))}
                   </div>
-                  <span style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q is speaking...</span>
+                  <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q connecting</span>
+                </div>
+              ) : speaking ? (
+                <>
+                  <div style={{ display: 'flex', gap: 3, alignItems: 'center', height: 24 }}>
+                    {[0, 1, 2, 3, 4, 5, 6].map(i => (
+                      <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--success)', animation: `qSpeakingWave 0.4s ease-in-out ${i * 0.06}s infinite alternate` }} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q speaking</span>
                 </>
               ) : (
-                <span style={{ fontSize: 14, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Listening... talk naturally</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'micPulse 1.2s ease-in-out infinite' }} />
+                  <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q is listening</span>
+                </div>
               )}
             </div>
             <button onClick={endVoiceCall}
@@ -4051,10 +4087,15 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
           </div>
         ) : listening ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
-            {/* Red pulse dot */}
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', flexShrink: 0, animation: 'micPulse 1.2s ease-in-out infinite' }} />
-            <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', fontSize: 15, color: handsFree ? 'var(--success)' : 'var(--muted)', fontFamily: "'DM Sans',sans-serif" }}>
-              {handsFree ? 'Your turn — speak...' : 'Listening...'}
+            {/* Q listening avatar */}
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'qListenGlow 2s ease-in-out infinite' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            </div>
+            <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: handsFree ? 'var(--success)' : 'var(--accent)', flexShrink: 0, animation: 'micPulse 1.2s ease-in-out infinite' }} />
+              <span style={{ fontSize: 13, color: handsFree ? 'var(--success)' : 'var(--accent)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>
+                {handsFree ? 'Q is listening — speak' : 'Q is listening'}
+              </span>
             </div>
             {/* Stop & send */}
             <button onClick={() => { haptic('medium'); if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop() }}

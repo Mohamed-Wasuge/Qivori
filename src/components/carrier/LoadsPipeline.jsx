@@ -1,11 +1,195 @@
-import React, { useState, useEffect } from 'react'
-import { Target } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { Ic, HubTabBar } from './shared'
 import { DispatchTab } from './DispatchTab'
 import { SmartDispatch, CommandCenter, CheckCallCenter, LaneIntel, RateNegotiation, RateBadge } from '../../pages/carrier/LoadBoard'
+import { QDispatchAI } from './QDispatchAI'
+
+// ── Q Load Intelligence Engine ───────────────────────────────────────────────
+// Evaluates loads using real trucking profit logic — not just top-line rate.
+function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }) {
+  const gross = load.gross || load.gross_pay || load.rate_total || 0
+  const miles = parseFloat(load.miles) || 0
+  const weight = parseFloat(load.weight) || 0
+  const rpm = miles > 0 ? gross / miles : 0
+  const fuelRate = fuelCostPerMile || 0.55
+
+  // Estimate driver pay (use assigned driver's rate or default 28%)
+  const driverRec = (drivers || []).find(d => (d.full_name || d.name) === load.driver)
+  const payModel = driverRec?.pay_model || 'percent'
+  const payRate = parseFloat(driverRec?.pay_rate) || 28
+  const driverPay = payModel === 'permile' ? miles * payRate : payModel === 'flat' ? payRate : gross * (payRate / 100)
+
+  // Fuel cost
+  const fuelCost = miles * fuelRate
+
+  // Estimated profit
+  const estProfit = gross - driverPay - fuelCost
+  const profitPerMile = miles > 0 ? estProfit / miles : 0
+
+  // Profit per day (assume 500 mi/day for transit, + 0.5 day for pickup/delivery)
+  const transitDays = miles > 0 ? Math.max(miles / 500, 0.5) + 0.5 : 1
+  const profitPerDay = estProfit / transitDays
+
+  // Broker score (from brokerStats or heuristic)
+  const brokerName = load.broker || load.broker_name || ''
+  const brokerData = brokerStats?.[brokerName]
+  let brokerScore = 'B' // default
+  let brokerReliability = 'Unknown'
+  if (brokerData) {
+    const payRate = brokerData.onTimePay || 0.8
+    const loadCount = brokerData.totalLoads || 0
+    if (payRate >= 0.9 && loadCount >= 5) { brokerScore = 'A'; brokerReliability = 'Reliable' }
+    else if (payRate >= 0.75) { brokerScore = 'B'; brokerReliability = 'Average' }
+    else { brokerScore = 'C'; brokerReliability = 'Risky' }
+  } else {
+    // Heuristic: known large brokers
+    const knownGood = ['ch robinson','tql','schneider','jb hunt','xpo','echo','coyote','landstar']
+    if (knownGood.some(b => brokerName.toLowerCase().includes(b))) { brokerScore = 'A'; brokerReliability = 'Major Broker' }
+  }
+
+  // Lane quality — check historical loads on this lane
+  const origin3 = (load.origin || '').split(',')[0]?.substring(0,3)?.toUpperCase() || ''
+  const dest3 = (load.dest || load.destination || '').split(',')[0]?.substring(0,3)?.toUpperCase() || ''
+  const lanePrev = (allLoads || []).filter(l => {
+    const lo = (l.origin || '').split(',')[0]?.substring(0,3)?.toUpperCase() || ''
+    const ld = (l.dest || l.destination || '').split(',')[0]?.substring(0,3)?.toUpperCase() || ''
+    return lo === origin3 && ld === dest3 && l.loadId !== load.loadId
+  })
+  const laneHistory = lanePrev.length
+  const laneAvgRPM = lanePrev.length > 0 ? lanePrev.reduce((s,l) => s + ((l.gross || 0) / Math.max(l.miles || 1, 1)), 0) / lanePrev.length : 0
+
+  // Weight analysis
+  const isHeavy = weight > 37000
+  const isLight = weight > 0 && weight <= 37000
+  const weightNote = weight === 0 ? 'Weight not specified' : isHeavy ? 'Heavy load (>37K lbs)' : 'Light load'
+
+  // Equipment/type detection
+  const isPowerOnly = (load.equipment || '').toLowerCase().includes('power only')
+  const isDropHook = (load.commodity || '').toLowerCase().includes('drop') || (load.notes || '').toLowerCase().includes('drop & hook')
+
+  // Build decision
+  let decision = 'ACCEPT'
+  let confidence = 85
+  const reasons = []
+  const risks = []
+  const advantages = []
+  let targetRate = null
+
+  // Profit thresholds
+  if (estProfit <= 0) {
+    decision = 'REJECT'
+    confidence = 95
+    reasons.push('Negative or zero estimated profit')
+    risks.push('Operating at a loss')
+  } else if (profitPerMile < 0.50) {
+    decision = 'REJECT'
+    confidence = 88
+    reasons.push('Profit per mile below $0.50 threshold')
+    risks.push('Inefficient use of equipment time')
+  } else if (profitPerMile < 1.00 && profitPerDay < 400) {
+    decision = 'NEGOTIATE'
+    confidence = 80
+    const targetPPM = 1.20
+    targetRate = Math.round(gross + (targetPPM - profitPerMile) * miles)
+    reasons.push('Profit per mile below target — counteroffer recommended')
+  } else if (profitPerMile >= 1.50) {
+    decision = 'ACCEPT'
+    confidence = 92
+    reasons.push('Strong profit margin')
+    advantages.push('High profit per mile')
+  }
+
+  // Weight factor
+  if (isHeavy) {
+    if (decision === 'ACCEPT' && profitPerMile < 1.50) {
+      decision = 'NEGOTIATE'
+      confidence = Math.min(confidence, 78)
+      targetRate = targetRate || Math.round(gross * 1.15)
+      reasons.push('Heavy load requires higher rate to justify wear')
+      risks.push('Increased fuel consumption and equipment wear')
+    }
+  } else if (isLight) {
+    advantages.push('Light weight — less fuel, less wear')
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 3, 98)
+  }
+
+  // Broker risk
+  if (brokerScore === 'C') {
+    if (decision === 'ACCEPT') decision = 'NEGOTIATE'
+    risks.push('Low broker reliability score')
+    confidence = Math.min(confidence, 75)
+  } else if (brokerScore === 'A') {
+    advantages.push(`${brokerReliability} — consistent payments`)
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 5, 98)
+  }
+
+  // Lane quality
+  if (laneHistory > 0) {
+    if (rpm > laneAvgRPM * 1.1) advantages.push(`Above lane average ($${laneAvgRPM.toFixed(2)}/mi)`)
+    else if (rpm < laneAvgRPM * 0.85 && decision !== 'REJECT') {
+      if (decision === 'ACCEPT') decision = 'NEGOTIATE'
+      targetRate = targetRate || Math.round(laneAvgRPM * miles)
+      reasons.push(`Below lane average RPM ($${laneAvgRPM.toFixed(2)}/mi)`)
+    }
+  }
+
+  // Power-only detection
+  if (isPowerOnly) {
+    advantages.push('Power-only — no trailer needed')
+  }
+
+  // Drop & hook
+  if (isDropHook) {
+    advantages.push('Drop & hook — faster turnaround')
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 2, 98)
+  }
+
+  // Build summary reason
+  let summaryReason = ''
+  if (decision === 'ACCEPT') {
+    summaryReason = advantages.length > 0 ? advantages.slice(0,2).join(', ') + '.' : 'Meets profit thresholds.'
+    if (reasons.length > 0) summaryReason += ' ' + reasons[0]
+  } else if (decision === 'REJECT') {
+    summaryReason = reasons[0] || 'Does not meet minimum profit requirements.'
+    if (risks.length > 0) summaryReason += ' ' + risks[0] + '.'
+  } else {
+    summaryReason = reasons[0] || 'Rate below optimal — broker likely flexible.'
+    if (advantages.length > 0) summaryReason += ' ' + advantages[0] + '.'
+  }
+
+  return {
+    decision, confidence, summaryReason, targetRate,
+    estProfit: Math.round(estProfit), profitPerMile: profitPerMile.toFixed(2),
+    profitPerDay: Math.round(profitPerDay), transitDays: transitDays.toFixed(1),
+    fuelCost: Math.round(fuelCost), driverPay: Math.round(driverPay),
+    brokerScore, brokerReliability, weightNote, isHeavy, isLight,
+    laneHistory, laneAvgRPM: laneAvgRPM.toFixed(2),
+    risks, advantages, rpm: rpm.toFixed(2),
+    isPowerOnly, isDropHook
+  }
+}
+
+const Q_DECISION_COLORS = {
+  ACCEPT: { bg:'rgba(52,176,104,0.08)', border:'rgba(52,176,104,0.25)', color:'var(--success)', icon: CheckCircle },
+  REJECT: { bg:'rgba(239,68,68,0.08)', border:'rgba(239,68,68,0.25)', color:'var(--danger)', icon: XCircle },
+  NEGOTIATE: { bg:'rgba(240,165,0,0.08)', border:'rgba(240,165,0,0.25)', color:'var(--accent)', icon: MessageSquare },
+}
+
+function QDecisionBadge({ decision, compact }) {
+  const d = Q_DECISION_COLORS[decision] || Q_DECISION_COLORS.ACCEPT
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:compact ? 3 : 4, fontSize: compact ? 8 : 10, fontWeight:800,
+      padding: compact ? '1px 5px' : '2px 8px', borderRadius: compact ? 4 : 6,
+      background:d.bg, color:d.color, border:`1px solid ${d.border}`, letterSpacing:0.5, whiteSpace:'nowrap' }}>
+      <Ic icon={d.icon} size={compact ? 8 : 10} color={d.color} />
+      {decision}
+    </span>
+  )
+}
 
 // ── Billing tab ────────────────────────────────────────────────────────────────
 export function BillingTab() {
@@ -210,18 +394,21 @@ export const KANBAN_COLUMNS = [
   { id:'paid',       label:'Paid',        statuses:['Paid'], color:'var(--success)' },
 ]
 
-export function KanbanCard({ load, onClick, onDragStart }) {
+export function KanbanCard({ load, onClick, onDragStart, qResult }) {
   const origin = (load.origin || '').split(',')[0] || '—'
   const dest = (load.dest || load.destination || '').split(',')[0] || '—'
   const gross = load.gross || load.gross_pay || 0
   const rpm = load.rate || (load.miles > 0 ? (gross / load.miles).toFixed(2) : '—')
+  const dc = qResult ? Q_DECISION_COLORS[qResult.decision] : null
   return (
     <div draggable onDragStart={e => { e.dataTransfer.setData('loadId', load.loadId || load.id); onDragStart?.() }}
       onClick={() => onClick?.(load)}
-      style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px',
-        cursor:'pointer', transition:'all 0.12s', marginBottom:8 }}
+      style={{ background:'var(--surface2)', border:`1px solid ${dc ? dc.border : 'var(--border)'}`, borderRadius:10, padding:'12px 14px',
+        cursor:'pointer', transition:'all 0.12s', marginBottom:8, position:'relative', overflow:'hidden' }}
       onMouseOver={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.transform='translateY(-1px)' }}
-      onMouseOut={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.transform='none' }}>
+      onMouseOut={e => { e.currentTarget.style.borderColor = dc ? dc.border : 'var(--border)'; e.currentTarget.style.transform='none' }}>
+      {/* Q decision glow line */}
+      {dc && <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:`linear-gradient(90deg, transparent, ${dc.color}60, transparent)` }} />}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
           <span style={{ fontSize:11, fontFamily:'monospace', fontWeight:700, color:'var(--accent)' }}>{load.loadId || load.id}</span>
@@ -229,14 +416,33 @@ export function KanbanCard({ load, onClick, onDragStart }) {
             <span style={{ fontSize:8, fontWeight:700, padding:'1px 5px', borderRadius:4, background:'rgba(255,153,0,0.15)', color:'#ff9900', letterSpacing:0.3 }}>RELAY</span>
           )}
         </div>
-        <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:6, background:'rgba(240,165,0,0.1)', color:'var(--accent)' }}>{load.status}</span>
+        {qResult ? <QDecisionBadge decision={qResult.decision} compact /> : (
+          <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:6, background:'rgba(240,165,0,0.1)', color:'var(--accent)' }}>{load.status}</span>
+        )}
       </div>
       <div style={{ fontSize:13, fontWeight:700, marginBottom:6 }}>{origin} → {dest}</div>
-      <div style={{ display:'flex', gap:10, fontSize:11, color:'var(--muted)', marginBottom:6 }}>
+      <div style={{ display:'flex', gap:10, fontSize:11, color:'var(--muted)', marginBottom:4 }}>
         <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>${gross.toLocaleString()}</span>
         <span>${rpm}/mi</span>
         <span>{(load.miles || 0).toLocaleString()} mi</span>
       </div>
+      {/* Q profit + broker score row */}
+      {qResult && (
+        <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:4, flexWrap:'wrap' }}>
+          <span style={{ fontSize:9, fontWeight:700, color: qResult.estProfit > 0 ? 'var(--success)' : 'var(--danger)', fontFamily:"'JetBrains Mono',monospace" }}>
+            P: ${qResult.estProfit.toLocaleString()}
+          </span>
+          <span style={{ fontSize:9, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace" }}>${qResult.profitPerMile}/mi</span>
+          {qResult.brokerScore && (
+            <span style={{ fontSize:8, fontWeight:700, padding:'1px 4px', borderRadius:3,
+              background: qResult.brokerScore === 'A' ? 'rgba(52,176,104,0.12)' : qResult.brokerScore === 'C' ? 'rgba(239,68,68,0.12)' : 'rgba(240,165,0,0.12)',
+              color: qResult.brokerScore === 'A' ? 'var(--success)' : qResult.brokerScore === 'C' ? 'var(--danger)' : 'var(--accent)' }}>
+              {qResult.brokerScore}
+            </span>
+          )}
+          {load.weight > 0 && <span style={{ fontSize:8, color: qResult.isHeavy ? 'var(--warning)' : 'var(--muted)' }}>{(load.weight/1000).toFixed(0)}K lbs</span>}
+        </div>
+      )}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:10, color:'var(--muted)' }}>
         <span>{load.driver || 'Unassigned'}</span>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -244,23 +450,207 @@ export function KanbanCard({ load, onClick, onDragStart }) {
           <span style={load.load_source === 'amazon_relay' ? { color:'#ff9900', fontWeight:600 } : undefined}>{load.broker || ''}</span>
         </div>
       </div>
+      {/* Q one-line reason */}
+      {qResult && qResult.summaryReason && (
+        <div style={{ marginTop:4, fontSize:9, color:'var(--muted)', fontStyle:'italic', lineHeight:1.3, borderTop:'1px solid var(--border)', paddingTop:4 }}>
+          {qResult.summaryReason.length > 80 ? qResult.summaryReason.substring(0, 80) + '...' : qResult.summaryReason}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Q Scanning State Animation ───────────────────────────────────────────────
+function QScanningState({ phase }) {
+  const phases = ['Scanning the market', 'Analyzing available loads', 'Checking broker history', 'Calculating true profit', 'Selecting top opportunities']
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % phases.length), 1800)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', background:'rgba(240,165,0,0.04)', borderRadius:8, border:'1px solid rgba(240,165,0,0.1)' }}>
+      <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', animation:'q-scan-pulse 1.5s ease-in-out infinite' }} />
+      <span style={{ fontSize:10, fontWeight:600, color:'var(--accent)', fontFamily:"'JetBrains Mono',monospace" }}>{phases[idx]}</span>
+    </div>
+  )
+}
+
+// ── Q Alert Banner ───────────────────────────────────────────────────────────
+function QAlertBanner({ alerts, onDismiss }) {
+  if (!alerts || alerts.length === 0) return null
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+      {alerts.slice(0,3).map((a, i) => (
+        <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px', background:a.bg || 'rgba(240,165,0,0.04)', borderRadius:8, border:`1px solid ${a.borderColor || 'rgba(240,165,0,0.15)'}`, animation:'q-alert-slide 0.3s ease' }}>
+          <Ic icon={a.icon || AlertTriangle} size={12} color={a.color || 'var(--accent)'} />
+          <span style={{ flex:1, fontSize:10, fontWeight:600, color:a.color || 'var(--accent)' }}>{a.text}</span>
+          <button onClick={() => onDismiss(i)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:10, padding:2 }}>✕</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Q Top Recommendation Card ────────────────────────────────────────────────
+function QRecommendationCard({ load, qResult, onOpen }) {
+  if (!load || !qResult) return null
+  const origin = (load.origin || '').split(',')[0] || '—'
+  const dest = (load.dest || load.destination || '').split(',')[0] || '—'
+  const gross = load.gross || load.gross_pay || 0
+  const dc = Q_DECISION_COLORS[qResult.decision]
+  return (
+    <div onClick={() => onOpen?.(load.loadId || load.id)}
+      style={{
+        background:`linear-gradient(135deg, ${dc.bg}, rgba(240,165,0,0.03))`,
+        border:`1px solid ${dc.border}`, borderRadius:12, padding:'14px 18px', cursor:'pointer',
+        position:'relative', overflow:'hidden', transition:'all 0.2s'
+      }}
+      onMouseOver={e => { e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow=`0 4px 20px ${dc.color}15` }}
+      onMouseOut={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='none' }}>
+      {/* Top glow */}
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:`linear-gradient(90deg, transparent, ${dc.color}60, transparent)` }} />
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+        <div>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', animation:'q-scan-pulse 1.5s ease-in-out infinite' }} />
+            <span style={{ fontSize:9, fontWeight:800, color:'var(--accent)', letterSpacing:1.5 }}>Q RECOMMENDATION</span>
+            <span style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>Top load detected</span>
+          </div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:4, color:'var(--text)' }}>
+            {origin} → {dest}
+          </div>
+          <div style={{ display:'flex', gap:12, fontSize:11, color:'var(--muted)', flexWrap:'wrap' }}>
+            <span>Rate: <b style={{ color:'var(--accent)' }}>${gross.toLocaleString()}</b></span>
+            <span>{(load.miles || 0).toLocaleString()} mi</span>
+            {load.weight > 0 && <span>{Number(load.weight).toLocaleString()} lbs</span>}
+          </div>
+        </div>
+        <div style={{ textAlign:'right', flexShrink:0 }}>
+          <QDecisionBadge decision={qResult.decision} />
+          <div style={{ marginTop:6, fontFamily:"'JetBrains Mono',monospace", fontSize:9, color:'var(--muted)' }}>
+            {qResult.confidence}% confidence
+          </div>
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:10 }}>
+        {[
+          { label:'EST. PROFIT', value:`$${qResult.estProfit.toLocaleString()}`, color: qResult.estProfit > 0 ? 'var(--success)' : 'var(--danger)' },
+          { label:'PROFIT/MI', value:`$${qResult.profitPerMile}`, color: parseFloat(qResult.profitPerMile) >= 1.00 ? 'var(--success)' : 'var(--accent)' },
+          { label:'BROKER', value: qResult.brokerScore, color: qResult.brokerScore === 'A' ? 'var(--success)' : qResult.brokerScore === 'C' ? 'var(--danger)' : 'var(--accent)' },
+          { label:'PROFIT/DAY', value:`$${qResult.profitPerDay.toLocaleString()}`, color: qResult.profitPerDay >= 500 ? 'var(--success)' : 'var(--accent)' },
+        ].map(m => (
+          <div key={m.label} style={{ background:'rgba(0,0,0,0.15)', borderRadius:6, padding:'6px 8px', textAlign:'center' }}>
+            <div style={{ fontSize:7, fontWeight:800, color:'var(--muted)', letterSpacing:1, marginBottom:2 }}>{m.label}</div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:14, fontWeight:700, color:m.color }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+      {qResult.targetRate && (
+        <div style={{ fontSize:10, fontWeight:700, color:'var(--accent)', marginBottom:6, fontFamily:"'JetBrains Mono',monospace" }}>
+          Target Counter: ${qResult.targetRate.toLocaleString()}
+        </div>
+      )}
+      <div style={{ fontSize:10, color:'var(--muted)', lineHeight:1.4, fontStyle:'italic' }}>
+        {qResult.summaryReason}
+      </div>
     </div>
   )
 }
 
 export function LoadsPipeline({ onOpenDrawer }) {
-  const { loads, updateLoadStatus, showToast: _st } = { ...useCarrier(), ...useApp() }
+  const { loads, updateLoadStatus } = useCarrier()
+  const { showToast } = useApp()
+  const { drivers, fuelCostPerMile, brokerStats, allLoads } = useCarrier()
   const [pipeTab, setPipeTab] = useState('pipeline')
   const [dragOver, setDragOver] = useState(null)
+  const [qFilter, setQFilter] = useState('all') // all | approved | rejected | negotiate
+  const [isScanning, setIsScanning] = useState(true)
+  const [dismissedAlerts, setDismissedAlerts] = useState([])
 
-  // Listen for custom event to switch to dispatch tab (from CommandCenter/LaneIntel "Find Load" buttons)
+  // Listen for custom event to switch to dispatch tab
   useEffect(() => {
-    const handler = (e) => {
-      setPipeTab('dispatch')
-    }
+    const handler = () => setPipeTab('dispatch')
     window.addEventListener('switchToDispatch', handler)
     return () => window.removeEventListener('switchToDispatch', handler)
   }, [])
+
+  // Simulate Q scanning state on mount and when loads change
+  useEffect(() => {
+    setIsScanning(true)
+    const t = setTimeout(() => setIsScanning(false), 3200)
+    return () => clearTimeout(t)
+  }, [loads.length])
+
+  // Run Q evaluation on all loads
+  const qContext = useMemo(() => ({ fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads }), [fuelCostPerMile, drivers, brokerStats, allLoads, loads])
+  const qResults = useMemo(() => {
+    const map = {}
+    loads.forEach(l => {
+      map[l.loadId || l.id] = qEvaluateLoad(l, qContext)
+    })
+    return map
+  }, [loads, qContext])
+
+  // Q-filtered loads
+  const filteredLoads = useMemo(() => {
+    if (qFilter === 'all') return loads
+    const decisionMap = { approved: 'ACCEPT', rejected: 'REJECT', negotiate: 'NEGOTIATE' }
+    const target = decisionMap[qFilter]
+    return loads.filter(l => qResults[l.loadId || l.id]?.decision === target)
+  }, [loads, qFilter, qResults])
+
+  // Top recommendation: best ACCEPT load by profit/mile
+  const topRec = useMemo(() => {
+    const accepts = loads
+      .map(l => ({ load: l, q: qResults[l.loadId || l.id] }))
+      .filter(x => x.q && x.q.decision === 'ACCEPT' && x.q.estProfit > 0)
+      .sort((a, b) => parseFloat(b.q.profitPerMile) - parseFloat(a.q.profitPerMile))
+    return accepts[0] || null
+  }, [loads, qResults])
+
+  // Q Alerts — dynamic real-time alerts
+  const qAlerts = useMemo(() => {
+    const alerts = []
+    // High-profit load detected
+    const highProfit = loads.find(l => {
+      const q = qResults[l.loadId || l.id]
+      return q && q.estProfit > 1500 && q.decision === 'ACCEPT' && ['Rate Con Received','Booked'].includes(l.status)
+    })
+    if (highProfit) {
+      const q = qResults[highProfit.loadId || highProfit.id]
+      alerts.push({ icon: TrendingUp, text: `High-profit load detected: ${highProfit.loadId} — $${q.estProfit.toLocaleString()} est. profit`, color: 'var(--success)', bg: 'rgba(52,176,104,0.04)', borderColor: 'rgba(52,176,104,0.15)' })
+    }
+    // Heavy loads
+    const heavy = loads.filter(l => parseFloat(l.weight) > 40000 && ['Rate Con Received','Booked','Assigned to Driver'].includes(l.status))
+    if (heavy.length > 0) {
+      alerts.push({ icon: AlertTriangle, text: `Heavy load detected: ${heavy[0].loadId} — ${Number(heavy[0].weight).toLocaleString()} lbs. Increased fuel cost.`, color: 'var(--warning)', bg: 'rgba(240,165,0,0.04)', borderColor: 'rgba(240,165,0,0.15)' })
+    }
+    // Loads with low profit that should be negotiated
+    const negotiate = loads.filter(l => qResults[l.loadId || l.id]?.decision === 'NEGOTIATE' && ['Rate Con Received','Booked'].includes(l.status))
+    if (negotiate.length > 0) {
+      alerts.push({ icon: MessageSquare, text: `${negotiate.length} load${negotiate.length > 1 ? 's' : ''} below target rate — counteroffer recommended`, color: 'var(--accent)', bg: 'rgba(240,165,0,0.04)', borderColor: 'rgba(240,165,0,0.15)' })
+    }
+    // Rejected loads still active
+    const rejected = loads.filter(l => qResults[l.loadId || l.id]?.decision === 'REJECT' && ['Rate Con Received','Booked','Assigned to Driver'].includes(l.status))
+    if (rejected.length > 0) {
+      alerts.push({ icon: XCircle, text: `${rejected.length} active load${rejected.length > 1 ? 's' : ''} below profit threshold — review recommended`, color: 'var(--danger)', bg: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.15)' })
+    }
+    return alerts.filter((_, i) => !dismissedAlerts.includes(i))
+  }, [loads, qResults, dismissedAlerts])
+
+  // Q stats
+  const qStats = useMemo(() => {
+    const vals = Object.values(qResults)
+    return {
+      total: vals.length,
+      accepted: vals.filter(q => q.decision === 'ACCEPT').length,
+      rejected: vals.filter(q => q.decision === 'REJECT').length,
+      negotiate: vals.filter(q => q.decision === 'NEGOTIATE').length,
+      avgProfit: vals.length > 0 ? Math.round(vals.reduce((s,q) => s + q.estProfit, 0) / vals.length) : 0,
+      totalProfit: vals.reduce((s,q) => s + Math.max(q.estProfit, 0), 0),
+    }
+  }, [qResults])
 
   const handleDrop = (e, col) => {
     e.preventDefault()
@@ -270,52 +660,143 @@ export function LoadsPipeline({ onOpenDrawer }) {
     updateLoadStatus(loadId, col.statuses[0])
   }
 
-  const PIPE_TABS = [{ id:'pipeline', label:'Pipeline' },{ id:'list', label:'List View' },{ id:'dispatch', label:'Dispatch Board' },{ id:'check-calls', label:'Check Calls' },{ id:'command', label:'Command Center' },{ id:'lane-intel', label:'Lane Intel' },{ id:'rate-check', label:'Rate Check' }]
+  const PIPE_TABS = [{ id:'pipeline', label:'Pipeline' },{ id:'q-dispatch', label:'Q Dispatch' },{ id:'list', label:'List View' },{ id:'dispatch', label:'Dispatch Board' },{ id:'check-calls', label:'Check Calls' },{ id:'command', label:'Command Center' },{ id:'lane-intel', label:'Lane Intel' },{ id:'rate-check', label:'Rate Check' }]
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, overflow:'hidden' }}>
-      <HubTabBar tabs={PIPE_TABS} active={pipeTab} onChange={setPipeTab} />
-      <div style={{ flex:1, minHeight:0, overflow:'auto', display:'flex', flexDirection:'column' }}>
-        {pipeTab === 'pipeline' && (
-          <div style={{ display:'flex', gap:6, padding:'10px 10px', flex:1, minHeight:0, overflow:'auto' }}>
-            {KANBAN_COLUMNS.map(col => {
-              const colLoads = loads.filter(l => col.statuses.includes(l.status))
-              const colTotal = colLoads.reduce((s,l) => s + (l.gross || l.gross_pay || 0), 0)
-              return (
-                <div key={col.id}
-                  onDragOver={e => { e.preventDefault(); setDragOver(col.id) }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={e => handleDrop(e, col)}
-                  style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', minHeight:0,
-                    background: dragOver === col.id ? 'rgba(240,165,0,0.04)' : 'transparent',
-                    border: `1px solid ${dragOver === col.id ? 'var(--accent)' : 'var(--border)'}`, borderRadius:12, transition:'all 0.15s' }}>
-                  {/* Column header */}
-                  <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <div style={{ width:8, height:8, borderRadius:'50%', background:col.color }} />
-                        <span style={{ fontSize:12, fontWeight:700 }}>{col.label}</span>
-                      </div>
-                      <span style={{ fontSize:11, fontWeight:700, color:col.color, background:col.color+'15', padding:'2px 8px', borderRadius:8 }}>{colLoads.length}</span>
-                    </div>
-                    {colTotal > 0 && <div style={{ fontSize:10, color:'var(--muted)' }}>${colTotal.toLocaleString()} total</div>}
-                  </div>
-                  {/* Cards */}
-                  <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:8 }}>
-                    {colLoads.length === 0 && (
-                      <div style={{ padding:20, textAlign:'center', fontSize:11, color:'var(--muted)', border:'1px dashed var(--border)', borderRadius:8 }}>
-                        Drop loads here
-                      </div>
-                    )}
-                    {colLoads.map(load => (
-                      <KanbanCard key={load.loadId || load.id} load={load} onClick={() => onOpenDrawer?.(load.loadId || load.id)} />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
+
+      {/* ═══ Q HEADER ═══════════════════════════════════════════════ */}
+      <div style={{ flexShrink:0, padding:'12px 20px 0', background:'var(--surface)', borderBottom:'none' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)', boxShadow:'0 0 8px var(--success)', animation:'q-scan-pulse 2s ease-in-out infinite' }} />
+            <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--text)' }}>
+              Q <span style={{ color:'var(--accent)' }}>LOAD INTELLIGENCE</span>
+            </span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {isScanning ? <QScanningState /> : (
+              <span style={{ fontSize:9, fontWeight:600, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace" }}>
+                Evaluating {loads.length} load{loads.length !== 1 ? 's' : ''} in real time
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Q Stats Bar */}
+        {loads.length > 0 && (
+          <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap' }}>
+            {[
+              { label:'ALL', value:qStats.total, filter:'all', color:'var(--text)' },
+              { label:'APPROVED', value:qStats.accepted, filter:'approved', color:'var(--success)' },
+              { label:'NEGOTIATE', value:qStats.negotiate, filter:'negotiate', color:'var(--accent)' },
+              { label:'REJECTED', value:qStats.rejected, filter:'rejected', color:'var(--danger)' },
+            ].map(f => (
+              <button key={f.filter} onClick={() => setQFilter(f.filter)}
+                style={{
+                  padding:'4px 12px', borderRadius:6, border:`1px solid ${qFilter === f.filter ? f.color : 'var(--border)'}`,
+                  background: qFilter === f.filter ? f.color + '12' : 'transparent',
+                  color: qFilter === f.filter ? f.color : 'var(--muted)',
+                  fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                  display:'flex', alignItems:'center', gap:4, transition:'all 0.15s'
+                }}>
+                <span>{f.label}</span>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, fontWeight:800 }}>{f.value}</span>
+              </button>
+            ))}
+            <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>Est. Portfolio Profit:</span>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:700, color: qStats.totalProfit > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                ${qStats.totalProfit.toLocaleString()}
+              </span>
+            </div>
           </div>
         )}
+      </div>
+
+      {/* Sub-tabs */}
+      <HubTabBar tabs={PIPE_TABS} active={pipeTab} onChange={setPipeTab} />
+
+      <div style={{ flex:1, minHeight:0, overflow:'auto', display:'flex', flexDirection:'column' }}>
+        {pipeTab === 'pipeline' && (
+          <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
+
+            {/* Q Alerts */}
+            {qAlerts.length > 0 && (
+              <div style={{ padding:'8px 10px 0' }}>
+                <QAlertBanner alerts={qAlerts} onDismiss={i => setDismissedAlerts(d => [...d, i])} />
+              </div>
+            )}
+
+            {/* Q Top Recommendation */}
+            {topRec && !isScanning && (
+              <div style={{ padding:'8px 10px' }}>
+                <QRecommendationCard load={topRec.load} qResult={topRec.q} onOpen={onOpenDrawer} />
+              </div>
+            )}
+
+            {/* Empty State */}
+            {loads.length === 0 && !isScanning && (
+              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:40 }}>
+                <div style={{ textAlign:'center', maxWidth:360 }}>
+                  <div style={{ width:48, height:48, borderRadius:12, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+                    <Ic icon={Bot} size={22} color="var(--accent)" />
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:700, marginBottom:6, color:'var(--text)' }}>Q has not evaluated any loads yet</div>
+                  <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5, marginBottom:14 }}>
+                    Activate Q by uploading a rate confirmation or adding loads from the dispatch board. Q will analyze each load and provide profit-based recommendations.
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => setPipeTab('list')}>Add Load</button>
+                </div>
+              </div>
+            )}
+
+            {/* Kanban Board */}
+            {(loads.length > 0 || isScanning) && (
+              <div style={{ display:'flex', gap:6, padding:'8px 10px', flex:1, minHeight:0, overflow:'auto' }}>
+                {KANBAN_COLUMNS.map(col => {
+                  const colLoads = filteredLoads.filter(l => col.statuses.includes(l.status))
+                  const colTotal = colLoads.reduce((s,l) => s + (l.gross || l.gross_pay || 0), 0)
+                  const colProfit = colLoads.reduce((s,l) => s + Math.max(qResults[l.loadId || l.id]?.estProfit || 0, 0), 0)
+                  return (
+                    <div key={col.id}
+                      onDragOver={e => { e.preventDefault(); setDragOver(col.id) }}
+                      onDragLeave={() => setDragOver(null)}
+                      onDrop={e => handleDrop(e, col)}
+                      style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', minHeight:0,
+                        background: dragOver === col.id ? 'rgba(240,165,0,0.04)' : 'transparent',
+                        border: `1px solid ${dragOver === col.id ? 'var(--accent)' : 'var(--border)'}`, borderRadius:12, transition:'all 0.15s' }}>
+                      <div style={{ padding:'10px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <div style={{ width:8, height:8, borderRadius:'50%', background:col.color }} />
+                            <span style={{ fontSize:12, fontWeight:700 }}>{col.label}</span>
+                          </div>
+                          <span style={{ fontSize:11, fontWeight:700, color:col.color, background:col.color+'15', padding:'2px 8px', borderRadius:8 }}>{colLoads.length}</span>
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'var(--muted)' }}>
+                          {colTotal > 0 && <span>${colTotal.toLocaleString()}</span>}
+                          {colProfit > 0 && <span style={{ color:'var(--success)' }}>P: ${colProfit.toLocaleString()}</span>}
+                        </div>
+                      </div>
+                      <div style={{ flex:1, minHeight:0, overflowY:'auto', padding:8 }}>
+                        {colLoads.length === 0 && (
+                          <div style={{ padding:20, textAlign:'center', fontSize:10, color:'var(--muted)', border:'1px dashed var(--border)', borderRadius:8 }}>
+                            {qFilter !== 'all' ? 'No loads match Q filter' : 'Drop loads here'}
+                          </div>
+                        )}
+                        {colLoads.map(load => (
+                          <KanbanCard key={load.loadId || load.id} load={load} qResult={qResults[load.loadId || load.id]} onClick={() => onOpenDrawer?.(load.loadId || load.id)} />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        {pipeTab === 'q-dispatch' && <QDispatchAI />}
         {pipeTab === 'list' && <DispatchTab />}
         {pipeTab === 'dispatch' && <SmartDispatch />}
         {pipeTab === 'check-calls' && <CheckCallCenter />}
@@ -323,6 +804,18 @@ export function LoadsPipeline({ onOpenDrawer }) {
         {pipeTab === 'lane-intel' && <LaneIntel />}
         {pipeTab === 'rate-check' && <RateNegotiation />}
       </div>
+
+      {/* Q Animations */}
+      <style>{`
+        @keyframes q-scan-pulse {
+          0%, 100% { opacity:1; box-shadow: 0 0 4px var(--success); }
+          50% { opacity:0.4; box-shadow: 0 0 12px var(--success); }
+        }
+        @keyframes q-alert-slide {
+          from { opacity:0; transform:translateY(-8px); }
+          to { opacity:1; transform:translateY(0); }
+        }
+      `}</style>
     </div>
   )
 }
@@ -348,7 +841,7 @@ export function InvoiceStatusBadge({ status }) {
 
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 export function LoadDetailDrawer({ loadId, onClose }) {
-  const { loads, invoices, checkCalls, updateLoadStatus, updateInvoiceStatus, removeLoad, drivers, fuelCostPerMile, company: carrierCompany } = useCarrier()
+  const { loads, invoices, checkCalls, updateLoadStatus, updateInvoiceStatus, removeLoad, drivers, fuelCostPerMile, company: carrierCompany, brokerStats, allLoads } = useCarrier()
   const { showToast } = useApp()
   const [invoiceSending, setInvoiceSending] = useState(false)
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
@@ -556,6 +1049,90 @@ export function LoadDetailDrawer({ loadId, onClose }) {
               <Ic icon={Target} size={12} /> Analyze Rate
             </button>
           </div>
+
+          {/* ═══ Q DECISION PANEL ═══════════════════════════════════ */}
+          {(() => {
+            const qr = qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads })
+            const dc = Q_DECISION_COLORS[qr.decision]
+            return (
+              <div style={{ background:`linear-gradient(135deg, ${dc.bg}, rgba(0,0,0,0.02))`, border:`1px solid ${dc.border}`, borderRadius:12, padding:16, position:'relative', overflow:'hidden' }}>
+                <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:`linear-gradient(90deg, transparent, ${dc.color}50, transparent)` }} />
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <div style={{ width:5, height:5, borderRadius:'50%', background:dc.color, animation:'q-scan-pulse 2s ease-in-out infinite' }} />
+                    <span style={{ fontSize:10, fontWeight:800, color:dc.color, letterSpacing:1.5 }}>Q DECISION</span>
+                  </div>
+                  <QDecisionBadge decision={qr.decision} />
+                </div>
+                {/* Metrics grid */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:10 }}>
+                  {[
+                    { label:'EST. PROFIT', value:`$${qr.estProfit.toLocaleString()}`, color: qr.estProfit > 0 ? 'var(--success)' : 'var(--danger)' },
+                    { label:'PROFIT/MI', value:`$${qr.profitPerMile}`, color: parseFloat(qr.profitPerMile) >= 1.00 ? 'var(--success)' : 'var(--accent)' },
+                    { label:'PROFIT/DAY', value:`$${qr.profitPerDay.toLocaleString()}`, color: qr.profitPerDay >= 500 ? 'var(--success)' : 'var(--accent)' },
+                    { label:'FUEL COST', value:`$${qr.fuelCost.toLocaleString()}`, color:'var(--warning)' },
+                    { label:'DRIVER PAY', value:`$${qr.driverPay.toLocaleString()}`, color:'var(--muted)' },
+                    { label:'BROKER', value:`${qr.brokerScore} — ${qr.brokerReliability}`, color: qr.brokerScore === 'A' ? 'var(--success)' : qr.brokerScore === 'C' ? 'var(--danger)' : 'var(--accent)' },
+                  ].map(m => (
+                    <div key={m.label} style={{ background:'rgba(0,0,0,0.12)', borderRadius:6, padding:'6px 8px' }}>
+                      <div style={{ fontSize:7, fontWeight:800, color:'var(--muted)', letterSpacing:1, marginBottom:2 }}>{m.label}</div>
+                      <div style={{ fontSize:11, fontWeight:700, color:m.color, fontFamily:"'JetBrains Mono',monospace" }}>{m.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Target counter rate */}
+                {qr.targetRate && (
+                  <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', background:'rgba(240,165,0,0.08)', borderRadius:6, marginBottom:8, border:'1px solid rgba(240,165,0,0.15)' }}>
+                    <Ic icon={Target} size={12} color="var(--accent)" />
+                    <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>Target Counter:</span>
+                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:13, fontWeight:800, color:'var(--accent)' }}>${qr.targetRate.toLocaleString()}</span>
+                  </div>
+                )}
+                {/* Weight */}
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
+                  <span style={{ fontSize:9, fontWeight:600, color: qr.isHeavy ? 'var(--warning)' : 'var(--muted)', background: qr.isHeavy ? 'rgba(240,165,0,0.08)' : 'var(--surface2)', padding:'2px 8px', borderRadius:4, border: qr.isHeavy ? '1px solid rgba(240,165,0,0.2)' : '1px solid var(--border)' }}>
+                    {qr.weightNote}
+                  </span>
+                  {qr.laneHistory > 0 && (
+                    <span style={{ fontSize:9, fontWeight:600, color:'var(--accent3)', background:'rgba(77,142,240,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(77,142,240,0.2)' }}>
+                      Lane: {qr.laneHistory} prior load{qr.laneHistory > 1 ? 's' : ''} · Avg ${qr.laneAvgRPM}/mi
+                    </span>
+                  )}
+                  {qr.isPowerOnly && <span style={{ fontSize:9, fontWeight:600, color:'var(--accent2)', background:'rgba(139,92,246,0.08)', padding:'2px 8px', borderRadius:4 }}>Power Only</span>}
+                  {qr.isDropHook && <span style={{ fontSize:9, fontWeight:600, color:'var(--success)', background:'rgba(52,176,104,0.08)', padding:'2px 8px', borderRadius:4 }}>Drop & Hook</span>}
+                </div>
+                {/* Risks & Advantages */}
+                {(qr.risks.length > 0 || qr.advantages.length > 0) && (
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                    {qr.risks.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:8, fontWeight:800, color:'var(--danger)', letterSpacing:1, marginBottom:4 }}>RISKS</div>
+                        {qr.risks.map((r,i) => (
+                          <div key={i} style={{ fontSize:9, color:'var(--muted)', lineHeight:1.4, display:'flex', gap:4, marginBottom:2 }}>
+                            <span style={{ color:'var(--danger)', flexShrink:0 }}>•</span> {r}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {qr.advantages.length > 0 && (
+                      <div>
+                        <div style={{ fontSize:8, fontWeight:800, color:'var(--success)', letterSpacing:1, marginBottom:4 }}>ADVANTAGES</div>
+                        {qr.advantages.map((a,i) => (
+                          <div key={i} style={{ fontSize:9, color:'var(--muted)', lineHeight:1.4, display:'flex', gap:4, marginBottom:2 }}>
+                            <span style={{ color:'var(--success)', flexShrink:0 }}>•</span> {a}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Summary */}
+                <div style={{ fontSize:10, color:'var(--muted)', lineHeight:1.4, fontStyle:'italic', borderTop:'1px solid var(--border)', paddingTop:8 }}>
+                  {qr.summaryReason}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Details grid */}
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>

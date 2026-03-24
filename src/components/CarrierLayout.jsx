@@ -89,12 +89,36 @@ const DRIVER_NAV = [
 // ── Drivers Hub ──
 function DriversHub() {
   const [tab, setTab] = useState('profiles')
+  const { drivers, loads, activeLoads, fuelCostPerMile } = useCarrier()
   const TABS = [
     { id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' },
     { id:'dq-files', label:'DQ Files' },{ id:'expiry-alerts', label:'Expiry Alerts' },{ id:'drug-alcohol', label:'Drug & Alcohol' },{ id:'incidents', label:'Incidents' },{ id:'payroll', label:'1099 / Payroll' },{ id:'driver-portal', label:'Driver Portal' },
   ]
+  // Q driver stats
+  const idleCount = drivers.filter(d => {
+    const name = d.full_name || d.name
+    return !activeLoads.some(l => l.driver === name)
+  }).length
+  const unassignedLoads = loads.filter(l => !l.driver && ['Rate Con Received','Booked'].includes(l.status)).length
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+      {/* Q Driver Intelligence Header */}
+      <div style={{ flexShrink:0, padding:'10px 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ width:7, height:7, borderRadius:'50%', background:'var(--success)', boxShadow:'0 0 6px var(--success)', animation:'q-driver-pulse 2s ease-in-out infinite' }} />
+          <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:2, color:'var(--text)' }}>Q <span style={{ color:'var(--accent)' }}>DRIVER INTELLIGENCE</span></span>
+          <span style={{ fontSize:9, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace", marginLeft:4 }}>{drivers.length} driver{drivers.length!==1?'s':''} tracked</span>
+        </div>
+        {(idleCount > 0 || unassignedLoads > 0) && (
+          <div style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 12px', background:'rgba(240,165,0,0.06)', borderRadius:8, border:'1px solid rgba(240,165,0,0.15)' }}>
+            <div style={{ width:4, height:4, borderRadius:'50%', background:'var(--accent)' }} />
+            <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>
+              {idleCount > 0 && `${idleCount} idle`}{idleCount > 0 && unassignedLoads > 0 && ' · '}{unassignedLoads > 0 && `${unassignedLoads} unassigned load${unassignedLoads!==1?'s':''}`}
+              {idleCount > 0 && unassignedLoads > 0 ? ' — assign now' : ''}
+            </span>
+          </div>
+        )}
+      </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'profiles' && <DriverProfiles />}
@@ -109,6 +133,7 @@ function DriversHub() {
         {tab === 'payroll' && <PayrollTracker />}
         {tab === 'driver-portal' && <DriverPortal />}
       </div>
+      <style>{`@keyframes q-driver-pulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--success)} 50%{opacity:0.4;box-shadow:0 0 10px var(--success)} }`}</style>
     </div>
   )
 }
@@ -133,9 +158,47 @@ function FleetHub() {
 // ── Financials Hub ──
 function FinancialsHub() {
   const [tab, setTab] = useState('invoices')
+  const { loads, invoices, expenses, totalRevenue, totalExpenses, drivers: ctxDrivers, fuelCostPerMile } = useCarrier()
   const TABS = [{ id:'invoices', label:'Invoices' },{ id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables' },{ id:'cash-flow', label:'Cash Flow' },{ id:'expenses', label:'Expenses' },{ id:'factoring', label:'Factoring' },{ id:'quickbooks', label:'QuickBooks' }]
+
+  // Q Profit Engine stats
+  const netProfit = totalRevenue - totalExpenses
+  const margin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0
+  const unpaidInvoices = invoices.filter(i => i.status === 'Unpaid')
+  const unpaidTotal = unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)
+  const truckCount = Math.max((ctxDrivers || []).length, 1)
+  const profitPerTruck = Math.round(netProfit / truckCount)
+  const marginColor = margin >= 30 ? 'var(--success)' : margin >= 20 ? 'var(--warning)' : 'var(--danger)'
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+      {/* Q Profit Engine Header */}
+      <div style={{ flexShrink:0, padding:'10px 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ width:7, height:7, borderRadius:'50%', background:'var(--success)', boxShadow:'0 0 6px var(--success)', animation:'q-profit-pulse 2s ease-in-out infinite' }} />
+          <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:2, color:'var(--text)' }}>Q <span style={{ color:'var(--accent)' }}>PROFIT ENGINE</span></span>
+          <span style={{ fontSize:9, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace", marginLeft:4 }}>
+            ${totalRevenue.toLocaleString()} rev · {margin.toFixed(1)}% margin · ${profitPerTruck.toLocaleString()}/truck
+          </span>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {/* Live margin indicator */}
+          <div style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', background: marginColor + '12', borderRadius:8, border:`1px solid ${marginColor}30` }}>
+            <div style={{ width:4, height:4, borderRadius:'50%', background: marginColor }} />
+            <span style={{ fontSize:10, fontWeight:700, color: marginColor }}>
+              {margin >= 30 ? 'HEALTHY' : margin >= 20 ? 'WATCH' : 'BELOW TARGET'} · {margin.toFixed(1)}%
+            </span>
+          </div>
+          {unpaidTotal > 0 && (
+            <div style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', background:'rgba(240,165,0,0.06)', borderRadius:8, border:'1px solid rgba(240,165,0,0.15)' }}>
+              <div style={{ width:4, height:4, borderRadius:'50%', background:'var(--accent)' }} />
+              <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>
+                ${unpaidTotal.toLocaleString()} unpaid · {unpaidInvoices.length} invoice{unpaidInvoices.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {tab === 'invoices' && <InvoicesHub />}
@@ -147,6 +210,7 @@ function FinancialsHub() {
         {tab === 'factoring' && <FactoringCashflow />}
         {tab === 'quickbooks' && <QuickBooksExport />}
       </div>
+      <style>{`@keyframes q-profit-pulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--success)} 50%{opacity:0.4;box-shadow:0 0 10px var(--success)} }`}</style>
     </div>
   )
 }
@@ -434,7 +498,7 @@ function CarrierLayoutInner() {
                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo first truck</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
-                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$99</span>/mo each additional truck
+                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$75</span>/mo each additional truck
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
                   Everything included. AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks.

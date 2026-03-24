@@ -1,3 +1,4 @@
+import React from 'react'
 import {
   Receipt, MapPin, Navigation, Phone, ArrowLeft, ScanLine,
   Camera, Truck, Package, Mail, CheckCircle
@@ -88,6 +89,91 @@ export function statusColor(status) {
 // Format currency
 export const fmt$ = (n) => '$' + Number(n || 0).toLocaleString()
 
+// Q System State — derives system state from carrier context data
+export function getQSystemState(ctx) {
+  const activeLoads = ctx?.activeLoads || []
+  const unpaidInvoices = ctx?.unpaidInvoices || []
+  const loads = ctx?.loads || []
+  const inTransit = activeLoads.filter(l => {
+    const s = (l.status || '').toLowerCase()
+    return s.includes('transit') || s.includes('loaded') || s.includes('en route')
+  })
+
+  if (inTransit.length > 0) return { label: 'Active load in progress', color: 'var(--accent)', state: 'tracking' }
+  if (unpaidInvoices.length > 3) return { label: 'Action required', color: 'var(--danger)', state: 'alert' }
+  if (activeLoads.length > 0) return { label: 'Monitoring dispatch', color: 'var(--success)', state: 'monitoring' }
+  if (loads.length === 0) return { label: 'Ready to deploy', color: 'var(--accent)', state: 'ready' }
+  return { label: 'Monitoring market', color: 'var(--success)', state: 'online' }
+}
+
+// Q Thinking Indicator — shows cycling thinking states
+export function QThinkingIndicator({ context }) {
+  const states = context === 'financial'
+    ? ['Analyzing profit data', 'Checking margins', 'Calculating projections', 'Preparing insight']
+    : context === 'dispatch'
+    ? ['Scanning the market', 'Analyzing lanes', 'Checking broker data', 'Preparing decision']
+    : context === 'negotiation'
+    ? ['Evaluating rate', 'Checking market data', 'Calculating profit', 'Preparing strategy']
+    : ['Processing request', 'Analyzing data', 'Preparing response', 'Finalizing']
+  const [idx, setIdx] = React.useState(0)
+  React.useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % states.length), 2000)
+    return () => clearInterval(t)
+  }, [states.length])
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, animation: 'qInsightSlide 0.3s ease' }}>
+      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'qBreath 2s ease-in-out infinite' }}>
+        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: `qDotPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+          ))}
+        </div>
+        <div key={idx} style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, animation: 'fadeInUp 0.3s ease' }}>
+          {states[idx]}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Waveform component for voice states
+export function QWaveformBars({ color, barCount, speed }) {
+  return (
+    <div style={{ display: 'flex', gap: 3, alignItems: 'center', height: 28 }}>
+      {Array.from({ length: barCount || 5 }).map((_, i) => (
+        <div key={i} style={{
+          width: 3, borderRadius: 2,
+          background: color || 'var(--accent)',
+          animation: `voiceWave ${speed || 0.5}s ease-in-out ${i * 0.08}s infinite alternate`,
+        }} />
+      ))}
+    </div>
+  )
+}
+
+// Q Insight Card — reusable insight card component
+export function QInsightCard({ title, insight, subtext, accent, icon: Icon, style: customStyle }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', border: `1px solid ${accent || 'var(--accent)'}25`,
+      borderRadius: 14, padding: '14px 16px', animation: 'qInsightSlide 0.4s ease',
+      borderLeft: `3px solid ${accent || 'var(--accent)'}`, ...customStyle,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+        </div>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: accent || 'var(--accent)', textTransform: 'uppercase' }}>{title || 'Q INSIGHT'}</span>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5, fontWeight: 500 }}>{insight}</div>
+      {subtext && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 6 }}>{subtext}</div>}
+    </div>
+  )
+}
+
 // CSS animations used across mobile tabs
 export const mobileAnimations = `
   @keyframes aipulse {
@@ -159,7 +245,71 @@ export const mobileAnimations = `
     0%, 100% { box-shadow: 0 4px 20px rgba(240,165,0,0.3), 0 2px 8px rgba(0,0,0,0.3); }
     50% { box-shadow: 0 4px 30px rgba(240,165,0,0.5), 0 2px 12px rgba(0,0,0,0.3); }
   }
+  @keyframes qGlow {
+    0%, 100% { box-shadow: 0 0 12px rgba(240,165,0,0.3), 0 0 24px rgba(240,165,0,0.1); }
+    50% { box-shadow: 0 0 20px rgba(240,165,0,0.5), 0 0 40px rgba(240,165,0,0.2); }
+  }
+  @keyframes qBreath {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.06); opacity: 0.9; }
+  }
+  @keyframes qThinking {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
+  @keyframes qDotPulse {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes qInsightSlide {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes qStatusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes qRingPulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.8); opacity: 0; }
+  }
+  @keyframes qAlertGlow {
+    0%, 100% { border-color: rgba(239,68,68,0.2); }
+    50% { border-color: rgba(239,68,68,0.5); }
+  }
+  @keyframes qOverlayIn {
+    from { opacity: 0; transform: translateY(100%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes qOverlayDim {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes qListenGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(240,165,0,0.2), 0 0 40px rgba(240,165,0,0.05); }
+    50% { box-shadow: 0 0 30px rgba(240,165,0,0.4), 0 0 60px rgba(240,165,0,0.1); }
+  }
+  @keyframes qSpeakingWave {
+    0% { height: 6px; }
+    100% { height: 24px; }
+  }
+  @keyframes qNumberPop {
+    0% { transform: scale(0.9); opacity: 0.5; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes qSuccessFlash {
+    0% { background: var(--success); }
+    50% { background: rgba(0,212,170,0.2); }
+    100% { background: var(--success); }
+  }
+  @keyframes qTabFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   .press-scale:active { transform: scale(0.97); transition: transform 0.1s ease; }
   .momentum-scroll { -webkit-overflow-scrolling: touch; overflow-y: auto; }
   .smooth-transition { transition: all 0.2s ease; }
+  * { -webkit-tap-highlight-color: transparent; }
 `

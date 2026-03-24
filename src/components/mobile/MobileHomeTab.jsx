@@ -1,13 +1,22 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
-  Package, DollarSign, TrendingUp, Truck, ChevronRight, AlertCircle,
-  FileText, Clock, CheckCircle, ArrowUpRight, Mic, Send, MapPin,
-  Camera, ScanLine, Phone
+  Package, DollarSign, TrendingUp, Truck, ChevronRight,
+  FileText, CheckCircle, ArrowUpRight, Send, MapPin,
+  Camera, ScanLine, Zap, Activity
 } from 'lucide-react'
-import { Ic, haptic, fmt$, statusColor } from './shared'
+import { Ic, haptic, fmt$, statusColor, QInsightCard, getQSystemState } from './shared'
 import { apiFetch } from '../../lib/api'
+
+// Dynamic Q status messages that cycle
+const Q_STATUS_LINES = {
+  online: ['Monitoring market', 'Analyzing lane rates', 'Scanning load boards', 'Ready to deploy'],
+  tracking: ['Tracking active loads', 'Monitoring ETA', 'Route optimization running', 'Watching fuel prices'],
+  monitoring: ['Monitoring dispatch', 'Evaluating new opportunities', 'Ready to negotiate', 'Watching market conditions'],
+  ready: ['Ready to dispatch', 'Scanning available loads', 'Preparing recommendations', 'Market analysis active'],
+  alert: ['Action required', 'Revenue at risk', 'Unpaid invoices detected', 'Immediate attention needed'],
+}
 
 export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
@@ -19,21 +28,101 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const totalRevenue = ctx.totalRevenue || 0
   const totalExpenses = ctx.totalExpenses || 0
   const unpaidInvoices = ctx.unpaidInvoices || []
+  const fuelCostPerMile = ctx.fuelCostPerMile || 0
   const [expandedLoad, setExpandedLoad] = useState(null)
   const [qInput, setQInput] = useState('')
   const [qGreeting, setQGreeting] = useState('')
   const greetingSpokenRef = useRef(false)
   const pendingAudioRef = useRef(null)
+  const [statusIdx, setStatusIdx] = useState(0)
 
   const netProfit = totalRevenue - totalExpenses
-  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(0) : 0
+  const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
 
   // Recent activity — last 5 loads sorted by date
   const recentLoads = [...loads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5)
 
+  const qState = getQSystemState(ctx)
+
+  // Cycle through dynamic status messages
+  const statusLines = Q_STATUS_LINES[qState.state] || Q_STATUS_LINES.online
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStatusIdx(i => (i + 1) % statusLines.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [statusLines.length])
+
+  // Dynamic subtext based on load state
+  const qSubtext = useMemo(() => {
+    const inTransit = activeLoads.filter(l => {
+      const s = (l.status || '').toLowerCase()
+      return s.includes('transit') || s.includes('loaded')
+    })
+    if (inTransit.length > 0) return `${inTransit.length} load${inTransit.length > 1 ? 's' : ''} in transit`
+    if (activeLoads.length > 0) return `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} detected`
+    return 'No active load detected'
+  }, [activeLoads])
+
+  // Q proactive insight — intelligence-driven with estimated improvement
+  const qInsight = useMemo(() => {
+    const margin = profitMargin
+    const avgRPM = activeLoads.length > 0
+      ? activeLoads.reduce((s, l) => s + ((l.gross || l.rate || 0) / Math.max(l.miles || 1, 1)), 0) / activeLoads.length
+      : 0
+
+    if (unpaidInvoices.length >= 3) {
+      const total = unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)
+      return {
+        title: 'Q INSIGHT',
+        text: `${unpaidInvoices.length} invoices outstanding totaling ${fmt$(total)}. Factor oldest invoices for same-day cash to improve working capital.`,
+        sub: `Estimated cash acceleration: +${fmt$(Math.round(total * 0.97))} within 24hrs`,
+        accent: 'var(--danger)',
+      }
+    }
+    if (activeLoads.length === 0 && loads.length > 0) {
+      return {
+        title: 'Q INSIGHT',
+        text: 'No active loads on board. Market conditions are favorable for booking. Q is ready to find your next profitable lane.',
+        sub: 'Recommended action: Activate Q to begin',
+        accent: 'var(--accent)',
+      }
+    }
+    if (margin > 0 && margin < 18) {
+      const gap = 18 - margin
+      return {
+        title: 'Q INSIGHT',
+        text: `Operating margin at ${margin.toFixed(0)}% — below 18% target. ${fuelCostPerMile > 0 ? `Current fuel cost: $${fuelCostPerMile.toFixed(2)}/mi.` : ''} Negotiate higher rates or reduce deadhead miles.`,
+        sub: `Estimated profit increase if target reached: +${fmt$(Math.round(totalRevenue * gap / 100))}/mo`,
+        accent: '#f59e0b',
+      }
+    }
+    if (margin >= 30) {
+      return {
+        title: 'Q INSIGHT',
+        text: `Strong performance — ${margin.toFixed(0)}% margin with ${activeLoads.length} load${activeLoads.length !== 1 ? 's' : ''} active. ${avgRPM > 0 ? `Averaging $${avgRPM.toFixed(2)}/mi.` : ''} Q recommends maintaining current lane strategy.`,
+        sub: null,
+        accent: 'var(--success)',
+      }
+    }
+    if (activeLoads.length > 0) {
+      return {
+        title: 'Q INSIGHT',
+        text: `${activeLoads.length} load${activeLoads.length !== 1 ? 's' : ''} being tracked. Revenue MTD: ${fmt$(totalRevenue)}.${avgRPM > 0 ? ` Current avg: $${avgRPM.toFixed(2)}/mi.` : ''} Q is monitoring for optimization opportunities.`,
+        sub: margin > 0 ? `Current margin: ${margin.toFixed(0)}%` : null,
+        accent: 'var(--accent)',
+      }
+    }
+    return {
+      title: 'Q INSIGHT',
+      text: 'Q is monitoring the market and ready to find profitable loads. Activate Q to begin dispatch intelligence.',
+      sub: 'Recommended action: Activate Q',
+      accent: 'var(--accent)',
+    }
+  }, [activeLoads, loads, unpaidInvoices, profitMargin, totalRevenue, fuelCostPerMile])
+
   // ── Q speaks on app open ──────────────────────────
-  // Builds a short contextual greeting, calls AI to generate it, then speaks it out loud via TTS
   const buildGreetingContext = useCallback(() => {
     const active = loads.filter(l => !['Delivered', 'Invoiced', 'Paid'].includes(l.status))
     const unpaid = invoices.filter(i => i.status !== 'Paid')
@@ -49,7 +138,6 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     if (greetingSpokenRef.current) return
     if (ctx.dataReady === false) return
 
-    // Only greet once per session
     const sessionKey = 'qivori_q_spoken'
     if (sessionStorage.getItem(sessionKey)) return
 
@@ -61,14 +149,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
 
     const doGreeting = async () => {
       try {
-        // Ask AI to generate a short spoken greeting
         const res = await apiFetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [{
               role: 'user',
-              content: `[SYSTEM: Generate a brief spoken greeting for the driver opening their app. ${timeGreeting}. Look at their data and say something useful in 1-2 short sentences. Be warm but direct. Reference specific numbers or loads if relevant. End by asking what they're working on today. Keep it under 30 words — this will be spoken out loud.]`,
+              content: `[SYSTEM: You are Q, an intelligent dispatch system. Generate a brief operational status update for the driver opening their app. ${timeGreeting}. Reference their data — active loads, revenue, unpaid invoices. Use system language (not friendly assistant language). Example tone: "System online. 2 loads active, $12K MTD revenue. Unpaid invoice needs attention." Keep it under 25 words — this will be spoken out loud.]`,
             }],
             context: buildGreetingContext(),
           }),
@@ -81,7 +168,6 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
 
         setQGreeting(reply)
 
-        // Speak it via TTS
         const ttsRes = await apiFetch('/api/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -97,7 +183,6 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           try {
             await audio.play()
           } catch {
-            // Autoplay blocked (mobile Safari) — store blob, play on first tap
             pendingAudioRef.current = { url, audio }
             const playOnTap = () => {
               if (pendingAudioRef.current) {
@@ -119,7 +204,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     doGreeting()
   }, [ctx.dataReady, buildGreetingContext])
 
-  // Context-aware quick actions — show what matters right now
+  // Q-routed quick actions
   const getSmartActions = () => {
     const actions = []
     const hasActiveLoad = activeLoads.length > 0
@@ -134,18 +219,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     }
 
     if (!hasActiveLoad) {
-      actions.push({ icon: Package, label: 'Find a Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load', qGreeting, false) })
+      actions.push({ icon: Package, label: 'Ask Q for Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load', qGreeting, false) })
     }
 
-    actions.push({ icon: ScanLine, label: 'Snap Rate Con', color: 'var(--accent2)', action: () => onNavigate?.('loads') })
+    actions.push({ icon: ScanLine, label: 'Scan Rate Con', color: 'var(--accent2)', action: () => onNavigate?.('loads') })
+    actions.push({ icon: Camera, label: 'Upload Receipt', color: '#8b5cf6', action: () => onNavigate?.('money', 'expenses') })
 
-    if (unpaidInvoices.length > 0) {
-      actions.push({ icon: DollarSign, label: 'Send Invoice', color: 'var(--success)', action: () => onNavigate?.('money') })
-    }
-
-    actions.push({ icon: Camera, label: 'Scan Receipt', color: '#8b5cf6', action: () => onNavigate?.('money', 'expenses') })
-
-    return actions.slice(0, 3) // Show max 3
+    return actions.slice(0, 3)
   }
 
   const smartActions = getSmartActions()
@@ -157,52 +237,110 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     setQInput('')
   }
 
+  // Margin target
+  const marginTarget = 18
+  const marginReached = profitMargin >= marginTarget
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ── Q AI Hero — Talk to your dispatcher ── */}
-      <div style={{ animation: 'fadeInUp 0.3s ease' }}>
-        <div style={{ fontSize: 22, fontWeight: 700 }}>Hey, {firstName}</div>
-
-        {/* Q greeting bubble */}
-        {qGreeting ? (
-          <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 8, padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', lineHeight: 1.5, animation: 'fadeInUp 0.3s ease', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, animation: 'pulseGlowAmber 2s ease-in-out infinite' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+      {/* ── 1. HEADER / TOP STATE — Q Online ── */}
+      <div style={{ animation: 'fadeInUp 0.4s ease' }}>
+        {/* Q Online header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: '50%', background: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'qGlow 3s ease-in-out infinite', flexShrink: 0,
+          }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, color: 'var(--text)' }}>Q ONLINE</span>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite' }} />
             </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span key={statusIdx} style={{ animation: 'fadeInUp 0.4s ease', display: 'inline-block' }}>
+                {statusLines[statusIdx]}
+              </span>
+              <span style={{ color: 'var(--border)' }}>•</span>
+              <span>Ready to deploy</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic subtext */}
+        <div style={{
+          fontSize: 11, color: qState.state === 'alert' ? 'var(--danger)' : 'var(--muted)',
+          fontWeight: 600, marginLeft: 48, marginBottom: 4,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <div style={{ width: 4, height: 4, borderRadius: '50%', background: qState.color, flexShrink: 0 }} />
+          {qSubtext}
+        </div>
+
+        {/* Q system briefing — replaces old greeting bubble */}
+        {qGreeting && (
+          <div style={{
+            fontSize: 12, color: 'var(--text)', marginTop: 8, padding: '12px 14px',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: '4px 14px 14px 14px', borderLeft: '3px solid var(--accent)',
+            lineHeight: 1.5, animation: 'qInsightSlide 0.4s ease',
+          }}>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 6 }}>Q BRIEFING</div>
             <span style={{ opacity: 0.9 }}>{qGreeting}</span>
           </div>
-        ) : (
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-            {activeLoads.length > 0
-              ? `${activeLoads.length} active load${activeLoads.length > 1 ? 's' : ''} — what do you need?`
-              : "No active loads — let's find one"}
-          </div>
         )}
+      </div>
 
-        {/* Talk to Q — primary CTA */}
+      {/* ── 2. Q INSIGHT CARD ── */}
+      <QInsightCard
+        title={qInsight.title}
+        insight={qInsight.text}
+        subtext={qInsight.sub}
+        accent={qInsight.accent}
+      />
+
+      {/* ── 3. MAIN CTA — Activate Q ── */}
+      <div style={{ animation: 'fadeInUp 0.4s ease 0.05s both' }}>
         <button onClick={() => onOpenQ?.(null, qGreeting, true)}
           style={{
-            width: '100%', marginTop: 14, padding: '16px 20px',
+            width: '100%', padding: '18px 20px',
             background: 'linear-gradient(135deg, var(--accent) 0%, #e6960a 100%)',
             border: 'none', borderRadius: 16, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 14,
-            animation: 'fadeInUp 0.3s ease 0.05s both',
-            boxShadow: '0 4px 20px rgba(240,165,0,0.25)',
+            boxShadow: '0 4px 24px rgba(240,165,0,0.3)',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
           }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Ic icon={Phone} size={20} color="#000" />
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            animation: 'qBreath 3s ease-in-out infinite',
+          }}>
+            <Ic icon={Zap} size={22} color="#000" />
           </div>
           <div style={{ flex: 1, textAlign: 'left' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>Talk to Q</div>
-            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.6)', fontWeight: 500 }}>Your AI dispatcher — always on</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#000', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5 }}>ACTIVATE Q</div>
+            <div style={{ fontSize: 11, color: 'rgba(0,0,0,0.6)', fontWeight: 500 }}>Voice control • Live intelligence</div>
           </div>
           <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
             {[0, 1, 2, 3].map(i => (
-              <div key={i} style={{ width: 3, height: 8 + Math.random() * 12, borderRadius: 2, background: 'rgba(0,0,0,0.25)', animation: `voiceWave 0.6s ease-in-out ${i * 0.12}s infinite alternate` }} />
+              <div key={i} style={{ width: 3, borderRadius: 2, background: 'rgba(0,0,0,0.25)', animation: `voiceWave 0.6s ease-in-out ${i * 0.12}s infinite alternate` }} />
             ))}
           </div>
         </button>
+
+        {/* Dynamic system status below CTA */}
+        <div style={{
+          textAlign: 'center', marginTop: 8, fontSize: 10, color: 'var(--muted)',
+          fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite' }} />
+          <span key={statusIdx + 'cta'} style={{ animation: 'fadeInUp 0.3s ease' }}>
+            Q is {statusLines[statusIdx].toLowerCase()}
+          </span>
+        </div>
 
         {/* Text input — secondary */}
         <div style={{
@@ -214,7 +352,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
             value={qInput}
             onChange={e => setQInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleQSubmit()}
-            placeholder="Or type a message..."
+            placeholder="Command Q..."
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
               color: 'var(--text)', fontSize: 14, fontFamily: "'DM Sans',sans-serif",
@@ -229,8 +367,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         </div>
       </div>
 
-      {/* ── Smart Actions — context-aware ── */}
-      <div style={{ display: 'flex', gap: 8, animation: 'fadeInUp 0.3s ease 0.05s both' }}>
+      {/* ── 5. QUICK ACTIONS — Q-routed ── */}
+      <div style={{ display: 'flex', gap: 8, animation: 'fadeInUp 0.4s ease 0.1s both' }}>
         {smartActions.map((action, i) => (
           <button key={i} onClick={() => { haptic(); action.action() }}
             style={{
@@ -247,22 +385,38 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         ))}
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, animation: 'fadeInUp 0.3s ease 0.1s both' }}>
-        <KPICard icon={DollarSign} label="Revenue MTD" value={fmt$(totalRevenue)} color="var(--accent)" />
-        <KPICard icon={TrendingUp} label="Net Profit" value={fmt$(netProfit)} color={netProfit >= 0 ? 'var(--success)' : 'var(--danger)'} sub={`${profitMargin}% margin`} />
-        <KPICard icon={Package} label="Active Loads" value={activeLoads.length} color="var(--accent2)" onClick={() => onNavigate?.('loads')} />
-        <KPICard icon={FileText} label="Unpaid" value={unpaidInvoices.length} color={unpaidInvoices.length > 0 ? 'var(--danger)' : 'var(--success)'} sub={unpaidInvoices.length > 0 ? fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)) : 'All clear'} onClick={() => onNavigate?.('money')} />
+      {/* ── 4. METRICS — Q-driven ── */}
+      <div style={{ animation: 'fadeInUp 0.4s ease 0.15s both' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <QMetricCard icon={DollarSign} label="Q Revenue" value={fmt$(totalRevenue)} color="var(--accent)" />
+          <QMetricCard
+            icon={TrendingUp} label="Q Profit" value={fmt$(netProfit)}
+            color={netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}
+            sub={`${profitMargin.toFixed(0)}% margin`}
+            target={`Target: ${marginTarget}%`}
+            targetReached={marginReached}
+          />
+          <QMetricCard icon={Package} label="Active Loads" value={activeLoads.length} color="var(--accent2)" onClick={() => onNavigate?.('loads')} />
+          <QMetricCard
+            icon={FileText} label="Unpaid" value={unpaidInvoices.length}
+            color={unpaidInvoices.length > 0 ? 'var(--danger)' : 'var(--success)'}
+            sub={unpaidInvoices.length > 0 ? fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)) : 'All clear'}
+            onClick={() => onNavigate?.('money')}
+          />
+        </div>
       </div>
 
-      {/* ── Active Load Card ── */}
+      {/* ── Active Loads — Q Tracked ── */}
       {activeLoads.length > 0 && (
-        <div style={{ animation: 'fadeInUp 0.3s ease 0.15s both' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 }}>ACTIVE LOADS</div>
+        <div style={{ animation: 'fadeInUp 0.4s ease 0.2s both' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qStatusPulse 2s ease-in-out infinite' }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2 }}>Q TRACKED LOADS</span>
+          </div>
           {activeLoads.slice(0, 3).map((load, index) => {
             const isExpanded = expandedLoad === (load.id || load.load_id)
             return (
-              <div key={load.id || load.load_id} style={{ marginBottom: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', animation: `fadeInUp 0.3s ease ${0.15 + index * 0.05}s both` }}>
+              <div key={load.id || load.load_id} style={{ marginBottom: 8, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', animation: `qInsightSlide 0.4s ease ${0.2 + index * 0.06}s both` }}>
                 <div
                   onClick={() => { haptic(); setExpandedLoad(isExpanded ? null : (load.id || load.load_id)) }}
                   style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
@@ -284,7 +438,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                   <ChevronRight size={14} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: '0.2s' }} />
                 </div>
                 {isExpanded && (
-                  <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border)', animation: 'fadeInUp 0.2s ease' }}>
                     {[
                       ['Load ID', load.load_id || load.loadId || '—'],
                       ['Broker', load.broker_name || load.broker || '—'],
@@ -299,8 +453,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                         <span style={{ fontWeight: 600 }}>{v}</span>
                       </div>
                     ))}
-                    {/* Quick action for this load */}
-                    <button onClick={(e) => { e.stopPropagation(); haptic(); onOpenQ?.(`What's the status on load ${load.load_id || load.id}?`, qGreeting) }}
+                    <button onClick={(e) => { e.stopPropagation(); haptic(); onOpenQ?.(`Give me a status update on load ${load.load_id || load.id}`, qGreeting) }}
                       style={{ width: '100%', marginTop: 8, padding: '8px', background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Sans',sans-serif" }}>
                       Ask Q about this load
                     </button>
@@ -312,13 +465,22 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         </div>
       )}
 
-      {/* ── Alerts ── */}
+      {/* ── Q Proactive Alerts ── */}
       {unpaidInvoices.length > 0 && (
-        <div onClick={() => onNavigate?.('money')} style={{ padding: '12px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', animation: 'fadeInUp 0.3s ease 0.2s both' }}>
-          <Ic icon={AlertCircle} size={18} color="var(--danger)" />
+        <div onClick={() => onNavigate?.('money')} style={{
+          padding: '12px 14px', background: 'rgba(239,68,68,0.06)',
+          border: '1px solid rgba(239,68,68,0.15)', borderRadius: 12,
+          display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+          animation: 'fadeInUp 0.4s ease 0.25s both, qAlertGlow 3s ease-in-out infinite',
+        }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, color: 'var(--danger)', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger)' }}>{unpaidInvoices.length} Unpaid Invoice{unpaidInvoices.length > 1 ? 's' : ''}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Total: {fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0))}</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)', letterSpacing: 1, marginBottom: 2 }}>Q ALERT</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+              {unpaidInvoices.length} unpaid invoice{unpaidInvoices.length > 1 ? 's' : ''} — {fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0))} outstanding
+            </div>
           </div>
           <ArrowUpRight size={14} color="var(--danger)" />
         </div>
@@ -326,10 +488,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
 
       {/* ── Recent Activity ── */}
       {recentLoads.length > 0 && (
-        <div style={{ animation: 'fadeInUp 0.3s ease 0.25s both' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 }}>RECENT ACTIVITY</div>
+        <div style={{ animation: 'fadeInUp 0.4s ease 0.3s both' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Ic icon={Activity} size={10} color="var(--accent)" />
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2 }}>Q ACTIVITY LOG</span>
+          </div>
           {recentLoads.map((load, index) => (
-            <div key={load.id || load.load_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', animation: `fadeInUp 0.2s ease ${0.25 + index * 0.03}s both` }}>
+            <div key={load.id || load.load_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', animation: `fadeInUp 0.3s ease ${0.3 + index * 0.03}s both` }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(load.status), flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -347,15 +512,28 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   )
 }
 
-function KPICard({ icon, label, value, color, sub, onClick }) {
+// Q-driven metric card with optional target tracking
+function QMetricCard({ icon, label, value, color, sub, target, targetReached, onClick }) {
   return (
-    <div onClick={onClick} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px', cursor: onClick ? 'pointer' : 'default', transition: 'all 0.15s ease' }}>
+    <div onClick={onClick} style={{
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+      padding: '14px', cursor: onClick ? 'pointer' : 'default',
+      transition: 'all 0.15s ease',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Ic icon={icon} size={13} color={color} />
         <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{label}</span>
       </div>
       <div style={{ fontSize: 20, fontWeight: 800, color, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{value}</div>
       {sub && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>}
+      {target && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: targetReached ? 'var(--success)' : 'var(--danger)' }} />
+          <span style={{ fontSize: 9, color: targetReached ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+            {target} · {targetReached ? 'Reached' : 'Not reached'}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -863,7 +863,17 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                       </div>
                       <div style={{ fontSize:11, color:'var(--muted)' }}>{eldStats.connected ? `${eldStats.provider} · ` : ''}Drive today: {d.driveToday}</div>
                     </div>
-                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','Full Log', d.driver + ' HOS log opened')}>Full Log</button>
+                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => {
+                      const driverLogs = hosLogs.filter(l => (l.driver_name || '').toLowerCase().includes((d.driver || '').toLowerCase())).slice(0, 20)
+                      const logText = driverLogs.length > 0
+                        ? driverLogs.map(l => `${new Date(l.start_time).toLocaleString()} — ${l.status} (${l.duration_hours || 0}h)`).join('\n')
+                        : 'No HOS logs found for this driver'
+                      const blob = new Blob([`HOS Log — ${d.driver}\n${'='.repeat(40)}\n\n${logText}`], { type: 'text/plain' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a'); a.href = url; a.download = `hos-log-${(d.driver || 'driver').replace(/\s+/g, '-')}.txt`; a.click()
+                      URL.revokeObjectURL(url)
+                      showToast('','Downloaded', d.driver + ' HOS log')
+                    }}>Full Log</button>
                   </div>
                   {/* HOS bar + shift/cycle */}
                   <div style={{ display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
@@ -1012,7 +1022,19 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                           <td style={{ padding:'10px 14px', fontSize:12, fontWeight:700 }}>{r.vehicle_name || '—'}</td>
                           <td style={{ padding:'10px 14px', fontSize:12 }}>{r.driver_name || '—'}</td>
                           <td style={{ padding:'10px 14px' }}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background:color+'15', color }}>{isSafe ? 'Pass' : 'Defects'}</span></td>
-                          <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => showToast('','DVIR', `${dateStr} · ${r.vehicle_name} · ${isSafe ? 'No defects' : (r.defects || []).join(', ')}`)}>View</button></td>
+                          <td style={{ padding:'10px 14px' }}><button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => {
+                            const details = [
+                              `DVIR Report — ${dateStr}`,
+                              `Vehicle: ${r.vehicle_name || '—'}`,
+                              `Driver: ${r.driver_name || '—'}`,
+                              `Status: ${isSafe ? 'SAFE — No defects' : 'DEFECTS FOUND'}`,
+                              r.defects?.length ? `Defects: ${r.defects.join(', ')}` : '',
+                              r.notes ? `Notes: ${r.notes}` : '',
+                              `Source: ${r.source_provider || 'manual'}`,
+                            ].filter(Boolean).join('\n')
+                            navigator.clipboard?.writeText(details)
+                            alert(details)
+                          }}>View</button></td>
                         </tr>
                       )
                     }) : (

@@ -669,7 +669,7 @@ function CarrierLayoutInner() {
               </button>
             )}
             <button className="btn btn-primary" style={{ fontSize:12, fontWeight:700, padding:'5px 14px' }}
-              onClick={() => showToast('','Post Truck','Opening truck availability posting...')}>
+              onClick={() => navTo('ai-loadboard')}>
               <Truck size={13} /> Post Truck
             </button>
           </>

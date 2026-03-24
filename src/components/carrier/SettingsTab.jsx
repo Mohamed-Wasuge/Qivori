@@ -819,20 +819,36 @@ export function SettingsTab() {
   const { showToast, theme, setTheme } = useApp()
   const { company: ctxCompany, updateCompany } = useCarrier()
   const [company, setCompany] = useState(ctxCompany || { name:'', mc:'', dot:'', address:'', phone:'', email:'', ein:'' })
-  const [billing, setBilling] = useState({ factoringRate:'2.5', payDefault:'28%', fastpayEnabled:true, autoInvoice:true })
+  const [billing, setBilling] = useState({
+    factoringRate: ctxCompany?.factoring_rate || '2.5',
+    payDefault: ctxCompany?.default_pay_rate || '28%',
+    fastpayEnabled: ctxCompany?.fastpay_enabled !== false,
+    autoInvoice: ctxCompany?.auto_invoice !== false,
+  })
   const [fuelCard, setFuelCard] = useState(ctxCompany?.fuel_card_provider || '')
   const [tollTransponder, setTollTransponder] = useState(ctxCompany?.toll_transponder || '')
-  const [integrations] = useState([
-    { name:'Samsara ELD',      status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Samsara ELD to sync device data' },
-    { name:'Motive ELD',       status:'Not connected', statusC:'var(--muted)', icon: Smartphone, desc:'Connect your Motive (KeepTruckin) ELD' },
-    { name:'QuickBooks Online', status:'Not connected', statusC:'var(--muted)', icon: BarChart2, desc:'Connect to auto-sync expenses & invoices' },
-    { name:'DAT Load Board',    status:'Not connected', statusC:'var(--muted)', icon: Truck, desc:'Connect to pull spot rates on your lanes' },
-    { name:'123Loadboard',      status:'Not connected', statusC:'var(--muted)', icon: Truck, desc:'Connect to search and book loads' },
-  ])
+  const integrations = [
+    { name:'Samsara ELD',      keyField:'samsara_api_key', icon: Smartphone, desc:'Connect your Samsara ELD to sync device data', section:'providers' },
+    { name:'Motive ELD',       keyField:'motive_api_key',  icon: Smartphone, desc:'Connect your Motive (KeepTruckin) ELD', section:'providers' },
+    { name:'QuickBooks Online', keyField:'quickbooks_key',  icon: BarChart2, desc:'Connect to auto-sync expenses & invoices', section:'providers' },
+    { name:'DAT Load Board',    keyField:'dat_api_key',     icon: Truck, desc:'Connect to pull spot rates on your lanes', section:'loadboards' },
+    { name:'123Loadboard',      keyField:'lb123_api_key',   icon: Truck, desc:'Connect to search and book loads', section:'loadboards' },
+  ].map(int => ({
+    ...int,
+    status: providerKeys[int.keyField] ? 'Connected' : 'Not connected',
+    statusC: providerKeys[int.keyField] ? 'var(--success)' : 'var(--muted)',
+  }))
   const [team] = useState([
     { name:'You (Owner)',     email: company.email || '', role:'Admin',    roleC:'var(--accent)' },
   ])
-  const [notifPrefs, setNotifPrefs] = useState({ newMatch:true, loadStatus:true, driverAlert:true, payReady:true, compliance:true, marketRates:false })
+  const [notifPrefs, setNotifPrefs] = useState({
+    newMatch: ctxCompany?.notif_new_match !== false,
+    loadStatus: ctxCompany?.notif_load_status !== false,
+    driverAlert: ctxCompany?.notif_driver_alert !== false,
+    payReady: ctxCompany?.notif_pay_ready !== false,
+    compliance: ctxCompany?.notif_compliance !== false,
+    marketRates: ctxCompany?.notif_market_rates === true,
+  })
   const [settingsSec, setSettingsSec] = useState('company')
 
   const [providerKeys, setProviderKeys] = useState({
@@ -1029,7 +1045,15 @@ export function SettingsTab() {
                 </div>
               ))}
             </div>
-            <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={() => showToast('','Saved','Billing settings updated')}>Save Changes</button>
+            <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={() => {
+              updateCompany({
+                factoring_rate: parseFloat(billing.factoringRate) || 2.5,
+                default_pay_rate: billing.payDefault,
+                fastpay_enabled: billing.fastpayEnabled,
+                auto_invoice: billing.autoInvoice,
+              })
+              showToast('','Saved','Billing settings updated')
+            }}>Save Changes</button>
           </>
         )}
 
@@ -1149,8 +1173,17 @@ export function SettingsTab() {
                     <div style={{ fontSize:12, color:'var(--muted)' }}>{int.desc}</div>
                   </div>
                   <button className={int.status === 'Connected' ? 'btn btn-ghost' : 'btn btn-primary'} style={{ fontSize:11 }}
-                    onClick={() => showToast('', int.status === 'Connected' ? 'Disconnect' : 'Connect', int.name)}>
-                    {int.status === 'Connected' ? 'Manage' : '+ Connect'}
+                    onClick={() => {
+                      if (int.status === 'Connected') {
+                        setProviderKeys(p => ({ ...p, [int.keyField]: '' }))
+                        updateCompany({ provider_keys: { ...providerKeys, [int.keyField]: '' } })
+                        showToast('', 'Disconnected', int.name)
+                      } else {
+                        setSettingsSec(int.section)
+                        showToast('', 'Connect', `Enter your ${int.name} API key in the ${int.section === 'providers' ? 'Provider Keys' : 'Load Boards'} section`)
+                      }
+                    }}>
+                    {int.status === 'Connected' ? 'Disconnect' : '+ Connect'}
                   </button>
                 </div>
               ))}
@@ -1191,7 +1224,17 @@ export function SettingsTab() {
                 </div>
               ))}
             </div>
-            <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={() => showToast('','Saved','Notification preferences saved')}>Save Preferences</button>
+            <button className="btn btn-primary" style={{ padding:'11px 28px', width:'fit-content' }} onClick={() => {
+              updateCompany({
+                notif_new_match: notifPrefs.newMatch,
+                notif_load_status: notifPrefs.loadStatus,
+                notif_driver_alert: notifPrefs.driverAlert,
+                notif_pay_ready: notifPrefs.payReady,
+                notif_compliance: notifPrefs.compliance,
+                notif_market_rates: notifPrefs.marketRates,
+              })
+              showToast('','Saved','Notification preferences saved')
+            }}>Save Preferences</button>
           </>
         )}
 

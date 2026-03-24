@@ -1154,7 +1154,36 @@ export function BookedLoads() {
             </div>
 
             <div style={{ display:'flex', gap:10 }}>
-              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={() => { showToast('','Invoice Sent', invoiceLoad.broker + ' · $' + invoiceLoad.gross.toLocaleString(undefined,{maximumFractionDigits:0}) + ' · ' + invoicePayTerms); setInvoiceLoad(null) }}><Ic icon={FileText} size={14} /> Send to Broker</button>
+              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={async () => {
+                const invId = 'INV-' + String(invoiceLoad.id).slice(-4).padStart(4,'0')
+                const brokerEmail = invoiceLoad.broker_email || invoiceLoad.brokerEmail || ''
+                const invAmount = invoicePayTerms === 'Same Day Pay' ? Math.round(invoiceLoad.gross * 0.975) : invoiceLoad.gross
+                if (brokerEmail) {
+                  try {
+                    await apiFetch('/api/send-invoice', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        to: brokerEmail,
+                        carrierName: company?.company_name || company?.name || 'Carrier',
+                        invoiceNumber: invId,
+                        loadNumber: invoiceLoad.loadId || invoiceLoad.load_number || '',
+                        route: `${(invoiceLoad.origin||'').split(',')[0]} → ${(invoiceLoad.dest||'').split(',')[0]}`,
+                        amount: invAmount,
+                        dueDate: invoicePayTerms === 'Same Day Pay' ? 'Same Day' : invoicePayTerms,
+                        brokerName: invoiceLoad.broker || '',
+                      }),
+                    })
+                    showToast('','Invoice Emailed', `Sent to ${brokerEmail} · $${invAmount.toLocaleString()}`)
+                  } catch {
+                    showToast('','Email Failed', 'Invoice marked but email could not be sent')
+                  }
+                } else {
+                  showToast('','Invoice Created', `${invoiceLoad.broker} · $${invAmount.toLocaleString()} · ${invoicePayTerms} (no broker email on file)`)
+                }
+                ctxUpdateStatus(invoiceLoad.id || invoiceLoad.loadId, 'Invoiced')
+                setInvoiceLoad(null)
+              }}><Ic icon={FileText} size={14} /> Send to Broker</button>
               <button className="btn btn-ghost" style={{ flex:1, padding:'12px 0' }} onClick={() => {
                 const invId = 'INV-' + String(invoiceLoad.id).slice(-4).padStart(4,'0')
                 const route = invoiceLoad.origin?.split(',')[0]?.substring(0,3)?.toUpperCase() + ' → ' + invoiceLoad.dest?.split(',')[0]?.substring(0,3)?.toUpperCase()

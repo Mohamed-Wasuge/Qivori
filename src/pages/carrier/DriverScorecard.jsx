@@ -714,7 +714,11 @@ export function DriverProfiles() {
                 ))
               }
               <div style={{ marginTop: 16 }}>
-                <button className="btn btn-ghost" style={{ width: '100%', fontSize: 12 }} onClick={() => showToast('', 'MVR Report', `Requesting MVR for ${d.name}...`)}><Ic icon={FileText} /> Request MVR Report</button>
+                <button className="btn btn-ghost" style={{ width: '100%', fontSize: 12 }} onClick={() => {
+                  const report = `Motor Vehicle Report Request\n${'='.repeat(40)}\nDriver: ${d.name}\nCDL #: ${d.cdl || '—'}\nState: ${d.state || '—'}\nDate Requested: ${new Date().toLocaleDateString()}\n\nPlease process this MVR request for the above driver.`
+                  navigator.clipboard?.writeText(report)
+                  showToast('', 'MVR Request Copied', `${d.name} — paste into your MVR provider portal`)
+                }}><Ic icon={FileText} /> Request MVR Report</button>
               </div>
             </div>
           </div>
@@ -1050,7 +1054,14 @@ export function DriverOnboarding() {
                         {ordering ? '...' : <><Zap size={13} /> Order All Checks</>}
                       </button>
                     : <button className="btn btn-ghost" style={{ fontSize:11 }}
-                        onClick={() => showToast('','Reminder Sent', 'Consent form re-sent to ' + driver.email)}>
+                        onClick={() => {
+                          if (driver.email) {
+                            window.open(`mailto:${driver.email}?subject=${encodeURIComponent('Consent Form Reminder — ' + (driver.name || 'Driver'))}&body=${encodeURIComponent('Please complete and return the consent form at your earliest convenience. This is required to proceed with your onboarding.')}`)
+                            showToast('','Email Opened', 'Consent reminder for ' + driver.email)
+                          } else {
+                            showToast('','No Email', 'Add an email address for this driver first')
+                          }
+                        }}>
                         <Send size={13} /> Send Reminder
                       </button>
                 }
@@ -1217,7 +1228,15 @@ export function DriverOnboarding() {
                       <Zap size={13} /> {driver.activated ? 'Activated' : 'Activate & Add to Fleet'}
                     </button>
                     <button className="btn btn-ghost" style={{ fontSize:12 }}
-                      onClick={() => showToast('','Report Generated', 'Pre-employment report saved')}>
+                      onClick={() => {
+                        const checks = (driver.checks || []).map(c => `${c.label}: ${c.status}${c.result ? ' — ' + c.result : ''}`).join('\n')
+                        const report = `Pre-Employment Screening Report\n${'='.repeat(40)}\nDriver: ${driver.name}\nEmail: ${driver.email || '—'}\nPhone: ${driver.phone || '—'}\nCDL: ${driver.cdl || '—'}\nDate: ${new Date().toLocaleDateString()}\n\nBackground Checks:\n${checks || 'No checks completed yet'}\n\nStatus: ${driver.allPassed ? 'ELIGIBLE TO HIRE' : 'PENDING'}`
+                        const blob = new Blob([report], { type: 'text/plain' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a'); a.href = url; a.download = `screening-report-${(driver.name || 'driver').replace(/\s+/g, '-')}.txt`; a.click()
+                        URL.revokeObjectURL(url)
+                        showToast('','Report Downloaded', driver.name)
+                      }}>
                       <FileText size={13} /> Download Report
                     </button>
                   </div>

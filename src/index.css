@@ -478,8 +478,18 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
 
 /* Direct child fills available height (hub wrapper / page root) */
 .carrier-main > * {
-  flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Hub wrappers (flex column with sub-tabs) need to fill height */
+.carrier-main > div[style*="flex-direction: column"],
+.carrier-main > div[style*="flex-direction:column"] {
+  flex: 1 1 0%;
+}
+
+/* Overview / block-layout pages just flow naturally and let carrier-main scroll */
+.carrier-main > .overview-tab-scroll {
+  flex: 0 0 auto;
 }
 
 /* Overview tab — block layout (NOT flex) so panels never shrink/clip */

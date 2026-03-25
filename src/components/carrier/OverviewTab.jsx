@@ -494,7 +494,7 @@ export function OverviewTab({ onTabChange }) {
     : { text: 'All clear. Find your next load to keep trucks moving', action: 'Ask Q for Load', nav: 'load-board', color: 'var(--accent)' }
 
   return (
-    <div className="overview-tab-scroll" style={{ overflowY:'auto', height:'100%', width:'100%', overflowX:'hidden', padding:16, paddingBottom:60, boxSizing:'border-box' }}>
+    <div className="overview-tab-scroll" style={{ padding:16, paddingBottom:60, boxSizing:'border-box' }}>
 
       {/* ═══ 1. Q STATUS BAR ═══════════════════════════════════════════ */}
       <div style={{

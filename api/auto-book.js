@@ -129,19 +129,16 @@ export default async function handler(req) {
       origin: load.origin || '',
       destination: load.dest || load.destination || '',
       rate: parseFloat(load.gross) || 0,
-      miles: parseInt(load.miles) || null,
-      weight: load.weight ? parseInt(load.weight) : null,
+      weight: load.weight ? String(load.weight) : null,
       equipment: load.equipment || 'Dry Van',
       broker_name: load.broker || '',
-      broker_phone: load.broker_phone || null,
       carrier_name: driverName,
-      driver_id: driver?.id || null,
       status: driverAssigned ? 'Dispatched' : 'Rate Con Received',
       pickup_date: load.pickup_date || null,
       delivery_date: load.delivery_date || null,
       load_type: 'FTL',
       load_source: 'ai_auto_book',
-      notes: `Auto-booked by Q AI (${(metrics?.confidence || 0)}% confidence). Est. profit: $${(metrics?.estProfit || 0).toLocaleString()}`,
+      notes: `Auto-booked by Q AI (${(metrics?.confidence || 0)}% confidence). Est. profit: $${(metrics?.estProfit || 0).toLocaleString()}. ${load.miles || 0} mi.`,
     }
 
     const loadRes = await fetch(`${SUPABASE_URL}/rest/v1/loads`, {

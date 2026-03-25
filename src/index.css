@@ -482,9 +482,12 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   min-height: 0;
 }
 
-/* Overview scroll root — children must not shrink so panels keep full height */
-.overview-scroll-root > * {
-  flex-shrink: 0;
+/* Overview tab — block layout (NOT flex) so panels never shrink/clip */
+.overview-tab-scroll > * {
+  margin-bottom: 12px;
+}
+.overview-tab-scroll > *:last-child {
+  margin-bottom: 0;
 }
 
 /* Settings scroll area — children should not flex-shrink */

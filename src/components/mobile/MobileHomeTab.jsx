@@ -32,6 +32,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const [expandedLoad, setExpandedLoad] = useState(null)
   const [qInput, setQInput] = useState('')
   const [qGreeting, setQGreeting] = useState('')
+  const [aiDecisions, setAiDecisions] = useState([])
+  const [aiLoading, setAiLoading] = useState(false)
   const greetingSpokenRef = useRef(false)
   const pendingAudioRef = useRef(null)
   const [statusIdx, setStatusIdx] = useState(0)
@@ -203,6 +205,23 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
 
     doGreeting()
   }, [ctx.dataReady, buildGreetingContext])
+
+  // Fetch recent AI dispatch decisions
+  useEffect(() => {
+    let cancelled = false
+    const fetchAI = async () => {
+      setAiLoading(true)
+      try {
+        const res = await apiFetch('/api/dispatch-decisions?limit=5')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data.decisions) setAiDecisions(data.decisions)
+      } catch {}
+      if (!cancelled) setAiLoading(false)
+    }
+    fetchAI()
+    return () => { cancelled = true }
+  }, [])
 
   // Q-routed quick actions
   const getSmartActions = () => {
@@ -483,6 +502,55 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
             </div>
           </div>
           <ArrowUpRight size={14} color="var(--danger)" />
+        </div>
+      )}
+
+      {/* ── Q AI DISPATCH FEED ── */}
+      {aiDecisions.length > 0 && (
+        <div style={{ animation: 'fadeInUp 0.4s ease 0.25s both' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Ic icon={Zap} size={10} color="#6366f1" />
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', letterSpacing: 2 }}>Q AI DECISIONS</span>
+            <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>Last {aiDecisions.length}</span>
+          </div>
+          {aiDecisions.slice(0, 4).map((d, i) => {
+            const load = d.load_data || {}
+            const isAutoBook = d.decision === 'auto_book'
+            const isAccept = d.decision === 'accept'
+            const isReject = d.decision === 'reject'
+            const isNegotiate = d.decision === 'negotiate'
+            const color = isAutoBook ? '#6366f1' : isAccept ? '#22c55e' : isReject ? '#ef4444' : '#f0a500'
+            const label = isAutoBook ? 'AUTO-BOOKED' : isAccept ? 'ACCEPT' : isReject ? 'REJECT' : 'NEGOTIATE'
+            return (
+              <div key={d.id || i} style={{
+                marginBottom: 6, padding: '10px 12px', background: 'var(--surface)',
+                border: `1px solid ${color}20`, borderLeft: `3px solid ${color}`,
+                borderRadius: '4px 10px 10px 4px',
+                animation: `fadeInUp 0.3s ease ${0.25 + i * 0.05}s both`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color, background: `${color}15`, padding: '2px 6px', borderRadius: 4 }}>{label}</span>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>{d.confidence || 0}%</span>
+                  {d.auto_booked && <span style={{ fontSize: 8, color: '#6366f1', fontWeight: 700 }}>BOOKED</span>}
+                  <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>
+                  {load.origin || '—'} → {load.dest || load.destination || '—'}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', display: 'flex', gap: 8, marginTop: 2 }}>
+                  <span style={{ fontWeight: 700, color }}>{fmt$(parseFloat(load.gross || 0))}</span>
+                  {load.miles && <span>{load.miles} mi</span>}
+                  {load.broker && <span>{load.broker}</span>}
+                  {d.metrics?.estProfit && <span style={{ color: '#22c55e' }}>+{fmt$(d.metrics.estProfit)}</span>}
+                </div>
+                {(d.reasons || []).length > 0 && (
+                  <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+                    {d.reasons[0]}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

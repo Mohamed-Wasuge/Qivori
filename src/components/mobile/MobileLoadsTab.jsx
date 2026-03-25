@@ -3,10 +3,12 @@ import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
   Package, Truck, ChevronRight, ChevronDown, ScanLine, Camera, Plus,
-  MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X, FileText
+  MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X, FileText, Upload
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor, QInsightCard } from './shared'
 import { apiFetch } from '../../lib/api'
+import { uploadFile } from '../../lib/storage'
+import * as db from '../../lib/database'
 
 const STATUS_FILTERS = ['All', 'Booked', 'Dispatched', 'In Transit', 'Delivered', 'Invoiced', 'Paid']
 const STATUS_FLOW = ['Rate Con Received', 'Booked', 'Dispatched', 'En Route to Pickup', 'At Pickup', 'Loaded', 'In Transit', 'At Delivery', 'Delivered', 'Invoiced', 'Paid']
@@ -23,6 +25,9 @@ export default function MobileLoadsTab() {
   const rateConRef = useRef(null)
   const [showAddLoad, setShowAddLoad] = useState(false)
   const [newLoad, setNewLoad] = useState({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '' })
+  const [uploadingDoc, setUploadingDoc] = useState(null) // { loadId, docType }
+  const docInputRef = useRef(null)
+  const [loadDocs, setLoadDocs] = useState({}) // { loadId: [docs] }
 
   const filtered = filter === 'All'
     ? loads
@@ -116,6 +121,41 @@ export default function MobileLoadsTab() {
     showToast?.('success', 'Load Added', `${newLoad.origin} → ${newLoad.destination}`)
     setNewLoad({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '' })
     setShowAddLoad(false)
+  }
+
+  const handleDocUpload = async (file, loadId, docType) => {
+    if (!file) return
+    setUploadingDoc({ loadId, docType })
+    try {
+      const result = await uploadFile(file, `loads/${loadId}`)
+      await db.createDocument({
+        load_id: loadId,
+        doc_type: docType,
+        file_name: file.name,
+        file_url: result.url,
+        file_path: result.path,
+        file_size: file.size,
+      })
+      // Update local doc state
+      setLoadDocs(prev => ({
+        ...prev,
+        [loadId]: [...(prev[loadId] || []), { doc_type: docType, file_url: result.url, file_name: file.name }],
+      }))
+      haptic('success')
+      showToast?.('success', 'Uploaded', `${docType} uploaded`)
+    } catch (err) {
+      showToast?.('error', 'Upload Failed', err.message || 'Could not upload document')
+    }
+    setUploadingDoc(null)
+  }
+
+  // Fetch docs for expanded load
+  const fetchLoadDocs = async (loadId) => {
+    if (loadDocs[loadId]) return
+    try {
+      const docs = await db.fetchDocuments(loadId)
+      setLoadDocs(prev => ({ ...prev, [loadId]: docs }))
+    } catch {}
   }
 
   return (
@@ -234,7 +274,7 @@ export default function MobileLoadsTab() {
           return (
             <div key={load.id || load.load_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8, overflow: 'hidden', animation: `fadeInUp 0.25s ease ${index * 0.04}s both`, transition: 'transform 0.15s ease' }}>
               {/* Card header */}
-              <div onClick={() => { haptic(); setExpandedId(isExpanded ? null : (load.id || load.load_id)) }}
+              <div onClick={() => { haptic(); const newId = isExpanded ? null : (load.id || load.load_id); setExpandedId(newId); if (newId && load.id) fetchLoadDocs(load.id) }}
                 style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(load.status), flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -305,12 +345,36 @@ export default function MobileLoadsTab() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {['Rate Con', 'BOL', 'Signed BOL', 'POD'].map(docType => {
                         const docKey = docType.toLowerCase().replace(/\s/g, '_')
-                        const hasDoc = load.documents?.[docKey] || load[docKey + '_url']
+                        const docs = loadDocs[load.id] || []
+                        const hasDoc = docs.find(d => d.doc_type === docType) || load.documents?.[docKey] || load[docKey + '_url']
+                        const isUploading = uploadingDoc?.loadId === load.id && uploadingDoc?.docType === docType
                         return (
-                          <div key={docType} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', background: hasDoc ? 'rgba(0,212,170,0.08)' : 'var(--bg)', border: `1px solid ${hasDoc ? 'rgba(0,212,170,0.2)' : 'var(--border)'}`, borderRadius: 8, fontSize: 10, fontWeight: 600, color: hasDoc ? 'var(--success)' : 'var(--muted)' }}>
-                            <Ic icon={hasDoc ? CheckCircle : FileText} size={10} />
-                            {docType}
-                          </div>
+                          <button key={docType} onClick={() => {
+                            if (hasDoc) {
+                              const doc = docs.find(d => d.doc_type === docType)
+                              if (doc?.file_url) window.open(doc.file_url, '_blank')
+                            } else {
+                              const inp = document.createElement('input')
+                              inp.type = 'file'
+                              inp.accept = 'image/*,.pdf'
+                              inp.capture = 'environment'
+                              inp.onchange = (e) => {
+                                const f = e.target.files?.[0]
+                                if (f) handleDocUpload(f, load.id, docType)
+                              }
+                              inp.click()
+                            }
+                          }} style={{
+                            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px',
+                            background: hasDoc ? 'rgba(0,212,170,0.08)' : 'var(--bg)',
+                            border: `1px solid ${hasDoc ? 'rgba(0,212,170,0.2)' : 'var(--border)'}`,
+                            borderRadius: 8, fontSize: 10, fontWeight: 600,
+                            color: isUploading ? 'var(--accent)' : hasDoc ? 'var(--success)' : 'var(--muted)',
+                            cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                          }}>
+                            <Ic icon={isUploading ? Clock : hasDoc ? CheckCircle : Upload} size={10} />
+                            {isUploading ? 'Uploading...' : docType}
+                          </button>
                         )
                       })}
                     </div>

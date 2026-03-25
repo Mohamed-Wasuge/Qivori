@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { FileText, Settings, User, HelpCircle, LogOut, ChevronRight, Shield, Fuel } from 'lucide-react'
+import { FileText, Settings, User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, AlertTriangle, Clock, CheckCircle2, Activity } from 'lucide-react'
 import { Ic, haptic, getQSystemState, fmt$ } from './shared'
 import MobileIFTATab from './MobileIFTATab'
 
@@ -16,6 +16,8 @@ export default function MobileMoreTab() {
   const { logout, user, profile } = useApp()
   const ctx = useCarrier() || {}
   const qState = getQSystemState(ctx)
+  const drivers = ctx.drivers || []
+  const firstDriver = drivers[0] // Current user's driver profile (if exists)
   const [activeSection, setActiveSection] = useState(null)
 
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
@@ -77,6 +79,62 @@ export default function MobileMoreTab() {
           ))}
         </div>
       </div>
+
+      {/* Driver Compliance Status */}
+      {firstDriver && (
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+          padding: '16px', marginBottom: 16, animation: 'fadeInUp 0.3s ease 0.1s both',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <Ic icon={Shield} size={13} color="var(--success)" />
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--success)' }}>COMPLIANCE STATUS</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              {
+                label: 'CDL License',
+                value: firstDriver.license_class || 'CDL-A',
+                sub: firstDriver.license_state || '—',
+                expiry: firstDriver.license_expiry,
+              },
+              {
+                label: 'Medical Card',
+                value: firstDriver.medical_card_expiry ? 'Active' : 'Unknown',
+                expiry: firstDriver.medical_card_expiry,
+              },
+              {
+                label: 'Equipment',
+                value: firstDriver.equipment_experience || firstDriver.equipment || '—',
+              },
+              {
+                label: 'Endorsements',
+                value: firstDriver.endorsements || 'None on file',
+              },
+            ].map(item => {
+              const isExpiring = item.expiry && new Date(item.expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+              const isExpired = item.expiry && new Date(item.expiry) < new Date()
+              const expiryColor = isExpired ? 'var(--danger)' : isExpiring ? '#f59e0b' : 'var(--success)'
+              return (
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg)', borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{item.label}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{item.value} {item.sub && <span style={{ color: 'var(--muted)', fontWeight: 500 }}>({item.sub})</span>}</div>
+                  </div>
+                  {item.expiry && (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 9, color: expiryColor, fontWeight: 700 }}>
+                        {isExpired ? 'EXPIRED' : isExpiring ? 'EXPIRING SOON' : 'VALID'}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(item.expiry).toLocaleDateString()}</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Menu items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

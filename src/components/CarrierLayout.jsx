@@ -76,7 +76,7 @@ const NAV = [
   { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
   { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
   { id:'_divider' },
-  { id:'ai-dashboard', icon: Bot,          label:'AI Control Center', i18nKey:'nav.aiDashboard'  },
+  { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 

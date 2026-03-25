@@ -640,18 +640,20 @@ export function DrugAlcoholCompliance() {
 // 4. INCIDENT & VIOLATION TRACKING
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const INCIDENT_TYPES = [
-  { id:'accident', label:'Accident', icon: Siren },
-  { id:'dot_inspection', label:'DOT Inspection', icon: Shield },
-  { id:'traffic_violation', label:'Traffic Violation', icon: AlertTriangle },
-  { id:'cargo_damage', label:'Cargo Damage', icon: Package },
-  { id:'late_delivery', label:'Late Delivery', icon: Clock },
-  { id:'customer_complaint', label:'Customer Complaint', icon: Users },
-  { id:'policy_violation', label:'Policy Violation', icon: FileText },
-  { id:'safety_violation', label:'Safety Violation', icon: AlertCircle },
-  { id:'equipment_damage', label:'Equipment Damage', icon: Truck },
-  { id:'other', label:'Other', icon: FileText },
-]
+function getIncidentTypes() {
+  return [
+    { id:'accident', label:'Accident', icon: Siren },
+    { id:'dot_inspection', label:'DOT Inspection', icon: Shield },
+    { id:'traffic_violation', label:'Traffic Violation', icon: AlertTriangle },
+    { id:'cargo_damage', label:'Cargo Damage', icon: Package },
+    { id:'late_delivery', label:'Late Delivery', icon: Clock },
+    { id:'customer_complaint', label:'Customer Complaint', icon: Users },
+    { id:'policy_violation', label:'Policy Violation', icon: FileText },
+    { id:'safety_violation', label:'Safety Violation', icon: AlertCircle },
+    { id:'equipment_damage', label:'Equipment Damage', icon: Truck },
+    { id:'other', label:'Other', icon: FileText },
+  ]
+}
 
 const SEVERITY_COLORS = {
   critical: { bg:'rgba(239,68,68,0.1)', color:'var(--danger)', label:'Critical' },
@@ -691,7 +693,7 @@ export function IncidentTracker() {
     try {
       const inc = await db.createIncident({ ...newInc, csa_points: parseInt(newInc.csa_points) || 0 })
       setIncidents(prev => [inc, ...prev])
-      showToast('success','Incident Recorded', INCIDENT_TYPES.find(t=>t.id===newInc.incident_type)?.label + ' logged')
+      showToast('success','Incident Recorded', getIncidentTypes().find(t=>t.id===newInc.incident_type)?.label + ' logged')
       setNewInc({ driver_id:'', incident_type:'accident', severity:'minor', incident_date:'', location:'', description:'', csa_points:0, dot_reportable:false, preventable:false })
       setShowAdd(false)
     } catch (err) {
@@ -742,7 +744,7 @@ export function IncidentTracker() {
     setGeneratingReport(incidentId)
     try {
       const driverName = driverMap[inc.driver_id] || 'Unknown Driver'
-      const type = INCIDENT_TYPES.find(t => t.id === inc.incident_type)
+      const type = getIncidentTypes().find(t => t.id === inc.incident_type)
       const sev = SEVERITY_COLORS[inc.severity] || SEVERITY_COLORS.minor
       const prompt = `Generate a professional DOT-compliant incident report for a trucking company. Format it clearly with sections.
 
@@ -809,7 +811,7 @@ Keep it professional, factual, and compliant with FMCSA reporting standards.`
                 <div>
                   <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Incident Type *</label>
                   <select value={newInc.incident_type} onChange={e => setNewInc(p => ({...p, incident_type:e.target.value}))} style={inp}>
-                    {INCIDENT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    {getIncidentTypes().map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -899,7 +901,7 @@ Keep it professional, factual, and compliant with FMCSA reporting standards.`
       {/* Filter */}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
         <button onClick={() => setFilterType('all')} style={{ padding:'5px 12px', borderRadius:8, fontSize:11, fontWeight:700, border:`1px solid ${filterType==='all'?'var(--accent)':'var(--border)'}`, background:filterType==='all'?'rgba(240,165,0,0.08)':'var(--surface)', color:filterType==='all'?'var(--accent)':'var(--muted)', cursor:'pointer' }}>All</button>
-        {INCIDENT_TYPES.slice(0,6).map(t => (
+        {getIncidentTypes().slice(0,6).map(t => (
           <button key={t.id} onClick={() => setFilterType(t.id)} style={{ padding:'5px 12px', borderRadius:8, fontSize:11, fontWeight:700, border:`1px solid ${filterType===t.id?'var(--accent)':'var(--border)'}`, background:filterType===t.id?'rgba(240,165,0,0.08)':'var(--surface)', color:filterType===t.id?'var(--accent)':'var(--muted)', cursor:'pointer' }}>{t.label}</button>
         ))}
       </div>
@@ -911,7 +913,7 @@ Keep it professional, factual, and compliant with FMCSA reporting standards.`
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {filtered.map(inc => {
-            const type = INCIDENT_TYPES.find(t => t.id === inc.incident_type)
+            const type = getIncidentTypes().find(t => t.id === inc.incident_type)
             const sev = SEVERITY_COLORS[inc.severity] || SEVERITY_COLORS.minor
             const TypeIcon = type?.icon || FileText
             return (

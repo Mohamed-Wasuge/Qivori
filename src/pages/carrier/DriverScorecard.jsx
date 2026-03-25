@@ -137,7 +137,7 @@ const Q_STATUS_COLORS = {
   DELIVERING: { bg:'rgba(0,212,170,0.12)', color:'var(--accent2)', label:'DELIVERING' },
 }
 
-const Q_EFF_ICONS = { 'High': TrendingUp, 'Normal': Activity, 'Underperforming': TrendingDown }
+function getQEffIcons() { return { 'High': TrendingUp, 'Normal': Activity, 'Underperforming': TrendingDown } }
 
 // ─── DRIVER SETTLEMENT ─────────────────────────────────────────────────────────
 const PAY_MODELS = [
@@ -797,7 +797,7 @@ export function DriverProfiles() {
           const isSel = selected === dr.id
           const qr = dr.qResult
           const qStatus = qr ? Q_STATUS_COLORS[qr.status] || Q_STATUS_COLORS.IDLE : null
-          const effIcon = qr ? Q_EFF_ICONS[qr.efficiency] || Activity : Activity
+          const effIcon = qr ? getQEffIcons()[qr.efficiency] || Activity : Activity
           return (
             <div key={dr.id} onClick={() => setSelected(dr.id)}
               style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderLeft: `3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition: 'all 0.15s' }}>
@@ -867,7 +867,7 @@ export function DriverProfiles() {
               })()}
               {d.qResult && (
                 <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, background:d.qResult.effColor+'12', color:d.qResult.effColor, display:'flex', alignItems:'center', gap:3 }}>
-                  <Ic icon={Q_EFF_ICONS[d.qResult.efficiency] || Activity} size={9} color={d.qResult.effColor} /> {d.qResult.efficiency}
+                  <Ic icon={getQEffIcons()[d.qResult.efficiency] || Activity} size={9} color={d.qResult.effColor} /> {d.qResult.efficiency}
                 </span>
               )}
               {d.qResult && <span style={{ fontSize:9, fontWeight:600, color:'var(--muted)', padding:'2px 8px', borderRadius:6, background:'var(--surface2)' }}>{d.qResult.driverType}</span>}

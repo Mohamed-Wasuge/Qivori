@@ -339,15 +339,17 @@ const DVIR_ITEMS_DEFAULT = [
 
 const COMPLIANCE_DRIVERS = []
 
-const BASIC_SCORES = [
-  { basic:'Unsafe Driving',       score:0, threshold:65, icon: Truck,         tip:'No violations recorded yet' },
-  { basic:'HOS Compliance',       score:0, threshold:65, icon: Clock,         tip:'No violations recorded yet' },
-  { basic:'Vehicle Maintenance',  score:0, threshold:80, icon: Wrench,        tip:'No violations recorded yet' },
-  { basic:'Driver Fitness',       score:0, threshold:80, icon: User,          tip:'No violations recorded yet' },
-  { basic:'Controlled Substances',score:0, threshold:50, icon: FlaskConical,  tip:'No violations recorded yet' },
-  { basic:'Crash Indicator',      score:0, threshold:65, icon: AlertTriangle, tip:'No violations recorded yet' },
-  { basic:'Hazmat Compliance',    score:0, threshold:50, icon: Shield,        tip:'No violations recorded yet' },
-]
+function getBasicScores() {
+  return [
+    { basic:'Unsafe Driving',       score:0, threshold:65, icon: Truck,         tip:'No violations recorded yet' },
+    { basic:'HOS Compliance',       score:0, threshold:65, icon: Clock,         tip:'No violations recorded yet' },
+    { basic:'Vehicle Maintenance',  score:0, threshold:80, icon: Wrench,        tip:'No violations recorded yet' },
+    { basic:'Driver Fitness',       score:0, threshold:80, icon: User,          tip:'No violations recorded yet' },
+    { basic:'Controlled Substances',score:0, threshold:50, icon: FlaskConical,  tip:'No violations recorded yet' },
+    { basic:'Crash Indicator',      score:0, threshold:65, icon: AlertTriangle, tip:'No violations recorded yet' },
+    { basic:'Hazmat Compliance',    score:0, threshold:50, icon: Shield,        tip:'No violations recorded yet' },
+  ]
+}
 
 function ComplianceScoreRing({ score, size = 160 }) {
   const r = (size - 16) / 2, c = 2 * Math.PI * r, offset = c * (1 - score / 100)
@@ -553,13 +555,13 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
 
   // Map FMCSA BASIC data to display format
   const liveBasicScores = useMemo(() => {
-    if (fmcsaBasics.length === 0) return BASIC_SCORES
+    if (fmcsaBasics.length === 0) return getBasicScores()
     const iconMap = {
       'Unsafe Driving': Truck, 'HOS Compliance': Clock, 'Vehicle Maintenance': Wrench,
       'Driver Fitness': User, 'Controlled Substances': FlaskConical, 'Crash Indicator': AlertTriangle,
       'Hazmat Compliance': Shield,
     }
-    return BASIC_SCORES.map(b => {
+    return getBasicScores().map(b => {
       const live = fmcsaBasics.find(fb => fb.name.toLowerCase().includes(b.basic.split(' ')[0].toLowerCase()))
       if (live) {
         return { ...b, score: Math.round(live.score), tip: `${live.totalViolations} violations in ${live.totalInspections} inspections${live.serious ? ' (serious violation flagged)' : ''}`, icon: iconMap[b.basic] || b.icon }
@@ -630,7 +632,8 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
 
   // AI Compliance Score computation
   const complianceScore = useMemo(() => {
-    const avgBasicPct = BASIC_SCORES.reduce((s, b) => s + (b.score / b.threshold), 0) / BASIC_SCORES.length
+    const basics = getBasicScores()
+    const avgBasicPct = basics.reduce((s, b) => s + (b.score / b.threshold), 0) / basics.length
     const hosScore = 25 // 25/25 — no violations
     const dvirScore = defects === 0 ? 25 : Math.max(0, 25 - defects * 5)
     const csaScore = Math.round((1 - avgBasicPct) * 25)

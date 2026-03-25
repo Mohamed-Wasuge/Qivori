@@ -923,6 +923,10 @@ export function SettingsTab() {
   })
   const [fuelCard, setFuelCard] = useState(ctxCompany?.fuel_card_provider || '')
   const [tollTransponder, setTollTransponder] = useState(ctxCompany?.toll_transponder || '')
+  const [providerKeys, setProviderKeys] = useState({
+    resend_api_key:'', checkr_api_key:'', sambasafety_api_key:'', sambasafety_account_id:'',
+    fmcsa_api_key:'', fmcsa_webkey:'', fadv_client_id:'', fadv_client_secret:'',
+  })
   const integrations = [
     { name:'Samsara ELD',      keyField:'samsara_api_key', icon: Smartphone, desc:'Connect your Samsara ELD to sync device data', section:'providers' },
     { name:'Motive ELD',       keyField:'motive_api_key',  icon: Smartphone, desc:'Connect your Motive (KeepTruckin) ELD', section:'providers' },
@@ -946,11 +950,6 @@ export function SettingsTab() {
     marketRates: ctxCompany?.notif_market_rates === true,
   })
   const [settingsSec, setSettingsSec] = useState('company')
-
-  const [providerKeys, setProviderKeys] = useState({
-    resend_api_key:'', checkr_api_key:'', sambasafety_api_key:'', sambasafety_account_id:'',
-    fmcsa_api_key:'', fmcsa_webkey:'', fadv_client_id:'', fadv_client_secret:'',
-  })
   const [keysLoaded, setKeysLoaded] = useState(false)
 
   // Load provider keys from company record

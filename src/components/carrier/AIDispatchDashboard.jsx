@@ -52,11 +52,13 @@ function StatCard({ icon: Icon, label, value, sub, color }) {
   )
 }
 
-function DecisionDetailModal({ decision, onClose, onOverride }) {
+function DecisionDetailModal({ decision, onClose, onOverride, onAutoBook }) {
   const [overrideMode, setOverrideMode] = useState(false)
   const [newDecision, setNewDecision] = useState('')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const [bookingResult, setBookingResult] = useState(null)
+  const [booking, setBooking] = useState(false)
   const d = decision
   const load = d.load_data || {}
   const metrics = d.metrics || {}
@@ -186,6 +188,77 @@ function DecisionDetailModal({ decision, onClose, onOverride }) {
           </div>
         )}
 
+        {/* Auto-Book Execution */}
+        {(d.decision === 'accept' || d.decision === 'auto_book') && !bookingResult && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <button onClick={async () => {
+              setBooking(true)
+              const result = await onAutoBook(d)
+              setBookingResult(result)
+              setBooking(false)
+            }} disabled={booking}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                padding: '12px 20px', width: '100%', borderRadius: 8, border: 'none',
+                background: booking ? 'var(--border)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: '#fff', fontSize: 13, fontWeight: 700, cursor: booking ? 'default' : 'pointer',
+                fontFamily: "'DM Sans',sans-serif", letterSpacing: 0.5,
+              }}>
+              {booking ? <><RefreshCw size={15} className="spinning" /> Executing Auto-Book...</> : <><Zap size={15} /> Execute Auto-Book — Create Load, Assign Driver, Invoice</>}
+            </button>
+          </div>
+        )}
+
+        {/* Auto-Book Timeline */}
+        {bookingResult && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', letterSpacing: 1, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Zap size={12} /> AUTO-BOOK EXECUTION LOG
+            </div>
+            {bookingResult.error ? (
+              <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 12, color: '#ef4444' }}>
+                Failed: {bookingResult.error}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {(bookingResult.timeline || []).map((t, i) => {
+                  const isLast = i === (bookingResult.timeline || []).length - 1
+                  const stepColors = {
+                    driver_search: '#f0a500', driver_assigned: '#22c55e', load_created: '#6366f1',
+                    invoice_created: '#8b5cf6', decision_linked: '#06b6d4', complete: '#22c55e',
+                  }
+                  const color = stepColors[t.step] || 'var(--muted)'
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 10 }}>
+                      {/* Timeline dot + line */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, border: `2px solid ${color}`, flexShrink: 0, marginTop: 4 }} />
+                        {!isLast && <div style={{ width: 2, flex: 1, background: 'var(--border)', minHeight: 16 }} />}
+                      </div>
+                      <div style={{ paddingBottom: isLast ? 0 : 10, flex: 1 }}>
+                        <div style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600 }}>{t.detail}</div>
+                        <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace", marginTop: 1 }}>
+                          {new Date(t.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                {/* Summary card */}
+                <div style={{ marginTop: 10, padding: '12px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11 }}>
+                    <div><span style={{ color: 'var(--muted)' }}>Load:</span> <b style={{ color: '#6366f1' }}>{bookingResult.load_id}</b></div>
+                    <div><span style={{ color: 'var(--muted)' }}>Status:</span> <b style={{ color: '#22c55e' }}>{bookingResult.status}</b></div>
+                    {bookingResult.driver && <div><span style={{ color: 'var(--muted)' }}>Driver:</span> <b style={{ color: 'var(--text)' }}>{bookingResult.driver.name}</b></div>}
+                    <div><span style={{ color: 'var(--muted)' }}>Invoice:</span> <b style={{ color: '#8b5cf6' }}>{bookingResult.invoice?.number}</b></div>
+                    <div><span style={{ color: 'var(--muted)' }}>Amount:</span> <b style={{ color: '#22c55e' }}>${bookingResult.invoice?.amount?.toLocaleString()}</b></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Manual Override */}
         <div style={{ padding: '16px 20px' }}>
           {!overrideMode ? (
@@ -285,6 +358,29 @@ function DecisionsView() {
   }, [filterDecision, filterBroker, filterFrom, filterTo, page])
 
   useEffect(() => { fetchDecisions() }, [fetchDecisions])
+
+  const handleAutoBook = async (decision) => {
+    try {
+      const res = await apiFetch('/api/auto-book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          load: decision.load_data,
+          decision_id: decision.id,
+          driver_type: decision.driver_type || 'owner_operator',
+          metrics: decision.metrics,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        // Refresh decisions list to show updated state
+        fetchDecisions()
+      }
+      return data
+    } catch (err) {
+      return { error: err.message || 'Auto-book failed' }
+    }
+  }
 
   const handleOverride = async (id, newDecision, reason) => {
     try {
@@ -546,7 +642,7 @@ function DecisionsView() {
       )}
 
       {/* Detail modal */}
-      {selected && <DecisionDetailModal decision={selected} onClose={() => setSelected(null)} onOverride={handleOverride} />}
+      {selected && <DecisionDetailModal decision={selected} onClose={() => setSelected(null)} onOverride={handleOverride} onAutoBook={handleAutoBook} />}
 
       <style>{`
         .spinning { animation: spin 1s linear infinite }
@@ -571,6 +667,7 @@ const CATEGORIES = [
 
 function TestLoadGenerator() {
   const [selectedCats, setSelectedCats] = useState(['low_profit', 'medium_profit', 'high_profit', 'heavy_load', 'light_load', 'urgent'])
+  const [bookingStates, setBookingStates] = useState({}) // { idx: { loading, result } }
   const [countPer, setCountPer] = useState(3)
   const [driverType, setDriverType] = useState('owner_operator')
   const [saveToDb, setSaveToDb] = useState(true)
@@ -825,6 +922,67 @@ function TestLoadGenerator() {
                                     <span>Min: <b style={{ color: '#ef4444' }}>${r.result.negotiation.minAcceptRate}/mi</b></span>
                                   </div>
                                   {r.result.negotiation.script && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' }}>"{r.result.negotiation.script}"</div>}
+                                </div>
+                              )}
+                              {/* Auto-Book button for accept/auto_book */}
+                              {(r.result.decision === 'accept' || r.result.decision === 'auto_book') && (
+                                <div style={{ marginTop: 12 }}>
+                                  {bookingStates[globalIdx]?.result ? (
+                                    <div>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', letterSpacing: 1, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Zap size={11} /> AUTO-BOOK COMPLETE
+                                      </div>
+                                      {bookingStates[globalIdx].result.error ? (
+                                        <div style={{ fontSize: 11, color: '#ef4444' }}>Error: {bookingStates[globalIdx].result.error}</div>
+                                      ) : (
+                                        <div>
+                                          {(bookingStates[globalIdx].result.timeline || []).map((t, ti) => (
+                                            <div key={ti} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
+                                              <CheckCircle size={11} color="#22c55e" style={{ marginTop: 2, flexShrink: 0 }} />
+                                              <span style={{ fontSize: 11, color: 'var(--text)' }}>{t.detail}</span>
+                                            </div>
+                                          ))}
+                                          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 6, display: 'flex', gap: 12, fontSize: 11, flexWrap: 'wrap' }}>
+                                            <span><b style={{ color: '#6366f1' }}>{bookingStates[globalIdx].result.load_id}</b></span>
+                                            <span style={{ color: '#22c55e', fontWeight: 700 }}>{bookingStates[globalIdx].result.status}</span>
+                                            {bookingStates[globalIdx].result.driver && <span>Driver: {bookingStates[globalIdx].result.driver.name}</span>}
+                                            <span>Invoice: {bookingStates[globalIdx].result.invoice?.number}</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <button onClick={async (e) => {
+                                      e.stopPropagation()
+                                      setBookingStates(prev => ({ ...prev, [globalIdx]: { loading: true } }))
+                                      try {
+                                        const res = await apiFetch('/api/auto-book', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            load: r.load,
+                                            driver_type: driverType,
+                                            metrics: r.result.metrics,
+                                          }),
+                                        })
+                                        const data = await res.json()
+                                        setBookingStates(prev => ({ ...prev, [globalIdx]: { loading: false, result: data } }))
+                                      } catch (err) {
+                                        setBookingStates(prev => ({ ...prev, [globalIdx]: { loading: false, result: { error: err.message } } }))
+                                      }
+                                    }} disabled={bookingStates[globalIdx]?.loading}
+                                      style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        padding: '10px 16px', width: '100%', borderRadius: 8, border: 'none',
+                                        background: bookingStates[globalIdx]?.loading ? 'var(--border)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                        color: '#fff', fontSize: 12, fontWeight: 700, cursor: bookingStates[globalIdx]?.loading ? 'default' : 'pointer',
+                                        fontFamily: "'DM Sans',sans-serif",
+                                      }}>
+                                      {bookingStates[globalIdx]?.loading
+                                        ? <><RefreshCw size={13} className="spinning" /> Booking...</>
+                                        : <><Zap size={13} /> Execute Auto-Book</>}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </div>

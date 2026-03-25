@@ -474,7 +474,7 @@ export function OverviewTab({ onTabChange }) {
   const monthlyLoadCount = (deliveredLoads || []).filter(l => new Date(l.delivery_date || l.created_at || 0) >= monthStart).length
 
   // Styles
-  const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }
+  const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', flexShrink:0 }
   const qGlow = (color) => `0 0 20px ${color}15, 0 0 40px ${color}08`
   const insightColors = { action:'var(--accent)', warning:'var(--warning)', alert:'var(--danger)', opportunity:'var(--success)', info:'var(--accent3)' }
 
@@ -500,7 +500,7 @@ export function OverviewTab({ onTabChange }) {
       <div style={{
         display:'flex', justifyContent:'space-between', alignItems:'center', gap:8,
         padding:'10px 14px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
-        position:'relative', minHeight:48, overflow:'hidden'
+        position:'relative', minHeight:48, overflow:'hidden', flexShrink:0
       }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, position:'relative', zIndex:1, minWidth:0, flex:'1 1 0' }}>
           <div style={{ flexShrink:0 }}>
@@ -528,7 +528,7 @@ export function OverviewTab({ onTabChange }) {
       {qInsights.length > 0 && (
         <div style={{
           background:'linear-gradient(135deg, rgba(240,165,0,0.04) 0%, rgba(52,176,104,0.03) 50%, rgba(77,142,240,0.03) 100%)',
-          border:'1px solid rgba(240,165,0,0.15)', borderRadius:10, overflow:'hidden'
+          border:'1px solid rgba(240,165,0,0.15)', borderRadius:10, overflow:'hidden', flexShrink:0
         }}>
           <div style={{ padding:'8px 14px', borderBottom:'1px solid rgba(240,165,0,0.1)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -568,7 +568,7 @@ export function OverviewTab({ onTabChange }) {
       <div style={{
         background:'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))',
         border:'1px solid rgba(240,165,0,0.2)', borderRadius:10, padding:'14px 18px',
-        display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap'
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap', flexShrink:0
       }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, flex:'1 1 auto', minWidth:0 }}>
           <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -629,7 +629,7 @@ export function OverviewTab({ onTabChange }) {
       )}
 
       {/* ═══ 3. LIVE PERFORMANCE METRICS ═══════════════════════════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:10, flexShrink:0 }}>
         {[
           { label:'REVENUE', value: fmtMoney(animRevenue), color:'var(--accent)', icon: DollarSign, sub: totalRevenue === 0 ? 'Q: Deploy your first load' : 'MTD', click:() => onTabChange('financials') },
           { label:'NET PROFIT', value: fmtMoney(animProfit), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', icon: TrendingUp, sub: totalRevenue === 0 ? 'Q: Profit starts after delivery' : `${margin}% margin`, click:() => onTabChange('financials') },
@@ -655,7 +655,7 @@ export function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ═══ 4. Q ACTIONS ══════════════════════════════════════════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:10, flexShrink:0 }}>
         {qActions.slice(0,5).map((a, i) => (
           <div key={i} onClick={() => onTabChange(a.nav)}
             style={{
@@ -675,7 +675,7 @@ export function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ═══ 5. LOAD ALERTS + 6. DRIVER STATUS (side by side) ═════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:10, flexShrink:0 }}>
 
         {/* Load Alerts */}
         <div style={pan}>
@@ -792,7 +792,7 @@ export function OverviewTab({ onTabChange }) {
       </div>
 
       {/* ═══ PIPELINE + ACTIVITY (compact bottom row) ═════════════════ */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:10 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:10, flexShrink:0 }}>
 
         {/* Pipeline Summary */}
         <div style={pan}>

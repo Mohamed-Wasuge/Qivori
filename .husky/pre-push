@@ -1,0 +1,72 @@
+#!/bin/sh
+
+echo "🔍 Q Pre-Push Guard — checking for known issues..."
+ERRORS=0
+
+# ── 1. Build check ──────────────────────────────────────────
+echo "  → Running vite build..."
+BUILD_OUTPUT=$(npx vite build 2>&1)
+if [ $? -ne 0 ]; then
+  echo "  ❌ BUILD FAILED"
+  echo "$BUILD_OUTPUT" | tail -10
+  ERRORS=$((ERRORS + 1))
+else
+  echo "  ✅ Build passed"
+fi
+
+# ── 2. Check for untracked files that are imported ──────────
+echo "  → Checking for missing files..."
+UNTRACKED=$(git ls-files --others --exclude-standard -- 'src/**/*.jsx' 'src/**/*.js' 'src/**/*.ts' 'src/**/*.tsx')
+if [ -n "$UNTRACKED" ]; then
+  for FILE in $UNTRACKED; do
+    BASENAME=$(basename "$FILE" | sed 's/\.[^.]*$//')
+    IMPORTER=$(git ls-files -- 'src/**/*.jsx' 'src/**/*.js' | xargs grep -l "from.*['\"].*${BASENAME}['\"]" 2>/dev/null | head -1)
+    if [ -n "$IMPORTER" ]; then
+      echo "  ❌ UNTRACKED FILE imported: $FILE (used by $IMPORTER)"
+      echo "     Run: git add $FILE"
+      ERRORS=$((ERRORS + 1))
+    fi
+  done
+fi
+if [ $ERRORS -eq 0 ]; then
+  echo "  ✅ No missing imports"
+fi
+
+# ── 3. Check staged/changed files for 100vw ────────────────
+echo "  → Checking changed files for 100vw..."
+CHANGED=$(git diff --name-only HEAD@{upstream}..HEAD 2>/dev/null || git diff --name-only HEAD~1 2>/dev/null)
+VW_HIT=0
+for F in $CHANGED; do
+  if [ -f "$F" ] && echo "$F" | grep -qE '\.(jsx|js|css)$'; then
+    if grep -q "100vw" "$F" 2>/dev/null; then
+      # Allow in mobile components and landing page (legitimate full-width usage)
+      if ! echo "$F" | grep -qiE 'mobile|landing|login'; then
+        echo "  ⚠️  100vw found in $F (may cause horizontal overflow)"
+        VW_HIT=1
+      fi
+    fi
+  fi
+done
+if [ $VW_HIT -eq 0 ]; then
+  echo "  ✅ No 100vw issues in changed files"
+fi
+
+# ── 4. Check for hardcoded secret values ───────────────────
+echo "  → Checking for secrets..."
+SECRET_HIT=$(grep -rn "sk_live_[A-Za-z0-9]\{10,\}\|sk_test_[A-Za-z0-9]\{10,\}\|eyJhbGciOiJ" --include="*.jsx" --include="*.js" src/ 2>/dev/null | grep -v node_modules | grep -v "test/\|\.test\." || true)
+if [ -n "$SECRET_HIT" ]; then
+  echo "  ❌ Possible hardcoded secrets:"
+  echo "$SECRET_HIT" | while read line; do echo "     $line"; done
+  ERRORS=$((ERRORS + 1))
+else
+  echo "  ✅ No secrets detected"
+fi
+
+# ── Result ──────────────────────────────────────────────────
+echo ""
+if [ $ERRORS -gt 0 ]; then
+  echo "🚫 Push blocked — $ERRORS error(s) found. Fix and try again."
+  exit 1
+else
+  echo "✅ All checks passed. Pushing..."
+fi

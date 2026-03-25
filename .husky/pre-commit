@@ -1,0 +1,6 @@
+#!/bin/sh
+# Lightweight pre-commit: block accidental secret commits
+if git diff --cached --name-only | grep -qE '\.env$|\.env\.|credentials|secret'; then
+  echo "🚫 Blocked: Possible secret file staged. Review before committing."
+  exit 1
+fi

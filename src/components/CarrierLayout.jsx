@@ -31,6 +31,7 @@ import { SearchModal, AIChatbox, QuickActions } from './carrier/Overlays'
 import { OnboardingWizard } from './carrier/OnboardingWizard'
 import { SettingsTab } from './carrier/SettingsTab'
 import { BillingTab, SettlementTab, LoadsPipeline, LoadDetailDrawer } from './carrier/LoadsPipeline'
+import { AIDispatchDashboard } from './carrier/AIDispatchDashboard'
 
 // ── View Error Boundary ─────────────────────────────────────────────────────
 class ViewErrorBoundary extends Component {
@@ -75,6 +76,7 @@ const NAV = [
   { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
   { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
   { id:'_divider' },
+  { id:'ai-dashboard', icon: Bot,          label:'AI Control Center', i18nKey:'nav.aiDashboard'  },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 
@@ -241,6 +243,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'financials':  return <FinancialsHub />
     case 'compliance':  return <ComplianceHub />
     case 'settings':    return <SettingsTab />
+    case 'ai-dashboard': return <AIDispatchDashboard />
     case 'analytics':   return <AnalyticsDashboard />
     case 'load-board':  return <AILoadBoard />
     case 'rate-check':  return <RateNegotiation />

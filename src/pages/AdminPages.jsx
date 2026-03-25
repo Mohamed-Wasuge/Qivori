@@ -121,7 +121,7 @@ export function WaitlistManager() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading waitlist...</div>
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Stats */}
       <div className="stats-grid cols4 fade-in">
         {[
@@ -290,7 +290,7 @@ export function Analytics() {
   ]
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Quick stats */}
       <div className="stats-grid cols4 fade-in">
         {[
@@ -480,7 +480,7 @@ export function ActivityLog() {
   }
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Security info */}
       <div className="ai-banner fade-in" style={{ borderColor: 'rgba(34,197,94,0.2)' }}>
         <div className="ai-pulse" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
@@ -2229,7 +2229,7 @@ export function DemoRequests() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading demo requests...</div>
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="stats-grid cols4 fade-in">
         {[
           { label: 'Total Requests', value: requests.length, color: 'var(--accent)' },

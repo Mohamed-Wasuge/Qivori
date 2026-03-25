@@ -307,7 +307,7 @@ export default function Dashboard() {
   )
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Platform banner */}
       <div className="ai-banner fade-in">
         <div className="ai-pulse" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic icon={Activity} size={20} /></div>

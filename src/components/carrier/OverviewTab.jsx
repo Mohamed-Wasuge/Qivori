@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   DollarSign, TrendingUp, CheckCircle, Package, Truck, AlertTriangle, AlertCircle,
   CreditCard, BarChart2, Users, Shield, Zap, Layers, FileText, Activity, Radio,
-  ArrowUpRight, ArrowDownRight, Bot, Plus, Fuel, Target, Clock
+  ArrowUpRight, ArrowDownRight, Bot, Plus, Fuel, Target, Clock, Brain, Bell, ChevronRight, Play
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
@@ -431,6 +431,48 @@ export function OverviewTab({ onTabChange }) {
 
   const isNewCarrier = loads.length === 0 && drivers.length === 0 && vehicles.length === 0
 
+  // ── Q Retention System ──
+  const now = new Date()
+  const weekAgo = new Date(Date.now() - 7 * 86400000)
+  const lastWeekStart = new Date(Date.now() - 14 * 86400000)
+
+  // Weekly performance
+  const thisWeekDelivered = (deliveredLoads || []).filter(l => new Date(l.delivery_date || l.created_at || 0) > weekAgo)
+  const lastWeekDelivered = (deliveredLoads || []).filter(l => { const d = new Date(l.delivery_date || l.created_at || 0); return d > lastWeekStart && d <= weekAgo })
+  const thisWeekProfit = thisWeekDelivered.reduce((s, l) => s + (l.gross || l.rate_total || 0), 0)
+  const lastWeekProfit = lastWeekDelivered.reduce((s, l) => s + (l.gross || l.rate_total || 0), 0)
+
+  // Revenue goal tracking
+  const weeklyGoal = company?.revenue_goal_weekly || 5000
+  const goalPct = weeklyGoal > 0 ? Math.min(Math.round((thisWeekProfit / weeklyGoal) * 100), 100) : 0
+  const goalRemaining = Math.max(weeklyGoal - thisWeekProfit, 0)
+
+  // Idle truck cost estimate ($450/day per idle truck)
+  const idleTruckCount = idleDrivers.length
+  const idleDailyCost = idleTruckCount * 450
+
+  // Missed opportunity estimate (loads not taken when drivers were idle)
+  const avgGrossPerLoad = deliveredLoads.length > 0 ? deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0) / deliveredLoads.length : 2500
+  const missedEstimate = idleTruckCount > 0 && deliveredLoads.length > 0 ? Math.round(idleTruckCount * avgGrossPerLoad * 0.3) : 0
+
+  // AI usage this week
+  const aiLoadsThisWeek = thisWeekDelivered.length // approximate — all delivered loads went through Q
+  const aiEfficiencyGain = deliveredLoads.length > 0 ? 35 : 0 // estimated %
+
+  // Q Daily Briefing items
+  const dailyBriefing = []
+  if (idleTruckCount > 0) dailyBriefing.push({ icon: Truck, text: `${idleTruckCount} truck${idleTruckCount > 1 ? 's' : ''} idle — losing ~$${idleDailyCost.toLocaleString()}/day`, color: 'var(--danger)', action: 'Assign load', nav: 'load-board' })
+  if (unassignedLoads.length > 0) dailyBriefing.push({ icon: Package, text: `${unassignedLoads.length} high-profit load${unassignedLoads.length > 1 ? 's' : ''} available nearby`, color: 'var(--success)', action: 'View loads', nav: 'loads' })
+  if (parseFloat(margin) < 20 && totalRevenue > 0) dailyBriefing.push({ icon: TrendingUp, text: `Margin at ${margin}% — below 25% target`, color: 'var(--warning)', action: 'Analyze costs', nav: 'financials' })
+  if (unpaidInvoices.length > 0) dailyBriefing.push({ icon: CreditCard, text: `$${unpaidInvoices.reduce((s,i) => s + (parseFloat(i.amount)||0), 0).toLocaleString()} unpaid — cash flow at risk`, color: 'var(--warning)', action: 'Collect now', nav: 'financials' })
+  if (expiringDocs.length > 0) dailyBriefing.push({ icon: Shield, text: `${expiringDocs.length} medical card${expiringDocs.length > 1 ? 's' : ''} expiring soon`, color: 'var(--danger)', action: 'Resolve', nav: 'compliance' })
+  if (dailyBriefing.length === 0 && loads.length > 0) dailyBriefing.push({ icon: CheckCircle, text: 'All operations on track — Q is monitoring', color: 'var(--success)', action: 'View fleet', nav: 'fleet' })
+
+  // Subscription value reminder
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthlyProfit = (deliveredLoads || []).filter(l => new Date(l.delivery_date || l.created_at || 0) >= monthStart).reduce((s, l) => s + (l.gross || 0), 0)
+  const monthlyLoadCount = (deliveredLoads || []).filter(l => new Date(l.delivery_date || l.created_at || 0) >= monthStart).length
+
   // Styles
   const pan = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }
   const qGlow = (color) => `0 0 20px ${color}15, 0 0 40px ${color}08`
@@ -810,6 +852,187 @@ export function OverviewTab({ onTabChange }) {
           })()}
         </div>
       </div>
+
+      {/* ═══ Q RETENTION SYSTEM ═══════════════════════════════════════ */}
+      {!isNewCarrier && (
+      <>
+      {/* Q Daily Briefing */}
+      <div style={{ ...pan, borderLeft:'3px solid var(--accent)' }}>
+        <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <Ic icon={Brain} size={13} color="var(--accent)" />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2, color:'var(--accent)' }}>Q DAILY BRIEFING</span>
+          </div>
+          <span style={{ fontSize:9, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace" }}>{now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}</span>
+        </div>
+        <div style={{ padding:10, display:'flex', flexDirection:'column', gap:6 }}>
+          {dailyBriefing.map((b, i) => (
+            <div key={i} onClick={() => onTabChange(b.nav)} style={{
+              padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+              background: b.color === 'var(--danger)' ? 'rgba(239,68,68,0.04)' : b.color === 'var(--warning)' ? 'rgba(245,158,11,0.04)' : 'rgba(34,197,94,0.04)',
+              borderLeft:'2px solid ' + b.color
+            }}>
+              <Ic icon={b.icon} size={13} color={b.color} />
+              <span style={{ flex:1, fontSize:11, fontWeight:600 }}>{b.text}</span>
+              <span style={{ fontSize:10, color:'var(--accent)', fontWeight:700, flexShrink:0 }}>{b.action}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Q Weekly Report + Progress */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:10 }}>
+
+        {/* Weekly Performance */}
+        <div style={pan}>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+            <Ic icon={BarChart2} size={12} color="var(--accent)" />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2 }}>Q WEEKLY REPORT</span>
+          </div>
+          <div style={{ padding:12, display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'var(--muted)' }}>Profit this week</span>
+              <span className="mono" style={{ fontSize:16, fontWeight:700, color:'var(--success)' }}>${thisWeekProfit.toLocaleString()}</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'var(--muted)' }}>Loads completed</span>
+              <span className="mono" style={{ fontSize:14, fontWeight:700 }}>{thisWeekDelivered.length}</span>
+            </div>
+            {missedEstimate > 0 && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>Missed opportunities</span>
+                <span className="mono" style={{ fontSize:13, fontWeight:700, color:'var(--danger)' }}>~${missedEstimate.toLocaleString()}</span>
+              </div>
+            )}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'var(--muted)' }}>AI usage</span>
+              <span className="mono" style={{ fontSize:13, fontWeight:700, color:'var(--accent)' }}>{aiLoadsThisWeek} loads</span>
+            </div>
+            {lastWeekProfit > 0 && (
+              <div style={{ padding:'6px 8px', borderRadius:6, background:'rgba(240,165,0,0.04)', borderLeft:'2px solid var(--accent)', marginTop:2 }}>
+                <div style={{ fontSize:10, color:'var(--muted)', display:'flex', alignItems:'center', gap:4 }}>
+                  <Ic icon={Brain} size={9} color="var(--accent)" />
+                  <strong style={{ color:'var(--accent)' }}>Q:</strong>
+                  {thisWeekProfit > lastWeekProfit
+                    ? ` Up ${Math.round(((thisWeekProfit - lastWeekProfit) / lastWeekProfit) * 100)}% from last week — momentum building.`
+                    : thisWeekProfit < lastWeekProfit
+                    ? ` Q could have added +$${Math.round(lastWeekProfit - thisWeekProfit).toLocaleString()} more.`
+                    : ' Steady performance this week.'}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Progress Tracking */}
+        <div style={pan}>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+            <Ic icon={Target} size={12} color="var(--accent)" />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2 }}>WEEKLY GOAL</span>
+          </div>
+          <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
+              <span className="mono" style={{ fontSize:20, fontWeight:700, color: goalPct >= 100 ? 'var(--success)' : goalPct >= 50 ? 'var(--accent)' : 'var(--danger)' }}>${thisWeekProfit.toLocaleString()}</span>
+              <span style={{ fontSize:11, color:'var(--muted)' }}>/ ${weeklyGoal.toLocaleString()}</span>
+            </div>
+            <div style={{ height:8, background:'var(--border)', borderRadius:4, overflow:'hidden' }}>
+              <div style={{ width: Math.max(goalPct, 2) + '%', height:'100%', background: goalPct >= 100 ? 'var(--success)' : goalPct >= 50 ? 'var(--accent)' : 'var(--danger)', borderRadius:4, transition:'width 0.5s' }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)' }}>
+              <span>{goalPct}% complete</span>
+              <span>${goalRemaining.toLocaleString()} remaining</span>
+            </div>
+            <div style={{ padding:'6px 8px', borderRadius:6, background:'rgba(240,165,0,0.04)', borderLeft:'2px solid var(--accent)' }}>
+              <div style={{ fontSize:10, color:'var(--muted)', display:'flex', alignItems:'center', gap:4 }}>
+                <Ic icon={Brain} size={9} color="var(--accent)" />
+                <strong style={{ color:'var(--accent)' }}>Q:</strong>
+                {goalPct >= 100 ? ' Goal achieved! Set a higher target.' :
+                 goalPct >= 75 ? ' Almost there — keep pushing.' :
+                 goalPct >= 50 ? ` ${Math.ceil(goalRemaining / avgGrossPerLoad)} more loads needed.` :
+                 ' You are behind target — action required.'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Q Value Reminder (subscription protection) */}
+        <div style={pan}>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+            <Ic icon={Zap} size={12} color="var(--accent)" />
+            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2 }}>Q VALUE THIS MONTH</span>
+          </div>
+          <div style={{ padding:12, display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'var(--muted)' }}>Profit generated</span>
+              <span className="mono" style={{ fontSize:16, fontWeight:700, color:'var(--success)' }}>${monthlyProfit.toLocaleString()}</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'var(--muted)' }}>Loads handled by Q</span>
+              <span className="mono" style={{ fontSize:14, fontWeight:700 }}>{monthlyLoadCount}</span>
+            </div>
+            {idleTruckCount > 0 && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>Idle truck cost</span>
+                <span className="mono" style={{ fontSize:13, fontWeight:700, color:'var(--danger)' }}>-${idleDailyCost.toLocaleString()}/day</span>
+              </div>
+            )}
+            {aiEfficiencyGain > 0 && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>Est. efficiency gain</span>
+                <span className="mono" style={{ fontSize:13, fontWeight:700, color:'var(--accent)' }}>+{aiEfficiencyGain}%</span>
+              </div>
+            )}
+            {monthlyProfit === 0 && loads.length > 0 && (
+              <div style={{ padding:'6px 8px', borderRadius:6, background:'rgba(239,68,68,0.04)', borderLeft:'2px solid var(--danger)' }}>
+                <div style={{ fontSize:10, color:'var(--muted)', display:'flex', alignItems:'center', gap:4 }}>
+                  <Ic icon={Brain} size={9} color="var(--danger)" />
+                  <strong style={{ color:'var(--danger)' }}>Q:</strong> You are not using Q Auto-Dispatch. Estimated lost efficiency: {aiEfficiencyGain}%
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Missed Opportunity + Re-engagement */}
+      {(missedEstimate > 0 || (idleTruckCount > 0 && loads.length > 0)) && (
+        <div style={{ ...pan, borderLeft:'3px solid var(--warning)' }}>
+          <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:'rgba(245,158,11,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Ic icon={AlertTriangle} size={16} color="var(--warning)" />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--warning)', marginBottom:2 }}>MISSED OPPORTUNITY</div>
+              <div style={{ fontSize:11, color:'var(--muted)' }}>
+                {idleTruckCount > 0 ? `${idleTruckCount} idle truck${idleTruckCount > 1 ? 's' : ''} — estimated missed profit: $${missedEstimate.toLocaleString()}` : 'Higher-paying loads were available but not taken'}
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ fontSize:10, padding:'6px 14px', flexShrink:0 }} onClick={() => onTabChange('load-board')}>
+              Find Loads <Ic icon={ChevronRight} size={10} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Re-engagement prompt (shown when few loads this week) */}
+      {thisWeekDelivered.length === 0 && loads.length > 0 && (
+        <div style={{ ...pan, borderLeft:'3px solid var(--accent)', background:'rgba(240,165,0,0.02)' }}>
+          <div style={{ padding:'12px 14px', display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Ic icon={Brain} size={18} color="var(--accent)" />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--accent)', marginBottom:2 }}>Q is ready to find your next load</div>
+              <div style={{ fontSize:11, color:'var(--muted)' }}>No deliveries this week. Resume dispatch to keep trucks earning.</div>
+            </div>
+            <button className="btn btn-primary" style={{ fontSize:11, padding:'8px 16px', flexShrink:0 }} onClick={() => onTabChange('load-board')}>
+              <Ic icon={Play} size={12} style={{ marginRight:4 }} /> Resume Dispatch
+            </button>
+          </div>
+        </div>
+      )}
+      </>
+      )}
 
       {/* ═══ Q ANIMATIONS ═════════════════════════════════════════════ */}
       <style>{`

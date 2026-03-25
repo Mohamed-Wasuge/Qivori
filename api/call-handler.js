@@ -117,6 +117,89 @@ STAGE: ${context.stage}`;
   }
 }
 
+// — Broker urgency extraction from call transcripts —
+const URGENCY_PATTERNS = [
+  { pattern: /willing to (increase|come up|go higher|bump|raise)/i, signal: 'willing to increase rate' },
+  { pattern: /(need.*(covered|picked up|moved).*(today|asap|immediately|now))/i, signal: 'deadline pressure' },
+  { pattern: /(urgent|asap|emergency|critical|time.?sensitive)/i, signal: 'deadline pressure' },
+  { pattern: /(repost|posted.*again|put.*(back|again).*board)/i, signal: 'reposted load multiple times' },
+  { pattern: /(other carrier|another carrier|someone else|shopping)/i, signal: 'mentioned other carriers' },
+  { pattern: /(take it|book it|let'?s do it|deal|sounds good|works for me)/i, signal: 'quick acceptance' },
+  { pattern: /(flexible|negotiable|work with you|meet.*middle)/i, signal: 'flexible on rate' },
+  { pattern: /(call.*(back|again)|follow.?up|reaching out again)/i, signal: 'multiple callbacks' },
+  { pattern: /(pickup today|deliver.*(today|tomorrow morning))/i, signal: 'pickup today' },
+];
+
+function extractUrgencyFromTranscript(transcriptText) {
+  if (!transcriptText) return [];
+  const detected = [];
+  for (const { pattern, signal } of URGENCY_PATTERNS) {
+    if (pattern.test(transcriptText) && !detected.includes(signal)) {
+      detected.push(signal);
+    }
+  }
+  return detected;
+}
+
+const SIGNAL_SCORES = {
+  'willing to increase rate': 15, 'deadline pressure': 20, 'reposted load multiple times': 25,
+  'mentioned other carriers': 10, 'quick acceptance': 15, 'flexible on rate': 15,
+  'multiple callbacks': 15, 'pickup today': 20,
+};
+
+function scoreUrgencySignals(signals) {
+  let total = 0;
+  for (const s of signals) {
+    total += SIGNAL_SCORES[s] || 5;
+  }
+  return Math.min(total, 100);
+}
+
+async function updateBrokerUrgency(userId, brokerName, transcriptText) {
+  if (!userId || !brokerName || !supabaseUrl || !supabaseKey) return;
+  try {
+    const signals = extractUrgencyFromTranscript(transcriptText);
+    if (signals.length === 0) return;
+
+    const newScore = scoreUrgencySignals(signals);
+
+    // Fetch existing
+    let existingScore = 50, existingCallCount = 0, existingSignals = [];
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/broker_urgency_scores?owner_id=eq.${userId}&broker_name=eq.${encodeURIComponent(brokerName)}&select=*&limit=1`,
+      { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
+    );
+    if (res.ok) {
+      const rows = await res.json();
+      if (rows?.[0]) {
+        existingScore = rows[0].urgency_score || 50;
+        existingCallCount = rows[0].call_count || 0;
+        existingSignals = rows[0].signals || [];
+      }
+    }
+
+    const finalScore = Math.round(newScore * 0.6 + existingScore * 0.4);
+    const mergedSignals = [...new Set([...existingSignals, ...signals])].slice(-20);
+
+    await fetch(`${supabaseUrl}/rest/v1/broker_urgency_scores`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({
+        owner_id: userId,
+        broker_name: brokerName,
+        urgency_score: Math.min(finalScore, 100),
+        signals: mergedSignals,
+        call_count: existingCallCount + 1,
+        last_call_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    });
+  } catch {}
+}
+
 // — Supabase helpers —
 async function supabaseUpdate(table, query, data) {
   await fetch(`${supabaseUrl}/rest/v1/${table}?${query}`, {
@@ -405,6 +488,26 @@ export default async function handler(req) {
           if (status !== 'completed') update.call_status = status;
         }
         await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, update);
+
+        // After call completes, extract broker urgency from transcripts (fire-and-forget)
+        if (status === 'completed' && context.userId) {
+          (async () => {
+            try {
+              const tRes = await fetch(
+                `${supabaseUrl}/rest/v1/call_transcripts?call_sid=eq.${callSid}&speaker=eq.broker&select=text&order=created_at.asc&limit=50`,
+                { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
+              );
+              if (tRes.ok) {
+                const rows = await tRes.json();
+                const fullTranscript = (rows || []).map(r => r.text).join(' ');
+                if (fullTranscript && context.loadId) {
+                  const brokerName = context.carrierName || 'Unknown'; // The broker name from context
+                  await updateBrokerUrgency(context.userId, brokerName, fullTranscript);
+                }
+              }
+            } catch {}
+          })();
+        }
       }
       return new Response('OK');
     }

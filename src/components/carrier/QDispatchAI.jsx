@@ -225,8 +225,54 @@ export function QDispatchAI() {
   }, [transcript])
 
   const fuelRate = fuelCostPerMile || 0.55
+  const [backendEval, setBackendEval] = useState(null)
+  const [backendEvalLoadId, setBackendEvalLoadId] = useState(null)
 
-  // ── Compute load eval for selected load ─────────────────────────────────
+  // Fetch backend dispatch evaluation when selected load changes
+  useEffect(() => {
+    if (!selectedLoad) { setBackendEval(null); setBackendEvalLoadId(null); return }
+    const loadKey = selectedLoad.loadId || selectedLoad.id
+    if (loadKey === backendEvalLoadId) return // Already fetched for this load
+    setBackendEvalLoadId(loadKey)
+    ;(async () => {
+      try {
+        const res = await apiFetch('/api/dispatch-evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            load_id: loadKey,
+            load: {
+              gross: selectedLoad.gross || selectedLoad.gross_pay || 0,
+              miles: selectedLoad.miles,
+              weight: selectedLoad.weight,
+              origin: selectedLoad.origin,
+              dest: selectedLoad.dest || selectedLoad.destination,
+              equipment: selectedLoad.equipment,
+              broker: selectedLoad.broker,
+              broker_phone: selectedLoad.broker_phone,
+              book_type: selectedLoad.book_type,
+              instant_book: selectedLoad.instant_book,
+              pickup_date: selectedLoad.pickup_date,
+              delivery_date: selectedLoad.delivery_date,
+            },
+            driver_id: selectedLoad.driver_id || null,
+            driver_type: 'owner_operator',
+          })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.decision) setBackendEval(data)
+          else setBackendEval(null)
+        } else {
+          setBackendEval(null)
+        }
+      } catch {
+        setBackendEval(null) // Frontend fallback
+      }
+    })()
+  }, [selectedLoad])
+
+  // ── Compute load eval for selected load (frontend fallback + backend merge) ──
   const loadEval = useMemo(() => {
     if (!selectedLoad) return null
     const gross = selectedLoad.gross || selectedLoad.gross_pay || 0
@@ -266,13 +312,32 @@ export function QDispatchAI() {
     // Instant book detection
     const isInstantBook = !selectedLoad.broker_phone && (selectedLoad.book_type === 'instant' || selectedLoad.instant_book)
 
+    // Override with backend metrics when available
+    const be = backendEval
+    const finalEstProfit = be?.metrics?.estProfit ?? estProfit
+    const finalProfitPerMile = be?.metrics?.profitPerMile ?? profitPerMile
+    const finalProfitPerDay = be?.metrics?.profitPerDay ?? profitPerDay
+    const finalFuelCost = be?.metrics?.fuelCost ?? fuelCost
+    const finalDriverPay = be?.metrics?.driverPay ?? driverPay
+    const finalTransitDays = be?.metrics?.transitDays ?? transitDays
+    const finalTargetRate = be?.negotiation ? Math.round((be.negotiation.targetRate || 0) * miles) : targetRate
+
     return {
-      gross, miles, driverPay, fuelCost, estProfit, profitPerMile, profitPerDay,
-      transitDays, minRate, targetRate, rpm, broker,
-      brokerIntel: { grade, flexibility, speed, payment, usualCounter: grade === 'A' ? '+$100–150' : grade === 'C' ? '+$250–350' : '+$150–200' },
+      gross, miles,
+      driverPay: finalDriverPay, fuelCost: finalFuelCost, estProfit: finalEstProfit,
+      profitPerMile: finalProfitPerMile, profitPerDay: finalProfitPerDay,
+      transitDays: finalTransitDays, minRate, targetRate: finalTargetRate, rpm, broker,
+      brokerIntel: { grade, flexibility, speed, payment, usualCounter: grade === 'A' ? '+$100-150' : grade === 'C' ? '+$250-350' : '+$150-200' },
       multiDayAlert, isInstantBook, isMultiDay, counterMarkup,
+      backendDecision: be?.decision || null,
+      backendConfidence: be?.confidence || null,
+      backendReasons: be?.reasons || [],
+      backendNegotiation: be?.negotiation || null,
+      seasonMultiplier: be?.metrics?.seasonMultiplier || null,
+      brokerUrgency: be?.metrics?.brokerUrgency || 0,
+      _backendPowered: !!be,
     }
-  }, [selectedLoad, drivers, fuelRate, negSettings, brokerStats])
+  }, [selectedLoad, drivers, fuelRate, negSettings, brokerStats, backendEval])
 
   // ── Negotiation strategy ──────────────────────────────────────────────────
   const negStrategy = useMemo(() => {

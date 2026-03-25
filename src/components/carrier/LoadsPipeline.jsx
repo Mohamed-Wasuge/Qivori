@@ -567,6 +567,7 @@ export function LoadsPipeline({ onOpenDrawer }) {
   const [qFilter, setQFilter] = useState('all') // all | approved | rejected | negotiate
   const [isScanning, setIsScanning] = useState(true)
   const [dismissedAlerts, setDismissedAlerts] = useState([])
+  const [dispatchDecisions, setDispatchDecisions] = useState({})
 
   // Listen for custom event to switch to dispatch tab
   useEffect(() => {
@@ -582,7 +583,7 @@ export function LoadsPipeline({ onOpenDrawer }) {
     return () => clearTimeout(t)
   }, [loads.length])
 
-  // Run Q evaluation on all loads
+  // Run Q evaluation on all loads (frontend fallback)
   const qContext = useMemo(() => ({ fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads }), [fuelCostPerMile, drivers, brokerStats, allLoads, loads])
   const qResults = useMemo(() => {
     const map = {}
@@ -591,6 +592,52 @@ export function LoadsPipeline({ onOpenDrawer }) {
     })
     return map
   }, [loads, qContext])
+
+  // Batch evaluate loads via backend dispatch engine
+  useEffect(() => {
+    const evaluateLoads = async () => {
+      const eligible = loads.filter(l =>
+        !dispatchDecisions[l.loadId || l.id] &&
+        ['Booked', 'Rate Con Received', 'Assigned to Driver'].includes(l.status)
+      )
+      for (const load of eligible) {
+        try {
+          const res = await apiFetch('/api/dispatch-evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              load_id: load.loadId || load.id,
+              load: {
+                gross: load.gross || load.gross_pay || load.rate_total || 0,
+                miles: load.miles,
+                weight: load.weight,
+                origin: load.origin,
+                dest: load.dest || load.destination,
+                equipment: load.equipment,
+                broker: load.broker,
+                broker_phone: load.broker_phone,
+                book_type: load.book_type,
+                instant_book: load.instant_book,
+                pickup_date: load.pickup_date,
+                delivery_date: load.delivery_date,
+              },
+              driver_id: load.driver_id || null,
+              driver_type: 'owner_operator',
+            })
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.decision) {
+              setDispatchDecisions(prev => ({ ...prev, [load.loadId || load.id]: data }))
+            }
+          }
+        } catch {
+          // Backend unavailable — frontend fallback handles it
+        }
+      }
+    }
+    if (loads.length > 0) evaluateLoads()
+  }, [loads])
 
   // Q-filtered loads
   const filteredLoads = useMemo(() => {
@@ -1052,26 +1099,44 @@ export function LoadDetailDrawer({ loadId, onClose }) {
 
           {/* ═══ Q DECISION PANEL ═══════════════════════════════════ */}
           {(() => {
-            const qr = qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads })
-            const dc = Q_DECISION_COLORS[qr.decision]
+            // Use backend dispatch decision when available, fall back to frontend eval
+            const backendDec = dispatchDecisions[load.loadId || load.id]
+            const frontendQr = qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads })
+            const qr = backendDec ? {
+              ...frontendQr,
+              decision: (backendDec.decision || '').toUpperCase() === 'AUTO_BOOK' ? 'ACCEPT' : (backendDec.decision || '').toUpperCase(),
+              confidence: backendDec.confidence || frontendQr.confidence,
+              estProfit: backendDec.metrics?.estProfit ?? frontendQr.estProfit,
+              profitPerMile: backendDec.metrics?.profitPerMile ?? frontendQr.profitPerMile,
+              profitPerDay: backendDec.metrics?.profitPerDay ?? frontendQr.profitPerDay,
+              fuelCost: backendDec.metrics?.fuelCost ?? frontendQr.fuelCost,
+              driverPay: backendDec.metrics?.driverPay ?? frontendQr.driverPay,
+              transitDays: backendDec.metrics?.transitDays ?? frontendQr.transitDays,
+              summaryReason: (backendDec.reasons || []).join('. ') || frontendQr.summaryReason,
+              targetRate: backendDec.negotiation ? Math.round((backendDec.negotiation.targetRate || 0) * (parseFloat(load.miles) || 1)) : frontendQr.targetRate,
+              risks: frontendQr.risks,
+              advantages: frontendQr.advantages,
+              _backendPowered: true,
+            } : frontendQr
+            const dc = Q_DECISION_COLORS[qr.decision] || Q_DECISION_COLORS.ACCEPT
             return (
               <div style={{ background:`linear-gradient(135deg, ${dc.bg}, rgba(0,0,0,0.02))`, border:`1px solid ${dc.border}`, borderRadius:12, padding:16, position:'relative', overflow:'hidden' }}>
                 <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:`linear-gradient(90deg, transparent, ${dc.color}50, transparent)` }} />
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <div style={{ width:5, height:5, borderRadius:'50%', background:dc.color, animation:'q-scan-pulse 2s ease-in-out infinite' }} />
-                    <span style={{ fontSize:10, fontWeight:800, color:dc.color, letterSpacing:1.5 }}>Q DECISION</span>
+                    <span style={{ fontSize:10, fontWeight:800, color:dc.color, letterSpacing:1.5 }}>Q DECISION{qr._backendPowered ? ' (AI)' : ''}</span>
                   </div>
                   <QDecisionBadge decision={qr.decision} />
                 </div>
                 {/* Metrics grid */}
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:10 }}>
                   {[
-                    { label:'EST. PROFIT', value:`$${qr.estProfit.toLocaleString()}`, color: qr.estProfit > 0 ? 'var(--success)' : 'var(--danger)' },
+                    { label:'EST. PROFIT', value:`$${(qr.estProfit || 0).toLocaleString()}`, color: qr.estProfit > 0 ? 'var(--success)' : 'var(--danger)' },
                     { label:'PROFIT/MI', value:`$${qr.profitPerMile}`, color: parseFloat(qr.profitPerMile) >= 1.00 ? 'var(--success)' : 'var(--accent)' },
-                    { label:'PROFIT/DAY', value:`$${qr.profitPerDay.toLocaleString()}`, color: qr.profitPerDay >= 500 ? 'var(--success)' : 'var(--accent)' },
-                    { label:'FUEL COST', value:`$${qr.fuelCost.toLocaleString()}`, color:'var(--warning)' },
-                    { label:'DRIVER PAY', value:`$${qr.driverPay.toLocaleString()}`, color:'var(--muted)' },
+                    { label:'PROFIT/DAY', value:`$${(qr.profitPerDay || 0).toLocaleString()}`, color: qr.profitPerDay >= 500 ? 'var(--success)' : 'var(--accent)' },
+                    { label:'FUEL COST', value:`$${(qr.fuelCost || 0).toLocaleString()}`, color:'var(--warning)' },
+                    { label:'DRIVER PAY', value:`$${(qr.driverPay || 0).toLocaleString()}`, color:'var(--muted)' },
                     { label:'BROKER', value:`${qr.brokerScore} — ${qr.brokerReliability}`, color: qr.brokerScore === 'A' ? 'var(--success)' : qr.brokerScore === 'C' ? 'var(--danger)' : 'var(--accent)' },
                   ].map(m => (
                     <div key={m.label} style={{ background:'rgba(0,0,0,0.12)', borderRadius:6, padding:'6px 8px' }}>
@@ -1080,8 +1145,20 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                     </div>
                   ))}
                 </div>
-                {/* Target counter rate */}
-                {qr.targetRate && (
+                {/* Negotiation script from backend */}
+                {backendDec?.negotiation && (
+                  <div style={{ padding:'8px 10px', background:'rgba(240,165,0,0.06)', borderRadius:6, marginBottom:8, border:'1px solid rgba(240,165,0,0.15)' }}>
+                    <div style={{ fontSize:9, fontWeight:800, color:'var(--accent)', letterSpacing:1, marginBottom:4 }}>NEGOTIATION SCRIPT</div>
+                    <div style={{ fontSize:10, color:'var(--text)', lineHeight:1.5 }}>{backendDec.negotiation.script}</div>
+                    <div style={{ display:'flex', gap:12, marginTop:6 }}>
+                      <span style={{ fontSize:9, color:'var(--muted)' }}>Current: <span style={{ fontWeight:700, color:'var(--text)', fontFamily:"'JetBrains Mono',monospace" }}>${backendDec.negotiation.currentRate}/mi</span></span>
+                      <span style={{ fontSize:9, color:'var(--muted)' }}>Target: <span style={{ fontWeight:700, color:'var(--accent)', fontFamily:"'JetBrains Mono',monospace" }}>${backendDec.negotiation.targetRate}/mi</span></span>
+                      <span style={{ fontSize:9, color:'var(--muted)' }}>Min: <span style={{ fontWeight:700, color:'var(--warning)', fontFamily:"'JetBrains Mono',monospace" }}>${backendDec.negotiation.minAcceptRate}/mi</span></span>
+                    </div>
+                  </div>
+                )}
+                {/* Target counter rate (frontend fallback) */}
+                {!backendDec?.negotiation && qr.targetRate && (
                   <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', background:'rgba(240,165,0,0.08)', borderRadius:6, marginBottom:8, border:'1px solid rgba(240,165,0,0.15)' }}>
                     <Ic icon={Target} size={12} color="var(--accent)" />
                     <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>Target Counter:</span>

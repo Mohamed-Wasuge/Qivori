@@ -3,7 +3,7 @@ import {
   Bot, Filter, RefreshCw, ChevronDown, ChevronUp, Eye, Edit3, X,
   CheckCircle, XCircle, AlertTriangle, TrendingUp, Activity, Clock,
   DollarSign, Target, Zap, ArrowRight, Search, Calendar, Play,
-  FlaskConical, Truck, Package, Flame,
+  FlaskConical, Truck, Package, Flame, Users, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { apiFetch } from '../../lib/api'
 import { HubTabBar } from './shared'
@@ -225,7 +225,7 @@ function DecisionDetailModal({ decision, onClose, onOverride, onAutoBook }) {
                   const isLast = i === (bookingResult.timeline || []).length - 1
                   const stepColors = {
                     driver_search: '#f0a500', driver_assigned: '#22c55e', load_created: '#6366f1',
-                    invoice_created: '#8b5cf6', decision_linked: '#06b6d4', complete: '#22c55e',
+                    driver_updated: '#06b6d4', invoice_created: '#8b5cf6', decision_linked: '#06b6d4', complete: '#22c55e',
                   }
                   const color = stepColors[t.step] || 'var(--muted)'
                   return (
@@ -249,7 +249,7 @@ function DecisionDetailModal({ decision, onClose, onOverride, onAutoBook }) {
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11 }}>
                     <div><span style={{ color: 'var(--muted)' }}>Load:</span> <b style={{ color: '#6366f1' }}>{bookingResult.load_id}</b></div>
                     <div><span style={{ color: 'var(--muted)' }}>Status:</span> <b style={{ color: '#22c55e' }}>{bookingResult.status}</b></div>
-                    {bookingResult.driver && <div><span style={{ color: 'var(--muted)' }}>Driver:</span> <b style={{ color: 'var(--text)' }}>{bookingResult.driver.name}</b></div>}
+                    {bookingResult.driver && <div><span style={{ color: 'var(--muted)' }}>Driver:</span> <b style={{ color: 'var(--text)' }}>{bookingResult.driver.name}</b> <span style={{ fontSize: 9, color: 'var(--muted)' }}>({bookingResult.driver.license} · {bookingResult.driver.state} · {bookingResult.driver.pay})</span></div>}
                     <div><span style={{ color: 'var(--muted)' }}>Invoice:</span> <b style={{ color: '#8b5cf6' }}>{bookingResult.invoice?.number}</b></div>
                     <div><span style={{ color: 'var(--muted)' }}>Amount:</span> <b style={{ color: '#22c55e' }}>${bookingResult.invoice?.amount?.toLocaleString()}</b></div>
                   </div>
@@ -671,12 +671,67 @@ function TestLoadGenerator() {
   const [countPer, setCountPer] = useState(3)
   const [driverType, setDriverType] = useState('owner_operator')
   const [saveToDb, setSaveToDb] = useState(true)
+  const [autoBookEnabled, setAutoBookEnabled] = useState(false)
+  const [autoBookRunning, setAutoBookRunning] = useState(false)
+  const [autoBookProgress, setAutoBookProgress] = useState({ done: 0, total: 0 })
   const [running, setRunning] = useState(false)
   const [results, setResults] = useState(null)
   const [expandedIdx, setExpandedIdx] = useState(null)
+  const [seeding, setSeeding] = useState(false)
+  const [seedResult, setSeedResult] = useState(null)
 
   const toggleCat = (id) => {
     setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
+  }
+
+  const seedDrivers = async () => {
+    setSeeding(true)
+    try {
+      const res = await apiFetch('/api/seed-test-drivers', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+      const data = await res.json()
+      setSeedResult(data)
+    } catch (err) {
+      setSeedResult({ error: err.message })
+    }
+    setSeeding(false)
+  }
+
+  // Auto-book all eligible loads from results
+  const executeAutoBookBatch = async (data) => {
+    if (!data?.results) return
+    // Collect all auto_book/accept loads with their global indices
+    const eligible = []
+    let globalIdx = 0
+    for (const cat of Object.keys(data.results)) {
+      for (const r of data.results[cat]) {
+        if (r.result?.decision === 'auto_book' || r.result?.decision === 'accept') {
+          eligible.push({ globalIdx, load: r.load, metrics: r.result.metrics })
+        }
+        globalIdx++
+      }
+    }
+    if (eligible.length === 0) return
+
+    setAutoBookRunning(true)
+    setAutoBookProgress({ done: 0, total: eligible.length })
+
+    for (let i = 0; i < eligible.length; i++) {
+      const { globalIdx: idx, load, metrics } = eligible[i]
+      setBookingStates(prev => ({ ...prev, [idx]: { loading: true } }))
+      try {
+        const res = await apiFetch('/api/auto-book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ load, driver_type: driverType, metrics }),
+        })
+        const bookData = await res.json()
+        setBookingStates(prev => ({ ...prev, [idx]: { loading: false, result: bookData } }))
+      } catch (err) {
+        setBookingStates(prev => ({ ...prev, [idx]: { loading: false, result: { error: err.message } } }))
+      }
+      setAutoBookProgress({ done: i + 1, total: eligible.length })
+    }
+    setAutoBookRunning(false)
   }
 
   const runTest = async () => {
@@ -684,6 +739,7 @@ function TestLoadGenerator() {
     setRunning(true)
     setResults(null)
     setExpandedIdx(null)
+    setBookingStates({})
     try {
       const res = await apiFetch('/api/dispatch-test', {
         method: 'POST',
@@ -696,7 +752,15 @@ function TestLoadGenerator() {
         }),
       })
       const data = await res.json()
-      if (data.results) setResults(data)
+      if (data.results) {
+        setResults(data)
+        // If auto-book toggle is ON, immediately execute for all eligible loads
+        if (autoBookEnabled) {
+          setRunning(false)
+          await executeAutoBookBatch(data)
+          return
+        }
+      }
     } catch (err) {
       console.error('Test failed:', err)
     }
@@ -717,6 +781,35 @@ function TestLoadGenerator() {
           <span style={{ fontSize: 10, color: 'var(--muted)' }}>
             Generate simulated freight loads and run them through the AI dispatch engine
           </span>
+        </div>
+
+        {/* Seed Test Drivers */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+          <Users size={16} color="#6366f1" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>Test Drivers</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+              {seedResult?.ok ? `${seedResult.drivers?.length || 0} drivers ready` : 'Seed 5 realistic drivers for auto-book testing'}
+            </div>
+          </div>
+          {seedResult?.ok ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {(seedResult.drivers || []).map((d, i) => (
+                <span key={i} style={{ fontSize: 9, padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#22c55e', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {d.name} · {d.state || d.license_state || ''}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <button onClick={seedDrivers} disabled={seeding} style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px',
+              borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff',
+              fontSize: 11, fontWeight: 700, cursor: seeding ? 'default' : 'pointer',
+              fontFamily: "'DM Sans',sans-serif", opacity: seeding ? 0.7 : 1,
+            }}>
+              {seeding ? <><RefreshCw size={12} className="spinning" /> Creating...</> : <><Users size={12} /> Seed 5 Drivers</>}
+            </button>
+          )}
         </div>
 
         {/* Category selection */}
@@ -766,6 +859,27 @@ function TestLoadGenerator() {
             Save to database
           </label>
 
+          {/* Auto-Book Toggle */}
+          <button
+            onClick={() => setAutoBookEnabled(prev => !prev)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+              borderRadius: 8, border: `1.5px solid ${autoBookEnabled ? '#6366f1' : 'var(--border)'}`,
+              background: autoBookEnabled ? 'rgba(99,102,241,0.1)' : 'transparent',
+              cursor: 'pointer', fontSize: 11, fontWeight: 700,
+              color: autoBookEnabled ? '#6366f1' : 'var(--muted)',
+              fontFamily: "'DM Sans',sans-serif", transition: 'all 0.2s',
+            }}
+          >
+            {autoBookEnabled ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+            <div style={{ textAlign: 'left' }}>
+              <div>Auto-Book {autoBookEnabled ? 'ON' : 'OFF'}</div>
+              <div style={{ fontSize: 8, opacity: 0.7, fontWeight: 500 }}>
+                {autoBookEnabled ? 'AI will book automatically' : 'Manual approval required'}
+              </div>
+            </div>
+          </button>
+
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 10, color: 'var(--muted)' }}>
               {selectedCats.length * countPer} loads total
@@ -813,6 +927,41 @@ function TestLoadGenerator() {
               <StatCard icon={Target} label="AVG CONFIDENCE" value={`${results.summary.avgConfidence}%`} color="#6366f1" />
             </div>
             {results.saved && <div style={{ fontSize: 10, color: 'var(--success)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle size={11} /> Saved to database — switch to Decisions tab to see them</div>}
+
+            {/* Auto-Book Progress */}
+            {autoBookRunning && (
+              <div style={{
+                marginBottom: 12, padding: '12px 16px', borderRadius: 10,
+                background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <RefreshCw size={14} color="#6366f1" className="spinning" />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', marginBottom: 2 }}>
+                    AUTO-BOOKING IN PROGRESS
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                    {autoBookProgress.done} of {autoBookProgress.total} loads booked
+                  </div>
+                  <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'var(--border)', marginTop: 4, overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${autoBookProgress.total > 0 ? (autoBookProgress.done / autoBookProgress.total * 100) : 0}%`,
+                      height: '100%', borderRadius: 2, background: '#6366f1', transition: 'width 0.3s',
+                    }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!autoBookRunning && autoBookProgress.total > 0 && autoBookProgress.done === autoBookProgress.total && (
+              <div style={{
+                marginBottom: 12, padding: '10px 16px', borderRadius: 10,
+                background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#22c55e', fontWeight: 600,
+              }}>
+                <Zap size={14} /> Auto-booked {autoBookProgress.total} loads — fully autonomous execution complete
+              </div>
+            )}
 
             {/* Results grouped by category */}
             {CATEGORIES.filter(c => selectedCats.includes(c.id)).map(cat => {
@@ -1023,6 +1172,10 @@ export function AIDispatchDashboard() {
         <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 2, color: 'var(--text)' }}>
           Q <span style={{ color: '#6366f1' }}>AI DISPATCH</span> <span style={{ color: 'var(--muted)', fontSize: 16 }}>CONTROL CENTER</span>
         </span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: 'var(--muted)' }}>
+          <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e' }} />
+          ENGINE ACTIVE
+        </div>
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

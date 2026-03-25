@@ -36,7 +36,7 @@ async function findBestDriver(ownerId, equipment, originState) {
   try {
     // Get all active drivers
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/drivers?owner_id=eq.${ownerId}&status=eq.Active&select=id,full_name,equipment_experience,license_class,pay_model,pay_rate,driver_type`,
+      `${SUPABASE_URL}/rest/v1/drivers?owner_id=eq.${ownerId}&status=eq.Active&select=*`,
       { headers: sbHeaders() }
     )
     if (!res.ok) return null
@@ -118,7 +118,7 @@ export default async function handler(req) {
       step: 'driver_assigned',
       time: new Date().toISOString(),
       detail: driverAssigned
-        ? `Assigned to ${driverName} (score-based, idle + equipment match)`
+        ? `Assigned to ${driverName} — ${driver.license_class || 'CDL-A'} · ${driver.license_state || '??'} · ${driver.driver_type === 'owner_operator' ? 'O/O' : 'Company'} · ${driver.equipment_experience || 'General'}`
         : 'No available driver — load booked unassigned',
     })
 
@@ -135,7 +135,8 @@ export default async function handler(req) {
       broker_name: load.broker || '',
       broker_phone: load.broker_phone || null,
       carrier_name: driverName,
-      status: driverAssigned ? 'Dispatched' : 'Booked',
+      driver_id: driver?.id || null,
+      status: driverAssigned ? 'Dispatched' : 'Rate Con Received',
       pickup_date: load.pickup_date || null,
       delivery_date: load.delivery_date || null,
       load_type: 'FTL',
@@ -148,15 +149,41 @@ export default async function handler(req) {
       headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
       body: JSON.stringify(loadRecord),
     })
-    const loadRows = await loadRes.json()
+    let loadRows, loadError
+    if (!loadRes.ok) {
+      loadError = await loadRes.text()
+      timeline.push({ step: 'load_error', time: new Date().toISOString(), detail: `Load insert failed: ${loadError}` })
+    } else {
+      loadRows = await loadRes.json()
+    }
     const createdLoad = loadRows?.[0]
     const dbLoadId = createdLoad?.id
 
     timeline.push({
       step: 'load_created',
       time: new Date().toISOString(),
-      detail: `Load ${loadId} created — ${load.origin} → ${load.dest || load.destination} — $${parseFloat(load.gross).toLocaleString()} — ${driverAssigned ? 'Dispatched' : 'Booked'}`,
+      detail: dbLoadId
+        ? `Load ${loadId} created — ${load.origin} → ${load.dest || load.destination} — $${parseFloat(load.gross).toLocaleString()} — ${driverAssigned ? `Dispatched to ${driverName}` : 'Queued (unassigned)'}`
+        : `Load creation failed — continuing with invoice and logging`,
     })
+
+    // ── STEP 2b: Update driver with current load assignment ─────────
+    if (driverAssigned && driver?.id) {
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driver.id}`,
+        {
+          method: 'PATCH',
+          headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ current_load_id: dbLoadId }),
+        }
+      ).catch(() => {})
+
+      timeline.push({
+        step: 'driver_updated',
+        time: new Date().toISOString(),
+        detail: `${driverName} marked as assigned — ${driver.equipment_experience || 'CDL-A'} · ${driver.years_experience || '?'} yrs experience`,
+      })
+    }
 
     // ── STEP 3: Create invoice ──────────────────────────────────────
     // Pre-create invoice (status: Pending — will flip to Unpaid on delivery)
@@ -268,9 +295,17 @@ export default async function handler(req) {
       ok: true,
       load_id: loadId,
       db_load_id: dbLoadId,
-      driver: driverAssigned ? { id: driver.id, name: driverName } : null,
+      driver: driverAssigned ? {
+        id: driver.id,
+        name: driverName,
+        type: driver.driver_type,
+        equipment: driver.equipment_experience,
+        license: driver.license_class,
+        state: driver.license_state,
+        pay: driver.pay_model === 'permile' ? `$${driver.pay_rate}/mi` : `${driver.pay_rate}%`,
+      } : null,
       invoice: { number: invoiceNumber, amount: parseFloat(load.gross) || 0, due: dueDate.toISOString().split('T')[0] },
-      status: driverAssigned ? 'Dispatched' : 'Booked',
+      status: driverAssigned ? 'Dispatched' : 'Queued',
       timeline,
     }, { headers: corsHeaders(req) })
   } catch (err) {

@@ -1744,8 +1744,8 @@ export function CashFlowForecaster() {
     // Use avg driver pay rate from driver records
     const avgPayRate = (() => {
       const pctDrivers = (ctxDrivers || []).filter(d => (d.pay_model || 'percent') === 'percent')
-      if (pctDrivers.length === 0) return 0.28
-      return pctDrivers.reduce((s, d) => s + (parseFloat(d.pay_rate) || 28), 0) / pctDrivers.length / 100
+      if (pctDrivers.length === 0) return 0.50
+      return pctDrivers.reduce((s, d) => s + (parseFloat(d.pay_rate) || 50), 0) / pctDrivers.length / 100
     })()
     const totalExpAmt = expenses.reduce((s,e) => s + e.amount, 0)
     const weeklyBase  = Math.round(totalExpAmt / 4) // spread over 4 weeks of history

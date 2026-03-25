@@ -115,7 +115,7 @@ export default async function handler(req) {
       const existingData = existingSub?.onboarding_data || {}
       const mergedData = { ...existingData, ...data }
 
-      const isComplete = completedSteps.length >= 4 // personal, cdl, consent, emergency
+      const isComplete = completedSteps.length >= 9 // personal, cdl, employment, mvr, w9, deposit, documents, consent, emergency
       const status = isComplete ? 'completed' : 'in_progress'
 
       const record = {
@@ -152,17 +152,34 @@ export default async function handler(req) {
         )
       }
 
+      // Build driver fields from onboarding data
+      const driverFields = {
+        full_name: mergedData.fullName || undefined,
+        phone: mergedData.phone || undefined,
+        email: inv.email,
+        license_number: mergedData.cdlNumber || undefined,
+        license_state: mergedData.cdlState || undefined,
+        license_class: mergedData.cdlClass ? `CDL-${mergedData.cdlClass}` : undefined,
+        license_expiry: mergedData.cdlExpiry || undefined,
+        medical_card_expiry: mergedData.medicalExpiry || undefined,
+        endorsements: mergedData.cdlEndorsements?.length ? mergedData.cdlEndorsements.join(', ') : undefined,
+        equipment_experience: mergedData.equipmentExp?.length ? mergedData.equipmentExp.join(', ') : undefined,
+        years_experience: mergedData.yearsExperience ? parseInt(mergedData.yearsExperience) : undefined,
+        address: [mergedData.address, mergedData.city, mergedData.state, mergedData.zip].filter(Boolean).join(', ') || undefined,
+        dob: mergedData.dob || undefined,
+        emergency_contact_name: mergedData.emergencyName || undefined,
+        emergency_contact_phone: mergedData.emergencyPhone || undefined,
+        emergency_contact_relationship: mergedData.emergencyRelationship || undefined,
+        profile_photo: mergedData.profilePhoto || undefined,
+        bank_name: mergedData.bankName || undefined,
+        routing_number: mergedData.routingNumber || undefined,
+        account_number: mergedData.accountNumber || undefined,
+        account_type: mergedData.accountType || undefined,
+      }
+
       // If complete, update the driver record with the collected data
       if (isComplete && inv.driver_id) {
-        const driverUpdate = {
-          full_name: mergedData.fullName || undefined,
-          phone: mergedData.phone || undefined,
-          email: inv.email,
-          license_number: mergedData.cdlNumber || undefined,
-          license_state: mergedData.cdlState || undefined,
-          license_expiry: mergedData.cdlExpiry || undefined,
-          medical_card_expiry: mergedData.medicalExpiry || undefined,
-        }
+        const driverUpdate = { ...driverFields }
         // Remove undefined keys
         Object.keys(driverUpdate).forEach(k => driverUpdate[k] === undefined && delete driverUpdate[k])
 
@@ -180,15 +197,12 @@ export default async function handler(req) {
 
       // If complete and no driver_id, create the driver record
       if (isComplete && !inv.driver_id) {
+        const cleanFields = { ...driverFields }
+        Object.keys(cleanFields).forEach(k => cleanFields[k] === undefined && delete cleanFields[k])
         const newDriver = {
           owner_id: inv.invited_by,
-          full_name: mergedData.fullName || 'New Driver',
-          phone: mergedData.phone || null,
-          email: inv.email,
-          license_number: mergedData.cdlNumber || null,
-          license_state: mergedData.cdlState || null,
-          license_expiry: mergedData.cdlExpiry || null,
-          medical_card_expiry: mergedData.medicalExpiry || null,
+          ...cleanFields,
+          full_name: cleanFields.full_name || 'New Driver',
           status: 'Active',
           hire_date: new Date().toISOString().split('T')[0],
         }

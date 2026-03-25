@@ -179,7 +179,7 @@ export function DriverSettlement() {
     const d = (ctxDrivers || []).find(dr => dr.id === activeDriver)
     if (d) {
       if (d.pay_model && !models[activeDriver]) setModels(m => ({ ...m, [activeDriver]: d.pay_model }))
-      if (d.pay_rate != null && modelVals[activeDriver] == null) setModelVals(v => ({ ...v, [activeDriver]: parseFloat(d.pay_rate) || 28 }))
+      if (d.pay_rate != null && modelVals[activeDriver] == null) setModelVals(v => ({ ...v, [activeDriver]: parseFloat(d.pay_rate) || 50 }))
     }
   }, [activeDriver, ctxDrivers])
 
@@ -583,7 +583,7 @@ export function DriverProfiles() {
     const mtdGross = mtdLoads.reduce((s,l) => s + (l.gross || 0), 0)
     const mtdMiles = mtdLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
     const payModel = d.pay_model || 'percent'
-    const payRate = parseFloat(d.pay_rate) || 28
+    const payRate = parseFloat(d.pay_rate) || 50
     const mtdPay = payModel === 'permile' ? Math.round(mtdMiles * payRate) : payModel === 'flat' ? Math.round(payRate * mtdLoads.length) : Math.round(mtdGross * (payRate / 100))
 
     return {
@@ -2157,7 +2157,7 @@ function urgencyStyle(score, postedAgo) {
 
 export function DriverPayReport() {
   const { loads } = useCarrier()
-  const [payRate, setPayRate] = useState(28)
+  const [payRate, setPayRate] = useState(50)
   const [approved, setApproved] = useState({})
 
   const drivers = useMemo(() => {
@@ -2187,7 +2187,7 @@ export function DriverPayReport() {
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'10px 16px' }}>
           <span style={{ fontSize:12, color:'var(--muted)' }}>Pay Rate</span>
-          <input type="range" min={20} max={45} value={payRate} onChange={e => setPayRate(Number(e.target.value))}
+          <input type="range" min={20} max={60} value={payRate} onChange={e => setPayRate(Number(e.target.value))}
             style={{ width:100, accentColor:'var(--accent)' }} />
           <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)', minWidth:40 }}>{payRate}%</span>
         </div>

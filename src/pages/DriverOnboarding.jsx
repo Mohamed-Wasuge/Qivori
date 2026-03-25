@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { User, CreditCard, Shield, Heart, Check, ChevronRight, ChevronLeft, AlertCircle, Pen } from 'lucide-react'
+import { User, CreditCard, Shield, Heart, Check, ChevronRight, ChevronLeft, AlertCircle, Pen, Briefcase, FileSearch, FileText, Building, Upload, Lock, Plus, Trash2, Camera } from 'lucide-react'
 
 const STEPS = [
   { id: 'personal', label: 'Personal Info', icon: User },
   { id: 'cdl', label: 'CDL & Qualifications', icon: CreditCard },
+  { id: 'employment', label: 'Employment History', icon: Briefcase },
+  { id: 'mvr', label: 'MVR & Background Auth', icon: FileSearch },
+  { id: 'w9', label: 'W-9 / Tax Info', icon: FileText },
+  { id: 'deposit', label: 'Direct Deposit', icon: Building },
+  { id: 'documents', label: 'Document Uploads', icon: Upload },
   { id: 'consent', label: 'Drug & Alcohol Consent', icon: Shield },
-  { id: 'emergency', label: 'Emergency Contact', icon: Heart },
+  { id: 'emergency', label: 'Emergency Contact & Review', icon: Heart },
 ]
 
 export default function DriverOnboarding() {
@@ -20,11 +25,27 @@ export default function DriverOnboarding() {
 
   // Form data
   const [form, setForm] = useState({
+    profilePhoto: null,
     fullName: '', dob: '', phone: '', address: '', city: '', state: '', zip: '',
     cdlNumber: '', cdlState: '', cdlClass: 'A', cdlEndorsements: [],
     cdlExpiry: '', medicalExpiry: '', yearsExperience: '',
     equipmentExp: [],
+    // Employment history
+    employers: [{ companyName: '', phone: '', address: '', cityState: '', position: 'driver', dateFrom: '', dateTo: '', reasonForLeaving: '' }],
+    // MVR & Background
+    mvrConsent: false,
+    hasAccidents: 'no', accidents: [],
+    hasViolations: 'no', violations: [],
+    backgroundAuthConsent: false,
+    // W-9 / Tax
+    ssn: '', taxClassification: '', taxLegalName: '', businessName: '', w9Certified: false,
+    // Direct Deposit
+    bankName: '', routingNumber: '', accountNumber: '', accountType: '', nameOnAccount: '', depositLater: false,
+    // Document Uploads
+    cdlFrontPhoto: null, cdlBackPhoto: null, medicalCard: null, proofOfInsurance: null, w9Form: null,
+    // Drug & Alcohol Consent
     consentAgreed: false, consentSignature: null, consentDate: '',
+    // Emergency Contact
     emergencyName: '', emergencyPhone: '', emergencyRelationship: '',
   })
 
@@ -133,8 +154,13 @@ export default function DriverOnboarding() {
         }}>
           {step === 0 && <PersonalInfoStep form={form} updateForm={updateForm} />}
           {step === 1 && <CDLStep form={form} updateForm={updateForm} />}
-          {step === 2 && <ConsentStep form={form} updateForm={updateForm} />}
-          {step === 3 && <EmergencyStep form={form} updateForm={updateForm} />}
+          {step === 2 && <EmploymentHistoryStep form={form} updateForm={updateForm} />}
+          {step === 3 && <MVRBackgroundStep form={form} updateForm={updateForm} />}
+          {step === 4 && <W9TaxStep form={form} updateForm={updateForm} />}
+          {step === 5 && <DirectDepositStep form={form} updateForm={updateForm} />}
+          {step === 6 && <DocumentUploadsStep form={form} updateForm={updateForm} />}
+          {step === 7 && <ConsentStep form={form} updateForm={updateForm} />}
+          {step === 8 && <EmergencyStep form={form} updateForm={updateForm} />}
         </div>
 
         {/* Navigation */}
@@ -166,8 +192,46 @@ export default function DriverOnboarding() {
 // ── Step Components ──
 
 function PersonalInfoStep({ form, updateForm }) {
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return }
+    const reader = new FileReader()
+    reader.onload = () => updateForm('profilePhoto', reader.result)
+    reader.readAsDataURL(file)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Profile Photo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
+        <div style={{
+          width: 80, height: 80, borderRadius: '50%', flexShrink: 0,
+          background: form.profilePhoto ? 'none' : '#1a1a24',
+          border: `2px dashed ${form.profilePhoto ? '#f0a500' : '#2a2a35'}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          overflow: 'hidden', position: 'relative', cursor: 'pointer',
+        }} onClick={() => document.getElementById('profile-photo-input').click()}>
+          {form.profilePhoto ? (
+            <img src={form.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <Camera size={24} color="#444" />
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Profile Photo *</div>
+          <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>Clear photo of your face — used for your driver ID</div>
+          <label style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+            borderRadius: 8, border: '1px solid #2a2a35', background: 'transparent',
+            color: '#8a8a9a', fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+          }}>
+            <Upload size={12} /> {form.profilePhoto ? 'Change Photo' : 'Upload Photo'}
+            <input id="profile-photo-input" type="file" accept="image/*" onChange={handlePhoto} style={{ display: 'none' }} />
+          </label>
+        </div>
+      </div>
+
       <Field label="Full Legal Name" required value={form.fullName} onChange={v => updateForm('fullName', v)} placeholder="John Smith" />
       <div style={{ display: 'flex', gap: 10 }}>
         <Field label="Date of Birth" required type="date" value={form.dob} onChange={v => updateForm('dob', v)} style={{ flex: 1 }} />
@@ -252,6 +316,456 @@ function CDLStep({ form, updateForm }) {
   )
 }
 
+function EmploymentHistoryStep({ form, updateForm }) {
+  const employers = form.employers || [{ companyName: '', phone: '', address: '', cityState: '', position: 'driver', dateFrom: '', dateTo: '', reasonForLeaving: '' }]
+
+  const updateEmployer = (index, field, value) => {
+    const updated = [...employers]
+    updated[index] = { ...updated[index], [field]: value }
+    updateForm('employers', updated)
+  }
+
+  const addEmployer = () => {
+    updateForm('employers', [...employers, { companyName: '', phone: '', address: '', cityState: '', position: 'driver', dateFrom: '', dateTo: '', reasonForLeaving: '' }])
+  }
+
+  const removeEmployer = (index) => {
+    if (employers.length <= 1) return
+    updateForm('employers', employers.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{
+        background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10,
+        padding: 14, fontSize: 12, color: '#f0a500', lineHeight: 1.6, fontWeight: 600,
+      }}>
+        FMCSA requires 10 years of employment history for CMV drivers.
+      </div>
+
+      {employers.map((emp, i) => (
+        <div key={i} style={{
+          border: '1px solid #2a2a35', borderRadius: 10, padding: 16,
+          background: '#1a1a24', position: 'relative',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 1, textTransform: 'uppercase' }}>
+              Employer {i + 1}
+            </div>
+            {employers.length > 1 && (
+              <button onClick={() => removeEmployer(i)} style={{
+                background: 'transparent', border: '1px solid #3a2020', borderRadius: 6,
+                color: '#ef4444', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 11, fontFamily: "'DM Sans', sans-serif",
+              }}>
+                <Trash2 size={12} /> Remove
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Field label="Company Name" required value={emp.companyName} onChange={v => updateEmployer(i, 'companyName', v)} placeholder="ABC Trucking" style={{ flex: 2 }} />
+              <Field label="Phone" value={emp.phone} onChange={v => updateEmployer(i, 'phone', v)} placeholder="(555) 000-0000" style={{ flex: 1 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Field label="Address" value={emp.address} onChange={v => updateEmployer(i, 'address', v)} placeholder="123 Main St" style={{ flex: 2 }} />
+              <Field label="City / State" value={emp.cityState} onChange={v => updateEmployer(i, 'cityState', v)} placeholder="Dallas, TX" style={{ flex: 1 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Position *</label>
+                <select value={emp.position} onChange={e => updateEmployer(i, 'position', e.target.value)} style={inputStyle}>
+                  <option value="driver">Driver</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <Field label="From" required type="date" value={emp.dateFrom} onChange={v => updateEmployer(i, 'dateFrom', v)} style={{ flex: 1 }} />
+              <Field label="To" required type="date" value={emp.dateTo} onChange={v => updateEmployer(i, 'dateTo', v)} style={{ flex: 1 }} />
+            </div>
+            <Field label="Reason for Leaving" value={emp.reasonForLeaving} onChange={v => updateEmployer(i, 'reasonForLeaving', v)} placeholder="e.g. Better opportunity" />
+          </div>
+        </div>
+      ))}
+
+      <button onClick={addEmployer} style={{
+        padding: '10px 16px', borderRadius: 10, border: '1px dashed #2a2a35',
+        background: 'transparent', color: '#f0a500', fontWeight: 600, fontSize: 12,
+        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        <Plus size={14} /> Add Another Employer
+      </button>
+    </div>
+  )
+}
+
+function MVRBackgroundStep({ form, updateForm }) {
+  const accidents = form.accidents || []
+  const violations = form.violations || []
+
+  const addAccident = () => {
+    updateForm('accidents', [...accidents, { date: '', description: '', fatalities: false, injuries: false }])
+  }
+  const updateAccident = (index, field, value) => {
+    const updated = [...accidents]
+    updated[index] = { ...updated[index], [field]: value }
+    updateForm('accidents', updated)
+  }
+  const removeAccident = (index) => {
+    updateForm('accidents', accidents.filter((_, i) => i !== index))
+  }
+
+  const addViolation = () => {
+    updateForm('violations', [...violations, { date: '', description: '', state: '' }])
+  }
+  const updateViolation = (index, field, value) => {
+    const updated = [...violations]
+    updated[index] = { ...updated[index], [field]: value }
+    updateForm('violations', updated)
+  }
+  const removeViolation = (index) => {
+    updateForm('violations', violations.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* MVR Consent */}
+      <div style={{
+        background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10,
+        padding: 16, fontSize: 12, color: '#8a8a9a', lineHeight: 1.7,
+      }}>
+        <div style={{ fontWeight: 700, color: '#fff', marginBottom: 8, fontSize: 13 }}>
+          Motor Vehicle Record (MVR) Authorization
+        </div>
+        <p>I hereby authorize my employer to obtain my Motor Vehicle Record (MVR) from the state Department of Motor Vehicles (DMV)
+        for the purpose of evaluating my qualifications as a commercial motor vehicle driver.</p>
+        <div style={{ fontWeight: 700, color: '#fff', marginBottom: 8, marginTop: 16, fontSize: 13 }}>
+          Background Check Disclosure (FCRA)
+        </div>
+        <p>In accordance with the Fair Credit Reporting Act (FCRA), I understand that a consumer report and/or investigative consumer
+        report may be obtained for employment purposes. I have the right to request a copy of any report obtained and to dispute
+        any inaccurate information contained therein.</p>
+      </div>
+
+      {/* Accident History */}
+      <div>
+        <label style={labelStyle}>Any accidents in the last 3 years? *</label>
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button onClick={() => { updateForm('hasAccidents', 'yes'); if (accidents.length === 0) addAccident() }} style={{
+            padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            border: '1px solid ' + (form.hasAccidents === 'yes' ? '#f0a500' : '#2a2a35'),
+            background: form.hasAccidents === 'yes' ? 'rgba(240,165,0,0.15)' : 'transparent',
+            color: form.hasAccidents === 'yes' ? '#f0a500' : '#8a8a9a',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>Yes</button>
+          <button onClick={() => { updateForm('hasAccidents', 'no'); updateForm('accidents', []) }} style={{
+            padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            border: '1px solid ' + (form.hasAccidents === 'no' ? '#f0a500' : '#2a2a35'),
+            background: form.hasAccidents === 'no' ? 'rgba(240,165,0,0.15)' : 'transparent',
+            color: form.hasAccidents === 'no' ? '#f0a500' : '#8a8a9a',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>No</button>
+        </div>
+      </div>
+
+      {form.hasAccidents === 'yes' && accidents.map((acc, i) => (
+        <div key={i} style={{ border: '1px solid #2a2a35', borderRadius: 10, padding: 14, background: '#1a1a24' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8a8a9a', textTransform: 'uppercase' }}>Accident {i + 1}</div>
+            <button onClick={() => removeAccident(i)} style={{
+              background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2,
+            }}><Trash2 size={14} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Field label="Date" type="date" value={acc.date} onChange={v => updateAccident(i, 'date', v)} />
+            <Field label="Description" value={acc.description} onChange={v => updateAccident(i, 'description', v)} placeholder="Brief description of accident" />
+            <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#c8c8d0', cursor: 'pointer' }}>
+                <input type="checkbox" checked={acc.fatalities} onChange={e => updateAccident(i, 'fatalities', e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: '#f0a500' }} /> Fatalities
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#c8c8d0', cursor: 'pointer' }}>
+                <input type="checkbox" checked={acc.injuries} onChange={e => updateAccident(i, 'injuries', e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: '#f0a500' }} /> Injuries
+              </label>
+            </div>
+          </div>
+        </div>
+      ))}
+      {form.hasAccidents === 'yes' && (
+        <button onClick={addAccident} style={{
+          padding: '8px 14px', borderRadius: 8, border: '1px dashed #2a2a35', background: 'transparent',
+          color: '#8a8a9a', fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+        }}>+ Add Another Accident</button>
+      )}
+
+      {/* Violations */}
+      <div>
+        <label style={labelStyle}>Traffic violations in the last 3 years? *</label>
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button onClick={() => { updateForm('hasViolations', 'yes'); if (violations.length === 0) addViolation() }} style={{
+            padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            border: '1px solid ' + (form.hasViolations === 'yes' ? '#f0a500' : '#2a2a35'),
+            background: form.hasViolations === 'yes' ? 'rgba(240,165,0,0.15)' : 'transparent',
+            color: form.hasViolations === 'yes' ? '#f0a500' : '#8a8a9a',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>Yes</button>
+          <button onClick={() => { updateForm('hasViolations', 'no'); updateForm('violations', []) }} style={{
+            padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            border: '1px solid ' + (form.hasViolations === 'no' ? '#f0a500' : '#2a2a35'),
+            background: form.hasViolations === 'no' ? 'rgba(240,165,0,0.15)' : 'transparent',
+            color: form.hasViolations === 'no' ? '#f0a500' : '#8a8a9a',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>No</button>
+        </div>
+      </div>
+
+      {form.hasViolations === 'yes' && violations.map((vio, i) => (
+        <div key={i} style={{ border: '1px solid #2a2a35', borderRadius: 10, padding: 14, background: '#1a1a24' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8a8a9a', textTransform: 'uppercase' }}>Violation {i + 1}</div>
+            <button onClick={() => removeViolation(i)} style={{
+              background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2,
+            }}><Trash2 size={14} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Field label="Date" type="date" value={vio.date} onChange={v => updateViolation(i, 'date', v)} style={{ flex: 1 }} />
+              <Field label="State" value={vio.state} onChange={v => updateViolation(i, 'state', v)} placeholder="TX" style={{ flex: 1 }} />
+            </div>
+            <Field label="Description" value={vio.description} onChange={v => updateViolation(i, 'description', v)} placeholder="e.g. Speeding" />
+          </div>
+        </div>
+      ))}
+      {form.hasViolations === 'yes' && (
+        <button onClick={addViolation} style={{
+          padding: '8px 14px', borderRadius: 8, border: '1px dashed #2a2a35', background: 'transparent',
+          color: '#8a8a9a', fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+        }}>+ Add Another Violation</button>
+      )}
+
+      {/* Authorization checkbox */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 8 }}>
+        <input type="checkbox" checked={form.backgroundAuthConsent}
+          onChange={e => updateForm('backgroundAuthConsent', e.target.checked)}
+          style={{ width: 18, height: 18, accentColor: '#f0a500', cursor: 'pointer', marginTop: 2, flexShrink: 0 }} />
+        <label style={{ fontSize: 13, color: '#c8c8d0', cursor: 'pointer', lineHeight: 1.5 }}
+          onClick={() => updateForm('backgroundAuthConsent', !form.backgroundAuthConsent)}>
+          I authorize the release of my driving record and background information to my employer for the purpose of evaluating my qualifications as a commercial driver.
+        </label>
+      </div>
+    </div>
+  )
+}
+
+function W9TaxStep({ form, updateForm }) {
+  // Pre-fill tax legal name from personal info
+  useEffect(() => {
+    if (!form.taxLegalName && form.fullName) {
+      updateForm('taxLegalName', form.fullName)
+    }
+  }, [])
+
+  const formatSSN = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 9)
+    if (digits.length <= 3) return digits
+    if (digits.length <= 5) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+    return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Security notice */}
+      <div style={{
+        background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10,
+        padding: 14, fontSize: 12, color: '#8a8a9a', lineHeight: 1.6,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <Lock size={18} color="#22c55e" style={{ flexShrink: 0 }} />
+        <span>Your SSN is encrypted and never stored in plain text. All tax information is transmitted securely.</span>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Social Security Number (SSN) *</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            value={form.ssn}
+            onChange={e => updateForm('ssn', formatSSN(e.target.value))}
+            placeholder="XXX-XX-XXXX"
+            maxLength={11}
+            style={{ ...inputStyle, paddingLeft: 36 }}
+          />
+          <Lock size={14} color="#666" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+        </div>
+        <div style={{ fontSize: 10, color: '#555', marginTop: 4 }}>Encrypted & Secure</div>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Tax Classification *</label>
+        <select value={form.taxClassification} onChange={e => updateForm('taxClassification', e.target.value)} style={inputStyle}>
+          <option value="">Select classification...</option>
+          <option value="individual">Individual / Sole Proprietor</option>
+          <option value="llc">LLC</option>
+          <option value="corporation">Corporation</option>
+        </select>
+      </div>
+
+      <Field label="Legal Name (for tax purposes)" required value={form.taxLegalName} onChange={v => updateForm('taxLegalName', v)} placeholder="John Smith" />
+
+      <Field label="Business Name (if different)" value={form.businessName} onChange={v => updateForm('businessName', v)} placeholder="Smith Trucking LLC" />
+
+      <div style={{
+        background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10,
+        padding: 14, fontSize: 11, color: '#666', lineHeight: 1.6,
+      }}>
+        Under penalties of perjury, I certify that the number shown on this form is my correct taxpayer identification number,
+        and I am not subject to backup withholding. (W-9 Certification, IRS Form W-9)
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <input type="checkbox" checked={form.w9Certified}
+          onChange={e => updateForm('w9Certified', e.target.checked)}
+          style={{ width: 18, height: 18, accentColor: '#f0a500', cursor: 'pointer' }} />
+        <label style={{ fontSize: 13, color: '#c8c8d0', cursor: 'pointer' }}
+          onClick={() => updateForm('w9Certified', !form.w9Certified)}>
+          I certify the information provided is correct (W-9 certification)
+        </label>
+      </div>
+    </div>
+  )
+}
+
+function DirectDepositStep({ form, updateForm }) {
+  const fieldsDisabled = form.depositLater
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10,
+        padding: 14, fontSize: 12, color: '#8a8a9a', lineHeight: 1.6,
+      }}>
+        Settlement payments will be deposited to this account.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <input type="checkbox" checked={form.depositLater}
+          onChange={e => updateForm('depositLater', e.target.checked)}
+          style={{ width: 18, height: 18, accentColor: '#f0a500', cursor: 'pointer' }} />
+        <label style={{ fontSize: 13, color: '#c8c8d0', cursor: 'pointer' }}
+          onClick={() => updateForm('depositLater', !form.depositLater)}>
+          I'll provide this later
+        </label>
+      </div>
+
+      <Field label="Bank Name" required={!fieldsDisabled} value={form.bankName}
+        onChange={v => updateForm('bankName', v)} placeholder="Chase Bank" />
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Routing Number{!fieldsDisabled && ' *'}</label>
+          <input type="text" value={form.routingNumber}
+            onChange={e => updateForm('routingNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}
+            placeholder="9 digits" maxLength={9} style={inputStyle} />
+        </div>
+        <Field label="Account Number" required={!fieldsDisabled} value={form.accountNumber}
+          onChange={v => updateForm('accountNumber', v.replace(/\D/g, ''))} placeholder="Account number" style={{ flex: 1 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Account Type{!fieldsDisabled && ' *'}</label>
+          <select value={form.accountType} onChange={e => updateForm('accountType', e.target.value)} style={inputStyle}>
+            <option value="">Select...</option>
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+          </select>
+        </div>
+        <Field label="Name on Account" required={!fieldsDisabled} value={form.nameOnAccount}
+          onChange={v => updateForm('nameOnAccount', v)} placeholder="John Smith" style={{ flex: 1 }} />
+      </div>
+    </div>
+  )
+}
+
+function DocumentUploadsStep({ form, updateForm }) {
+  const docs = [
+    { key: 'cdlFrontPhoto', label: 'CDL Photo (Front)', required: true },
+    { key: 'cdlBackPhoto', label: 'CDL Photo (Back)', required: true },
+    { key: 'medicalCard', label: 'Medical Card / DOT Physical', required: true },
+    { key: 'proofOfInsurance', label: 'Proof of Insurance (if applicable)', required: false },
+    { key: 'w9Form', label: 'W-9 Form (physical copy)', required: false },
+  ]
+
+  const handleFileChange = (key, e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      updateForm(key, { name: file.name, type: file.type, data: reader.result })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{
+        background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10,
+        padding: 14, fontSize: 12, color: '#8a8a9a', lineHeight: 1.6,
+      }}>
+        Upload clear photos or scans of the required documents. Accepted formats: images and PDF.
+      </div>
+
+      {docs.map(({ key, label, required }) => (
+        <div key={key} style={{
+          border: '1px solid ' + (form[key] ? '#22c55e33' : '#2a2a35'),
+          borderRadius: 10, padding: 14, background: form[key] ? '#0f1a14' : '#1a1a24',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: form[key] ? '#22c55e' : '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {label}{required && ' *'}
+            </label>
+            {form[key] && (
+              <button onClick={() => updateForm(key, null)} style={{
+                background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 11,
+                fontFamily: "'DM Sans', sans-serif",
+              }}>Remove</button>
+            )}
+          </div>
+
+          {form[key] ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {form[key].type?.startsWith('image/') ? (
+                <img src={form[key].data} alt={label} style={{
+                  width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid #2a2a35',
+                }} />
+              ) : (
+                <div style={{
+                  width: 60, height: 60, borderRadius: 6, background: '#16161e', border: '1px solid #2a2a35',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <FileText size={20} color="#8a8a9a" />
+                </div>
+              )}
+              <span style={{ fontSize: 12, color: '#c8c8d0', wordBreak: 'break-all' }}>{form[key].name}</span>
+              <Check size={16} color="#22c55e" style={{ marginLeft: 'auto', flexShrink: 0 }} />
+            </div>
+          ) : (
+            <label style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '14px 16px', borderRadius: 8, border: '1px dashed #2a2a35',
+              background: '#0e0e14', color: '#666', fontSize: 12, cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              <Upload size={14} /> Choose File
+              <input type="file" accept="image/*,.pdf" onChange={e => handleFileChange(key, e)}
+                style={{ display: 'none' }} />
+            </label>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ConsentStep({ form, updateForm }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -317,6 +831,10 @@ function ConsentStep({ form, updateForm }) {
 }
 
 function EmergencyStep({ form, updateForm }) {
+  const employers = form.employers || []
+  const accidents = form.accidents || []
+  const violations = form.violations || []
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{
@@ -343,21 +861,76 @@ function EmergencyStep({ form, updateForm }) {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Comprehensive Summary */}
       <div style={{ marginTop: 12 }}>
         <div style={{ fontSize: 12, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>
-          Submission Summary
+          Complete Submission Summary
         </div>
         <div style={{ background: '#1a1a24', border: '1px solid #2a2a35', borderRadius: 10, padding: 14, fontSize: 12 }}>
+          {/* Personal Info */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Personal Info</div>
           <SummaryRow label="Name" value={form.fullName} />
           <SummaryRow label="DOB" value={form.dob} />
           <SummaryRow label="Phone" value={form.phone} />
           <SummaryRow label="Address" value={[form.address, form.city, form.state, form.zip].filter(Boolean).join(', ')} />
+
+          {/* CDL */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>CDL & Qualifications</div>
           <SummaryRow label="CDL" value={`${form.cdlNumber} (${form.cdlState}) Class ${form.cdlClass}`} />
           <SummaryRow label="CDL Expiry" value={form.cdlExpiry} />
           <SummaryRow label="Medical Expiry" value={form.medicalExpiry} />
-          <SummaryRow label="Drug Consent" value={form.consentAgreed ? 'Agreed & Signed' : 'Not signed'} color={form.consentAgreed ? '#22c55e' : '#ef4444'} />
-          <SummaryRow label="Emergency" value={form.emergencyName ? `${form.emergencyName} (${form.emergencyRelationship})` : '—'} />
+          <SummaryRow label="Experience" value={form.yearsExperience ? `${form.yearsExperience} years` : '—'} />
+          <SummaryRow label="Endorsements" value={(form.cdlEndorsements || []).join(', ') || '—'} />
+          <SummaryRow label="Equipment" value={(form.equipmentExp || []).join(', ') || '—'} />
+
+          {/* Employment */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>Employment History</div>
+          {employers.length > 0 ? employers.map((emp, i) => (
+            <SummaryRow key={i} label={`Employer ${i + 1}`} value={`${emp.companyName || '—'} (${emp.dateFrom || '?'} to ${emp.dateTo || '?'})`} />
+          )) : <SummaryRow label="Employers" value="—" />}
+
+          {/* MVR & Background */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>MVR & Background</div>
+          <SummaryRow label="Accidents (3yr)" value={form.hasAccidents === 'yes' ? `${accidents.length} reported` : 'None'} />
+          <SummaryRow label="Violations (3yr)" value={form.hasViolations === 'yes' ? `${violations.length} reported` : 'None'} />
+          <SummaryRow label="Background Auth" value={form.backgroundAuthConsent ? 'Authorized' : 'Not authorized'} color={form.backgroundAuthConsent ? '#22c55e' : '#ef4444'} />
+
+          {/* W-9 */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>W-9 / Tax Info</div>
+          <SummaryRow label="SSN" value={form.ssn ? `***-**-${form.ssn.slice(-4)}` : '—'} />
+          <SummaryRow label="Tax Classification" value={form.taxClassification || '—'} />
+          <SummaryRow label="Legal Name" value={form.taxLegalName || '—'} />
+          <SummaryRow label="W-9 Certified" value={form.w9Certified ? 'Yes' : 'No'} color={form.w9Certified ? '#22c55e' : '#ef4444'} />
+
+          {/* Direct Deposit */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>Direct Deposit</div>
+          {form.depositLater ? (
+            <SummaryRow label="Status" value="Will provide later" color="#f0a500" />
+          ) : (
+            <>
+              <SummaryRow label="Bank" value={form.bankName || '—'} />
+              <SummaryRow label="Routing #" value={form.routingNumber || '—'} />
+              <SummaryRow label="Account Type" value={form.accountType || '—'} />
+              <SummaryRow label="Name on Account" value={form.nameOnAccount || '—'} />
+            </>
+          )}
+
+          {/* Documents */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>Documents</div>
+          <SummaryRow label="CDL Front" value={form.cdlFrontPhoto ? form.cdlFrontPhoto.name : '—'} color={form.cdlFrontPhoto ? '#22c55e' : '#ef4444'} />
+          <SummaryRow label="CDL Back" value={form.cdlBackPhoto ? form.cdlBackPhoto.name : '—'} color={form.cdlBackPhoto ? '#22c55e' : '#ef4444'} />
+          <SummaryRow label="Medical Card" value={form.medicalCard ? form.medicalCard.name : '—'} color={form.medicalCard ? '#22c55e' : '#ef4444'} />
+          <SummaryRow label="Proof of Insurance" value={form.proofOfInsurance ? form.proofOfInsurance.name : '—'} />
+          <SummaryRow label="W-9 Form" value={form.w9Form ? form.w9Form.name : '—'} />
+
+          {/* Consent */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>Drug & Alcohol Consent</div>
+          <SummaryRow label="Consent" value={form.consentAgreed ? 'Agreed & Signed' : 'Not signed'} color={form.consentAgreed ? '#22c55e' : '#ef4444'} />
+
+          {/* Emergency */}
+          <div style={{ fontSize: 10, color: '#f0a500', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>Emergency Contact</div>
+          <SummaryRow label="Contact" value={form.emergencyName ? `${form.emergencyName} (${form.emergencyRelationship})` : '—'} />
+          <SummaryRow label="Phone" value={form.emergencyPhone || '—'} />
         </div>
       </div>
     </div>
@@ -571,10 +1144,30 @@ function SuccessCard({ companyName }) {
 
 function validateStep(step, form) {
   switch (step) {
-    case 0: return form.fullName && form.dob && form.phone && form.address && form.city && form.state && form.zip
+    case 0: return form.profilePhoto && form.fullName && form.dob && form.phone && form.address && form.city && form.state && form.zip
     case 1: return form.cdlNumber && form.cdlState && form.cdlExpiry && form.medicalExpiry
-    case 2: return form.consentAgreed && form.consentSignature
-    case 3: return form.emergencyName && form.emergencyPhone && form.emergencyRelationship
+    case 2: {
+      // Employment history: at least 1 employer with required fields
+      const employers = form.employers || []
+      return employers.length >= 1 && employers.every(e => e.companyName && e.dateFrom && e.dateTo)
+    }
+    case 3: return form.backgroundAuthConsent
+    case 4: {
+      // W-9: SSN (9 digits), tax classification, legal name, certification
+      const ssnDigits = (form.ssn || '').replace(/\D/g, '')
+      return ssnDigits.length === 9 && form.taxClassification && form.taxLegalName && form.w9Certified
+    }
+    case 5: {
+      // Direct deposit: either "later" or all fields filled
+      if (form.depositLater) return true
+      return form.bankName && form.routingNumber?.length === 9 && form.accountNumber && form.accountType && form.nameOnAccount
+    }
+    case 6: {
+      // Document uploads: required docs must be present
+      return form.cdlFrontPhoto && form.cdlBackPhoto && form.medicalCard
+    }
+    case 7: return form.consentAgreed && form.consentSignature
+    case 8: return form.emergencyName && form.emergencyPhone && form.emergencyRelationship
     default: return false
   }
 }

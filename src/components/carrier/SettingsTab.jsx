@@ -212,44 +212,63 @@ export function SubscriptionSettings() {
       {/* Plan Details — Two Components */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
-        <div style={{ padding: 20, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {/* Q Platform Card */}
-          <div style={{ flex: '1 1 240px', position: 'relative', padding: 20, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
-            <div style={{ position: 'absolute', top: -1, right: 16, fontSize: 9, fontWeight: 800, padding: '2px 12px', borderRadius: '0 0 6px 6px', background: '#f0a500', color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>Q Platform</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Your trucking operating system</div>
+        <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {/* TMS Pro Card — $99 */}
+          <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(77,142,240,0.3)', background: 'rgba(77,142,240,0.04)' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent3)', marginBottom: 2 }}>TMS Pro</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Core trucking management</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: 'var(--text)' }}>$199</span>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>/mo first truck · $75 each additional</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>$99</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo per truck</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {['Fleet & dispatch management', 'P&L dashboard & analytics', 'Invoicing & factoring', 'IFTA & compliance suite',
-                'Fleet map & GPS tracking', 'Driver portal & scorecards', 'Document management', 'Fuel optimizer'].map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text)' }}>
-                  <span style={{ color: '#f0a500', fontSize: 12, flexShrink: 0 }}>{'\u2713'}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {['Fleet & dispatch management', 'Invoicing & factoring', 'IFTA & compliance suite', 'Driver portal & scorecards',
+                'Document management', 'Fuel optimizer'].map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
+                  <span style={{ color: 'var(--accent3)', fontSize: 11, flexShrink: 0 }}>{'\u2713'}</span>
                   <span>{f}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Q Intelligence Card */}
-          <div style={{ flex: '1 1 240px', padding: 20, borderRadius: 12, border: '2px solid rgba(0,212,170,0.3)', background: 'rgba(0,212,170,0.04)' }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--success)', marginBottom: 2 }}>Q Intelligence</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>AI that runs your business</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: 'var(--text)' }}>3%</span>
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>per load · only when Q is used</span>
+          {/* AI Dispatch Card — $199 */}
+          <div style={{ flex: '1 1 180px', position: 'relative', padding: 18, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
+            <div style={{ position: 'absolute', top: -1, right: 12, fontSize: 8, fontWeight: 800, padding: '2px 10px', borderRadius: '0 0 6px 6px', background: '#f0a500', color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>AI Dispatch</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Q assists, you approve</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>$199</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · $75 each additional</span>
             </div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12, fontStyle: 'italic' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {['Everything in TMS Pro', 'P&L dashboard & analytics', 'Fleet map & GPS tracking', 'AI load scoring & selection',
+                'Rate negotiation AI', 'Voice AI assistant', 'Broker risk intelligence', 'Market & lane analysis'].map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
+                  <span style={{ color: '#f0a500', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
+                  <span style={i === 0 ? { fontWeight: 700, color: '#f0a500' } : undefined}>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Autonomous Fleet Card — 3% */}
+          <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(0,212,170,0.3)', background: 'rgba(0,212,170,0.04)' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', marginBottom: 2 }}>Autonomous Fleet</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Fully hands-free AI dispatch</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>3%</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>per load · only when Q dispatches</span>
+            </div>
+            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 12, fontStyle: 'italic' }}>
               $2,000 load = $60 AI fee · You keep $1,940
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {['AI load scoring & selection', 'Smart dispatch automation', 'Rate negotiation AI', 'Voice AI assistant',
-                'Proactive load finding', 'Broker risk intelligence', 'Market & lane analysis', 'Profit optimization'].map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text)' }}>
-                  <span style={{ color: 'var(--success)', fontSize: 12, flexShrink: 0 }}>{'\u2713'}</span>
-                  <span>{f}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {['Everything in AI Dispatch', 'Smart dispatch automation', 'Proactive load finding', 'Autonomous broker calling',
+                'Auto rate negotiation', 'Profit optimization', 'Zero manual work required'].map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
+                  <span style={{ color: 'var(--success)', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
+                  <span style={i === 0 ? { fontWeight: 700, color: 'var(--success)' } : undefined}>{f}</span>
                 </div>
               ))}
             </div>

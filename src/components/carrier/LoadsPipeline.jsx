@@ -17,10 +17,10 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
   const rpm = miles > 0 ? gross / miles : 0
   const fuelRate = fuelCostPerMile || 0.55
 
-  // Estimate driver pay (use assigned driver's rate or default 28%)
+  // Estimate driver pay (use assigned driver's rate or default 50%)
   const driverRec = (drivers || []).find(d => (d.full_name || d.name) === load.driver)
   const payModel = driverRec?.pay_model || 'percent'
-  const payRate = parseFloat(driverRec?.pay_rate) || 28
+  const payRate = parseFloat(driverRec?.pay_rate) || 50
   const driverPay = payModel === 'permile' ? miles * payRate : payModel === 'flat' ? payRate : gross * (payRate / 100)
 
   // Fuel cost
@@ -298,7 +298,7 @@ export function SettlementTab() {
   const getDriverPay = (driverName, gross, miles) => {
     const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
     const model = driverRec?.pay_model || 'percent'
-    const rate = parseFloat(driverRec?.pay_rate) || 28
+    const rate = parseFloat(driverRec?.pay_rate) || 50
     if (model === 'permile') return Math.round(miles * rate)
     if (model === 'flat') return Math.round(rate)
     return Math.round(gross * (rate / 100)) // percent
@@ -307,7 +307,7 @@ export function SettlementTab() {
   const getPayLabel = (driverName) => {
     const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
     const model = driverRec?.pay_model || 'percent'
-    const rate = parseFloat(driverRec?.pay_rate) || 28
+    const rate = parseFloat(driverRec?.pay_rate) || 50
     if (model === 'permile') return `$${rate}/mi`
     if (model === 'flat') return `$${rate}/load`
     return `${rate}%`
@@ -1286,7 +1286,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
             {(() => {
               const driverRec = (drivers || []).find(d => (d.full_name || d.name) === load.driver)
               const payModel = driverRec?.pay_model || 'percent'
-              const payRate = parseFloat(driverRec?.pay_rate) || 28
+              const payRate = parseFloat(driverRec?.pay_rate) || 50
               const miles = load.miles || 0
               const driverPay = payModel === 'permile' ? Math.round(miles * payRate) : payModel === 'flat' ? Math.round(payRate) : Math.round(gross * (payRate / 100))
               const payLabel = payModel === 'permile' ? `$${payRate}/mi` : payModel === 'flat' ? `$${payRate}/load` : `${payRate}%`

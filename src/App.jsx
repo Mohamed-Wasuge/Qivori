@@ -202,7 +202,7 @@ function AppContent() {
         )}
 
         {/* Landing Page */}
-        {view === 'landing' && !publicLoadBoard && !guidePage && <LandingPage onGetStarted={goToLogin} />}
+        {view === 'landing' && !publicLoadBoard && !guidePage && !driverOnboarding && <LandingPage onGetStarted={goToLogin} />}
 
         {/* Login View */}
         {view === 'login' && <LoginPage />}

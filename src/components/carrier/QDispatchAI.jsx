@@ -233,7 +233,7 @@ export function QDispatchAI() {
     const miles = parseFloat(selectedLoad.miles) || 0
     const driverRec = (drivers || []).find(d => (d.full_name || d.name) === selectedLoad.driver)
     const payModel = driverRec?.pay_model || 'percent'
-    const payRate = parseFloat(driverRec?.pay_rate) || 28
+    const payRate = parseFloat(driverRec?.pay_rate) || 50
     const driverPay = payModel === 'permile' ? miles * payRate : payModel === 'flat' ? payRate : gross * (payRate / 100)
     const fuelCost = miles * fuelRate
     const estProfit = gross - driverPay - fuelCost

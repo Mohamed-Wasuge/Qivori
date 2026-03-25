@@ -44,7 +44,7 @@ export function ProfitIQTab() {
   const calcDriverPay = (driverName, gross, miles) => {
     const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
     const model = driverRec?.pay_model || 'percent'
-    const rate = parseFloat(driverRec?.pay_rate) || 28
+    const rate = parseFloat(driverRec?.pay_rate) || 50
     if (model === 'permile') return Math.round(miles * rate)
     if (model === 'flat') return Math.round(rate)
     return Math.round(gross * (rate / 100))

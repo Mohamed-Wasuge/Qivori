@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori / Q, an AI-powered TMS for trucking. Pricing: Q Platform $199/mo first truck, $75 each additional. Q Intelligence is 3% per load (only when AI is used). AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks sync all included. Founder pricing locked for life (first 100 carriers). 14-day free trial, no credit card. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
+          context: 'This is a landing page visitor asking about Qivori / Q, an AI-powered TMS for trucking. Three plans starting at $99/mo: TMS Pro (basic platform), AI Dispatch (Q assists, you approve), and Autonomous Fleet (fully hands-free AI dispatch). Do NOT reveal specific pricing for each tier — tell them to sign up for the free trial to see full plan details. 14-day free trial, no credit card. AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks sync all included. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
         }),
       })
       const data = await res.json()
@@ -729,113 +729,55 @@ export default function LandingPage({ onGetStarted }) {
 
       {/* ── PRICING ───────────────────────────────────────────────────── */}
       <section id="pricing" className="lp-section" style={{ padding: '100px 40px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
           <FadeIn>
-            <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{ marginBottom: 40 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>PRICING</div>
               <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, marginBottom: 14 }}>
-                SIMPLE. PERFORMANCE-DRIVEN.
+                PLANS THAT SCALE WITH YOU
               </h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 480, margin: '0 auto' }}>You only pay more when Q makes you more.</p>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 440, margin: '0 auto', lineHeight: 1.7 }}>
+                From basic TMS to fully autonomous AI dispatch. Pick the level of control you want — upgrade anytime.
+              </p>
             </div>
           </FadeIn>
 
-          {/* Two-component pricing */}
           <FadeIn delay={0.1}>
-            <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 32 }}>
-              {/* A) Q Platform */}
-              <div className="lp-plan-card" style={{
-                background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 20, padding: '32px 24px',
-                display: 'flex', flexDirection: 'column',
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--muted)', letterSpacing: 2, marginBottom: 6 }}>A</div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 1, color: 'var(--text)', marginBottom: 4 }}>Q PLATFORM</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 24 }}>Subscription — the full operating system</div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: 'var(--accent)', lineHeight: 1 }}>$199</span>
-                    <span style={{ fontSize: 14, color: 'var(--muted)' }}>/month</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>First truck</div>
-                </div>
-
-                <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '10px 14px', marginBottom: 20, border: '1px solid var(--border)' }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--text)', marginRight: 4 }}>$75</span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>each additional truck</span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-                  {['Load Management & Dispatch', 'Fleet Map & GPS Tracking', 'P&L Dashboard & Analytics', 'Invoicing & Factoring', 'IFTA Auto-Filing', 'Full Compliance Suite', 'Driver Management', 'QuickBooks Sync'].map(f => (
-                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                      <Ic icon={Check} size={12} color="var(--muted)" />
-                      <span style={{ color: 'var(--text)' }}>{f}</span>
-                    </div>
-                  ))}
-                </div>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))',
+              border: '2px solid rgba(240,165,0,0.3)', borderRadius: 20, padding: '40px 32px', marginBottom: 24,
+            }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--accent)', marginBottom: 6 }}>3 PLANS</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>Starting at</span>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: 'var(--accent)', lineHeight: 1 }}>$99</span>
+                <span style={{ fontSize: 14, color: 'var(--muted)' }}>/month</span>
               </div>
 
-              {/* B) Q Intelligence */}
-              <div className="lp-plan-card" style={{
-                background: 'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))',
-                border: '2px solid rgba(240,165,0,0.3)', borderRadius: 20, padding: '32px 24px',
-                display: 'flex', flexDirection: 'column', position: 'relative',
-              }}>
-                <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
-                  background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', fontSize: 10, fontWeight: 800, padding: '4px 16px', borderRadius: 12, letterSpacing: 1, whiteSpace: 'nowrap' }}>
-                  PERFORMANCE-BASED
-                </div>
-                <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 6 }}>B</div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 1, color: 'var(--accent)', marginBottom: 4 }}>Q INTELLIGENCE</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 24 }}>AI usage — only when Q works for you</div>
-
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, color: 'var(--accent)', lineHeight: 1 }}>3%</span>
-                    <span style={{ fontSize: 14, color: 'var(--muted)' }}>per load</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Only when Q books or influences</div>
-                </div>
-
-                <div style={{ background: 'rgba(240,165,0,0.06)', borderRadius: 10, padding: '12px 14px', marginBottom: 20, border: '1px solid rgba(240,165,0,0.15)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Example</div>
-                  <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>$2,000 load → <span style={{ color: 'var(--accent)' }}>$60</span> AI fee</div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-                  {['AI Autonomous Dispatch', 'AI Rate Negotiation', 'AI Broker Calling', 'Fuel Intelligence', 'Voice AI Commands', 'AI Load Scoring', 'Market & Lane Intel', 'Smart Recommendations'].map(f => (
-                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                      <Ic icon={Check} size={12} color="var(--accent)" />
-                      <span style={{ color: 'var(--text)' }}>{f}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
+                {[
+                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, compliance, invoicing', color: 'var(--muted)' },
+                  { label: 'AI Dispatch', desc: 'Q assists — you approve every decision', color: 'var(--accent3)' },
+                  { label: 'Autonomous Fleet', desc: 'Q runs your operation — fully hands-free', color: 'var(--accent)' },
+                ].map((p, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{p.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.desc}</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 24 }}>
+                Sign up to see full plan details and choose what fits your operation.
               </div>
             </div>
-          </FadeIn>
-
-          {/* Founder badge */}
-          <FadeIn delay={0.2}>
-            {(() => {
-              const isFounder = founderCount < 100
-              const spotsLeft = Math.max(0, 100 - founderCount)
-              return (
-                <div style={{ background: isFounder ? 'rgba(240,165,0,0.06)' : 'var(--bg)', border: `1px solid ${isFounder ? 'rgba(240,165,0,0.2)' : 'var(--border)'}`, borderRadius: 14, padding: '20px 24px', marginBottom: 24, textAlign: 'center' }}>
-                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 1, color: isFounder ? 'var(--accent)' : 'var(--muted)', marginBottom: 4 }}>
-                    {isFounder ? `FOUNDER PRICING — ${spotsLeft} SPOTS LEFT` : 'FOUNDER SPOTS FILLED'}
-                  </div>
-                  {isFounder && (
-                    <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                      First 100 carriers lock in <span style={{ color: 'var(--accent)', fontWeight: 700 }}>$199/mo forever</span>. Regular price goes to $299 after.
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
           </FadeIn>
 
           {/* CTA */}
-          <FadeIn delay={0.3}>
+          <FadeIn delay={0.2}>
             <button onClick={() => handleCheckout('autonomous_fleet')} disabled={checkoutLoading === 'autonomous_fleet'}
               style={{
                 width: '100%', padding: '18px 0', fontSize: 17, fontWeight: 800, borderRadius: 14, cursor: 'pointer',
@@ -844,7 +786,7 @@ export default function LandingPage({ onGetStarted }) {
                 opacity: checkoutLoading === 'autonomous_fleet' ? 0.6 : 1,
                 boxShadow: '0 4px 20px rgba(240,165,0,0.3)', transition: 'all 0.2s',
               }}>
-              {checkoutLoading === 'autonomous_fleet' ? 'Loading...' : 'ACTIVATE Q'}
+              {checkoutLoading === 'autonomous_fleet' ? 'Loading...' : 'START FREE TRIAL'}
             </button>
             <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--muted)' }}>
               14-day free trial · No credit card · Cancel anytime
@@ -865,7 +807,7 @@ export default function LandingPage({ onGetStarted }) {
           {[
             { q: 'What exactly does Q do?', a: 'Q is an AI operating system for trucking. It finds loads, evaluates profitability, negotiates rates, assigns drivers, tracks fleet, manages invoicing and compliance — automatically.' },
             { q: 'Do I need to be tech-savvy?', a: 'No. Q is voice-first. Just talk to it. "Q, find me a load." "Q, what\'s my profit today?" It works like having an intelligent dispatcher on call 24/7.' },
-            { q: 'How does pricing work?', a: 'Two parts. Q Platform is $199/month for your first truck, $75 each additional — that covers the full operating system. Q Intelligence is a 3% fee per load, only applied when Q books or influences the load. If you book manually, no AI fee. You only pay more when Q makes you more.' },
+            { q: 'How does pricing work?', a: 'Three simple plans starting at $99/month. Choose how much you want Q to handle — from basic TMS tools to fully autonomous AI dispatch. Start with a 14-day free trial to explore everything, then pick the plan that fits.' },
             { q: 'Can I try it before paying?', a: '14-day free trial. No credit card required. Full access to every feature. Cancel anytime.' },
           ].map((item, i) => (
             <FadeIn key={i} delay={i * 0.08}>

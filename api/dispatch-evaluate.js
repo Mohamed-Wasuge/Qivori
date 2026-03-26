@@ -368,18 +368,85 @@ async function fetchBrokerUrgency(ownerId, brokerName) {
   } catch { return 0 }
 }
 
-async function fetchFuelCostPerMile(ownerId) {
-  // Try to get from carrier_settings or fall back to default
-  if (!SUPABASE_URL || !SERVICE_KEY) return 0.55
+async function fetchCarrierSettings(ownerId) {
+  if (!SUPABASE_URL || !SERVICE_KEY) return {}
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/carrier_settings?owner_id=eq.${ownerId}&select=fuel_cost_per_mile&limit=1`,
+      `${SUPABASE_URL}/rest/v1/carrier_settings?owner_id=eq.${ownerId}&select=*&limit=1`,
       { headers: sbHeaders() }
     )
-    if (!res.ok) return 0.55
+    if (!res.ok) return {}
     const rows = await res.json()
-    return rows?.[0]?.fuel_cost_per_mile || 0.55
-  } catch { return 0.55 }
+    return rows?.[0] || {}
+  } catch { return {} }
+}
+
+async function runComplianceCheck(ownerId, driverId, vehicleId) {
+  // Call the compliance-check endpoint internally via Supabase
+  // We replicate the core logic inline for speed (avoid HTTP round-trip)
+  if (!driverId || !SUPABASE_URL || !SERVICE_KEY) return { overall: 'unchecked', checks: {}, failing: [] }
+
+  const failing = []
+  const checks = {}
+
+  try {
+    // Fetch driver
+    const dRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driverId}&select=full_name,name,cdl_expiry,license_expiry,medical_card_expiry,med_card_expiry,is_available,availability_status&limit=1`,
+      { headers: sbHeaders() }
+    )
+    if (!dRes.ok) return { overall: 'unchecked', checks: {}, failing: [] }
+    const driver = (await dRes.json())?.[0]
+    if (!driver) return { overall: 'unchecked', checks: {}, failing: [] }
+
+    const daysUntil = (d) => { if (!d) return null; const diff = Math.round((new Date(d) - new Date()) / 86400000); return diff }
+
+    // CDL
+    const cdlDays = daysUntil(driver.cdl_expiry || driver.license_expiry)
+    if (cdlDays !== null && cdlDays < 0) {
+      checks.cdl_valid = { status: 'fail', detail: `Expired ${Math.abs(cdlDays)}d ago` }
+      failing.push('cdl_valid')
+    } else {
+      checks.cdl_valid = { status: 'pass', detail: cdlDays !== null ? `${cdlDays}d left` : 'OK' }
+    }
+
+    // Medical card
+    const medDays = daysUntil(driver.medical_card_expiry || driver.med_card_expiry)
+    if (medDays !== null && medDays < 0) {
+      checks.medical_card = { status: 'fail', detail: `Expired ${Math.abs(medDays)}d ago` }
+      failing.push('medical_card')
+    } else {
+      checks.medical_card = { status: 'pass', detail: medDays !== null ? `${medDays}d left` : 'OK' }
+    }
+
+    // Availability
+    if (driver.is_available === false) {
+      checks.driver_available = { status: 'fail', detail: driver.availability_status || 'unavailable' }
+      failing.push('driver_available')
+    } else {
+      checks.driver_available = { status: 'pass', detail: 'Available' }
+    }
+
+    // Drug test (quick check)
+    const chRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/clearinghouse_queries?owner_id=eq.${ownerId}&driver_name=eq.${encodeURIComponent(driver.full_name || driver.name || '')}&order=created_at.desc&limit=1`,
+      { headers: sbHeaders() }
+    ).catch(() => null)
+    if (chRes?.ok) {
+      const ch = (await chRes.json())?.[0]
+      if (ch && (ch.result === 'Positive' || ch.result === 'Refused')) {
+        checks.drug_test = { status: 'fail', detail: `${ch.result} result` }
+        failing.push('drug_test')
+      } else {
+        checks.drug_test = { status: 'pass', detail: 'Clear' }
+      }
+    }
+
+    const overall = failing.length > 0 ? 'fail' : 'pass'
+    return { overall, checks, failing }
+  } catch {
+    return { overall: 'unchecked', checks: {}, failing: [] }
+  }
 }
 
 async function storeDecision(ownerId, loadId, driverId, driverType, result, loadData) {
@@ -400,6 +467,10 @@ async function storeDecision(ownerId, loadId, driverId, driverType, result, load
         negotiation: result.negotiation,
         load_data: loadData || {},
         auto_booked: result.auto_booked || false,
+        compliance_status: result.compliance_status || 'unchecked',
+        compliance_checks: result.compliance_checks || {},
+        failing_compliance: result.failing_compliance || [],
+        hold_reason: result.hold_reason || null,
         created_at: new Date().toISOString(),
       }),
     })
@@ -435,13 +506,15 @@ export default async function handler(req) {
     }
 
     // Fetch context in parallel
-    const [driver, laneAvgRate, brokerUrgency, fuelCostPerMile] = await Promise.all([
+    const [driver, laneAvgRate, brokerUrgency, carrierSettings, complianceResult] = await Promise.all([
       driver_id ? fetchDriver(driver_id) : Promise.resolve(null),
       fetchLaneAvgRate(user.id, (load.origin || '').split(',')[0], (load.dest || '').split(',')[0]),
       fetchBrokerUrgency(user.id, load.broker),
-      fetchFuelCostPerMile(user.id),
+      fetchCarrierSettings(user.id),
+      driver_id ? runComplianceCheck(user.id, driver_id, truck_id) : Promise.resolve({ overall: 'unchecked', checks: {}, failing: [] }),
     ])
 
+    const fuelCostPerMile = carrierSettings.fuel_cost_per_mile || 0.55
     const context = {
       driver_type: driver_type || driver?.driver_type || 'owner_operator',
       fuelCostPerMile,
@@ -449,10 +522,57 @@ export default async function handler(req) {
       brokerUrgency,
     }
 
-    // Evaluate
+    // Evaluate profit/feasibility
     const result = evaluateLoad(load, driver, context)
 
-    // Store decision (fire-and-forget)
+    // Apply carrier threshold overrides if configured
+    const minProfit = carrierSettings.min_profit || 800
+    const minRpm = carrierSettings.min_rpm || 1.00
+    const minProfitPerDay = carrierSettings.min_profit_per_day || 400
+    const maxDeadhead = carrierSettings.max_deadhead_miles || 150
+
+    // Re-check with carrier-specific thresholds
+    if (result.decision !== 'reject' && result.metrics.estProfit < minProfit) {
+      result.decision = 'reject'
+      result.confidence = 90
+      result.reasons.push(`Below your min profit threshold of $${minProfit}`)
+    }
+    if (result.decision !== 'reject' && result.metrics.rpm < minRpm) {
+      if (result.decision === 'accept') result.decision = 'negotiate'
+      result.reasons.push(`RPM $${result.metrics.rpm} below your $${minRpm} threshold`)
+    }
+
+    // Compliance gate — block dispatch if compliance fails and enforcement is on
+    result.compliance_status = complianceResult.overall
+    result.compliance_checks = complianceResult.checks
+    result.failing_compliance = complianceResult.failing
+
+    if (complianceResult.overall === 'fail') {
+      const enforce = carrierSettings.enforce_compliance !== false
+      if (enforce && (result.decision === 'accept' || result.decision === 'auto_book')) {
+        // Downgrade to hold — profitable but can't dispatch
+        result.decision = 'hold'
+        result.hold_reason = `Compliance blocked: ${complianceResult.failing.join(', ')}`
+        result.reasons.push(`⚠️ COMPLIANCE BLOCK: ${complianceResult.failing.map(f => complianceResult.checks[f]?.detail || f).join('; ')}`)
+        result.auto_booked = false
+      } else if (!enforce) {
+        result.reasons.push(`⚠️ Compliance warning (not enforced): ${complianceResult.failing.join(', ')}`)
+      }
+    }
+
+    // Disable auto-book if carrier turned it off
+    if (result.decision === 'auto_book' && carrierSettings.auto_book_enabled === false) {
+      result.decision = 'accept'
+      result.auto_booked = false
+      result.reasons.push('Auto-book disabled in settings — manual confirmation required')
+    }
+    if (result.decision === 'auto_book' && result.confidence < (carrierSettings.auto_book_confidence || 75)) {
+      result.decision = 'accept'
+      result.auto_booked = false
+      result.reasons.push(`Confidence ${result.confidence}% below auto-book threshold of ${carrierSettings.auto_book_confidence || 75}%`)
+    }
+
+    // Store decision with compliance data (fire-and-forget)
     storeDecision(user.id, load_id, driver_id, context.driver_type, result, load)
 
     return Response.json(result, { headers: corsHeaders(req) })

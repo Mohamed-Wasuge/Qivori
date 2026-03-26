@@ -112,13 +112,71 @@ export default async function handler(req) {
     const originState = (load.origin || '').split(',').pop()?.trim() || ''
     const driver = await findBestDriver(user.id, load.equipment, originState)
     const driverName = driver?.full_name || null
-    const driverAssigned = !!driverName
+    let driverAssigned = !!driverName
+
+    // ── STEP 1b: COMPLIANCE CHECK (pre-dispatch gate) ─────────────
+    let complianceResult = null
+    if (driverAssigned) {
+      timeline.push({ step: 'compliance_check', time: new Date().toISOString(), detail: `Running compliance check for ${driverName}...` })
+
+      try {
+        // Check driver compliance: CDL, medical, drug test, availability
+        const dRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driver.id}&select=cdl_expiry,license_expiry,medical_card_expiry,med_card_expiry,is_available,availability_status&limit=1`,
+          { headers: sbHeaders() }
+        )
+        const dData = dRes.ok ? (await dRes.json())?.[0] : null
+        const failing = []
+
+        if (dData) {
+          const daysUntil = (d) => { if (!d) return null; return Math.round((new Date(d) - new Date()) / 86400000) }
+          const cdlDays = daysUntil(dData.cdl_expiry || dData.license_expiry)
+          const medDays = daysUntil(dData.medical_card_expiry || dData.med_card_expiry)
+          if (cdlDays !== null && cdlDays < 0) failing.push(`CDL expired ${Math.abs(cdlDays)}d ago`)
+          if (medDays !== null && medDays < 0) failing.push(`Medical card expired ${Math.abs(medDays)}d ago`)
+          if (dData.is_available === false) failing.push(`Driver status: ${dData.availability_status || 'unavailable'}`)
+        }
+
+        // Check clearinghouse
+        const chRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/clearinghouse_queries?owner_id=eq.${user.id}&driver_name=eq.${encodeURIComponent(driverName)}&order=created_at.desc&limit=1`,
+          { headers: sbHeaders() }
+        ).catch(() => null)
+        if (chRes?.ok) {
+          const ch = (await chRes.json())?.[0]
+          if (ch && (ch.result === 'Positive' || ch.result === 'Refused')) {
+            failing.push(`Drug test: ${ch.result}`)
+          }
+        }
+
+        if (failing.length > 0) {
+          complianceResult = { status: 'fail', failing }
+          timeline.push({
+            step: 'compliance_blocked',
+            time: new Date().toISOString(),
+            detail: `⚠️ COMPLIANCE BLOCK: ${failing.join('; ')} — driver cannot be dispatched`,
+          })
+          driverAssigned = false // DO NOT assign this driver
+        } else {
+          complianceResult = { status: 'pass', failing: [] }
+          timeline.push({
+            step: 'compliance_passed',
+            time: new Date().toISOString(),
+            detail: `✓ ${driverName} passed all compliance checks — clear to dispatch`,
+          })
+        }
+      } catch {
+        timeline.push({ step: 'compliance_warn', time: new Date().toISOString(), detail: 'Compliance check unavailable — proceeding with caution' })
+      }
+    }
 
     timeline.push({
       step: 'driver_assigned',
       time: new Date().toISOString(),
       detail: driverAssigned
         ? `Assigned to ${driverName} — ${driver.license_class || 'CDL-A'} · ${driver.license_state || '??'} · ${driver.driver_type === 'owner_operator' ? 'O/O' : 'Company'} · ${driver.equipment_experience || 'General'}`
+        : complianceResult?.status === 'fail'
+        ? `${driverName} blocked by compliance — load booked unassigned`
         : 'No available driver — load booked unassigned',
     })
 

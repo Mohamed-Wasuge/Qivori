@@ -935,6 +935,122 @@ function CSVImportTool() {
   )
 }
 
+// ── Dispatch Rules (AI thresholds + compliance enforcement) ────────────────────
+function DispatchSettings() {
+  const { showToast } = useApp()
+  const [s, setS] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const db = import('../../lib/database')
+
+  useEffect(() => {
+    db.then(m => m.fetchCarrierSettings()).then(data => {
+      setS(data || {
+        min_profit: 800, min_rpm: 1.00, min_profit_per_day: 400, max_deadhead_miles: 150,
+        max_deadhead_pct: 15, preferred_max_weight: 37000, auto_book_confidence: 75,
+        auto_book_enabled: true, fuel_cost_per_mile: 0.55, enforce_compliance: true,
+        hos_min_hours: 6, block_expired_cdl: true, block_expired_medical: true,
+        block_active_defects: true, block_failed_drug_test: true, block_expired_insurance: true,
+        default_payment_terms: 'NET 30', auto_invoice_on_delivery: true, home_time_days: 14,
+      })
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const m = await db
+      await m.upsertCarrierSettings(s)
+      showToast('success', 'Saved', 'Dispatch rules updated — AI will use these thresholds')
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to save')
+    }
+    setSaving(false)
+  }
+
+  if (loading || !s) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading dispatch settings...</div>
+
+  const Field = ({ label, sub, value, onChange, type = 'number', suffix, min, max, step }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input type={type} value={value ?? ''} onChange={e => onChange(type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value)}
+          min={min} max={max} step={step || 1}
+          style={{ width: 90, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", textAlign: 'right' }} />
+        {suffix && <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 30 }}>{suffix}</span>}
+      </div>
+    </div>
+  )
+
+  const Toggle = ({ label, sub, value, onChange }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{sub}</div>}
+      </div>
+      <div onClick={() => onChange(!value)}
+        style={{ width: 44, height: 24, borderRadius: 12, background: value ? 'var(--accent)' : 'var(--border)', cursor: 'pointer', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
+        <div style={{ position: 'absolute', top: 3, left: value ? 22 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }} />
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>AI Dispatch Rules</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>
+        These thresholds control how Q evaluates loads. Every AI decision uses your rules.
+      </div>
+
+      {/* Profit thresholds */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10, marginTop: 4 }}>PROFIT THRESHOLDS</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+        <Field label="Minimum Profit" sub="Reject loads below this estimated profit" value={s.min_profit} onChange={v => setS(p => ({ ...p, min_profit: v }))} suffix="$" min={0} max={5000} />
+        <Field label="Minimum RPM" sub="Revenue per mile floor" value={s.min_rpm} onChange={v => setS(p => ({ ...p, min_rpm: v }))} suffix="$/mi" min={0} max={10} step={0.05} />
+        <Field label="Min Profit/Day" sub="Daily profit floor for multi-day loads" value={s.min_profit_per_day} onChange={v => setS(p => ({ ...p, min_profit_per_day: v }))} suffix="$/day" min={0} max={2000} />
+        <Field label="Max Deadhead" sub="Maximum empty miles to pickup" value={s.max_deadhead_miles} onChange={v => setS(p => ({ ...p, max_deadhead_miles: v }))} suffix="mi" min={0} max={500} />
+        <Field label="Preferred Max Weight" sub="Flag loads heavier than this" value={s.preferred_max_weight} onChange={v => setS(p => ({ ...p, preferred_max_weight: v }))} suffix="lbs" min={10000} max={80000} step={1000} />
+        <Field label="Fuel Cost/Mile" sub="Used in profit calculation" value={s.fuel_cost_per_mile} onChange={v => setS(p => ({ ...p, fuel_cost_per_mile: v }))} suffix="$/mi" min={0} max={2} step={0.01} />
+      </div>
+
+      {/* Auto-book */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10 }}>AUTO-BOOK</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+        <Toggle label="Auto-Book Enabled" sub="Let Q automatically book instant-book loads that pass all checks" value={s.auto_book_enabled} onChange={v => setS(p => ({ ...p, auto_book_enabled: v }))} />
+        <Field label="Min Confidence" sub="Only auto-book when AI confidence exceeds this %" value={s.auto_book_confidence} onChange={v => setS(p => ({ ...p, auto_book_confidence: v }))} suffix="%" min={50} max={100} />
+      </div>
+
+      {/* Compliance enforcement */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger, #ef4444)', letterSpacing: 1, marginBottom: 10 }}>COMPLIANCE ENFORCEMENT</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+        <Toggle label="Enforce Compliance" sub="Block dispatch if driver/vehicle fails compliance checks" value={s.enforce_compliance} onChange={v => setS(p => ({ ...p, enforce_compliance: v }))} />
+        <Toggle label="Block Expired CDL" sub="Prevent dispatching drivers with expired CDL" value={s.block_expired_cdl} onChange={v => setS(p => ({ ...p, block_expired_cdl: v }))} />
+        <Toggle label="Block Expired Medical" sub="Prevent dispatching with expired medical card" value={s.block_expired_medical} onChange={v => setS(p => ({ ...p, block_expired_medical: v }))} />
+        <Toggle label="Block Active DVIR Defects" sub="Prevent dispatching vehicles with unresolved defects" value={s.block_active_defects} onChange={v => setS(p => ({ ...p, block_active_defects: v }))} />
+        <Toggle label="Block Failed Drug Test" sub="Prevent dispatching drivers with positive/refused results" value={s.block_failed_drug_test} onChange={v => setS(p => ({ ...p, block_failed_drug_test: v }))} />
+        <Toggle label="Block Expired Insurance" sub="Prevent dispatching vehicles with expired insurance" value={s.block_expired_insurance} onChange={v => setS(p => ({ ...p, block_expired_insurance: v }))} />
+        <Field label="Min HOS Hours" sub="Minimum drive hours required to dispatch" value={s.hos_min_hours} onChange={v => setS(p => ({ ...p, hos_min_hours: v }))} suffix="hrs" min={1} max={11} step={0.5} />
+      </div>
+
+      {/* Operations */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10 }}>OPERATIONS</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+        <Toggle label="Auto-Invoice on Delivery" sub="Generate invoice automatically when load status changes to Delivered" value={s.auto_invoice_on_delivery} onChange={v => setS(p => ({ ...p, auto_invoice_on_delivery: v }))} />
+        <Field label="Home Time Interval" sub="Days out before scheduling home time" value={s.home_time_days} onChange={v => setS(p => ({ ...p, home_time_days: v }))} suffix="days" min={7} max={30} />
+      </div>
+
+      <button className="btn btn-primary" disabled={saving} onClick={save}
+        style={{ padding: '12px 32px', fontSize: 13, fontWeight: 700, opacity: saving ? 0.6 : 1 }}>
+        {saving ? 'Saving...' : 'Save Dispatch Rules'}
+      </button>
+    </>
+  )
+}
+
 // ── Settings tab ───────────────────────────────────────────────────────────────
 export function SettingsTab() {
   const { showToast, theme, setTheme } = useApp()
@@ -996,6 +1112,7 @@ export function SettingsTab() {
 
   const SECTIONS = [
     { id:'company',        icon: Building2, label:'Company Profile' },
+    { id:'dispatch',       icon: Zap, label:'Dispatch Rules' },
     { id:'loadboards',     icon: Globe, label:'Load Boards' },
     { id:'subscription',   icon: Star, label:'Subscription' },
     { id:'billing',        icon: CreditCard, label:'Billing & Pay' },
@@ -1122,6 +1239,9 @@ export function SettingsTab() {
             </div>
           </>
         )}
+
+        {/* Dispatch Rules — AI thresholds + compliance enforcement */}
+        {settingsSec === 'dispatch' && <DispatchSettings />}
 
         {/* Load Boards */}
         {settingsSec === 'loadboards' && <LoadBoardSettings />}

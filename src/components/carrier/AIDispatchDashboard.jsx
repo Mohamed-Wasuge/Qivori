@@ -12,6 +12,7 @@ const DECISION_COLORS = {
   accept:    { bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)', text: '#22c55e', label: 'ACCEPT' },
   reject:    { bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.25)', text: '#ef4444', label: 'REJECT' },
   negotiate: { bg: 'rgba(240,165,0,0.1)',  border: 'rgba(240,165,0,0.25)', text: '#f0a500', label: 'NEGOTIATE' },
+  hold:      { bg: 'rgba(168,85,247,0.1)', border: 'rgba(168,85,247,0.25)', text: '#a855f7', label: 'HOLD' },
   auto_book: { bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)', text: '#6366f1', label: 'AUTO-BOOK' },
 }
 
@@ -19,6 +20,7 @@ const DECISION_ICONS = {
   accept: CheckCircle,
   reject: XCircle,
   negotiate: AlertTriangle,
+  hold: Clock,
   auto_book: Zap,
 }
 

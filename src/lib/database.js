@@ -652,3 +652,143 @@ export async function createAIFee(fee) {
   if (error) throw error
   return data
 }
+
+// ─── AUDIT LOGS ─────────────────────────────────────────────
+export async function createAuditLog({ action, entity_type, entity_id, old_value, new_value, reason, metadata }) {
+  const userId = await getUserId()
+  if (!userId) return null
+  const { data } = await safeMutate('createAuditLog',
+    supabase.from('audit_logs').insert({
+      owner_id: userId,
+      actor_id: userId,
+      action,
+      entity_type,
+      entity_id: String(entity_id || ''),
+      old_value: old_value || null,
+      new_value: new_value || null,
+      reason: reason || null,
+      metadata: metadata || {},
+    })
+  )
+  return data
+}
+
+export async function fetchAuditLogs(filters = {}) {
+  let query = supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(filters.limit || 200)
+  if (filters.entity_type) query = query.eq('entity_type', filters.entity_type)
+  if (filters.entity_id) query = query.eq('entity_id', filters.entity_id)
+  if (filters.action) query = query.eq('action', filters.action)
+  if (filters.since) query = query.gte('created_at', filters.since)
+  return await safeSelect('audit_logs', query) || []
+}
+
+// ─── CARRIER SETTINGS ───────────────────────────────────────
+export async function fetchCarrierSettings() {
+  const userId = await getUserId()
+  if (!userId) return null
+  const data = await safeSelect('carrier_settings',
+    supabase.from('carrier_settings').select('*').eq('owner_id', userId).single()
+  )
+  return data
+}
+
+export async function upsertCarrierSettings(settings) {
+  const userId = await getUserId()
+  if (!userId) throw new Error('Not authenticated')
+  const { data, error } = await safeMutate('upsertCarrierSettings',
+    supabase.from('carrier_settings').upsert({
+      ...settings,
+      owner_id: userId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'owner_id' }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── COMPLIANCE CHECKS ──────────────────────────────────────
+export async function createComplianceCheck(check) {
+  const userId = await getUserId()
+  if (!userId) throw new Error('Not authenticated')
+  const { data, error } = await safeMutate('createComplianceCheck',
+    supabase.from('compliance_checks').insert({
+      owner_id: userId,
+      driver_id: check.driver_id || null,
+      vehicle_id: check.vehicle_id || null,
+      load_id: check.load_id || null,
+      dispatch_decision_id: check.dispatch_decision_id || null,
+      check_type: check.check_type || 'pre_dispatch',
+      overall_status: check.overall_status,
+      checks: check.checks,
+      failing_checks: check.failing_checks || [],
+      override_by: check.override_by || null,
+      override_reason: check.override_reason || null,
+    }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function fetchComplianceChecks(filters = {}) {
+  let query = supabase.from('compliance_checks').select('*').order('created_at', { ascending: false }).limit(100)
+  if (filters.driver_id) query = query.eq('driver_id', filters.driver_id)
+  if (filters.load_id) query = query.eq('load_id', filters.load_id)
+  if (filters.overall_status) query = query.eq('overall_status', filters.overall_status)
+  return await safeSelect('compliance_checks', query) || []
+}
+
+// ─── VEHICLE MAINTENANCE ────────────────────────────────────
+export async function fetchVehicleMaintenance(vehicleId) {
+  let query = supabase.from('vehicle_maintenance').select('*').order('service_date', { ascending: false })
+  if (vehicleId) query = query.eq('vehicle_id', vehicleId)
+  return await safeSelect('vehicle_maintenance', query) || []
+}
+
+export async function createMaintenanceRecord(record) {
+  const userId = await getUserId()
+  if (!userId) throw new Error('Not authenticated')
+  const { data, error } = await safeMutate('createMaintenance',
+    supabase.from('vehicle_maintenance').insert({
+      owner_id: userId,
+      vehicle_id: record.vehicle_id,
+      maintenance_type: record.maintenance_type,
+      description: record.description || '',
+      vendor: record.vendor || '',
+      cost: parseFloat(record.cost) || 0,
+      odometer_at_service: parseInt(record.odometer_at_service) || null,
+      next_due_miles: parseInt(record.next_due_miles) || null,
+      next_due_date: record.next_due_date || null,
+      status: record.status || 'completed',
+      documents: record.documents || [],
+      performed_by: record.performed_by || '',
+      notes: record.notes || '',
+      service_date: record.service_date || new Date().toISOString().split('T')[0],
+    }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateMaintenanceRecord(id, updates) {
+  const { data, error } = await safeMutate('updateMaintenance',
+    supabase.from('vehicle_maintenance').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── DRIVER AVAILABILITY ────────────────────────────────────
+export async function updateDriverAvailability(driverId, { is_available, availability_status, last_location, last_location_lat, last_location_lng }) {
+  const { data, error } = await safeMutate('updateDriverAvailability',
+    supabase.from('drivers').update({
+      is_available: is_available ?? true,
+      availability_status: availability_status || 'ready',
+      last_location: last_location || null,
+      last_location_lat: last_location_lat || null,
+      last_location_lng: last_location_lng || null,
+      last_location_updated: new Date().toISOString(),
+    }).eq('id', driverId).select().single()
+  )
+  if (error) throw error
+  return data
+}

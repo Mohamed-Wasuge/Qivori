@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import {
   Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Moon, Eye, Zap,
-  Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info
+  Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info, FileCheck
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
@@ -13,6 +13,7 @@ const lazyN = (fn, name) => lazy(() => fn().then(m => ({ default: m[name] })))
 const SMSSettings = lazyN(() => import('../../pages/carrier/Settings'), 'SMSSettings')
 const InvoicingSettings = lazyN(() => import('../../pages/carrier/Settings'), 'InvoicingSettings')
 const TeamManagement = lazyN(() => import('../../pages/carrier/Settings'), 'TeamManagement')
+const InsuranceHub = lazyN(() => import('../CarrierLayout'), 'InsuranceHub')
 
 // ── Subscription Settings (inside Settings tab) ────────────────────────────────
 export function SubscriptionSettings() {
@@ -1161,6 +1162,7 @@ export function SettingsTab() {
     { id:'loadboards',     icon: Globe, label:'Load Boards' },
     { id:'subscription',   icon: Star, label:'Subscription' },
     { id:'billing',        icon: CreditCard, label:'Billing & Pay' },
+    { id:'insurance',      icon: FileCheck, label:'Insurance' },
     { id:'providers',      icon: Shield, label:'Provider Keys' },
     { id:'integrations',   icon: Plug, label:'Integrations' },
     { id:'team',           icon: Users, label:'Team & Access' },
@@ -1451,6 +1453,13 @@ export function SettingsTab() {
               showToast('','Saved','Billing settings updated')
             }}>Save Changes</button>
           </>
+        )}
+
+        {/* Insurance — renders InsuranceHub from CarrierLayout */}
+        {settingsSec === 'insurance' && (
+          <Suspense fallback={<div style={{ padding:40, textAlign:'center', color:'var(--muted)' }}>Loading...</div>}>
+            <InsuranceHub />
+          </Suspense>
         )}
 
         {/* Provider Keys */}

@@ -127,7 +127,6 @@ const NAV = [
   { id:'fleet',        icon: Truck,        label:'My Fleet',       i18nKey:'nav.fleet'        },
   { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
   { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
-  { id:'insurance',    icon: FileCheck,    label:'Insurance' },
   { id:'_divider' },
   { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
@@ -297,7 +296,7 @@ function ComplianceHub() {
 }
 
 // ── Insurance Hub ──
-function InsuranceHub() {
+export function InsuranceHub() {
   const { company, vehicles, drivers } = useCarrier()
   const { showToast } = useApp()
   const [quoteForm, setQuoteForm] = useState({ name: company?.name || '', mc: company?.mc_number || company?.mc || '', dot: company?.dot_number || company?.dot || '', phone: company?.phone || '', email: company?.email || '', trucks: String(vehicles?.length || drivers?.length || 1), equipment: 'Dry Van', currentInsurer: '', expiryDate: '', coverageNeeded: 'auto-liability' })
@@ -478,7 +477,6 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'fleet':       return <FleetHub />
     case 'financials':  return <FinancialsHub />
     case 'compliance':  return <ComplianceHub />
-    case 'insurance':   return <InsuranceHub />
     case 'settings':    return <SettingsTab />
     case 'ai-dashboard': return <AIDispatchDashboard />
     case 'analytics':   return <AnalyticsDashboard />

@@ -62,7 +62,17 @@ else
   echo "  ✅ No manualChunks (TDZ-safe)"
 fi
 
-# ── 5. Verify production chunks load without TDZ errors ────
+# ── 5. Check React hook ordering (useState before useMemo) ──
+echo "  → Checking hook ordering..."
+HOOK_OUTPUT=$(node scripts/check-hook-order.cjs 2>&1)
+if [ $? -ne 0 ]; then
+  echo "$HOOK_OUTPUT"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "  ✅ No hook ordering issues"
+fi
+
+# ── 6. Verify production chunks load without TDZ errors ────
 echo "  → Validating chunk imports..."
 TDZ_ERRORS=0
 for CHUNK in dist/assets/*.js; do
@@ -83,7 +93,7 @@ else
   echo "  ✅ No circular chunk imports"
 fi
 
-# ── 6. Check for hardcoded secret values ───────────────────
+# ── 7. Check for hardcoded secret values ───────────────────
 echo "  → Checking for secrets..."
 SECRET_HIT=$(grep -rn "sk_live_[A-Za-z0-9]\{10,\}\|sk_test_[A-Za-z0-9]\{10,\}\|eyJhbGciOiJ" --include="*.jsx" --include="*.js" src/ 2>/dev/null | grep -v node_modules | grep -v "test/\|\.test\." || true)
 if [ -n "$SECRET_HIT" ]; then

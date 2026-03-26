@@ -239,7 +239,7 @@ export function CarrierPackage() {
                 <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Broker Email</label>
                 <input value={brokerEmail} onChange={e => setBrokerEmail(e.target.value)} placeholder="dispatch@broker.com" style={inp} />
               </div>
-              <button onClick={() => { if(!brokerEmail||pkgSent[brokerEmail]) return; setPkgSent(p => ({...p, [brokerEmail]:true})); showToast('','Package Sent!','Emailed to '+brokerEmail) }}
+              <button onClick={async () => { if(!brokerEmail||pkgSent[brokerEmail]) return; try { await apiFetch('/api/carrier-packet', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ brokerEmail }) }); setPkgSent(p => ({...p, [brokerEmail]:true})); showToast('success','Package Sent!','Carrier packet emailed to '+brokerEmail) } catch(e) { showToast('error','Send Failed', e.message||'Could not send packet — check your documents are uploaded') } }}
                 style={{ padding:'12px 0', fontSize:13, fontWeight:700, borderRadius:8, border:'none', fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
                   background:pkgSent[brokerEmail]?'rgba(34,197,94,0.15)':!brokerEmail?'var(--surface3)':'var(--accent3)',
                   color:pkgSent[brokerEmail]?'var(--success)':!brokerEmail?'var(--muted)':'#fff' }}>

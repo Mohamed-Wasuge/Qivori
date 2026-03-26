@@ -12,19 +12,66 @@ import { useSubscription } from '../hooks/useSubscription'
 import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF } from '../utils/generatePDF'
 import Toast from './Toast'
-import { SmartDispatch, LaneIntel, CommandCenter, AILoadBoard, CheckCallCenter, DATAlertBot, RateNegotiation, RateBadge } from '../pages/carrier/LoadBoard'
-import { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, DriverPayReport } from '../pages/carrier/DriverScorecard'
-// Lazy-load compliance to avoid chunk initialization TDZ errors
-const CarrierIFTA = lazy(() => import('../pages/carrier/Compliance').then(m => ({ default: m.CarrierIFTA })))
-const CarrierDVIR = lazy(() => import('../pages/carrier/Compliance').then(m => ({ default: m.CarrierDVIR })))
-const CarrierClearinghouse = lazy(() => import('../pages/carrier/Compliance').then(m => ({ default: m.CarrierClearinghouse })))
-import { FleetMapGoogle as FleetMap } from '../pages/carrier/FleetMapGoogle'
-import { FleetManager, FuelOptimizer, EquipmentManager } from '../pages/carrier/Fleet'
-import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard, InvoicesHub } from '../pages/carrier/Finance'
-import { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement } from '../pages/carrier/Settings'
 import { apiFetch } from '../lib/api'
 import { useTranslation, LanguageToggle } from '../lib/i18n'
-import { DQFileManager, ExpiryAlerts, DrugAlcoholCompliance, IncidentTracker, PayrollTracker, DriverPortal } from '../pages/carrier/HR'
+
+// Lazy-load all heavy domain modules to prevent chunk TDZ errors in production
+const lazyN = (importFn, name) => lazy(() => importFn().then(m => ({ default: m[name] })))
+
+// LoadBoard
+const SmartDispatch = lazyN(() => import('../pages/carrier/LoadBoard'), 'SmartDispatch')
+const LaneIntel = lazyN(() => import('../pages/carrier/LoadBoard'), 'LaneIntel')
+const CommandCenter = lazyN(() => import('../pages/carrier/LoadBoard'), 'CommandCenter')
+const AILoadBoard = lazyN(() => import('../pages/carrier/LoadBoard'), 'AILoadBoard')
+const CheckCallCenter = lazyN(() => import('../pages/carrier/LoadBoard'), 'CheckCallCenter')
+const DATAlertBot = lazyN(() => import('../pages/carrier/LoadBoard'), 'DATAlertBot')
+const RateNegotiation = lazyN(() => import('../pages/carrier/LoadBoard'), 'RateNegotiation')
+
+// Drivers
+const DriverSettlement = lazyN(() => import('../pages/carrier/DriverScorecard'), 'DriverSettlement')
+const DriverProfiles = lazyN(() => import('../pages/carrier/DriverScorecard'), 'DriverProfiles')
+const DriverOnboarding = lazyN(() => import('../pages/carrier/DriverScorecard'), 'DriverOnboarding')
+const DriverScorecard = lazyN(() => import('../pages/carrier/DriverScorecard'), 'DriverScorecard')
+const DriverPayReport = lazyN(() => import('../pages/carrier/DriverScorecard'), 'DriverPayReport')
+
+// Compliance
+const CarrierIFTA = lazyN(() => import('../pages/carrier/Compliance'), 'CarrierIFTA')
+const CarrierDVIR = lazyN(() => import('../pages/carrier/Compliance'), 'CarrierDVIR')
+const CarrierClearinghouse = lazyN(() => import('../pages/carrier/Compliance'), 'CarrierClearinghouse')
+
+// Fleet
+const FleetMap = lazyN(() => import('../pages/carrier/FleetMapGoogle'), 'FleetMapGoogle')
+const FleetManager = lazyN(() => import('../pages/carrier/Fleet'), 'FleetManager')
+const FuelOptimizer = lazyN(() => import('../pages/carrier/Fleet'), 'FuelOptimizer')
+const EquipmentManager = lazyN(() => import('../pages/carrier/Fleet'), 'EquipmentManager')
+
+// Finance
+const BrokerRiskIntel = lazyN(() => import('../pages/carrier/Finance'), 'BrokerRiskIntel')
+const BrokerDirectory = lazyN(() => import('../pages/carrier/Finance'), 'BrokerDirectory')
+const ExpenseTracker = lazyN(() => import('../pages/carrier/Finance'), 'ExpenseTracker')
+const FactoringCashflow = lazyN(() => import('../pages/carrier/Finance'), 'FactoringCashflow')
+const CashFlowForecaster = lazyN(() => import('../pages/carrier/Finance'), 'CashFlowForecaster')
+const PLDashboard = lazyN(() => import('../pages/carrier/Finance'), 'PLDashboard')
+const ReceivablesAging = lazyN(() => import('../pages/carrier/Finance'), 'ReceivablesAging')
+const CashRunway = lazyN(() => import('../pages/carrier/Finance'), 'CashRunway')
+const QuickBooksExport = lazyN(() => import('../pages/carrier/Finance'), 'QuickBooksExport')
+const AnalyticsDashboard = lazyN(() => import('../pages/carrier/Finance'), 'AnalyticsDashboard')
+const InvoicesHub = lazyN(() => import('../pages/carrier/Finance'), 'InvoicesHub')
+
+// Settings
+const CarrierPackage = lazyN(() => import('../pages/carrier/Settings'), 'CarrierPackage')
+const ReferralProgram = lazyN(() => import('../pages/carrier/Settings'), 'ReferralProgram')
+const SMSSettings = lazyN(() => import('../pages/carrier/Settings'), 'SMSSettings')
+const InvoicingSettings = lazyN(() => import('../pages/carrier/Settings'), 'InvoicingSettings')
+const TeamManagement = lazyN(() => import('../pages/carrier/Settings'), 'TeamManagement')
+
+// HR
+const DQFileManager = lazyN(() => import('../pages/carrier/HR'), 'DQFileManager')
+const ExpiryAlerts = lazyN(() => import('../pages/carrier/HR'), 'ExpiryAlerts')
+const DrugAlcoholCompliance = lazyN(() => import('../pages/carrier/HR'), 'DrugAlcoholCompliance')
+const IncidentTracker = lazyN(() => import('../pages/carrier/HR'), 'IncidentTracker')
+const PayrollTracker = lazyN(() => import('../pages/carrier/HR'), 'PayrollTracker')
+const DriverPortal = lazyN(() => import('../pages/carrier/HR'), 'DriverPortal')
 
 // ── Extracted component imports ──────────────────────────────────────────────
 import { Ic, HubTabBar } from './carrier/shared'
@@ -127,17 +174,19 @@ function DriversHub() {
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
-        {tab === 'profiles' && <DriverProfiles />}
-        {tab === 'settlement' && <DriverSettlement />}
-        {tab === 'scorecards' && <DriverScorecard />}
-        {tab === 'pay-reports' && <DriverPayReport />}
-        {tab === 'onboarding' && <DriverOnboarding />}
-        {tab === 'dq-files' && <DQFileManager />}
-        {tab === 'expiry-alerts' && <ExpiryAlerts />}
-        {tab === 'drug-alcohol' && <DrugAlcoholCompliance />}
-        {tab === 'incidents' && <IncidentTracker />}
-        {tab === 'payroll' && <PayrollTracker />}
-        {tab === 'driver-portal' && <DriverPortal />}
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+          {tab === 'profiles' && <DriverProfiles />}
+          {tab === 'settlement' && <DriverSettlement />}
+          {tab === 'scorecards' && <DriverScorecard />}
+          {tab === 'pay-reports' && <DriverPayReport />}
+          {tab === 'onboarding' && <DriverOnboarding />}
+          {tab === 'dq-files' && <DQFileManager />}
+          {tab === 'expiry-alerts' && <ExpiryAlerts />}
+          {tab === 'drug-alcohol' && <DrugAlcoholCompliance />}
+          {tab === 'incidents' && <IncidentTracker />}
+          {tab === 'payroll' && <PayrollTracker />}
+          {tab === 'driver-portal' && <DriverPortal />}
+        </Suspense>
       </div>
       <style>{`@keyframes q-driver-pulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--success)} 50%{opacity:0.4;box-shadow:0 0 10px var(--success)} }`}</style>
     </div>
@@ -152,10 +201,12 @@ function FleetHub() {
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
-        {tab === 'overview' && <FleetManager />}
-        {tab === 'map' && <FleetMap />}
-        {tab === 'fuel' && <FuelOptimizer />}
-        {tab === 'equipment' && <EquipmentManager />}
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+          {tab === 'overview' && <FleetManager />}
+          {tab === 'map' && <FleetMap />}
+          {tab === 'fuel' && <FuelOptimizer />}
+          {tab === 'equipment' && <EquipmentManager />}
+        </Suspense>
       </div>
     </div>
   )
@@ -207,14 +258,16 @@ function FinancialsHub() {
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
-        {tab === 'invoices' && <InvoicesHub />}
-        {tab === 'pl' && <PLDashboard />}
-        {tab === 'profit-iq' && <ProfitIQTab />}
-        {tab === 'receivables' && <ReceivablesAging />}
-        {tab === 'cash-flow' && <CashFlowForecaster />}
-        {tab === 'expenses' && <ExpenseTracker />}
-        {tab === 'factoring' && <FactoringCashflow />}
-        {tab === 'quickbooks' && <QuickBooksExport />}
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+          {tab === 'invoices' && <InvoicesHub />}
+          {tab === 'pl' && <PLDashboard />}
+          {tab === 'profit-iq' && <ProfitIQTab />}
+          {tab === 'receivables' && <ReceivablesAging />}
+          {tab === 'cash-flow' && <CashFlowForecaster />}
+          {tab === 'expenses' && <ExpenseTracker />}
+          {tab === 'factoring' && <FactoringCashflow />}
+          {tab === 'quickbooks' && <QuickBooksExport />}
+        </Suspense>
       </div>
       <style>{`@keyframes q-profit-pulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--success)} 50%{opacity:0.4;box-shadow:0 0 10px var(--success)} }`}</style>
     </div>
@@ -835,7 +888,9 @@ function CarrierLayoutInner() {
           ) : (
             <>
               <ViewErrorBoundary key={activeView}>
-                {resolveView(activeView, navTo, setDrawerLoadId)}
+                <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+                  {resolveView(activeView, navTo, setDrawerLoadId)}
+                </Suspense>
               </ViewErrorBoundary>
               {drawerLoadId && <LoadDetailDrawer loadId={drawerLoadId} onClose={() => setDrawerLoadId(null)} />}
             </>

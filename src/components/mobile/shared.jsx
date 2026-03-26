@@ -99,11 +99,11 @@ export function getQSystemState(ctx) {
     return s.includes('transit') || s.includes('loaded') || s.includes('en route')
   })
 
-  if (inTransit.length > 0) return { label: 'Active load in progress', color: 'var(--accent)', state: 'tracking' }
-  if (unpaidInvoices.length > 3) return { label: 'Action required', color: 'var(--danger)', state: 'alert' }
-  if (activeLoads.length > 0) return { label: 'Monitoring dispatch', color: 'var(--success)', state: 'monitoring' }
-  if (loads.length === 0) return { label: 'Ready to deploy', color: 'var(--accent)', state: 'ready' }
-  return { label: 'Monitoring market', color: 'var(--success)', state: 'online' }
+  if (inTransit.length > 0) return { label: 'Q Tracking — load in transit', color: 'var(--accent)', state: 'tracking' }
+  if (unpaidInvoices.length > 3) return { label: 'Q Alert — action needed', color: 'var(--danger)', state: 'alert' }
+  if (activeLoads.length > 0) return { label: 'Q Online — monitoring dispatch', color: 'var(--success)', state: 'monitoring' }
+  if (loads.length === 0) return { label: 'Q Ready — awaiting deployment', color: 'var(--accent)', state: 'ready' }
+  return { label: 'Q Online — scanning market', color: 'var(--success)', state: 'online' }
 }
 
 // Q Thinking Indicator — shows cycling thinking states

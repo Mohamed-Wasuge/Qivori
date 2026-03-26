@@ -347,7 +347,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
             {/* Margin Target Tracker */}
             <div style={{
-              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
               padding: '14px', animation: 'qInsightSlide 0.4s ease 0.15s both',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -383,7 +383,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
             {/* 5. Fuel Intelligence */}
             {qFinance.totalFuel > 0 && (
               <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
                 padding: '14px', animation: 'qInsightSlide 0.4s ease 0.2s both',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
@@ -420,7 +420,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
             {/* 4. Profit Per Truck */}
             {qFinance.truckStats.length > 0 && (
               <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
                 padding: '14px', animation: 'qInsightSlide 0.4s ease 0.25s both',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
@@ -464,7 +464,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
             {/* 6. Cash Flow */}
             <div style={{
-              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
               padding: '14px', animation: 'qInsightSlide 0.4s ease 0.3s both',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
@@ -563,7 +563,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
               const isFactored = (inv.status || '').toLowerCase() === 'factored'
               return (
                 <div key={inv.id || inv.invoice_number || inv._dbId} style={{
-                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
                   padding: '12px 14px', marginBottom: 8, animation: `fadeInUp 0.2s ease ${index * 0.04}s both`,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -637,7 +637,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
             {/* Expense category breakdown */}
             {expenses.length > 0 && (
               <div style={{
-                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
                 padding: '12px 14px', marginBottom: 10, animation: 'qInsightSlide 0.3s ease',
               }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8 }}>EXPENSE BREAKDOWN</div>
@@ -669,7 +669,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
             {/* Add expense form */}
             {showAddExpense && (
-              <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.25s ease' }}>
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.25s ease' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>New Expense</span>
                   <button onClick={() => setShowAddExpense(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
@@ -741,7 +741,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
           </>
         )}
 
-        <div style={{ height: 20 }} />
+        <div style={{ height: 80 }} />
       </div>
 
       {/* Factor confirmation modal */}
@@ -816,7 +816,7 @@ function MetricPill({ label, value, color, status }) {
 function QStatCard({ label, value, color, icon: Icon }) {
   return (
     <div style={{
-      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px',
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
         <Ic icon={Icon} size={11} color={color} />

@@ -64,7 +64,7 @@ export default function MobileShell() {
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
 
   return (
-    <div style={{ height: '100dvh', width: '100vw', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden' }}>
+    <div style={{ height: '100dvh', width: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden' }}>
 
       {/* Trial countdown */}
       {!demoMode && isTrialing && trialDaysLeft !== null && (
@@ -124,12 +124,12 @@ export default function MobileShell() {
       )}
 
       {/* ── HEADER ── */}
-      <div style={{ height: 46, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 2, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QIVORI</span>
+      <div style={{ height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span></span>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: `${qState.color}10`, borderRadius: 20 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite' }} />
-          <span style={{ fontSize: 9, color: qState.color, fontWeight: 600 }}>{qState.label}</span>
+          <span style={{ fontSize: 9, color: qState.color, fontWeight: 700, letterSpacing: 0.3 }}>{qState.label}</span>
         </div>
       </div>
 
@@ -159,8 +159,8 @@ export default function MobileShell() {
             background: qState.state === 'alert' ? 'var(--danger)' : 'var(--accent)',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(240,165,0,0.3)',
-            animation: 'fabPop 0.3s ease',
+            boxShadow: '0 4px 20px rgba(240,165,0,0.25)',
+            animation: 'fabPop 0.3s ease, qBreath 3s ease-in-out 0.5s infinite',
             transition: 'transform 0.15s ease, background 0.3s ease',
           }}
         >

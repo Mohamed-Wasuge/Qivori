@@ -110,7 +110,7 @@ export default function MobileMoreTab() {
           <button key={item.id} onClick={() => { haptic(); setActiveSection(item.id) }}
             style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
-              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
               cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'left',
               animation: `fadeInUp 0.25s ease ${index * 0.05}s both`,
               transition: 'all 0.15s ease',
@@ -132,14 +132,14 @@ export default function MobileMoreTab() {
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '14px', marginTop: 24, background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.15)', borderRadius: 12, cursor: 'pointer',
+          border: '1px solid rgba(239,68,68,0.15)', borderRadius: 14, cursor: 'pointer',
           fontFamily: "'DM Sans',sans-serif",
         }}>
         <Ic icon={LogOut} size={15} color="var(--danger)" />
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)' }}>Sign Out</span>
       </button>
 
-      <div style={{ height: 20 }} />
+      <div style={{ height: 80 }} />
     </div>
   )
 }

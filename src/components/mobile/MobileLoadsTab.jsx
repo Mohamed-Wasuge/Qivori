@@ -164,8 +164,8 @@ export default function MobileLoadsTab() {
       {/* Header with Snap Rate Con */}
       <div style={{ flexShrink: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Loads</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
+          <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>LOADS</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
         </div>
         <button onClick={() => { haptic(); setShowAddLoad(v => !v) }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
@@ -200,7 +200,7 @@ export default function MobileLoadsTab() {
       </div>
 
       {showAddLoad && (
-        <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12, padding: '14px', animation: 'fadeInUp 0.3s ease' }}>
+        <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: '14px', animation: 'fadeInUp 0.3s ease' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>New Load</span>
             <button onClick={() => setShowAddLoad(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
@@ -241,9 +241,12 @@ export default function MobileLoadsTab() {
       {/* Load cards */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '24px 20px', color: 'var(--muted)' }}>
+          <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--muted)' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, color: 'var(--accent)', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>No loads yet</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>Snap a rate con or let Q find your next move.</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>Snap a rate con or let Q find your next load.</div>
           </div>
         )}
 
@@ -254,7 +257,7 @@ export default function MobileLoadsTab() {
           const nextStatus = canAdvance ? STATUS_FLOW[currentIdx + 1] : null
 
           return (
-            <div key={load.id || load.load_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8, overflow: 'hidden', animation: `fadeInUp 0.25s ease ${index * 0.04}s both`, transition: 'transform 0.15s ease' }}>
+            <div key={load.id || load.load_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 8, overflow: 'hidden', animation: `fadeInUp 0.25s ease ${index * 0.04}s both`, transition: 'transform 0.15s ease' }}>
               {/* Card header */}
               <div onClick={() => { haptic(); const newId = isExpanded ? null : (load.id || load.load_id); setExpandedId(newId); if (newId && load.id) fetchLoadDocs(load.id) }}
                 style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -378,7 +381,7 @@ export default function MobileLoadsTab() {
           )
         })}
 
-        <div style={{ height: 20 }} />
+        <div style={{ height: 80 }} />
       </div>
     </div>
   )

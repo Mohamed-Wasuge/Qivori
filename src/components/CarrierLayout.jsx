@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo, Component } from 'react'
+import React, { useState, useCallback, useEffect, useRef, useMemo, Component, lazy, Suspense } from 'react'
 import * as Sentry from '@sentry/react'
 import {
   Monitor, Layers, Receipt, Truck, Shield, Users, Briefcase, Settings as SettingsIcon,
@@ -14,7 +14,10 @@ import { generateInvoicePDF } from '../utils/generatePDF'
 import Toast from './Toast'
 import { SmartDispatch, LaneIntel, CommandCenter, AILoadBoard, CheckCallCenter, DATAlertBot, RateNegotiation, RateBadge } from '../pages/carrier/LoadBoard'
 import { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, DriverPayReport } from '../pages/carrier/DriverScorecard'
-import { CarrierIFTA, CarrierDVIR, CarrierClearinghouse } from '../pages/carrier/Compliance'
+// Lazy-load compliance to avoid chunk initialization TDZ errors
+const CarrierIFTA = lazy(() => import('../pages/carrier/Compliance').then(m => ({ default: m.CarrierIFTA })))
+const CarrierDVIR = lazy(() => import('../pages/carrier/Compliance').then(m => ({ default: m.CarrierDVIR })))
+const CarrierClearinghouse = lazy(() => import('../pages/carrier/Compliance').then(m => ({ default: m.CarrierClearinghouse })))
 import { FleetMapGoogle as FleetMap } from '../pages/carrier/FleetMapGoogle'
 import { FleetManager, FuelOptimizer, EquipmentManager } from '../pages/carrier/Fleet'
 import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard, InvoicesHub } from '../pages/carrier/Finance'
@@ -226,10 +229,12 @@ function ComplianceHub() {
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
-        {tab === 'center' && <CarrierDVIR />}
-        {tab === 'ifta' && <CarrierIFTA />}
-        {tab === 'broker-risk' && <BrokerRiskIntel />}
-        {tab === 'clearinghouse' && <CarrierClearinghouse />}
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+          {tab === 'center' && <CarrierDVIR />}
+          {tab === 'ifta' && <CarrierIFTA />}
+          {tab === 'broker-risk' && <BrokerRiskIntel />}
+          {tab === 'clearinghouse' && <CarrierClearinghouse />}
+        </Suspense>
       </div>
     </div>
   )

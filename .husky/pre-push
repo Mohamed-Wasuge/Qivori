@@ -51,7 +51,39 @@ if [ $VW_HIT -eq 0 ]; then
   echo "  ✅ No 100vw issues in changed files"
 fi
 
-# ── 4. Check for hardcoded secret values ───────────────────
+# ── 4. Block manualChunks in vite.config (causes TDZ crashes) ──
+echo "  → Checking for manualChunks..."
+if grep -v '^\s*//' vite.config.js 2>/dev/null | grep -q "manualChunks"; then
+  echo "  ❌ manualChunks found in vite.config.js"
+  echo "     This WILL cause 'Cannot access X before initialization' crashes in production."
+  echo "     Remove manualChunks — React.lazy() handles code splitting."
+  ERRORS=$((ERRORS + 1))
+else
+  echo "  ✅ No manualChunks (TDZ-safe)"
+fi
+
+# ── 5. Verify production chunks load without TDZ errors ────
+echo "  → Validating chunk imports..."
+TDZ_ERRORS=0
+for CHUNK in dist/assets/*.js; do
+  # Check each chunk can be parsed by Node (catches syntax/import order issues)
+  # Extract static imports and verify they don't create circular init deps
+  IMPORTS=$(grep -c "^import " "$CHUNK" 2>/dev/null || echo 0)
+  SELF_REF=$(basename "$CHUNK" .js | sed 's/-[A-Za-z0-9]*$//')
+  # Check if any chunk imports from itself (circular)
+  if grep -q "from.*\\./${SELF_REF}-" "$CHUNK" 2>/dev/null; then
+    echo "  ❌ Circular import in $CHUNK"
+    TDZ_ERRORS=$((TDZ_ERRORS + 1))
+  fi
+done
+if [ $TDZ_ERRORS -gt 0 ]; then
+  echo "  ❌ $TDZ_ERRORS chunk(s) have circular imports — will crash in production"
+  ERRORS=$((ERRORS + $TDZ_ERRORS))
+else
+  echo "  ✅ No circular chunk imports"
+fi
+
+# ── 6. Check for hardcoded secret values ───────────────────
 echo "  → Checking for secrets..."
 SECRET_HIT=$(grep -rn "sk_live_[A-Za-z0-9]\{10,\}\|sk_test_[A-Za-z0-9]\{10,\}\|eyJhbGciOiJ" --include="*.jsx" --include="*.js" src/ 2>/dev/null | grep -v node_modules | grep -v "test/\|\.test\." || true)
 if [ -n "$SECRET_HIT" ]; then

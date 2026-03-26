@@ -196,17 +196,17 @@ function DriversHub() {
 
 // ── Fleet Hub ──
 function FleetHub() {
-  const [tab, setTab] = useState('overview')
-  const TABS = [{ id:'overview', label:'Fleet Overview' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'equipment', label:'Equipment' }]
+  const [tab, setTab] = useState('fleet')
+  const TABS = [{ id:'fleet', label:'My Fleet' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'manager', label:'Maintenance' }]
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
-          {tab === 'overview' && <FleetManager />}
+          {tab === 'fleet' && <EquipmentManager />}
           {tab === 'map' && <FleetMap />}
           {tab === 'fuel' && <FuelOptimizer />}
-          {tab === 'equipment' && <EquipmentManager />}
+          {tab === 'manager' && <FleetManager />}
         </Suspense>
       </div>
     </div>

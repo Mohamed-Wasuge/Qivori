@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Ic, S, StatCard } from './shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff } from 'lucide-react'
+import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff, Container, Snowflake, Layers } from 'lucide-react'
 import { uploadFile } from '../../lib/storage'
 import { createDocument } from '../../lib/database'
 // FleetMapGoogle is exported directly from FleetMapGoogle.jsx
@@ -58,18 +58,29 @@ const EQ_FIELDS_TRUCK = [
   { key:'notes',               label:'Notes',          ph:'Any notes...',      span:2 },
 ]
 const EQ_FIELDS_TRAILER = [
-  { key:'unit_number',         label:'Unit #',         ph:'Trailer 03',        span:1 },
+  { key:'unit_number',         label:'Unit #',         ph:'TRL-03',            span:1 },
+  { key:'trailer_type',        label:'Trailer Type',   ph:'Dry Van',           span:1, select: ['Dry Van','Reefer','Flatbed','Step Deck','Lowboy','Tanker','Hopper','Conestoga','Curtain Side','Other'] },
   { key:'year',                label:'Year',           ph:'2022',              span:1 },
   { key:'make',                label:'Make',           ph:'Wabash',            span:1 },
-  { key:'model',               label:'Model / Length', ph:'DuraPlate 53ft',    span:1 },
+  { key:'model',               label:'Model',          ph:'DuraPlate HD',      span:1 },
+  { key:'length',              label:'Length (ft)',     ph:'53',                span:1 },
   { key:'vin',                 label:'VIN',            ph:'1JJV532W5LF000000', span:2 },
   { key:'license_plate',       label:'License Plate',  ph:'IL-TRL-0056',       span:1 },
   { key:'license_state',       label:'Plate State',    ph:'IL',                span:1 },
+  { key:'axles',               label:'Axles',          ph:'2',                 span:1 },
   { key:'next_service_miles',  label:'Next Service Mi',ph:'50000',             span:1 },
   { key:'registration_expiry', label:'Reg. Expiry',    ph:'Dec 31, 2026',      span:1 },
   { key:'insurance_expiry',    label:'Ins. Expiry',    ph:'Nov 15, 2026',      span:1 },
   { key:'notes',               label:'Notes',          ph:'53ft dry van...',   span:2 },
 ]
+
+const TRAILER_TYPE_ICONS = {
+  'Reefer': Snowflake,
+  'Flatbed': Layers,
+  'Step Deck': Layers,
+  'Lowboy': Layers,
+}
+const trailerTypeColor = (t) => t === 'Reefer' ? '#38bdf8' : t === 'Flatbed' ? '#a78bfa' : t === 'Tanker' ? '#f472b6' : 'var(--muted)'
 
 // ─── FLEET MAP (legacy SVG — replaced by FleetMapGoogle) ─────────────────────
 function FleetMapLegacy() {
@@ -1210,7 +1221,7 @@ export function FleetManager() {
   )
 }
 
-// ─── EQUIPMENT MANAGER ────────────────────────────────────────────────────────
+// ─── EQUIPMENT MANAGER (Trucks & Trailers) ───────────────────────────────────
 export function EquipmentManager() {
   const { showToast } = useApp()
   const { vehicles, addVehicle, editVehicle, removeVehicle } = useCarrier()
@@ -1226,7 +1237,9 @@ export function EquipmentManager() {
     nextService: v.next_service_miles || '',
     regExpiry: v.registration_expiry || '',
     insExpiry: v.insurance_expiry || '',
-    color: (v.type || 'Truck').toLowerCase() === 'truck' ? '#f0a500' : 'var(--muted)',
+    trailer_type: v.trailer_type || v.notes?.match(/^(Dry Van|Reefer|Flatbed|Step Deck|Lowboy|Tanker|Hopper|Conestoga|Curtain Side)/)?.[0] || '',
+    length: v.length || '',
+    axles: v.axles || '',
   }))
 
   const [selected, setSelected] = useState(null)
@@ -1239,8 +1252,20 @@ export function EquipmentManager() {
 
   const filtered = tab === 'all' ? equipment : equipment.filter(e => e.type === tab)
   const sel = equipment.find(e => e.id === selected) || filtered[0]
+  const truckCount = equipment.filter(e => e.type === 'truck').length
+  const trailerCount = equipment.filter(e => e.type === 'trailer').length
+  const activeCount = equipment.filter(e => e.status === 'Active').length
+  const shopCount = equipment.filter(e => e.status === 'Shop').length
 
   const statusColor = s => s === 'Active' ? 'var(--success)' : s === 'Shop' ? 'var(--warning)' : 'var(--muted)'
+  const typeColor = t => t === 'truck' ? '#f0a500' : '#38bdf8'
+  const TypeIcon = ({ type, trailerType, size = 16 }) => {
+    if (type === 'trailer') {
+      const TIcon = TRAILER_TYPE_ICONS[trailerType] || Container
+      return <TIcon size={size} />
+    }
+    return <Truck size={size} />
+  }
 
   const addEquipment = async () => {
     if (!form.unit_number) return
@@ -1258,21 +1283,21 @@ export function EquipmentManager() {
         next_service_miles: form.next_service_miles ? parseInt(form.next_service_miles) : null,
         registration_expiry: form.registration_expiry || null,
         insurance_expiry: form.insurance_expiry || null,
-        notes: form.notes || null,
+        notes: addType === 'trailer' ? [form.trailer_type, form.length ? form.length + 'ft' : '', form.axles ? form.axles + ' axle' : '', form.notes].filter(Boolean).join(' · ') : (form.notes || null),
         status: 'Active',
       })
       setShowAdd(false)
       setForm({})
-      showToast('', addType === 'truck' ? 'Truck Added' : 'Trailer Added', form.unit_number)
+      showToast('success', addType === 'truck' ? 'Truck Added' : 'Trailer Added', form.unit_number)
     } catch (err) {
-      showToast('', 'Error', err.message || 'Failed to add equipment')
+      showToast('error', 'Error', err.message || 'Failed to add equipment')
     }
   }
 
   const saveEdit = async () => {
     if (!sel) return
     try {
-      await editVehicle(sel.id, {
+      const updates = {
         unit_number: editForm.unit_number,
         year: editForm.year ? parseInt(editForm.year) : null,
         make: editForm.make || null,
@@ -1284,13 +1309,18 @@ export function EquipmentManager() {
         next_service_miles: editForm.next_service_miles ? parseInt(editForm.next_service_miles) : null,
         registration_expiry: editForm.registration_expiry || null,
         insurance_expiry: editForm.insurance_expiry || null,
-        notes: editForm.notes || null,
         status: editForm.status || 'Active',
-      })
+      }
+      if (sel.type === 'trailer') {
+        updates.notes = [editForm.trailer_type, editForm.length ? editForm.length + 'ft' : '', editForm.axles ? editForm.axles + ' axle' : '', editForm.notes].filter(Boolean).join(' · ')
+      } else {
+        updates.notes = editForm.notes || null
+      }
+      await editVehicle(sel.id, updates)
       setEditing(false)
-      showToast('', 'Saved', editForm.unit_number || sel.unit)
+      showToast('success', 'Saved', editForm.unit_number || sel.unit)
     } catch (err) {
-      showToast('', 'Error', err.message || 'Failed to save')
+      showToast('error', 'Error', err.message || 'Failed to save')
     }
   }
 
@@ -1301,13 +1331,14 @@ export function EquipmentManager() {
     try {
       await removeVehicle(id)
       if (selected === id) setSelected(null)
-      showToast('', 'Deleted', eq.unit || 'Equipment removed')
+      showToast('success', 'Deleted', eq.unit || 'Equipment removed')
     } catch (err) {
-      showToast('', 'Error', err.message || 'Failed to delete')
+      showToast('error', 'Error', err.message || 'Failed to delete')
     }
   }
 
   const inp = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', width:'100%', boxSizing:'border-box' }
+  const sel_ = { ...inp, appearance:'none', WebkitAppearance:'none', cursor:'pointer' }
 
   const fields = addType === 'truck' ? EQ_FIELDS_TRUCK : EQ_FIELDS_TRAILER
 
@@ -1324,168 +1355,253 @@ export function EquipmentManager() {
     return diff < 45
   }
 
+  // Empty state
+  if (!equipment.length) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', padding:40 }}>
+        <div style={{ textAlign:'center', maxWidth:360 }}>
+          <div style={{ width:64, height:64, borderRadius:16, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
+            <Truck size={28} color="var(--accent)" />
+          </div>
+          <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>Add your first vehicle</div>
+          <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.6, marginBottom:24 }}>
+            Add trucks and trailers to manage your fleet, track maintenance, and stay on top of compliance.
+          </div>
+          <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
+            <button className="btn btn-primary" onClick={() => { setShowAdd(true); setAddType('truck') }}><Truck size={14} /> Add Truck</button>
+            <button className="btn btn-ghost" onClick={() => { setShowAdd(true); setAddType('trailer') }}><Container size={14} /> Add Trailer</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
+    <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
 
       {/* Add Modal */}
       {showAdd && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
           onClick={e => { if (e.target === e.currentTarget) setShowAdd(false) }}>
-          <div style={{ background:'var(--surface)', border:'1px solid rgba(240,165,0,0.3)', borderRadius:16, width:500, maxHeight:'90vh', overflowY:'auto', padding:28 }}>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1, marginBottom:2 }}>ADD EQUIPMENT</div>
+          <div style={{ background:'var(--surface)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:16, width:520, maxHeight:'90vh', overflowY:'auto', padding:28 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>ADD {addType.toUpperCase()}</div>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>Fill in the details for your new {addType}</div>
+              </div>
+              <button onClick={() => setShowAdd(false)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:18 }}>✕</button>
+            </div>
             <div style={{ display:'flex', gap:8, marginBottom:20 }}>
-              {['truck','trailer'].map(t => (
+              {[['truck', Truck, 'Truck'], ['trailer', Container, 'Trailer']].map(([t, Icon, label]) => (
                 <button key={t} onClick={() => { setAddType(t); setForm({}) }}
-                  style={{ flex:1, padding:'8px 0', fontSize:12, fontWeight:700, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                    background: addType === t ? 'var(--accent)' : 'var(--surface2)', color: addType === t ? '#000' : 'var(--text)' }}>
-                  {t === 'truck' ? <><Truck size={13} /> Truck</> : <><Truck size={13} /> Trailer</>}
+                  style={{ flex:1, padding:'10px 0', fontSize:12, fontWeight:700, borderRadius:10, border: addType === t ? '2px solid var(--accent)' : '1px solid var(--border)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                    background: addType === t ? 'rgba(240,165,0,0.08)' : 'var(--surface2)', color: addType === t ? 'var(--accent)' : 'var(--muted)', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  <Icon size={15} /> {label}
                 </button>
               ))}
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:20 }}>
               {fields.map(f => (
                 <div key={f.key} style={{ gridColumn: f.span === 2 ? 'span 2' : undefined }}>
-                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
-                  <input value={form[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.ph} style={inp} />
+                  <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4, fontWeight:600 }}>{f.label}</label>
+                  {f.select
+                    ? <select value={form[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} style={sel_}>
+                        <option value="">Select {f.label}...</option>
+                        {f.select.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    : <input value={form[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.ph} style={inp} />
+                  }
                 </div>
               ))}
             </div>
             <div style={{ display:'flex', gap:10 }}>
-              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={addEquipment} disabled={!form.unit_number}>+ Add {addType === 'truck' ? 'Truck' : 'Trailer'}</button>
-              <button className="btn btn-ghost" style={{ flex:1, padding:'12px 0' }} onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex:1, padding:'12px 0' }} onClick={addEquipment} disabled={!form.unit_number}>
+                {addType === 'truck' ? <Truck size={14} /> : <Container size={14} />} Add {addType === 'truck' ? 'Truck' : 'Trailer'}
+              </button>
+              <button className="btn btn-ghost" style={{ padding:'12px 24px' }} onClick={() => setShowAdd(false)}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* LEFT SIDEBAR */}
-      <div style={{ width:240, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column' }}>
-        <div style={{ padding:'14px 16px 10px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:8 }}>EQUIPMENT</div>
-          <div style={{ display:'flex', gap:6 }}>
-            {[['all','All'], ['truck','Trucks'], ['trailer','Trailers']].map(([id, label]) => (
+      {/* LEFT PANEL */}
+      <div style={{ width:260, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column' }}>
+        {/* Summary stats */}
+        <div style={{ padding:'16px 16px 12px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:6, marginBottom:12 }}>
+            {[
+              { v: truckCount, l:'Trucks', c:'#f0a500' },
+              { v: trailerCount, l:'Trailers', c:'#38bdf8' },
+              { v: activeCount, l:'Active', c:'var(--success)' },
+              { v: shopCount, l:'Shop', c:'var(--warning)' },
+            ].map(s => (
+              <div key={s.l} style={{ textAlign:'center', padding:'6px 0' }}>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:s.c, lineHeight:1 }}>{s.v}</div>
+                <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600, letterSpacing:0.5 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:4 }}>
+            {[['all','All (' + equipment.length + ')'], ['truck','Trucks'], ['trailer','Trailers']].map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)}
-                style={{ flex:1, padding:'5px 0', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--border)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                  background: tab === id ? 'var(--accent)' : 'var(--surface2)', color: tab === id ? '#000' : 'var(--muted)' }}>
+                style={{ flex:1, padding:'6px 0', fontSize:10, fontWeight:700, borderRadius:6, border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                  background: tab === id ? (id === 'trailer' ? 'rgba(56,189,248,0.15)' : id === 'truck' ? 'rgba(240,165,0,0.15)' : 'var(--surface2)') : 'transparent',
+                  color: tab === id ? (id === 'trailer' ? '#38bdf8' : id === 'truck' ? '#f0a500' : 'var(--text)') : 'var(--muted)' }}>
                 {label}
               </button>
             ))}
           </div>
         </div>
 
+        {/* Equipment list */}
         <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
           {filtered.map(eq => {
             const isSel = sel?.id === eq.id
             const expiring = isExpiringSoon(eq.regExpiry) || isExpiringSoon(eq.insExpiry)
+            const color = typeColor(eq.type)
             return (
               <div key={eq.id} onClick={() => { setSelected(eq.id); setEditing(false) }}
-                style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer',
-                  borderLeft:`3px solid ${isSel ? 'var(--accent)' : 'transparent'}`,
-                  background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-                  <div style={{ width:32, height:32, borderRadius:8, background:`${eq.color}18`, border:`1px solid ${eq.color}40`,
-                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
-                    {eq.type === 'truck' ? <Truck size={16} /> : <Truck size={16} />}
+                style={{ padding:'11px 14px', borderBottom:'1px solid var(--border)', cursor:'pointer',
+                  borderLeft:`3px solid ${isSel ? color : 'transparent'}`,
+                  background: isSel ? `${color}08` : 'transparent', transition:'all 0.15s' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:34, height:34, borderRadius:9, background:`${color}12`, border:`1px solid ${color}30`,
+                    display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color }}>
+                    <TypeIcon type={eq.type} trailerType={eq.trailer_type} size={16} />
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, fontWeight:700, color: isSel ? 'var(--accent)' : 'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{eq.unit}</div>
-                    <div style={{ fontSize:10, color:'var(--muted)' }}>{eq.year} {eq.make} {eq.model}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color: isSel ? color : 'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{eq.unit}</span>
+                      {expiring && <AlertTriangle size={12} color="var(--warning)" />}
+                    </div>
+                    <div style={{ fontSize:10, color:'var(--muted)' }}>
+                      {eq.type === 'trailer' && eq.trailer_type ? <span style={{ color: trailerTypeColor(eq.trailer_type), fontWeight:600 }}>{eq.trailer_type}</span> : null}
+                      {eq.type === 'trailer' && eq.trailer_type ? ' · ' : ''}{eq.year} {eq.make} {eq.model}
+                    </div>
                   </div>
-                  {expiring && <span style={{ fontSize:16 }} title="Expiring soon"><AlertTriangle size={18} /></span>}
-                </div>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:5, background:`${statusColor(eq.status)}18`, color:statusColor(eq.status) }}>{eq.status}</span>
-                  {eq.driver && <span style={{ fontSize:10, color:'var(--muted)' }}><Ic icon={User} /> {eq.driver.split(' ')[0]}</span>}
-                  <span style={{ fontSize:10, color:'var(--muted)', fontFamily:'monospace' }}>{eq.plate}</span>
+                  <div style={{ textAlign:'right', flexShrink:0 }}>
+                    <div style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4, background:`${statusColor(eq.status)}15`, color:statusColor(eq.status), marginBottom:2 }}>{eq.status}</div>
+                    <div style={{ fontSize:9, color:'var(--muted)', fontFamily:'monospace' }}>{eq.plate}</div>
+                  </div>
                 </div>
               </div>
             )
           })}
         </div>
 
-        <div style={{ padding:12, borderTop:'1px solid var(--border)', flexShrink:0, display:'flex', gap:8 }}>
-          <button className="btn btn-primary" style={{ flex:1, fontSize:11 }} onClick={() => { setShowAdd(true); setAddType('truck') }}>+ Truck</button>
-          <button className="btn btn-ghost" style={{ flex:1, fontSize:11 }} onClick={() => { setShowAdd(true); setAddType('trailer') }}>+ Trailer</button>
+        {/* Add buttons */}
+        <div style={{ padding:10, borderTop:'1px solid var(--border)', flexShrink:0, display:'flex', gap:6 }}>
+          <button className="btn btn-primary" style={{ flex:1, fontSize:11, padding:'9px 0' }} onClick={() => { setShowAdd(true); setAddType('truck') }}>
+            <Truck size={12} /> Truck
+          </button>
+          <button style={{ flex:1, fontSize:11, padding:'9px 0', fontWeight:700, borderRadius:8, border:'1px solid rgba(56,189,248,0.3)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", background:'rgba(56,189,248,0.08)', color:'#38bdf8', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}
+            onClick={() => { setShowAdd(true); setAddType('trailer') }}>
+            <Container size={12} /> Trailer
+          </button>
         </div>
       </div>
 
       {/* RIGHT DETAIL */}
-      {sel && (
-        <div style={{ flex:1, display:'flex', flexDirection:'column', overflowY:'auto' }}>
+      {sel ? (
+        <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
           {/* Header */}
-          <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>
-            <div style={{ width:48, height:48, borderRadius:12, background:`${sel.color}18`, border:`2px solid ${sel.color}40`,
-              display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
-              {sel.type === 'truck' ? <Truck size={14} /> : <Truck size={14} />}
+          <div style={{ flexShrink:0, padding:'16px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:16 }}>
+            <div style={{ width:48, height:48, borderRadius:12, background:`${typeColor(sel.type)}10`, border:`2px solid ${typeColor(sel.type)}30`,
+              display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:typeColor(sel.type) }}>
+              <TypeIcon type={sel.type} trailerType={sel.trailer_type} size={22} />
             </div>
-            <div style={{ flex:1 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4, flexWrap:'wrap' }}>
-                <span style={{ fontSize:16, fontWeight:800 }}>{sel.unit}</span>
-                <span style={{ fontSize:10, fontWeight:800, padding:'3px 10px', borderRadius:8, background:`${statusColor(sel.status)}15`, color:statusColor(sel.status) }}>{sel.status}</span>
-                {sel.driver && <span style={{ fontSize:12, color:'var(--muted)' }}><Ic icon={User} /> {sel.driver}</span>}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:3, flexWrap:'wrap' }}>
+                <span style={{ fontSize:17, fontWeight:800 }}>{sel.unit}</span>
+                <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:6, background:`${statusColor(sel.status)}12`, color:statusColor(sel.status), border:`1px solid ${statusColor(sel.status)}30` }}>{sel.status}</span>
+                {sel.type === 'trailer' && sel.trailer_type && (
+                  <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:6, background:`${trailerTypeColor(sel.trailer_type)}12`, color:trailerTypeColor(sel.trailer_type), border:`1px solid ${trailerTypeColor(sel.trailer_type)}25` }}>
+                    {sel.trailer_type}{sel.length ? ` · ${sel.length}ft` : ''}
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize:12, color:'var(--muted)' }}>{sel.year} {sel.make} {sel.model} · {sel.plate} · VIN: <span style={{ fontFamily:'monospace', fontSize:11 }}>{sel.vin}</span></div>
+              <div style={{ fontSize:12, color:'var(--muted)' }}>
+                {sel.year} {sel.make} {sel.model}{sel.plate ? ` · ${sel.plate}` : ''}{sel.vin ? <> · VIN: <span style={{ fontFamily:'monospace', fontSize:11 }}>{sel.vin}</span></> : ''}
+              </div>
             </div>
-            <div style={{ display:'flex', gap:8, flexShrink:0 }}>
+            <div style={{ display:'flex', gap:6, flexShrink:0 }}>
               {editing
                 ? <>
                     <button className="btn btn-primary" style={{ fontSize:11 }} onClick={saveEdit}><Ic icon={Save} /> Save</button>
                     <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setEditing(false)}>Cancel</button>
                   </>
                 : <>
-                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { setEditing(true); setEditForm({ unit_number: sel.unit_number || sel.unit || '', year: sel.year || '', make: sel.make || '', model: sel.model || '', vin: sel.vin || '', license_plate: sel.license_plate || sel.plate || '', license_state: sel.license_state || sel.state || '', current_miles: sel.current_miles || sel.odometer || '', next_service_miles: sel.next_service_miles || sel.nextService || '', registration_expiry: sel.registration_expiry || sel.regExpiry || '', insurance_expiry: sel.insurance_expiry || sel.insExpiry || '', notes: sel.notes || '', status: sel.status || 'Active' }) }}><Ic icon={PencilIcon} /> Edit</button>
-                    <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--error, #ef4444)' }} onClick={() => handleDelete(sel.id)}><Ic icon={Trash2} /> Delete</button>
-                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const fields = sel.type === 'truck' ? EQ_FIELDS_TRUCK : EQ_FIELDS_TRAILER; const header = fields.map(f => f.label).join(','); const row = fields.map(f => '"' + String(sel[f.key] || '').replace(/"/g, '""') + '"').join(','); const csv = header + '\n' + row + '\n\nStatus,' + (sel.status || '') + '\nExported,' + new Date().toLocaleDateString(); const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = (sel.unit || sel.unit_number || 'equipment') + '_report.csv'; a.click(); URL.revokeObjectURL(url); showToast('success', 'Report Downloaded', (sel.unit || sel.unit_number) + ' report saved') }}><Ic icon={FileText} /> Report</button>
+                    <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => {
+                      setEditing(true)
+                      setEditForm({
+                        unit_number: sel.unit_number || sel.unit || '', year: sel.year || '', make: sel.make || '', model: sel.model || '',
+                        vin: sel.vin || '', license_plate: sel.license_plate || sel.plate || '', license_state: sel.license_state || sel.state || '',
+                        current_miles: sel.current_miles || sel.odometer || '', next_service_miles: sel.next_service_miles || sel.nextService || '',
+                        registration_expiry: sel.registration_expiry || sel.regExpiry || '', insurance_expiry: sel.insurance_expiry || sel.insExpiry || '',
+                        notes: sel.notes || '', status: sel.status || 'Active',
+                        trailer_type: sel.trailer_type || '', length: sel.length || '', axles: sel.axles || '',
+                      })
+                    }}><Ic icon={PencilIcon} /> Edit</button>
+                    <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--error, #ef4444)' }} onClick={() => handleDelete(sel.id)}><Ic icon={Trash2} /></button>
                   </>
               }
             </div>
           </div>
 
-          <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:24, display:'flex', flexDirection:'column', gap:16 }}>
+          {/* Content */}
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, padding:20, display:'flex', flexDirection:'column', gap:14 }}>
 
             {/* Alerts */}
-            {(isExpiringSoon(sel.regExpiry) || isExpiringSoon(sel.insExpiry) || sel.notes?.toLowerCase().includes('overdue') || sel.notes?.toLowerCase().includes('shop')) && (
-              <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:12, padding:'12px 16px', display:'flex', gap:12, alignItems:'flex-start' }}>
-                <span style={{ fontSize:18 }}><AlertTriangle size={18} /></span>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:'var(--warning)', marginBottom:4 }}>Attention Required</div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
-                    {isExpiringSoon(sel.regExpiry) && <div style={{ fontSize:12, color:'var(--muted)' }}>Registration expires {sel.regExpiry} — renew soon</div>}
-                    {isExpiringSoon(sel.insExpiry) && <div style={{ fontSize:12, color:'var(--muted)' }}>Insurance expires {sel.insExpiry} — contact agent</div>}
-                    {sel.notes && <div style={{ fontSize:12, color:'var(--muted)' }}>{sel.notes}</div>}
-                  </div>
+            {(isExpiringSoon(sel.regExpiry) || isExpiringSoon(sel.insExpiry)) && (
+              <div style={{ background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:10, padding:'10px 14px', display:'flex', gap:10, alignItems:'center' }}>
+                <AlertTriangle size={16} color="var(--warning)" />
+                <div style={{ flex:1 }}>
+                  {isExpiringSoon(sel.regExpiry) && <div style={{ fontSize:12, color:'var(--warning)', fontWeight:600 }}>Registration expires {sel.regExpiry}</div>}
+                  {isExpiringSoon(sel.insExpiry) && <div style={{ fontSize:12, color:'var(--warning)', fontWeight:600 }}>Insurance expires {sel.insExpiry}</div>}
                 </div>
               </div>
             )}
 
             {/* Key stats */}
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10 }}>
               {[
-                { label:'Odometer',     value: sel.odometer || '—',    icon: Route },
-                { label:'Next Service', value: sel.nextService || '—', icon: Wrench, warn: isExpiringSoon(sel.nextService) },
-                { label:'Reg. Expiry',  value: sel.regExpiry || '—',   icon: FileText, warn: isExpiringSoon(sel.regExpiry) },
-                { label:'Ins. Expiry',  value: sel.insExpiry || '—',   icon: Shield, warn: isExpiringSoon(sel.insExpiry) },
-              ].map(s => (
-                <div key={s.label} style={{ background:'var(--surface)', border:`1px solid ${s.warn ? 'rgba(245,158,11,0.3)' : 'var(--border)'}`, borderRadius:12, padding:'14px 16px' }}>
-                  <div style={{ fontSize:11, color:'var(--muted)', marginBottom:4 }}>{typeof s.icon === "string" ? s.icon : <s.icon size={11} />} {s.label}</div>
-                  <div style={{ fontSize:14, fontWeight:700, color: s.warn ? 'var(--warning)' : 'var(--text)' }}>{s.value}</div>
+                sel.type === 'truck' && { label:'Odometer', value: sel.odometer ? Number(sel.odometer).toLocaleString() + ' mi' : '—', icon: Route, c:'var(--accent)' },
+                { label:'Next Service', value: sel.nextService ? Number(sel.nextService).toLocaleString() + ' mi' : '—', icon: Wrench, c:'var(--accent2)', warn: isExpiringSoon(sel.nextService) },
+                { label:'Reg. Expiry', value: sel.regExpiry || '—', icon: FileText, c:'var(--text)', warn: isExpiringSoon(sel.regExpiry) },
+                { label:'Ins. Expiry', value: sel.insExpiry || '—', icon: Shield, c:'var(--text)', warn: isExpiringSoon(sel.insExpiry) },
+                sel.type === 'trailer' && sel.trailer_type && { label:'Type', value: sel.trailer_type + (sel.length ? ' · ' + sel.length + 'ft' : ''), icon: Container, c:'#38bdf8' },
+                sel.type === 'trailer' && sel.axles && { label:'Axles', value: sel.axles, icon: Layers, c:'var(--muted)' },
+              ].filter(Boolean).map(s => (
+                <div key={s.label} style={{ background:'var(--surface)', border:`1px solid ${s.warn ? 'rgba(245,158,11,0.25)' : 'var(--border)'}`, borderRadius:10, padding:'12px 14px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                    <s.icon size={12} color="var(--muted)" />
+                    <span style={{ fontSize:10, color:'var(--muted)', fontWeight:600 }}>{s.label}</span>
+                  </div>
+                  <div style={{ fontSize:15, fontWeight:700, color: s.warn ? 'var(--warning)' : s.c }}>{s.value}</div>
                 </div>
               ))}
             </div>
 
             {/* Details grid */}
-            <div style={S.panel}>
-              <div style={S.panelHead}>
-                <div style={S.panelTitle}>{sel.type === 'truck' ? <Truck size={14} /> : <Truck size={14} />} {editing ? 'Edit' : ''} Equipment Details</div>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
+                <TypeIcon type={sel.type} trailerType={sel.trailer_type} size={14} />
+                <span style={{ fontSize:13, fontWeight:700 }}>{editing ? 'Edit ' : ''}{sel.type === 'truck' ? 'Truck' : 'Trailer'} Details</span>
               </div>
-              <div style={{ padding:'16px 18px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <div style={{ padding:'14px 16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {(sel.type === 'truck' ? EQ_FIELDS_TRUCK : EQ_FIELDS_TRAILER).map(f => (
                   <div key={f.key} style={{ gridColumn: f.span === 2 ? 'span 2' : undefined }}>
-                    <div style={{ fontSize:10, color:'var(--muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:0.5, marginBottom:5 }}>{f.label}</div>
+                    <div style={{ fontSize:10, color:'var(--muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:0.5, marginBottom:4 }}>{f.label}</div>
                     {editing
-                      ? <input value={editForm[f.key] || ''} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.ph}
-                          style={{ ...inp, background:'var(--surface2)', padding:'7px 10px', fontSize:12 }} />
+                      ? (f.select
+                          ? <select value={editForm[f.key] || ''} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} style={sel_}>
+                              <option value="">Select...</option>
+                              {f.select.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          : <input value={editForm[f.key] || ''} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.ph}
+                              style={{ ...inp, padding:'7px 10px', fontSize:12 }} />
+                        )
                       : <div style={{ fontSize:13, fontWeight:600, color: sel[f.key] ? 'var(--text)' : 'var(--muted)', fontFamily: f.key === 'vin' ? 'monospace' : undefined }}>
                           {sel[f.key] || '—'}
                         </div>
@@ -1495,25 +1611,31 @@ export function EquipmentManager() {
               </div>
             </div>
 
-            {/* Status update */}
+            {/* Quick Actions */}
             {!editing && (
-              <div style={S.panel}>
-                <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Zap} /> Quick Actions</div></div>
-                <div style={{ padding:'14px 18px', display:'flex', gap:10, flexWrap:'wrap' }}>
+              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontSize:13, fontWeight:700 }}><Ic icon={Zap} /> Quick Actions</div>
+                <div style={{ padding:'12px 16px', display:'flex', gap:8, flexWrap:'wrap' }}>
                   {['Active','Shop','Inactive'].map(s => (
-                    <button key={s} onClick={async () => { try { await editVehicle(sel.id, { status: s }); showToast('','Status Updated', (sel.unit || sel.unit_number) + ' → ' + s) } catch(err) { showToast('','Error', err.message || 'Failed to update status') } }}
-                      style={{ padding:'8px 18px', fontSize:12, fontWeight:700, borderRadius:8, border:`1px solid ${statusColor(s)}40`, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
-                        background: sel.status === s ? `${statusColor(s)}18` : 'var(--surface2)', color: sel.status === s ? statusColor(s) : 'var(--muted)' }}>
-                      {s === 'Active' ? <Check size={13} /> : s === 'Shop' ? <Wrench size={13} /> : '⏸'} {s}
+                    <button key={s} onClick={async () => { try { await editVehicle(sel.id, { status: s }); showToast('success','Status Updated', (sel.unit || sel.unit_number) + ' → ' + s) } catch(err) { showToast('error','Error', err.message || 'Failed') } }}
+                      style={{ padding:'7px 16px', fontSize:11, fontWeight:700, borderRadius:7, border:`1px solid ${statusColor(s)}35`, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                        background: sel.status === s ? `${statusColor(s)}15` : 'var(--surface2)', color: sel.status === s ? statusColor(s) : 'var(--muted)', display:'flex', alignItems:'center', gap:5 }}>
+                      {s === 'Active' ? <Check size={12} /> : s === 'Shop' ? <Wrench size={12} /> : null} {s}
                     </button>
                   ))}
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={async () => { const nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7); const dateStr = nextWeek.toISOString().split('T')[0]; try { await editVehicle(sel.id, { notes: (sel.notes ? sel.notes + ' | ' : '') + 'Service scheduled ' + dateStr }); showToast('success', 'Service Scheduled', (sel.unit || sel.unit_number) + ' — service scheduled for ' + dateStr) } catch (err) { showToast('error', 'Error', err.message || 'Failed to schedule service') } }}><Ic icon={Wrench} /> Schedule Service</button>
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'; input.onchange = async (e) => { const file = e.target.files?.[0]; if (!file) return; try { showToast('', 'Uploading', file.name + '...'); const result = await uploadFile(file, 'vehicles/' + (sel.id || 'unknown')); await createDocument({ name: file.name, file_url: result.url, file_path: result.path, doc_type: 'vehicle', vehicle_id: sel.id || null }); showToast('success', 'Document Uploaded', file.name + ' added to ' + (sel.unit || sel.unit_number)) } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload file') } }; input.click() }}><Ic icon={FileText} /> Documents</button>
-                  <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { const lat = sel.lat || sel.latitude; const lng = sel.lng || sel.longitude; if (lat && lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank') } else { showToast('', 'No GPS Data', 'Connect ELD to enable live tracking for ' + (sel.unit || sel.unit_number)) } }}><Ic icon={MapPin} /> GPS Location</button>
+                  <div style={{ width:1, height:28, background:'var(--border)', alignSelf:'center' }} />
+                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={async () => { const nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7); const dateStr = nextWeek.toISOString().split('T')[0]; try { await editVehicle(sel.id, { notes: (sel.notes ? sel.notes + ' | ' : '') + 'Service scheduled ' + dateStr }); showToast('success', 'Service Scheduled', dateStr) } catch (err) { showToast('error', 'Error', err.message) } }}><Ic icon={Wrench} /> Schedule Service</button>
+                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'; input.onchange = async (e) => { const file = e.target.files?.[0]; if (!file) return; try { showToast('', 'Uploading...', file.name); const result = await uploadFile(file, 'vehicles/' + (sel.id || 'unknown')); await createDocument({ name: file.name, file_url: result.url, file_path: result.path, doc_type: 'vehicle', vehicle_id: sel.id || null }); showToast('success', 'Uploaded', file.name) } catch (err) { showToast('error', 'Failed', err.message) } }; input.click() }}><Ic icon={FileText} /> Upload Doc</button>
+                  {sel.type === 'truck' && <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const lat = sel.lat || sel.latitude; const lng = sel.lng || sel.longitude; if (lat && lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank') } else { showToast('', 'No GPS', 'Connect ELD for live tracking') } }}><Ic icon={MapPin} /> GPS</button>}
+                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const fields = sel.type === 'truck' ? EQ_FIELDS_TRUCK : EQ_FIELDS_TRAILER; const header = fields.map(f => f.label).join(','); const row = fields.map(f => '"' + String(sel[f.key] || '').replace(/"/g, '""') + '"').join(','); const csv = header + '\n' + row; const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = (sel.unit || 'equipment') + '.csv'; a.click(); URL.revokeObjectURL(url); showToast('success', 'Exported', sel.unit) }}><Ic icon={FileText} /> Export</button>
                 </div>
               </div>
             )}
           </div>
+        </div>
+      ) : (
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:13 }}>
+          Select equipment from the left panel
         </div>
       )}
     </div>

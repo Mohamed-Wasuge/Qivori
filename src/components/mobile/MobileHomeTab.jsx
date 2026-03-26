@@ -301,126 +301,162 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         )}
       </div>
 
-      {/* ── 3. Q RECOMMENDS — Next Best Load ── */}
+      {/* ── 3. Q RECOMMENDS — HERO CARD (dominant) ── */}
       {nextBestMove && (() => {
         const d = nextBestMove
         const load = d.load_data || {}
         const metrics = d.metrics || {}
         const profit = metrics.estProfit || 0
+        const rpm = load.miles > 0 ? (parseFloat(load.gross || 0) / load.miles).toFixed(2) : '—'
         const origin = (load.origin || '—').split(',')[0]
         const dest = (load.dest || load.destination || '—').split(',')[0]
+        const isNegotiate = d.decision === 'negotiate'
+        const decisionLabel = isNegotiate ? 'NEGOTIATE' : 'ACCEPT'
+        const decisionColor = isNegotiate ? 'var(--accent)' : '#22c55e'
         return (
           <div style={{
-            background: 'var(--surface)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14,
+            background: 'linear-gradient(145deg, rgba(34,197,94,0.08) 0%, rgba(240,165,0,0.04) 100%)',
+            border: '1px solid rgba(34,197,94,0.3)', borderRadius: 14,
             overflow: 'hidden', animation: 'fadeInUp 0.4s ease 0.1s both',
+            boxShadow: '0 4px 24px rgba(34,197,94,0.1), 0 1px 3px rgba(0,0,0,0.2)',
           }}>
-            {/* Header */}
-            <div style={{ padding: '10px 14px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Zap size={12} color="#22c55e" />
-              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2, color: '#22c55e' }}>Q RECOMMENDS</span>
-            </div>
-
-            {/* Content */}
-            <div style={{ padding: '8px 14px 12px' }}>
-              {/* Route */}
-              <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, color: 'var(--text)', lineHeight: 1.2, marginBottom: 6 }}>
-                {origin} <ArrowRight size={13} style={{ verticalAlign: 'middle', color: 'var(--muted)' }} /> {dest}
+            {/* Q Decision Header */}
+            <div style={{ padding: '12px 14px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', background: decisionColor,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                boxShadow: `0 0 12px ${decisionColor}40`,
+              }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
               </div>
-
-              {/* Rate + Miles line */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-                <span style={{ fontWeight: 700, color: 'var(--text)', fontFamily: "'JetBrains Mono',monospace" }}>{fmt$(parseFloat(load.gross || 0))}</span>
-                <span style={{ color: 'var(--border)' }}>•</span>
-                <span>{load.miles || '—'} mi</span>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: decisionColor }}>Q DECISION: {decisionLabel}</span>
               </div>
-
-              {/* Profit (prominent) + Confidence */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20, fontWeight: 800, color: '#22c55e', fontFamily: "'JetBrains Mono',monospace" }}>
-                  +{fmt$(profit)}
-                </span>
-                <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>profit</span>
-                <div style={{ flex: 1 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: "'JetBrains Mono',monospace" }}>
-                  {d.confidence || 0}%
-                </span>
-                <span style={{ fontSize: 9, color: 'var(--muted)' }}>conf</span>
+              <div style={{ padding: '3px 8px', borderRadius: 10, background: `${decisionColor}18`, border: `1px solid ${decisionColor}30` }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: decisionColor, fontFamily: "'JetBrains Mono',monospace" }}>{d.confidence || 0}%</span>
               </div>
             </div>
 
-            {/* Action buttons — only ACCEPT LOAD + PASS */}
-            <div style={{ display: 'flex', borderTop: '1px solid var(--border)' }}>
+            {/* Route — large and dominant */}
+            <div style={{ padding: '10px 14px 4px' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, color: 'var(--text)', lineHeight: 1.2 }}>
+                {origin} <ArrowRight size={15} style={{ verticalAlign: 'middle', color: 'var(--muted)', opacity: 0.6 }} /> {dest}
+              </div>
+            </div>
+
+            {/* Metrics row */}
+            <div style={{ padding: '4px 14px 14px', display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <span style={{ fontSize: 26, fontWeight: 800, color: decisionColor, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1 }}>
+                +{fmt$(profit)}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>est. profit</span>
+              <div style={{ flex: 1 }} />
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: "'JetBrains Mono',monospace" }}>{fmt$(parseFloat(load.gross || 0))}</div>
+                <div style={{ fontSize: 9, color: 'var(--muted)' }}>{load.miles || '—'} mi · ${rpm}/mi</div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', borderTop: `1px solid ${decisionColor}20` }}>
               <button onClick={() => { haptic('success'); handleAccept(d) }} disabled={!!acceptingId}
                 style={{
-                  flex: 1, padding: '14px', background: acceptingId === d.id ? 'rgba(34,197,94,0.15)' : '#22c55e',
+                  flex: 1, padding: '16px', background: acceptingId === d.id ? `${decisionColor}20` : decisionColor,
                   border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   fontFamily: "'DM Sans',sans-serif", borderBottomLeftRadius: 14,
                   transition: 'background 0.15s ease',
                 }}>
-                <Ic icon={CheckCircle} size={15} color={acceptingId === d.id ? '#22c55e' : '#fff'} />
-                <span style={{ fontSize: 13, fontWeight: 800, color: acceptingId === d.id ? '#22c55e' : '#fff', letterSpacing: 0.5 }}>
-                  {acceptingId === d.id ? 'BOOKING...' : 'ACCEPT LOAD'}
+                <Ic icon={CheckCircle} size={16} color={acceptingId === d.id ? decisionColor : '#000'} />
+                <span style={{ fontSize: 14, fontWeight: 800, color: acceptingId === d.id ? decisionColor : '#000', letterSpacing: 0.5 }}>
+                  {acceptingId === d.id ? 'SECURING...' : isNegotiate ? 'NEGOTIATE RATE' : 'SECURE LOAD'}
                 </span>
               </button>
               <button onClick={() => { haptic(); handlePass(d) }} disabled={!!passingId}
                 style={{
-                  flex: 0, width: 80, padding: '14px', background: 'var(--surface)',
-                  border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  flex: 0, width: 72, padding: '16px 0', background: 'transparent',
+                  border: 'none', borderLeft: `1px solid ${decisionColor}20`, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontFamily: "'DM Sans',sans-serif", borderBottomRightRadius: 14,
-                  transition: 'background 0.15s ease',
                 }}>
-                <Ic icon={XCircle} size={14} color="var(--muted)" />
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>PASS</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>PASS</span>
               </button>
             </div>
           </div>
         )
       })()}
 
-      {/* ── 4. ACTIVE TRIP ── */}
-      {activeTrip && (
+      {/* ── Q SCANNING STATE (when no recommendation) ── */}
+      {!nextBestMove && (
         <div style={{
-          background: 'var(--surface)', border: '1px solid var(--accent)30', borderRadius: 14,
-          overflow: 'hidden', animation: 'fadeInUp 0.3s ease 0.15s both',
+          background: 'linear-gradient(145deg, rgba(240,165,0,0.06) 0%, rgba(240,165,0,0.02) 100%)',
+          border: '1px solid rgba(240,165,0,0.15)', borderRadius: 14,
+          padding: '16px 14px', animation: 'fadeInUp 0.3s ease 0.1s both',
         }}>
-          <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: 8, background: 'rgba(240,165,0,0.1)',
+              width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              animation: 'qBreath 2.5s ease-in-out infinite',
+              boxShadow: '0 0 16px rgba(240,165,0,0.2)',
             }}>
-              <Ic icon={Truck} size={16} color="var(--accent)" />
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: 'var(--accent)' }}>ACTIVE TRIP</span>
-                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 4, background: `${statusColor(activeTrip.status)}15`, color: statusColor(activeTrip.status), fontWeight: 700 }}>{activeTrip.status}</span>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {activeTrip.origin || '?'} → {activeTrip.destination || activeTrip.dest || '?'}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', display: 'flex', gap: 6, marginTop: 2 }}>
-                <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{fmt$(activeTrip.gross || activeTrip.rate)}</span>
-                {activeTrip.miles > 0 && <span>{activeTrip.miles} mi</span>}
-                <span>{activeTrip.broker_name || activeTrip.broker || ''}</span>
-              </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 2 }}>Q IS ANALYZING</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500 }}>Scanning load boards for profitable opportunities</div>
             </div>
-            <ChevronRight size={14} color="var(--muted)" onClick={() => onNavigate?.('loads')} style={{ cursor: 'pointer' }} />
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)', animation: `qDotPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── 5. QUICK ACTIONS (tight pills) ── */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {/* ── 4. ACTIVE TRIP (secondary — quieter) ── */}
+      {activeTrip && (
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+          overflow: 'hidden', animation: 'fadeInUp 0.3s ease 0.15s both', opacity: 0.85,
+        }}>
+          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 7, background: 'rgba(240,165,0,0.06)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Ic icon={Truck} size={14} color="var(--muted)" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 1 }}>
+                <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1, color: 'var(--muted)' }}>ACTIVE TRIP</span>
+                <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 4, background: `${statusColor(activeTrip.status)}10`, color: statusColor(activeTrip.status), fontWeight: 600 }}>{activeTrip.status}</span>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                {activeTrip.origin || '?'} → {activeTrip.destination || activeTrip.dest || '?'}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--muted)', display: 'flex', gap: 6, marginTop: 1 }}>
+                <span style={{ fontWeight: 600 }}>{fmt$(activeTrip.gross || activeTrip.rate)}</span>
+                {activeTrip.miles > 0 && <span>{activeTrip.miles} mi</span>}
+                <span>{activeTrip.broker_name || activeTrip.broker || ''}</span>
+              </div>
+            </div>
+            <ChevronRight size={12} color="var(--muted)" onClick={() => onNavigate?.('loads')} style={{ cursor: 'pointer', opacity: 0.5 }} />
+          </div>
+        </div>
+      )}
+
+      {/* ── 5. QUICK ACTIONS (secondary — subtle pills) ── */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', opacity: 0.7 }}>
         {getSmartActions().map((action, i) => (
           <button key={i} onClick={() => { haptic(); action.action() }}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20,
+              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px',
+              background: 'transparent', border: '1px solid var(--border)', borderRadius: 16,
               cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease',
             }}>
-            <Ic icon={action.icon} size={13} color={action.color} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>{action.label}</span>
+            <Ic icon={action.icon} size={12} color="var(--muted)" />
+            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)' }}>{action.label}</span>
           </button>
         ))}
       </div>

@@ -296,12 +296,22 @@ function ComplianceHub() {
 }
 
 // ── Insurance Hub ──
+const INSURERS = [
+  { id: 'cover-whale', name: 'Cover Whale', desc: 'AI-powered commercial trucking insurance', tag: 'Recommended' },
+  { id: 'progressive', name: 'Progressive Commercial', desc: 'Largest commercial auto insurer in the US', tag: '' },
+  { id: 'national-interstate', name: 'National Interstate', desc: 'Specializes in small fleets & owner-operators', tag: '' },
+  { id: 'reliance', name: 'Reliance Partners', desc: 'Trucking-only insurance brokerage', tag: '' },
+  { id: 'canal', name: 'Canal Insurance', desc: 'Owner-operator focused coverage', tag: '' },
+]
+
 export function InsuranceHub() {
-  const { company, vehicles, drivers } = useCarrier()
+  const { company, vehicles, drivers, loads } = useCarrier()
   const { showToast } = useApp()
   const [quoteForm, setQuoteForm] = useState({ name: company?.name || '', mc: company?.mc_number || company?.mc || '', dot: company?.dot_number || company?.dot || '', phone: company?.phone || '', email: company?.email || '', trucks: String(vehicles?.length || drivers?.length || 1), equipment: 'Dry Van', currentInsurer: '', expiryDate: '', coverageNeeded: 'auto-liability' })
   const [submitted, setSubmitted] = useState(false)
-  const [policies, setPolicies] = useState([
+  const [selectedInsurers, setSelectedInsurers] = useState(INSURERS.map(i => i.id)) // all selected by default
+  const [excludedDrivers, setExcludedDrivers] = useState([])
+  const [policies] = useState([
     { type: 'Auto Liability', required: true, minCoverage: '$1,000,000', status: company?.insurance_policy ? 'active' : 'none', provider: company?.insurance_provider || '', expiry: company?.insurance_expiry || '' },
     { type: 'Cargo Insurance', required: true, minCoverage: '$100,000', status: 'none', provider: '', expiry: '' },
     { type: 'General Liability', required: false, minCoverage: '$1,000,000', status: 'none', provider: '', expiry: '' },
@@ -310,15 +320,53 @@ export function InsuranceHub() {
     { type: 'Occupational Accident', required: false, minCoverage: '$500,000', status: 'none', provider: '', expiry: '' },
   ])
 
-  const coverageTypes = ['auto-liability','cargo','general-liability','physical-damage','bobtail','occupational-accident','full-package']
+  // Driver risk scoring
+  const driverRisks = useMemo(() => {
+    return (drivers || []).map(d => {
+      const name = d.full_name || d.name || ''
+      const driverLoads = (loads || []).filter(l => l.driver === name)
+      const incidents = d.incidents || 0
+      const violations = d.violations || 0
+      const cdlExpired = d.license_expiry && new Date(d.license_expiry) < new Date()
+      const medExpired = d.medical_card_expiry && new Date(d.medical_card_expiry) < new Date()
+      // Simple risk score: 100 = perfect, lower = riskier
+      let score = 100
+      if (incidents > 0) score -= incidents * 15
+      if (violations > 0) score -= violations * 10
+      if (cdlExpired) score -= 30
+      if (medExpired) score -= 20
+      if (driverLoads.length === 0) score -= 5 // new driver, no history
+      score = Math.max(score, 0)
+      const risk = score >= 80 ? 'low' : score >= 50 ? 'medium' : 'high'
+      return { ...d, name, score, risk, incidents, violations, cdlExpired, medExpired, loadCount: driverLoads.length }
+    }).sort((a, b) => a.score - b.score)
+  }, [drivers, loads])
+
+  const toggleInsurer = (id) => {
+    setSelectedInsurers(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+  const selectAllInsurers = () => setSelectedInsurers(INSURERS.map(i => i.id))
+
+  const toggleExcludeDriver = (driverId) => {
+    setExcludedDrivers(prev => prev.includes(driverId) ? prev.filter(i => i !== driverId) : [...prev, driverId])
+  }
+
+  const includedDriverCount = (drivers || []).length - excludedDrivers.length
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (selectedInsurers.length === 0) { showToast('error', 'No Partners Selected', 'Select at least one insurer'); return }
     try {
-      await apiFetch('/api/insurance-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(quoteForm) })
+      await apiFetch('/api/insurance-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        ...quoteForm,
+        selectedInsurers,
+        excludedDriverIds: excludedDrivers,
+        includedDriverCount,
+        totalDrivers: (drivers || []).length,
+      }) })
     } catch { /* endpoint may not exist yet — that's ok */ }
     setSubmitted(true)
-    showToast('success', 'Quote Requested', 'We\'ll connect you with insurance partners shortly')
+    showToast('success', 'Quotes Requested', `Sent to ${selectedInsurers.length} insurer${selectedInsurers.length > 1 ? 's' : ''}`)
   }
 
   const pan = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }
@@ -339,7 +387,7 @@ export function InsuranceHub() {
           INSURANCE <span style={{ color: 'var(--accent)' }}>MARKETPLACE</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-          Compare quotes from top trucking insurers. Your company data is pre-filled — just submit and we'll connect you with partners.
+          Compare quotes from top trucking insurers. Select partners, exclude high-risk drivers, and get the best rates.
         </div>
       </div>
 
@@ -360,9 +408,7 @@ export function InsuranceHub() {
                     {p.type}
                     {p.required && <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--danger)', background: 'rgba(239,68,68,0.08)', padding: '1px 5px', borderRadius: 3 }}>REQUIRED</span>}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
-                    Min: {p.minCoverage} {p.provider && `· ${p.provider}`}
-                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Min: {p.minCoverage} {p.provider && `· ${p.provider}`}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {isActive ? (
@@ -380,20 +426,109 @@ export function InsuranceHub() {
         </div>
       </div>
 
-      {/* Get Quotes */}
+      {/* Driver Risk Management */}
+      {driverRisks.length > 0 && (
+        <div style={pan}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Ic icon={Users} size={13} color="var(--accent2)" />
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>DRIVER RISK MANAGEMENT</span>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+              {includedDriverCount} of {(drivers || []).length} drivers on policy
+            </div>
+          </div>
+          <div style={{ padding: '8px 16px 6px' }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 8 }}>
+              Exclude high-risk drivers from your quote to keep premiums low. Excluded drivers can be covered under separate policies.
+            </div>
+          </div>
+          {driverRisks.map(d => {
+            const isExcluded = excludedDrivers.includes(d.id)
+            const riskColor = d.risk === 'high' ? 'var(--danger)' : d.risk === 'medium' ? 'var(--warning)' : 'var(--success)'
+            return (
+              <div key={d.id} style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, opacity: isExcluded ? 0.5 : 1 }}>
+                <div onClick={() => toggleExcludeDriver(d.id)}
+                  style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${isExcluded ? 'var(--danger)' : 'var(--border)'}`, background: isExcluded ? 'rgba(239,68,68,0.1)' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {isExcluded && <span style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 800 }}>✕</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{d.name}</span>
+                    <span style={{ fontSize: 8, fontWeight: 800, color: riskColor, background: riskColor + '12', padding: '1px 6px', borderRadius: 3 }}>
+                      {d.risk.toUpperCase()} RISK
+                    </span>
+                    {isExcluded && <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--danger)', background: 'rgba(239,68,68,0.08)', padding: '1px 6px', borderRadius: 3 }}>EXCLUDED</span>}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 10 }}>
+                    <span>Score: {d.score}/100</span>
+                    {d.loadCount > 0 && <span>{d.loadCount} loads</span>}
+                    {d.incidents > 0 && <span style={{ color: 'var(--danger)' }}>{d.incidents} incident{d.incidents > 1 ? 's' : ''}</span>}
+                    {d.cdlExpired && <span style={{ color: 'var(--danger)' }}>CDL expired</span>}
+                    {d.medExpired && <span style={{ color: 'var(--warning)' }}>Medical expired</span>}
+                  </div>
+                </div>
+                {/* Risk score bar */}
+                <div style={{ width: 60, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+                  <div style={{ width: d.score + '%', height: '100%', background: riskColor, borderRadius: 3 }} />
+                </div>
+              </div>
+            )
+          })}
+          {excludedDrivers.length > 0 && (
+            <div style={{ padding: '8px 16px 10px', borderTop: '1px solid var(--border)', background: 'rgba(239,68,68,0.02)' }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                <strong style={{ color: 'var(--accent)' }}>Q tip:</strong> Excluding {excludedDrivers.length} driver{excludedDrivers.length > 1 ? 's' : ''} could save 10-25% on your premium. Consider separate occupational accident coverage for excluded drivers.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Select Partners + Get Quotes */}
+      <div style={pan}>
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Ic icon={Star} size={13} color="var(--accent)" />
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>SELECT INSURANCE PARTNERS</span>
+          </div>
+          <button className="btn btn-ghost" style={{ fontSize: 9 }} onClick={selectAllInsurers}>Select All</button>
+        </div>
+        <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+          {INSURERS.map(ins => {
+            const selected = selectedInsurers.includes(ins.id)
+            return (
+              <div key={ins.id} onClick={() => toggleInsurer(ins.id)}
+                style={{ padding: 14, background: selected ? 'rgba(240,165,0,0.04)' : 'var(--surface2)', borderRadius: 8, border: `1px solid ${selected ? 'rgba(240,165,0,0.3)' : 'var(--border)'}`, cursor: 'pointer', transition: 'all 0.15s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {selected && <span style={{ fontSize: 11, color: '#000', fontWeight: 800 }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{ins.name}</span>
+                  {ins.tag && <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--accent)', background: 'rgba(240,165,0,0.1)', padding: '1px 6px', borderRadius: 3 }}>{ins.tag}</span>}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4, marginLeft: 26 }}>{ins.desc}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Quote Form */}
       <div style={pan}>
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Ic icon={FileText} size={13} color="var(--accent)" />
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>GET QUOTES</span>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>YOUR INFORMATION</span>
+          <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>Sending to {selectedInsurers.length} partner{selectedInsurers.length !== 1 ? 's' : ''}</span>
         </div>
         {submitted ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
             <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <Ic icon={CheckCircle} size={24} color="var(--success)" />
             </div>
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Quote Request Submitted</div>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Quotes Requested from {selectedInsurers.length} Partners</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 400, margin: '0 auto' }}>
-              Our insurance partners will review your information and reach out within 1-2 business days with competitive quotes.
+              {selectedInsurers.map(id => INSURERS.find(i => i.id === id)?.name).join(', ')} will review your info and send competitive quotes within 1-2 business days.
             </div>
             <button className="btn btn-ghost" style={{ marginTop: 16, fontSize: 11 }} onClick={() => setSubmitted(false)}>Submit Another Request</button>
           </div>
@@ -403,66 +538,46 @@ export function InsuranceHub() {
               <FieldRow label="Company Name" value={quoteForm.name} onChange={v => setQuoteForm(f => ({ ...f, name: v }))} />
               <FieldRow label="MC Number" value={quoteForm.mc} onChange={v => setQuoteForm(f => ({ ...f, mc: v }))} />
               <FieldRow label="DOT Number" value={quoteForm.dot} onChange={v => setQuoteForm(f => ({ ...f, dot: v }))} />
-              <FieldRow label="Number of Trucks" value={quoteForm.trucks} onChange={v => setQuoteForm(f => ({ ...f, trucks: v }))} type="number" />
+              <FieldRow label="Trucks on Policy" value={String(includedDriverCount || quoteForm.trucks)} onChange={v => setQuoteForm(f => ({ ...f, trucks: v }))} type="number" />
               <FieldRow label="Phone" value={quoteForm.phone} onChange={v => setQuoteForm(f => ({ ...f, phone: v }))} />
               <FieldRow label="Email" value={quoteForm.email} onChange={v => setQuoteForm(f => ({ ...f, email: v }))} type="email" />
               <FieldRow label="Current Insurer" value={quoteForm.currentInsurer} onChange={v => setQuoteForm(f => ({ ...f, currentInsurer: v }))} placeholder="e.g. Progressive, National Interstate" />
               <FieldRow label="Policy Expiry Date" value={quoteForm.expiryDate} onChange={v => setQuoteForm(f => ({ ...f, expiryDate: v }))} type="date" />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Equipment Type</label>
-              <select value={quoteForm.equipment} onChange={e => setQuoteForm(f => ({ ...f, equipment: e.target.value }))}
-                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}>
-                {['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Hotshot', 'Box Truck', 'Tanker', 'Car Hauler'].map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Equipment Type</label>
+                <select value={quoteForm.equipment} onChange={e => setQuoteForm(f => ({ ...f, equipment: e.target.value }))}
+                  style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}>
+                  {['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Hotshot', 'Box Truck', 'Tanker', 'Car Hauler'].map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Coverage Needed</label>
+                <select value={quoteForm.coverageNeeded} onChange={e => setQuoteForm(f => ({ ...f, coverageNeeded: e.target.value }))}
+                  style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}>
+                  <option value="auto-liability">Auto Liability ($1M)</option>
+                  <option value="cargo">Cargo Insurance ($100K)</option>
+                  <option value="general-liability">General Liability</option>
+                  <option value="physical-damage">Physical Damage</option>
+                  <option value="bobtail">Bobtail / Non-Trucking</option>
+                  <option value="occupational-accident">Occupational Accident</option>
+                  <option value="full-package">Full Package (All Coverage)</option>
+                </select>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Coverage Needed</label>
-              <select value={quoteForm.coverageNeeded} onChange={e => setQuoteForm(f => ({ ...f, coverageNeeded: e.target.value }))}
-                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}>
-                <option value="auto-liability">Auto Liability ($1M)</option>
-                <option value="cargo">Cargo Insurance ($100K)</option>
-                <option value="general-liability">General Liability</option>
-                <option value="physical-damage">Physical Damage</option>
-                <option value="bobtail">Bobtail / Non-Trucking</option>
-                <option value="occupational-accident">Occupational Accident</option>
-                <option value="full-package">Full Package (All Coverage)</option>
-              </select>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="submit" className="btn btn-primary" style={{ padding: '12px 28px', fontSize: 13, fontWeight: 800 }}>
+                Send to {selectedInsurers.length === INSURERS.length ? 'All Partners' : `${selectedInsurers.length} Partner${selectedInsurers.length !== 1 ? 's' : ''}`}
+              </button>
             </div>
-            <button type="submit" className="btn btn-primary" style={{ padding: '12px 28px', fontSize: 13, fontWeight: 800, width: 'fit-content' }}>
-              Get Insurance Quotes
-            </button>
           </form>
         )}
       </div>
 
-      {/* Partner Insurers */}
-      <div style={pan}>
-        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Ic icon={Star} size={13} color="var(--accent)" />
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>INSURANCE PARTNERS</span>
-        </div>
-        <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-          {[
-            { name: 'Cover Whale', desc: 'AI-powered commercial trucking insurance', tag: 'Recommended' },
-            { name: 'Progressive Commercial', desc: 'Largest commercial auto insurer in the US', tag: '' },
-            { name: 'National Interstate', desc: 'Specializes in small fleets & owner-operators', tag: '' },
-            { name: 'Reliance Partners', desc: 'Trucking-only insurance brokerage', tag: '' },
-            { name: 'Canal Insurance', desc: 'Owner-operator focused coverage', tag: '' },
-          ].map(p => (
-            <div key={p.name} style={{ padding: '14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700 }}>{p.name}</span>
-                {p.tag && <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--accent)', background: 'rgba(240,165,0,0.1)', padding: '2px 6px', borderRadius: 3 }}>{p.tag}</span>}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4 }}>{p.desc}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>
-            Qivori partners with leading trucking insurers to get you the best rates. Your data is only shared with insurers you approve.
-          </div>
+      <div style={{ padding: '0 4px' }}>
+        <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>
+          Your data is only shared with insurers you select. Qivori earns a referral fee — at no extra cost to you.
         </div>
       </div>
     </div>

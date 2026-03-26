@@ -55,6 +55,7 @@ export function SmartDispatch() {
   const [lbLoading, setLbLoading]       = useState(false)
   const [quickRoute, setQuickRoute]     = useState(null) // { miles, durationText, drivingDays }
   const [quickRouteLoading, setQuickRouteLoading] = useState(false)
+  const [showMap, setShowMap]           = useState(false)
 
   // Quick mileage lookup when both origin + destination search fields are filled
   useEffect(() => {
@@ -71,7 +72,7 @@ export function SmartDispatch() {
         })
         const data = await res.json()
         if (data.ok && data.miles > 0) {
-          setQuickRoute({ miles: data.miles, durationText: data.durationText, drivingDays: data.drivingDays })
+          setQuickRoute({ miles: data.miles, durationText: data.durationText, drivingDays: data.drivingDays, origin: o, destination: d })
         } else { setQuickRoute(null) }
       } catch { setQuickRoute(null) }
       setQuickRouteLoading(false)
@@ -435,8 +436,25 @@ export function SmartDispatch() {
                   <Truck size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
                   <b style={{ color:'var(--text)' }}>{quickRoute.drivingDays}</b> {quickRoute.drivingDays === 1 ? 'day' : 'days'} (HOS)
                 </span>
+                <button onClick={() => setShowMap(m => !m)} style={{ marginLeft:'auto', background:'none', border:'1px solid var(--border)', borderRadius:6, padding:'3px 10px', color: showMap ? 'var(--accent)' : 'var(--muted)', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  <Navigation size={10} style={{ verticalAlign:'middle', marginRight:4 }} />{showMap ? 'Hide Map' : 'Show Map'}
+                </button>
               </>
             )}
+          </div>
+        )}
+
+        {/* Google Map route embed */}
+        {quickRoute && showMap && (
+          <div style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
+            <iframe
+              width="100%"
+              height="220"
+              style={{ border:0, display:'block' }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={`https://www.google.com/maps/embed/v1/directions?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}&origin=${encodeURIComponent(quickRoute.origin)}&destination=${encodeURIComponent(quickRoute.destination)}&mode=driving`}
+            />
           </div>
         )}
 

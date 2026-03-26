@@ -401,7 +401,7 @@ export function AppProvider({ children }) {
       setProfile(null)
       setView('landing')
       try { localStorage.removeItem('qivori_chat_history') } catch {}
-      showToast('', 'Demo Ended', 'Sign up to get started!')
+      showToast('', 'Ready to get started?', 'AI dispatch, load matching, and fleet management — $199/mo founder pricing (locked for life). Start your 14-day free trial now.')
       return
     }
     await supabase.auth.signOut()
@@ -438,7 +438,7 @@ export function AppProvider({ children }) {
     setUser(null)
     setProfile(null)
     setView('landing')
-    showToast('', 'Demo Ended', 'Sign up to get started!')
+    showToast('', 'Ready to get started?', 'AI dispatch, load matching, and fleet management — $199/mo founder pricing (locked for life). Start your 14-day free trial now.')
   }, [showToast])
 
   const navigatePage = useCallback((pageId) => {

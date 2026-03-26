@@ -9,7 +9,8 @@ import {
   Wrench, FileText, Package, Truck, Receipt, Zap, Bot, Star, Activity,
   Shield, Briefcase, Settings, Layers, Eye, Download, Send, Check,
   Calendar, TrendingUp, TrendingDown, Lightbulb, Fuel, Route, Navigation,
-  Paperclip, Dumbbell, AlertCircle, Brain, Sparkles, CircleDot
+  Paperclip, Dumbbell, AlertCircle, Brain, Sparkles, CircleDot,
+  CheckSquare, Square, X
 } from 'lucide-react'
 
 // ─── ACCOUNTING HELPERS ───────────────────────────────────────────────────────
@@ -626,6 +627,8 @@ export function InvoicesHub() {
   const [sortDir, setSortDir] = useState('desc')
   const [selectedInv, setSelectedInv] = useState(null)
   const [invDocs, setInvDocs] = useState([])
+  const [selectedInvoices, setSelectedInvoices] = useState(new Set())
+  const [batchBusy, setBatchBusy] = useState(false)
 
   // Send payment reminder email to broker (or fallback to mailto)
   const sendPaymentReminder = async (inv, e) => {
@@ -663,6 +666,87 @@ export function InvoicesHub() {
       window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`)
       showToast('', 'No Broker Email', 'Opened mailto — paste or type broker email. Reminder text copied to clipboard.')
     }
+  }
+
+  // ── Batch selection helpers ──
+  const toggleSelect = (id) => {
+    setSelectedInvoices(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const toggleSelectAll = () => {
+    setSelectedInvoices(prev => {
+      const filteredIds = filtered.map(i => i.id)
+      const allSelected = filteredIds.length > 0 && filteredIds.every(id => prev.has(id))
+      if (allSelected) return new Set()
+      return new Set(filteredIds)
+    })
+  }
+  const clearSelection = () => setSelectedInvoices(new Set())
+
+  // Clear selection when filter/search changes
+  useEffect(() => { clearSelection() }, [filter, search])
+
+  // ── Batch operations ──
+  const batchMarkPaid = async () => {
+    setBatchBusy(true)
+    let count = 0
+    for (const id of selectedInvoices) {
+      const inv = enriched.find(i => i.id === id)
+      if (inv && inv.status === 'Unpaid') {
+        updateInvoiceStatus(inv.id || inv.invoice_number, 'Paid')
+        count++
+      }
+    }
+    clearSelection()
+    setBatchBusy(false)
+    showToast('', 'Batch Update', `${count} invoice${count !== 1 ? 's' : ''} marked as paid`)
+  }
+
+  const batchSendReminders = async () => {
+    setBatchBusy(true)
+    let sent = 0
+    for (const id of selectedInvoices) {
+      const inv = enriched.find(i => i.id === id)
+      if (inv && (inv.status === 'Unpaid' || inv.isOverdue)) {
+        await sendPaymentReminder(inv)
+        sent++
+      }
+    }
+    clearSelection()
+    setBatchBusy(false)
+    showToast('', 'Reminders Sent', `${sent} reminder${sent !== 1 ? 's' : ''} dispatched`)
+  }
+
+  const batchExportCSV = () => {
+    const rows = [['Invoice #', 'Broker', 'Amount', 'Status', 'Due Date', 'Route', 'Driver', 'Date']]
+    for (const id of selectedInvoices) {
+      const inv = enriched.find(i => i.id === id)
+      if (!inv) continue
+      rows.push([
+        inv.invoice_number || inv.id || '',
+        inv.broker || '',
+        (inv.amount || 0).toString(),
+        inv.displayStatus || inv.status || '',
+        inv.dueDate || '',
+        inv.route || '',
+        inv.driver || '',
+        inv.date || '',
+      ])
+    }
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `invoices-export-${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('', 'CSV Exported', `${selectedInvoices.size} invoice${selectedInvoices.size !== 1 ? 's' : ''} exported`)
+    clearSelection()
   }
 
   // Fetch documents for selected invoice's load
@@ -783,6 +867,31 @@ export function InvoicesHub() {
           style={{ width:220, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, padding:'7px 12px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }} />
       </div>
 
+      {/* Batch Action Bar */}
+      {selectedInvoices.size > 0 && (
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px', background:'rgba(240,165,0,0.12)', border:'1px solid rgba(240,165,0,0.3)', borderRadius:10 }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'#f0a500', whiteSpace:'nowrap' }}>
+            {selectedInvoices.size} selected
+          </span>
+          <button className="btn btn-primary" disabled={batchBusy} onClick={batchMarkPaid}
+            style={{ fontSize:11, padding:'5px 14px', display:'flex', alignItems:'center', gap:5 }}>
+            <Ic icon={Check} size={12} /> Mark as Paid
+          </button>
+          <button className="btn btn-ghost" disabled={batchBusy} onClick={batchSendReminders}
+            style={{ fontSize:11, padding:'5px 14px', display:'flex', alignItems:'center', gap:5 }}>
+            <Ic icon={Send} size={12} /> Send Reminders
+          </button>
+          <button className="btn btn-ghost" disabled={batchBusy} onClick={batchExportCSV}
+            style={{ fontSize:11, padding:'5px 14px', display:'flex', alignItems:'center', gap:5 }}>
+            <Ic icon={Download} size={12} /> Export CSV
+          </button>
+          <div style={{ flex:1 }} />
+          <button onClick={clearSelection} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', padding:4, display:'flex', alignItems:'center' }} title="Clear selection">
+            <Ic icon={X} size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Invoice Table */}
       <div style={S.panel}>
         {filtered.length === 0 ? (
@@ -793,6 +902,9 @@ export function InvoicesHub() {
           <table>
             <thead>
               <tr>
+                <th style={{ width:36, textAlign:'center', cursor:'pointer' }} onClick={toggleSelectAll}>
+                  <Ic icon={filtered.length > 0 && filtered.every(i => selectedInvoices.has(i.id)) ? CheckSquare : Square} size={14} color={filtered.length > 0 && filtered.every(i => selectedInvoices.has(i.id)) ? '#f0a500' : 'var(--muted)'} />
+                </th>
                 <th style={{ cursor:'pointer' }} onClick={() => toggleSort('id')}>Invoice{sortArrow('id')}</th>
                 <th>Load</th>
                 <th style={{ cursor:'pointer' }} onClick={() => toggleSort('broker')}>Broker{sortArrow('broker')}</th>
@@ -812,6 +924,9 @@ export function InvoicesHub() {
                 const bg = statusBg[st] || 'rgba(120,130,150,0.1)'
                 return (
                   <tr key={inv.id + inv._dbId} style={{ cursor:'pointer' }} onClick={() => setSelectedInv(selectedInv === inv.id ? null : inv.id)}>
+                    <td style={{ width:36, textAlign:'center' }} onClick={e => { e.stopPropagation(); toggleSelect(inv.id) }}>
+                      <Ic icon={selectedInvoices.has(inv.id) ? CheckSquare : Square} size={14} color={selectedInvoices.has(inv.id) ? '#f0a500' : 'var(--muted)'} style={{ cursor:'pointer' }} />
+                    </td>
                     <td><span style={{ fontFamily:'monospace', fontSize:12, fontWeight:700 }}>{inv.invoice_number || inv.id}</span></td>
                     <td style={{ fontSize:11, color:'var(--muted)' }}>{inv.loadId || inv.load_number || '—'}</td>
                     <td style={{ fontSize:12 }}>{inv.broker || '—'}</td>

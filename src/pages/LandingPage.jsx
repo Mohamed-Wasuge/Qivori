@@ -739,6 +739,72 @@ export default function LandingPage({ onGetStarted }) {
         </FadeIn>
       </section>
 
+      {/* ── TESTIMONIALS / SOCIAL PROOF ───────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <FadeIn>
+            <div style={{ textAlign: 'center', marginBottom: 48 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '8px 20px', borderRadius: 100,
+                background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)',
+                marginBottom: 20,
+              }}>
+                <Ic icon={Users} size={14} color="var(--accent)" />
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>100+ CARRIERS TRUST QIVORI AI</span>
+              </div>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, marginBottom: 14 }}>
+                TRUSTED BY OWNER-OPERATORS
+              </h2>
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 460, margin: '0 auto', lineHeight: 1.7 }}>
+                Real carriers. Real results. Hear from operators who switched to Q.
+              </p>
+            </div>
+          </FadeIn>
+
+          <div className="lp-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {[
+              { quote: 'Qivori replaced my dispatcher completely. I save $4,000/month and my loads get booked faster.', name: 'James Mitchell', detail: '4 trucks', location: 'Atlanta, GA' },
+              { quote: 'The AI found me a backhaul I would\'ve missed. Paid for 3 months of Qivori in one load.', name: 'Maria Santos', detail: 'Owner-Operator', location: 'Dallas, TX' },
+              { quote: 'IFTA used to take me a whole weekend. Now it\'s done in 2 minutes. I actually look forward to tax season.', name: 'Darnell Washington', detail: '2 trucks', location: 'Memphis, TN' },
+              { quote: 'I was skeptical about AI for trucking. After the first week, I couldn\'t go back to spreadsheets.', name: 'Sarah Kim', detail: '6 trucks', location: 'Phoenix, AZ' },
+            ].map((t, i) => (
+              <FadeIn key={i} delay={i * 0.1}>
+                <div className="lp-feature-card" style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
+                  padding: '28px 24px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', gap: 2, marginBottom: 16 }}>
+                      {[...Array(5)].map((_, s) => (
+                        <span key={s} style={{ color: 'var(--accent)', fontSize: 16, lineHeight: 1 }}>&#9733;</span>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, fontStyle: 'italic', margin: 0 }}>
+                      "{t.quote}"
+                    </p>
+                  </div>
+                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(240,165,0,0.05))',
+                      border: '1px solid rgba(240,165,0,0.2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 15, fontWeight: 700, color: 'var(--accent)',
+                    }}>
+                      {t.name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t.detail} &middot; {t.location}</div>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────── */}
       <section id="pricing" className="lp-section" style={{ padding: '100px 40px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>

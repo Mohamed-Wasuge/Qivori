@@ -12,14 +12,8 @@ import { useApp } from '../context/AppContext'
 import { useCarrier } from '../context/CarrierContext'
 import { Ic, S, StatCard, AiBanner } from './carrier/shared'
 
-// ── Re-exports from domain files ────────────────────────────────────────────────
-export { SmartDispatch, StopTimeline, LaneIntel, CommandCenter, AILoadBoard, CheckCallCenter, DATAlertBot, RateNegotiation, RateBadge } from './carrier/LoadBoard'
-export { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, DriverPayReport } from './carrier/DriverScorecard'
-export { CarrierIFTA, CarrierELD, CarrierCSA, CarrierClearinghouse, CarrierDVIR } from './carrier/Compliance'
-export { FleetMapGoogle as FleetMap } from './carrier/FleetMapGoogle'
-export { CarrierFleet, FuelOptimizer, FleetManager, EquipmentManager } from './carrier/Fleet'
-export { RevenueIntel, BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard } from './carrier/Finance'
-export { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement } from './carrier/Settings'
+// Domain files are imported directly from their source modules (not re-exported here)
+// to prevent barrel-file bundling that causes chunk initialization (TDZ) errors
 
 // ─── AI DASHBOARD ─────────────────────────────────────────────────────────────
 export function CarrierDashboard() {

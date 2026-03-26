@@ -15,20 +15,9 @@ export default defineConfig({
     }
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          // Only split heavy node_modules — let Rollup handle app code via lazy() boundaries
-          if (id.includes('node_modules')) {
-            if (id.includes('react-dom') || id.includes('react/') || id.includes('@supabase')) return 'vendor'
-            if (id.includes('jspdf') || id.includes('pdfjs-dist')) return 'pdf'
-            if (id.includes('@sentry')) return 'sentry'
-            if (id.includes('html2canvas')) return 'html2canvas'
-            if (id.includes('lucide-react')) return 'icons'
-            if (id.includes('retell-client') || id.includes('livekit-client')) return 'retell'
-          }
-        }
-      }
-    }
+    // No manualChunks — let Rollup handle ALL chunk splitting naturally.
+    // manualChunks causes TDZ (Cannot access 'X' before initialization) errors
+    // in production because it forces modules into chunks that break initialization order.
+    // React.lazy() boundaries already provide proper code splitting.
   }
 })

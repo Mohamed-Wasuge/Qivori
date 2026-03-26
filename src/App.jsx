@@ -15,6 +15,7 @@ const TermsPage = lazyNamed(() => import('./pages/LegalPages'), 'TermsPage')
 const PrivacyPage = lazyNamed(() => import('./pages/LegalPages'), 'PrivacyPage')
 const DriverOnboarding = lazy(() => import('./pages/DriverOnboarding'))
 const CarrierPublicPage = lazy(() => import('./pages/CarrierPublicPage'))
+const LoadTrackingPage = lazyNamed(() => import('./pages/ExtraPages'), 'LoadTrackingPage')
 
 // Blog / SEO guide pages (lazy-loaded)
 const IFTAGuidePage = lazyNamed(() => import('./pages/BlogPages'), 'IFTAGuidePage')
@@ -144,6 +145,7 @@ function AppContent() {
   const [publicLoadBoard, setPublicLoadBoard] = useState(false)
   const [driverOnboarding, setDriverOnboarding] = useState(false)
   const [carrierSlug, setCarrierSlug] = useState(null) // carrier public page slug
+  const [trackingToken, setTrackingToken] = useState(null) // public load tracking token
   const [guidePage, setGuidePage] = useState(null) // 'ifta' | 'start-trucking' | 'rate-negotiation' | 'trucking-expenses' | null
 
   const GUIDE_ROUTES = {
@@ -157,11 +159,12 @@ function AppContent() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash
-      const clear = () => { setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false); setCarrierSlug(null) }
+      const clear = () => { setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false); setCarrierSlug(null); setTrackingToken(null) }
       if (hash === '#/terms') { clear(); setLegalPage('terms') }
       else if (hash === '#/privacy') { clear(); setLegalPage('privacy') }
       else if (hash === '#/loads') { clear(); setPublicLoadBoard(true) }
       else if (hash.startsWith('#/onboard')) { clear(); setDriverOnboarding(true) }
+      else if (hash.startsWith('#/track/')) { clear(); setTrackingToken(hash.slice(8)) }
       else if (hash.startsWith('#/c/')) { clear(); setCarrierSlug(hash.slice(4)) }
       else if (GUIDE_ROUTES[hash]) { clear(); setGuidePage(GUIDE_ROUTES[hash]) }
       else { clear() }
@@ -207,6 +210,13 @@ function AppContent() {
           </div>
         )}
 
+        {/* Public Load Tracking */}
+        {trackingToken && !legalPage && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
+            <LoadTrackingPage token={trackingToken} />
+          </div>
+        )}
+
         {/* Carrier Public Page */}
         {carrierSlug && !legalPage && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
@@ -215,7 +225,7 @@ function AppContent() {
         )}
 
         {/* Landing Page */}
-        {view === 'landing' && !publicLoadBoard && !guidePage && !driverOnboarding && !carrierSlug && <LandingPage onGetStarted={goToLogin} />}
+        {view === 'landing' && !publicLoadBoard && !guidePage && !driverOnboarding && !carrierSlug && !trackingToken && <LandingPage onGetStarted={goToLogin} />}
 
         {/* Login View */}
         {view === 'login' && <LoginPage />}

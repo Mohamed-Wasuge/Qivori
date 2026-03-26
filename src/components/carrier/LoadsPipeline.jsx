@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react'
-import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity, Clock, Plus, Trash2, Upload, FileText, Image, Eye, MapPin, Star, Bell } from 'lucide-react'
+import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity, Clock, Plus, Trash2, Upload, FileText, Image, Eye, MapPin, Star, Bell, Share2, Send } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
@@ -913,7 +913,7 @@ export function InvoiceStatusBadge({ status }) {
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 export function LoadDetailDrawer({ loadId, onClose }) {
   const { loads, invoices, checkCalls, updateLoadStatus, updateInvoiceStatus, removeLoad, drivers, fuelCostPerMile, company: carrierCompany, brokerStats, allLoads } = useCarrier()
-  const { showToast } = useApp()
+  const { showToast, user } = useApp()
   const [invoiceSending, setInvoiceSending] = useState(false)
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
   const [showTONU, setShowTONU] = useState(false)
@@ -931,6 +931,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
   const [loadDocs, setLoadDocs] = useState([])
   const [docsLoading, setDocsLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [reminderSending, setReminderSending] = useState(false)
   const load = loads.find(l => (l.loadId || l.id) === loadId)
 
   // Fetch documents for this load
@@ -1098,6 +1099,43 @@ export function LoadDetailDrawer({ loadId, onClose }) {
     setInvoiceSending(false)
   }
 
+  // Generate and copy tracking link for brokers
+  const handleShareTracking = () => {
+    const ownerId = load.owner_id || user?.id || ''
+    const dbId = load._dbId || load.id || ''
+    if (!ownerId || !dbId || String(dbId).startsWith('mock') || String(dbId).startsWith('local')) {
+      showToast('', 'Tracking Link', 'Save this load to the database first to generate a tracking link')
+      return
+    }
+    const token = btoa(`${ownerId}:${dbId}`)
+    const origin = window.location.origin
+    const trackingUrl = `${origin}/#!/track/${token}`
+    navigator.clipboard.writeText(trackingUrl).then(() => {
+      showToast('success', 'Link Copied!', `Tracking link for ${load.loadId || load.load_number} copied to clipboard. Share with your broker.`)
+    }).catch(() => {
+      // Fallback: show the URL
+      window.prompt('Copy this tracking link:', trackingUrl)
+    })
+  }
+
+  // Send invoice payment reminder email to broker
+  const handleSendReminder = async () => {
+    if (!linkedInvoice) { showToast('', 'No Invoice', 'Generate an invoice first'); return }
+    if (!load.broker_email) { showToast('', 'No Email', 'Broker email not on file for this load'); return }
+    setReminderSending(true)
+    try {
+      const res = await apiFetch('/api/invoice-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manualTrigger: true, invoiceId: linkedInvoice.id || linkedInvoice._dbId }),
+      })
+      showToast('success', 'Reminder Sent', `Payment reminder emailed to ${load.broker_email}`)
+    } catch {
+      showToast('error', 'Failed', 'Could not send reminder — try again later')
+    }
+    setReminderSending(false)
+  }
+
   // Show invoice prompt after advancing to Delivered
   const handleAdvanceToDelivered = () => {
     updateLoadStatus(load.loadId || load.id, 'Delivered')
@@ -1181,6 +1219,16 @@ export function LoadDetailDrawer({ loadId, onClose }) {
               }}>
               Delete Load
             </button>
+            <button className="btn btn-ghost" style={{ fontSize:11, color:'#4d8ef0', border:'1px solid rgba(77,142,240,0.25)', background:'rgba(77,142,240,0.06)' }}
+              onClick={handleShareTracking}>
+              <Ic icon={Share2} size={11} /> Share Tracking
+            </button>
+            {linkedInvoice && (linkedInvoice.status === 'Unpaid' || linkedInvoice.status === 'Overdue') && (
+              <button className="btn btn-ghost" style={{ fontSize:11, color:'#f97316', border:'1px solid rgba(249,115,22,0.25)', background:'rgba(249,115,22,0.06)' }}
+                onClick={handleSendReminder} disabled={reminderSending}>
+                <Ic icon={Send} size={11} /> {reminderSending ? 'Sending...' : 'Send Reminder'}
+              </button>
+            )}
           </div>
 
           {/* Auto-Invoice Prompt */}

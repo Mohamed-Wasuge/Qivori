@@ -1111,68 +1111,135 @@ export function StopTimeline({ load, onAdvance }) {
   )
 }
 
-const LANES = [
+const LANES_SEED = [
   { id:'l1', from:'ATL', to:'CHI', fromFull:'Atlanta, GA', toFull:'Chicago, IL', miles:674, loads:0, avgRpm:2.94, topRpm:3.20, avgGross:0, trend:0, rating:'steady', ratingLabel:'EXAMPLE', color:'var(--muted)', brokers:['Echo Global'], backhaul:50, deadhead:0, equipment:'Dry Van' },
 ]
+
+// Build lanes from actual load history
+function buildLanesFromHistory(loads) {
+  const laneMap = {}
+  ;(loads || []).forEach(ld => {
+    const o = ld.origin || ''
+    const d = ld.dest || ld.destination || ''
+    if (!o || !d) return
+    const key = o + '→' + d
+    if (!laneMap[key]) {
+      const fromShort = o.split(',')[0].substring(0, 3).toUpperCase()
+      const destShort = d.split(',')[0].substring(0, 3).toUpperCase()
+      laneMap[key] = { id: 'lane-' + fromShort + destShort, from: fromShort, to: destShort, fromFull: o, toFull: d, miles: 0, loads: 0, avgRpm: 0, topRpm: 0, avgGross: 0, trend: 0, rating: 'steady', ratingLabel: 'YOUR LANE', color: 'var(--accent)', brokers: [], backhaul: 50, deadhead: 0, equipment: ld.equipment || 'Dry Van', _myLoads: [] }
+    }
+    laneMap[key]._myLoads.push(ld)
+    laneMap[key].loads++
+    if (ld.broker && !laneMap[key].brokers.includes(ld.broker)) laneMap[key].brokers.push(ld.broker)
+  })
+  return Object.values(laneMap).map(l => {
+    const grosses = l._myLoads.map(ld => ld.gross || 0)
+    const rpms = l._myLoads.map(ld => ld.rate || 0).filter(r => r > 0)
+    const miles = l._myLoads.map(ld => ld.miles || 0).filter(m => m > 0)
+    l.avgGross = grosses.length ? Math.round(grosses.reduce((a, b) => a + b, 0) / grosses.length) : 0
+    l.avgRpm = rpms.length ? parseFloat((rpms.reduce((a, b) => a + b, 0) / rpms.length).toFixed(2)) : 0
+    l.topRpm = rpms.length ? parseFloat(Math.max(...rpms).toFixed(2)) : 0
+    l.miles = miles.length ? Math.round(miles.reduce((a, b) => a + b, 0) / miles.length) : 0
+    if (l.loads >= 3) { l.rating = 'recurring'; l.ratingLabel = 'RECURRING'; l.color = 'var(--success)' }
+    else if (l.loads >= 2) { l.ratingLabel = 'ACTIVE'; l.color = 'var(--accent2)' }
+    return l
+  }).sort((a, b) => b.loads - a.loads)
+}
 
 export function LaneIntel() {
   const { showToast } = useApp()
   const { loads } = useCarrier()
-  const [selected, setSelected] = useState('l1')
-  const [sortBy, setSortBy] = useState('rpm')
+  const [selected, setSelected] = useState(null)
+  const [sortBy, setSortBy] = useState('loads')
+  const [savedLanes, setSavedLanes] = useState(() => JSON.parse(localStorage.getItem('qivori_saved_lanes') || '[]'))
 
-  // Compute real lane data from context loads
-  const enrichedLanes = LANES.map(l => {
-    const myLoads = loads.filter(ld =>
-      ld.origin === l.fromFull && ld.dest === l.toFull
-    )
-    if (myLoads.length === 0) return l
-    const realGrossAvg = Math.round(myLoads.reduce((s, ld) => s + ld.gross, 0) / myLoads.length)
-    const realRpm = myLoads[0].miles > 0
-      ? parseFloat((myLoads.reduce((s, ld) => s + ld.rate, 0) / myLoads.length).toFixed(2))
-      : l.avgRpm
-    return { ...l, loads: myLoads.length, avgRpm: realRpm, avgGross: realGrossAvg, _myLoads: myLoads }
-  })
+  // Auto-build lanes from load history + merge seed
+  const enrichedLanes = useMemo(() => {
+    const fromHistory = buildLanesFromHistory(loads)
+    // Add seed lanes that aren't already covered
+    const existing = new Set(fromHistory.map(l => l.fromFull + '→' + l.toFull))
+    const seeds = LANES_SEED.filter(l => !existing.has(l.fromFull + '→' + l.toFull))
+    return [...fromHistory, ...seeds]
+  }, [loads])
+
+  // Auto-select first lane
+  useEffect(() => {
+    if (!selected && enrichedLanes.length) setSelected(enrichedLanes[0].id)
+  }, [enrichedLanes.length])
+
+  const toggleSaveLane = (lane) => {
+    const key = lane.fromFull + '→' + lane.toFull
+    setSavedLanes(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+      localStorage.setItem('qivori_saved_lanes', JSON.stringify(next))
+      showToast('success', prev.includes(key) ? 'Removed' : 'Lane Saved', key + (prev.includes(key) ? ' removed from saved lanes' : ' — you\'ll get alerts when matching loads appear'))
+      return next
+    })
+  }
 
   const lane = enrichedLanes.find(l => l.id === selected) || enrichedLanes[0]
   const sorted = [...enrichedLanes].sort((a, b) => sortBy === 'rpm' ? b.avgRpm - a.avgRpm : sortBy === 'trend' ? b.trend - a.trend : b.loads - a.loads)
-  if (!lane) {
-    return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'var(--muted)', fontSize:14 }}>No lane data available</div>
+  const savedLaneList = enrichedLanes.filter(l => savedLanes.includes(l.fromFull + '→' + l.toFull))
+  if (!lane && enrichedLanes.length === 0) {
+    return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'var(--muted)', fontSize:14 }}>No lane data yet. Book loads to build your lane history.</div>
   }
-  const laneHistory = lane._myLoads || []
+  const laneHistory = lane?._myLoads || []
 
-  const estFuel = Math.round(lane.miles / 6.9 * 3.85)
-  const estDriverPay = Math.round(lane.avgGross * 0.28)
-  const estNet = lane.avgGross - estFuel - estDriverPay
+  const estFuel = lane ? Math.round(lane.miles / 6.9 * 3.85) : 0
+  const estDriverPay = lane ? Math.round(lane.avgGross * 0.28) : 0
+  const estNet = lane ? lane.avgGross - estFuel - estDriverPay : 0
 
   return (
     <div style={{ display:'flex', height:'100%', overflow:'auto' }}>
 
       {/* Lane list sidebar */}
-      <div style={{ width:220, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
-        <div style={{ padding:'14px 16px 8px', borderBottom:'1px solid var(--border)' }}>
-          <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:4 }}>LANE INTEL ({enrichedLanes.length})</div>
+      <div style={{ width:240, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
+        <div style={{ padding:'14px 16px 10px', borderBottom:'1px solid var(--border)' }}>
+          <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:6 }}>LANE INTEL ({enrichedLanes.length})</div>
           <select value={sortBy} onChange={e => setSortBy(e.target.value)}
             style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'5px 8px', color:'var(--text)', fontSize:11, fontFamily:"'DM Sans',sans-serif" }}>
+            <option value="loads">Sort: Load Count ↓</option>
             <option value="rpm">Sort: Rate/Mile ↓</option>
             <option value="trend">Sort: Trend ↓</option>
-            <option value="loads">Sort: Load Count ↓</option>
           </select>
         </div>
+
+        {/* Saved / Recurring lanes */}
+        {savedLaneList.length > 0 && (
+          <div style={{ borderBottom:'1px solid var(--border)' }}>
+            <div style={{ padding:'8px 16px 4px', fontSize:9, fontWeight:800, color:'var(--success)', letterSpacing:1.5 }}>SAVED LANES ({savedLaneList.length})</div>
+            {savedLaneList.map(l => {
+              const isSel = selected === l.id
+              return (
+                <div key={'saved-' + l.id} onClick={() => setSelected(l.id)}
+                  style={{ padding:'8px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer', borderLeft:`3px solid ${isSel ? 'var(--success)' : 'transparent'}`, background: isSel ? 'rgba(34,197,94,0.05)' : 'transparent' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ fontSize:12, fontWeight:700, color: isSel ? 'var(--success)' : 'var(--text)' }}><Star size={10} color="var(--success)" /> {l.from} → {l.to}</div>
+                    <span style={{ fontSize:9, fontWeight:800, color:'var(--success)' }}>{l.loads} loads</span>
+                  </div>
+                  <div style={{ fontSize:10, color:'var(--muted)' }}>{l.miles} mi · ${l.avgRpm}/mi</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* All lanes */}
+        <div style={{ padding:'8px 16px 4px', fontSize:9, fontWeight:800, color:'var(--muted)', letterSpacing:1.5 }}>ALL LANES</div>
         {sorted.map(l => {
           const isSel = selected === l.id
+          const isSaved = savedLanes.includes(l.fromFull + '→' + l.toFull)
           return (
             <div key={l.id} onClick={() => setSelected(l.id)}
-              style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer', borderLeft:`3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
-                <div style={{ fontSize:13, fontWeight:700, color: isSel ? 'var(--accent)' : 'var(--text)' }}>{l.from} → {l.to}</div>
+              style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', cursor:'pointer', borderLeft:`3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:3 }}>
+                <div style={{ fontSize:13, fontWeight:700, color: isSel ? 'var(--accent)' : 'var(--text)', display:'flex', alignItems:'center', gap:5 }}>
+                  {isSaved && <Star size={10} color="var(--success)" />} {l.from} → {l.to}
+                </div>
                 <span style={{ fontSize:9, fontWeight:800, padding:'2px 6px', borderRadius:6, background:l.color+'18', color:l.color }}>{l.ratingLabel}</span>
               </div>
-              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:3 }}>{l.miles} mi · {l.loads} loads</div>
-              <div style={{ fontSize:13, fontWeight:700, color:l.color }}>${l.avgRpm}/mi avg</div>
-              <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:4 }}>
-                <span style={{ fontSize:10, color: l.trend > 0 ? 'var(--success)' : 'var(--danger)' }}>{l.trend > 0 ? '↑' : '↓'} {Math.abs(l.trend)}% rate trend</span>
-              </div>
+              <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>{l.miles} mi · {l.loads} load{l.loads !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize:12, fontWeight:700, color:l.color }}>${l.avgRpm}/mi avg</div>
             </div>
           )
         })}
@@ -1193,17 +1260,15 @@ export function LaneIntel() {
                 <div style={{ fontSize:12, color:'var(--muted)' }}>{lane.miles} miles · {lane.equipment} · {lane.loads} loads in last 30 days</div>
               </div>
               <div style={{ display:'flex', gap:8 }}>
-                <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => {
-                  const wl = JSON.parse(localStorage.getItem('qivori_watchlist_lanes') || '[]')
-                  const key = lane.from + '→' + lane.to
-                  if (wl.includes(key)) {
-                    localStorage.setItem('qivori_watchlist_lanes', JSON.stringify(wl.filter(k => k !== key)))
-                    showToast('','Removed','Lane ' + key + ' removed from watchlist')
-                  } else {
-                    localStorage.setItem('qivori_watchlist_lanes', JSON.stringify([...wl, key]))
-                    showToast('','Saved','Lane ' + key + ' saved to watchlist')
-                  }
-                }}><Ic icon={Star} /> Watch Lane</button>
+                {(() => {
+                  const isSaved = savedLanes.includes(lane.fromFull + '→' + lane.toFull)
+                  return (
+                    <button className={isSaved ? 'btn btn-primary' : 'btn btn-ghost'} style={{ fontSize:11 }}
+                      onClick={() => toggleSaveLane(lane)}>
+                      <Ic icon={Star} /> {isSaved ? 'Saved' : 'Save Lane'}
+                    </button>
+                  )
+                })()}
                 <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => {
                   window.dispatchEvent(new CustomEvent('switchToDispatch', { detail: { origin: lane.fromFull, dest: lane.toFull } }))
                   showToast('','Dispatch','Switching to Dispatch Board for ' + lane.from + '→' + lane.to)

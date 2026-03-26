@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
-import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity, Clock, Plus, Trash2 } from 'lucide-react'
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react'
+import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity, Clock, Plus, Trash2, Upload, FileText, Image, Eye, MapPin, Star, Bell } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
+import { uploadFile } from '../../lib/storage'
+import { createDocument, fetchDocuments, deleteDocument } from '../../lib/database'
 import { Ic, HubTabBar } from './shared'
 import { DispatchTab } from './DispatchTab'
 import { QDispatchAI } from './QDispatchAI'
@@ -925,7 +927,57 @@ export function LoadDetailDrawer({ loadId, onClose }) {
   const [lineItems, setLineItems] = useState([])
   const [showAddAccessorial, setShowAddAccessorial] = useState(false)
   const [newAccessorial, setNewAccessorial] = useState({ description: '', amount: '' })
+  // Documents
+  const [loadDocs, setLoadDocs] = useState([])
+  const [docsLoading, setDocsLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const load = loads.find(l => (l.loadId || l.id) === loadId)
+
+  // Fetch documents for this load
+  useEffect(() => {
+    if (!load?.id || String(load.id).startsWith('local') || String(load.id).startsWith('mock')) return
+    setDocsLoading(true)
+    fetchDocuments(load.id).then(docs => setLoadDocs(docs)).catch(() => {}).finally(() => setDocsLoading(false))
+  }, [load?.id])
+
+  const handleDocUpload = useCallback(async (docType) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.heic'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      setUploading(true)
+      try {
+        const result = await uploadFile(file, 'loads/' + (load?.id || 'unknown'))
+        const doc = await createDocument({
+          name: docType + ' — ' + (load?.loadId || load?.load_number || 'Load'),
+          file_url: result.url,
+          file_path: result.path,
+          doc_type: docType.toLowerCase().replace(/\s+/g, '_'),
+          load_id: load?.id || null,
+          metadata: { load_number: load?.loadId || load?.load_number, original_name: file.name, size: file.size },
+        })
+        if (doc) setLoadDocs(prev => [doc, ...prev])
+        showToast('success', 'Uploaded', `${docType} attached to ${load?.loadId || 'load'}`)
+      } catch (err) {
+        showToast('error', 'Upload Failed', err.message || 'Could not upload file')
+      }
+      setUploading(false)
+    }
+    input.click()
+  }, [load, showToast])
+
+  const handleDocDelete = useCallback(async (docId) => {
+    if (!window.confirm('Delete this document?')) return
+    try {
+      await deleteDocument(docId)
+      setLoadDocs(prev => prev.filter(d => d.id !== docId))
+      showToast('success', 'Deleted', 'Document removed')
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to delete')
+    }
+  }, [showToast])
 
   // Initialize line items from load or linked invoice
   useEffect(() => {
@@ -1491,6 +1543,102 @@ export function LoadDetailDrawer({ loadId, onClose }) {
             {accessorialTotal > 0 && (
               <div style={{ fontSize:10, color:'var(--muted)', textAlign:'right' }}>
                 Freight: ${gross.toLocaleString()} + Accessorials: ${accessorialTotal.toLocaleString()}
+              </div>
+            )}
+          </div>
+
+          {/* ═══ LOAD DOCUMENTS ═══════════════════════════════════ */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1 }}>
+                Documents ({loadDocs.length})
+              </div>
+              {uploading && <span style={{ fontSize:10, color:'var(--accent)' }}>Uploading...</span>}
+            </div>
+
+            {/* Quick upload buttons */}
+            <div style={{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap' }}>
+              {[
+                { type:'Rate Con', icon: FileText, color:'var(--accent)' },
+                { type:'BOL', icon: FileText, color:'var(--accent2)' },
+                { type:'POD', icon: CheckCircle, color:'var(--success)' },
+                { type:'Lumper Receipt', icon: DollarSign, color:'var(--warning)' },
+                { type:'Scale Ticket', icon: FileText, color:'var(--muted)' },
+                { type:'Other', icon: Upload, color:'var(--muted)' },
+              ].map(d => {
+                const hasDoc = loadDocs.some(doc => (doc.doc_type || '').includes(d.type.toLowerCase().replace(/\s+/g, '_')))
+                return (
+                  <button key={d.type} onClick={() => handleDocUpload(d.type)} disabled={uploading}
+                    style={{ padding:'6px 12px', fontSize:10, fontWeight:700, borderRadius:7, cursor:'pointer', fontFamily:"'DM Sans',sans-serif",
+                      border: hasDoc ? `1px solid ${d.color}40` : '1px solid var(--border)',
+                      background: hasDoc ? `${d.color}10` : 'var(--surface2)',
+                      color: hasDoc ? d.color : 'var(--muted)', display:'flex', alignItems:'center', gap:5 }}>
+                    {hasDoc ? <CheckCircle size={11} /> : <Upload size={11} />} {d.type}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Document list */}
+            {docsLoading ? (
+              <div style={{ fontSize:11, color:'var(--muted)', padding:'8px 0' }}>Loading documents...</div>
+            ) : loadDocs.length === 0 ? (
+              <div style={{ fontSize:11, color:'var(--muted)', padding:'8px 0' }}>No documents attached yet. Upload Rate Con, BOL, or POD above.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {loadDocs.map(doc => {
+                  const isImage = /\.(jpg|jpeg|png|webp|heic)$/i.test(doc.file_url || doc.file_path || '')
+                  return (
+                    <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'var(--surface2)', borderRadius:8 }}>
+                      <div style={{ width:28, height:28, borderRadius:6, background:'rgba(240,165,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        {isImage ? <Image size={14} color="var(--accent)" /> : <FileText size={14} color="var(--accent)" />}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.name || doc.doc_type || 'Document'}</div>
+                        <div style={{ fontSize:9, color:'var(--muted)' }}>{doc.doc_type?.replace(/_/g, ' ')} · {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : ''}</div>
+                      </div>
+                      <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                        {doc.file_url && <button onClick={() => window.open(doc.file_url, '_blank')} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--accent)', padding:4 }}><Eye size={14} /></button>}
+                        <button onClick={() => handleDocDelete(doc.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', padding:4 }}><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ═══ BROKER NOTIFICATIONS ═════════════════════════════ */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', marginBottom:10, textTransform:'uppercase', letterSpacing:1, display:'flex', alignItems:'center', gap:6 }}>
+              <Bell size={12} /> Broker Notifications
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {[
+                { status:'Assigned to Driver', label:'Driver Assigned', sent: STATUS_FLOW.indexOf(load.status) >= STATUS_FLOW.indexOf('Assigned to Driver') },
+                { status:'En Route to Pickup', label:'En Route to Pickup', sent: STATUS_FLOW.indexOf(load.status) >= STATUS_FLOW.indexOf('En Route to Pickup') },
+                { status:'Loaded', label:'Loaded at Shipper', sent: STATUS_FLOW.indexOf(load.status) >= STATUS_FLOW.indexOf('Loaded') },
+                { status:'In Transit', label:'In Transit', sent: STATUS_FLOW.indexOf(load.status) >= STATUS_FLOW.indexOf('In Transit') },
+                { status:'Delivered', label:'Delivered — POD Sent', sent: STATUS_FLOW.indexOf(load.status) >= STATUS_FLOW.indexOf('Delivered') },
+                { status:'Invoiced', label:'Invoice Sent', sent: STATUS_FLOW.indexOf(load.status) >= STATUS_FLOW.indexOf('Invoiced') },
+              ].map(n => (
+                <div key={n.status} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 0' }}>
+                  <div style={{ width:20, height:20, borderRadius:'50%', border: n.sent ? '2px solid var(--success)' : '2px solid var(--border)',
+                    background: n.sent ? 'rgba(34,197,94,0.1)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    {n.sent && <CheckCircle size={12} color="var(--success)" />}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight: n.sent ? 600 : 400, color: n.sent ? 'var(--text)' : 'var(--muted)' }}>{n.label}</div>
+                  </div>
+                  <span style={{ fontSize:9, fontWeight:700, color: n.sent ? 'var(--success)' : 'var(--muted)' }}>
+                    {n.sent ? 'SENT' : 'PENDING'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {load.broker_phone && (
+              <div style={{ marginTop:8, padding:'8px 10px', background:'var(--surface2)', borderRadius:8, fontSize:10, color:'var(--muted)' }}>
+                Notifications sent to: <strong>{load.broker || load.broker_name}</strong> · {load.broker_phone}{load.broker_email ? ` · ${load.broker_email}` : ''}
               </div>
             )}
           </div>

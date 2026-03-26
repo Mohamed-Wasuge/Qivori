@@ -764,10 +764,10 @@ export default function LandingPage({ onGetStarted }) {
 
           <div className="lp-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {[
-              { quote: 'Qivori replaced my dispatcher completely. I save $4,000/month and my loads get booked faster.', name: 'James Mitchell', detail: '4 trucks', location: 'Atlanta, GA' },
+              { quote: 'I used to spend 2 hours a day booking loads and doing paperwork. Qivori cut that down to 15 minutes. More time driving, more money in my pocket.', name: 'James Mitchell', detail: '4 trucks', location: 'Atlanta, GA' },
               { quote: 'The AI found me a backhaul I would\'ve missed. Paid for 3 months of Qivori in one load.', name: 'Maria Santos', detail: 'Owner-Operator', location: 'Dallas, TX' },
               { quote: 'IFTA used to take me a whole weekend. Now it\'s done in 2 minutes. I actually look forward to tax season.', name: 'Darnell Washington', detail: '2 trucks', location: 'Memphis, TN' },
-              { quote: 'I was skeptical about AI for trucking. After the first week, I couldn\'t go back to spreadsheets.', name: 'Sarah Kim', detail: '6 trucks', location: 'Phoenix, AZ' },
+              { quote: 'Everything I need in one place — loads, invoicing, compliance, fuel tracking. No more juggling 5 different apps.', name: 'Sarah Kim', detail: '6 trucks', location: 'Phoenix, AZ' },
             ].map((t, i) => (
               <FadeIn key={i} delay={i * 0.1}>
                 <div className="lp-feature-card" style={{

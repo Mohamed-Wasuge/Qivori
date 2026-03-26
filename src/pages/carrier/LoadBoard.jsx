@@ -118,7 +118,31 @@ export function SmartDispatch() {
   const [addForm, setAddForm]           = useState({ broker:'', origin:'', dest:'', miles:'', gross:'', rate:'', weight:'', commodity:'', pickup:'', delivery:'', equipment:'Dry Van', driver:'', notes:'', amazon_block_id:'' })
   const [relayStops, setRelayStops]     = useState([]) // extra Amazon Relay delivery stops
   const [addParsing, setAddParsing]     = useState(false)
+  const [addCalcMiles, setAddCalcMiles] = useState(false)
   const addFileRef = useRef(null)
+
+  // Auto-calculate miles when origin + destination are filled
+  useEffect(() => {
+    if (!addForm.origin || !addForm.dest || addForm.miles) return
+    const o = addForm.origin.trim(), d = addForm.dest.trim()
+    if (o.length < 3 || d.length < 3) return
+    setAddCalcMiles(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch('/api/calculate-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin: o, destination: d }),
+        })
+        const data = await res.json()
+        if (data.ok && data.miles > 0) {
+          setAddForm(fm => ({ ...fm, miles: String(data.miles) }))
+        }
+      } catch {}
+      setAddCalcMiles(false)
+    }, 800)
+    return () => { clearTimeout(t); setAddCalcMiles(false) }
+  }, [addForm.origin, addForm.dest])
 
   const sel = selected ? loads.find(l => l.id === selected) : null
 
@@ -745,7 +769,7 @@ export function SmartDispatch() {
                 { key:'origin', label:'Pickup Facility *', ph:'e.g. DFW7, ONT2' },
                 { key:'dest', label:'Delivery Facility *', ph:'e.g. SBD1, LAX9' },
                 { key:'gross', label:'Rate ($) *', ph:'850', type:'number' },
-                { key:'miles', label:'Miles', ph:'350', type:'number' },
+                { key:'miles', label: addCalcMiles ? 'Calculating...' : 'Miles', ph: addCalcMiles ? '...' : '350', type:'number' },
                 { key:'pickup', label:'Pickup Date/Time', ph:'', type:'date' },
                 { key:'delivery', label:'Delivery Date/Time', ph:'', type:'date' },
               ] : [
@@ -754,7 +778,7 @@ export function SmartDispatch() {
                 { key:'origin', label:'Origin *', ph:'City, ST' },
                 { key:'dest', label:'Destination *', ph:'City, ST' },
                 { key:'gross', label:'Rate ($) *', ph:'3500', type:'number' },
-                { key:'miles', label:'Miles', ph:'1200', type:'number' },
+                { key:'miles', label: addCalcMiles ? 'Calculating...' : 'Miles', ph: addCalcMiles ? '...' : '1200', type:'number' },
                 { key:'weight', label:'Weight (lbs)', ph:'42000', type:'number' },
                 { key:'commodity', label:'Commodity', ph:'Electronics' },
                 { key:'pickup', label:'Pickup Date', ph:'', type:'date' },

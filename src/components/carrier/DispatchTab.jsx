@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import {
   FileText, ClipboardList, CheckCircle, Receipt, Scale, Zap, AlertTriangle,
   Plus, Trash2, ChevronUp, ChevronDown, MapPin, Clock, Package, Layers
@@ -517,6 +517,31 @@ export function BookedLoads() {
     { _key: 2, sequence: 2, type: 'dropoff', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },
   ])
   const [showStopBuilder, setShowStopBuilder] = useState(false)
+  const [calcMiles, setCalcMiles] = useState(false)
+
+  // Auto-calculate miles when origin + destination are both filled
+  useEffect(() => {
+    if (!form.origin || !form.dest || form.miles) return
+    const origin = form.origin.trim()
+    const dest = form.dest.trim()
+    if (origin.length < 3 || dest.length < 3) return
+    setCalcMiles(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch('/api/calculate-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin, destination: dest }),
+        })
+        const data = await res.json()
+        if (data.ok && data.miles > 0) {
+          setForm(fm => ({ ...fm, miles: String(data.miles) }))
+        }
+      } catch {}
+      setCalcMiles(false)
+    }, 800) // debounce 800ms
+    return () => { clearTimeout(t); setCalcMiles(false) }
+  }, [form.origin, form.dest])
 
   const handleDocUpload = useCallback(async (loadId, file, type) => {
     if (!file) return
@@ -921,7 +946,7 @@ export function BookedLoads() {
           <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap: 10, marginBottom: 12 }}>
             {[
               { key: 'rate',      label: 'Total Rate ($)', ph: '3500' },
-              { key: 'miles',     label: 'Miles',          ph: '674' },
+              { key: 'miles',     label: calcMiles ? 'Calculating...' : 'Miles', ph: calcMiles ? '...' : '674' },
               { key: 'weight',    label: 'Weight (lbs)',   ph: '42000' },
               { key: 'commodity', label: 'Commodity',      ph: 'Auto Parts' },
             ].map(f => (

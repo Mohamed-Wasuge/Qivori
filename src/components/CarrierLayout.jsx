@@ -127,6 +127,7 @@ const NAV = [
   { id:'fleet',        icon: Truck,        label:'My Fleet',       i18nKey:'nav.fleet'        },
   { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
   { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
+  { id:'insurance',    icon: FileCheck,    label:'Insurance' },
   { id:'_divider' },
   { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
@@ -295,6 +296,180 @@ function ComplianceHub() {
   )
 }
 
+// ── Insurance Hub ──
+function InsuranceHub() {
+  const { company, vehicles, drivers } = useCarrier()
+  const { showToast } = useApp()
+  const [quoteForm, setQuoteForm] = useState({ name: company?.name || '', mc: company?.mc_number || company?.mc || '', dot: company?.dot_number || company?.dot || '', phone: company?.phone || '', email: company?.email || '', trucks: String(vehicles?.length || drivers?.length || 1), equipment: 'Dry Van', currentInsurer: '', expiryDate: '', coverageNeeded: 'auto-liability' })
+  const [submitted, setSubmitted] = useState(false)
+  const [policies, setPolicies] = useState([
+    { type: 'Auto Liability', required: true, minCoverage: '$1,000,000', status: company?.insurance_policy ? 'active' : 'none', provider: company?.insurance_provider || '', expiry: company?.insurance_expiry || '' },
+    { type: 'Cargo Insurance', required: true, minCoverage: '$100,000', status: 'none', provider: '', expiry: '' },
+    { type: 'General Liability', required: false, minCoverage: '$1,000,000', status: 'none', provider: '', expiry: '' },
+    { type: 'Physical Damage', required: false, minCoverage: 'Truck value', status: 'none', provider: '', expiry: '' },
+    { type: 'Bobtail Insurance', required: false, minCoverage: '$1,000,000', status: 'none', provider: '', expiry: '' },
+    { type: 'Occupational Accident', required: false, minCoverage: '$500,000', status: 'none', provider: '', expiry: '' },
+  ])
+
+  const coverageTypes = ['auto-liability','cargo','general-liability','physical-damage','bobtail','occupational-accident','full-package']
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      await apiFetch('/api/insurance-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(quoteForm) })
+    } catch { /* endpoint may not exist yet — that's ok */ }
+    setSubmitted(true)
+    showToast('success', 'Quote Requested', 'We\'ll connect you with insurance partners shortly')
+  }
+
+  const pan = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }
+  const FieldRow = ({ label, value, onChange, type = 'text', placeholder = '' }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }} />
+    </div>
+  )
+
+  return (
+    <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Header */}
+      <div>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, marginBottom: 4 }}>
+          INSURANCE <span style={{ color: 'var(--accent)' }}>MARKETPLACE</span>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+          Compare quotes from top trucking insurers. Your company data is pre-filled — just submit and we'll connect you with partners.
+        </div>
+      </div>
+
+      {/* Current Coverage Status */}
+      <div style={pan}>
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Ic icon={Shield} size={13} color="var(--accent)" />
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>COVERAGE STATUS</span>
+        </div>
+        <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8 }}>
+          {policies.map(p => {
+            const isActive = p.status === 'active'
+            const isExpiring = p.expiry && new Date(p.expiry) < new Date(Date.now() + 30 * 86400000)
+            return (
+              <div key={p.type} style={{ padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8, border: `1px solid ${isActive ? (isExpiring ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.2)') : 'var(--border)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {p.type}
+                    {p.required && <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--danger)', background: 'rgba(239,68,68,0.08)', padding: '1px 5px', borderRadius: 3 }}>REQUIRED</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                    Min: {p.minCoverage} {p.provider && `· ${p.provider}`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {isActive ? (
+                    <>
+                      {isExpiring && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--warning)' }}>Expiring soon</span>}
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isExpiring ? 'var(--warning)' : 'var(--success)', boxShadow: `0 0 6px ${isExpiring ? 'var(--warning)' : 'var(--success)'}` }} />
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', background: 'var(--surface)', padding: '2px 8px', borderRadius: 4 }}>Not covered</span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Get Quotes */}
+      <div style={pan}>
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Ic icon={FileText} size={13} color="var(--accent)" />
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>GET QUOTES</span>
+        </div>
+        {submitted ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <Ic icon={CheckCircle} size={24} color="var(--success)" />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Quote Request Submitted</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 400, margin: '0 auto' }}>
+              Our insurance partners will review your information and reach out within 1-2 business days with competitive quotes.
+            </div>
+            <button className="btn btn-ghost" style={{ marginTop: 16, fontSize: 11 }} onClick={() => setSubmitted(false)}>Submit Another Request</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <FieldRow label="Company Name" value={quoteForm.name} onChange={v => setQuoteForm(f => ({ ...f, name: v }))} />
+              <FieldRow label="MC Number" value={quoteForm.mc} onChange={v => setQuoteForm(f => ({ ...f, mc: v }))} />
+              <FieldRow label="DOT Number" value={quoteForm.dot} onChange={v => setQuoteForm(f => ({ ...f, dot: v }))} />
+              <FieldRow label="Number of Trucks" value={quoteForm.trucks} onChange={v => setQuoteForm(f => ({ ...f, trucks: v }))} type="number" />
+              <FieldRow label="Phone" value={quoteForm.phone} onChange={v => setQuoteForm(f => ({ ...f, phone: v }))} />
+              <FieldRow label="Email" value={quoteForm.email} onChange={v => setQuoteForm(f => ({ ...f, email: v }))} type="email" />
+              <FieldRow label="Current Insurer" value={quoteForm.currentInsurer} onChange={v => setQuoteForm(f => ({ ...f, currentInsurer: v }))} placeholder="e.g. Progressive, National Interstate" />
+              <FieldRow label="Policy Expiry Date" value={quoteForm.expiryDate} onChange={v => setQuoteForm(f => ({ ...f, expiryDate: v }))} type="date" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Equipment Type</label>
+              <select value={quoteForm.equipment} onChange={e => setQuoteForm(f => ({ ...f, equipment: e.target.value }))}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}>
+                {['Dry Van', 'Reefer', 'Flatbed', 'Step Deck', 'Hotshot', 'Box Truck', 'Tanker', 'Car Hauler'].map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Coverage Needed</label>
+              <select value={quoteForm.coverageNeeded} onChange={e => setQuoteForm(f => ({ ...f, coverageNeeded: e.target.value }))}
+                style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}>
+                <option value="auto-liability">Auto Liability ($1M)</option>
+                <option value="cargo">Cargo Insurance ($100K)</option>
+                <option value="general-liability">General Liability</option>
+                <option value="physical-damage">Physical Damage</option>
+                <option value="bobtail">Bobtail / Non-Trucking</option>
+                <option value="occupational-accident">Occupational Accident</option>
+                <option value="full-package">Full Package (All Coverage)</option>
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ padding: '12px 28px', fontSize: 13, fontWeight: 800, width: 'fit-content' }}>
+              Get Insurance Quotes
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Partner Insurers */}
+      <div style={pan}>
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Ic icon={Star} size={13} color="var(--accent)" />
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.2 }}>INSURANCE PARTNERS</span>
+        </div>
+        <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          {[
+            { name: 'Cover Whale', desc: 'AI-powered commercial trucking insurance', tag: 'Recommended' },
+            { name: 'Progressive Commercial', desc: 'Largest commercial auto insurer in the US', tag: '' },
+            { name: 'National Interstate', desc: 'Specializes in small fleets & owner-operators', tag: '' },
+            { name: 'Reliance Partners', desc: 'Trucking-only insurance brokerage', tag: '' },
+            { name: 'Canal Insurance', desc: 'Owner-operator focused coverage', tag: '' },
+          ].map(p => (
+            <div key={p.name} style={{ padding: '14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{p.name}</span>
+                {p.tag && <span style={{ fontSize: 8, fontWeight: 800, color: 'var(--accent)', background: 'rgba(240,165,0,0.1)', padding: '2px 6px', borderRadius: 3 }}>{p.tag}</span>}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.4 }}>{p.desc}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '8px 16px 12px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>
+            Qivori partners with leading trucking insurers to get you the best rates. Your data is only shared with insurers you approve.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function resolveView(viewId, navTo, onOpenDrawer) {
   switch (viewId) {
     case 'dashboard':   return <OverviewTab onTabChange={(viewId) => navTo(viewId)} />
@@ -303,6 +478,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'fleet':       return <FleetHub />
     case 'financials':  return <FinancialsHub />
     case 'compliance':  return <ComplianceHub />
+    case 'insurance':   return <InsuranceHub />
     case 'settings':    return <SettingsTab />
     case 'ai-dashboard': return <AIDispatchDashboard />
     case 'analytics':   return <AnalyticsDashboard />

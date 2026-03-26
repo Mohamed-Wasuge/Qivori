@@ -2,10 +2,8 @@ import { React, useState, useRef, useEffect, useMemo, useCallback, Ic, S, StatCa
 import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff } from 'lucide-react'
 import { uploadFile } from '../../lib/storage'
 import { createDocument } from '../../lib/database'
-import { FleetMapGoogle } from './FleetMapGoogle'
-
-// Re-export the Google Maps fleet map as FleetMap
-export { FleetMapGoogle as FleetMap }
+// FleetMapGoogle is exported directly from FleetMapGoogle.jsx
+// Do NOT re-export it here to avoid circular chunk initialization issues
 
 // ─── FLEET MAP CONSTANTS ──────────────────────────────────────────────────────
 const CITIES = {

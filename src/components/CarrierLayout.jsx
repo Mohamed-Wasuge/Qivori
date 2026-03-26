@@ -15,7 +15,8 @@ import Toast from './Toast'
 import { SmartDispatch, LaneIntel, CommandCenter, AILoadBoard, CheckCallCenter, DATAlertBot, RateNegotiation, RateBadge } from '../pages/carrier/LoadBoard'
 import { DriverSettlement, DriverProfiles, DriverOnboarding, DriverScorecard, DriverPayReport } from '../pages/carrier/DriverScorecard'
 import { CarrierIFTA, CarrierDVIR, CarrierClearinghouse } from '../pages/carrier/Compliance'
-import { FleetMap, FleetManager, FuelOptimizer, EquipmentManager } from '../pages/carrier/Fleet'
+import { FleetMapGoogle as FleetMap } from '../pages/carrier/FleetMapGoogle'
+import { FleetManager, FuelOptimizer, EquipmentManager } from '../pages/carrier/Fleet'
 import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker, FactoringCashflow, CashFlowForecaster, PLDashboard, ReceivablesAging, CashRunway, QuickBooksExport, AnalyticsDashboard, InvoicesHub } from '../pages/carrier/Finance'
 import { CarrierPackage, ReferralProgram, SMSSettings, InvoicingSettings, TeamManagement } from '../pages/carrier/Settings'
 import { apiFetch } from '../lib/api'
@@ -501,7 +502,7 @@ function CarrierLayoutInner() {
                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo first truck</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
-                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$75</span>/mo each additional truck
+                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$79</span>/mo each additional truck
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
                   Everything included. AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks.

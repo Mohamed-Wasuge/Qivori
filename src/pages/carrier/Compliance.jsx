@@ -490,6 +490,13 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
     return result
   }, [ctxDrivers, eldStats.driverHOS])
 
+  // Clearinghouse state — declared before complianceMatrix which depends on chOrders
+  const [chDriver, setChDriver] = useState('')
+  const [chType, setChType] = useState('Pre-Employment')
+  const [chConsent, setChConsent] = useState(false)
+  const [chOrders, setChOrders] = useState([])
+  const [chLoading, setChLoading] = useState(true)
+
   // Build driver compliance matrix from real data
   const complianceMatrix = useMemo(() => {
     const drivers = ctxDrivers || []
@@ -572,13 +579,6 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
       return b
     })
   }, [fmcsaBasics])
-
-  // Clearinghouse state — uses real drivers from CarrierContext
-  const [chDriver, setChDriver] = useState('')
-  const [chType, setChType] = useState('Pre-Employment')
-  const [chConsent, setChConsent] = useState(false)
-  const [chOrders, setChOrders] = useState([])
-  const [chLoading, setChLoading] = useState(true)
 
   // Load clearinghouse queries from Supabase on mount
   useEffect(() => {

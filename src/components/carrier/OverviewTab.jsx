@@ -444,6 +444,8 @@ export function OverviewTab({ onTabChange }) {
 
   // Revenue goal tracking
   const weeklyGoal = company?.revenue_goal_weekly || 5000
+  const [editingWeeklyGoal, setEditingWeeklyGoal] = useState(false)
+  const [weeklyGoalInput, setWeeklyGoalInput] = useState(String(weeklyGoal))
   const goalPct = weeklyGoal > 0 ? Math.min(Math.round((thisWeekProfit / weeklyGoal) * 100), 100) : 0
   const goalRemaining = Math.max(weeklyGoal - thisWeekProfit, 0)
 
@@ -811,9 +813,12 @@ export function OverviewTab({ onTabChange }) {
             <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => onTabChange('loads')}>Pipeline</button>
           </div>
           {loadAlerts.length === 0 ? (
-            <div style={{ padding:'20px 14px', textAlign:'center' }}>
-              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
-                {loads.length === 0 ? 'Q has not deployed any loads yet. Activate Q to begin scanning the market.' : 'All loads on track. Q is monitoring — no action required.'}
+            <div style={{ padding:'14px', display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:28, height:28, borderRadius:7, background: loads.length === 0 ? 'rgba(240,165,0,0.08)' : 'rgba(34,197,94,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Ic icon={loads.length === 0 ? Radio : CheckCircle} size={13} color={loads.length === 0 ? 'var(--accent)' : 'var(--success)'} />
+              </div>
+              <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.4 }}>
+                {loads.length === 0 ? <><strong style={{ color:'var(--accent)' }}>No loads yet.</strong> Activate Q to scan the market.</> : <><strong style={{ color:'var(--success)' }}>All clear.</strong> Q is monitoring — no action needed.</>}
               </div>
             </div>
           ) : loadAlerts.slice(0,4).map((la, i) => (
@@ -889,10 +894,10 @@ export function OverviewTab({ onTabChange }) {
         </div>
         <div style={{ padding:'12px 14px', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:10 }}>
           {[
-            { label:'REVENUE', value: fmtMoney(totalRevenue), color:'var(--accent)', sub:'MTD' },
-            { label:'PROFIT', value: fmtMoney(totalRevenue - totalExpenses), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', sub:`${margin}% margin` },
-            { label:'FUEL', value: fuelTotal > 0 ? fmtMoney(fuelTotal) : `$${(fuelCostPerMile || 0).toFixed(2)}/mi`, color:'var(--warning)', sub: fuelTotal > 0 ? 'MTD spend' : 'Per mile' },
-            { label:'UNPAID', value: unpaidInvoices.length > 0 ? fmtMoney(unpaidInvoices.reduce((s,i) => s + (parseFloat(i.amount)||0), 0)) : '$0', color: unpaidInvoices.length > 0 ? 'var(--accent)' : 'var(--success)', sub: `${unpaidInvoices.length} invoice${unpaidInvoices.length !== 1 ? 's' : ''}` },
+            { label:'REVENUE', value: fmtMoney(totalRevenue), color:'var(--accent)', sub: totalRevenue > 0 ? 'MTD' : 'Book your first load' },
+            { label:'PROFIT', value: fmtMoney(totalRevenue - totalExpenses), color: (totalRevenue - totalExpenses) >= 0 ? 'var(--success)' : 'var(--danger)', sub: totalRevenue > 0 ? `${margin}% margin` : 'Starts after delivery' },
+            { label:'FUEL', value: fuelTotal > 0 ? fmtMoney(fuelTotal) : `$${(fuelCostPerMile || 0).toFixed(2)}/mi`, color:'var(--warning)', sub: fuelTotal > 0 ? 'MTD spend' : 'Per mile (EIA avg)' },
+            { label:'UNPAID', value: unpaidInvoices.length > 0 ? fmtMoney(unpaidInvoices.reduce((s,i) => s + (parseFloat(i.amount)||0), 0)) : '$0', color: unpaidInvoices.length > 0 ? 'var(--accent)' : 'var(--success)', sub: unpaidInvoices.length > 0 ? `${unpaidInvoices.length} invoice${unpaidInvoices.length !== 1 ? 's' : ''}` : 'All clear' },
           ].map(f => (
             <div key={f.label} style={{ textAlign:'center', padding:'8px 4px', background:'var(--surface2)', borderRadius:8 }}>
               <div style={{ fontSize:8, fontWeight:800, color:'var(--muted)', letterSpacing:1.5, marginBottom:4 }}>{f.label}</div>
@@ -988,17 +993,23 @@ export function OverviewTab({ onTabChange }) {
           <span style={{ fontSize:9, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace" }}>{now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}</span>
         </div>
         <div style={{ padding:10, display:'flex', flexDirection:'column', gap:6 }}>
-          {dailyBriefing.map((b, i) => (
+          {dailyBriefing.map((b, i) => {
+            const isDanger = b.color === 'var(--danger)'
+            return (
             <div key={i} onClick={() => onTabChange(b.nav)} style={{
-              padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
-              background: b.color === 'var(--danger)' ? 'rgba(239,68,68,0.04)' : b.color === 'var(--warning)' ? 'rgba(245,158,11,0.04)' : 'rgba(34,197,94,0.04)',
-              borderLeft:'2px solid ' + b.color
+              padding: isDanger ? '10px 14px' : '8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+              background: isDanger ? 'rgba(239,68,68,0.08)' : b.color === 'var(--warning)' ? 'rgba(245,158,11,0.04)' : 'rgba(34,197,94,0.04)',
+              borderLeft: `${isDanger ? 3 : 2}px solid ${b.color}`,
+              boxShadow: isDanger ? '0 2px 12px rgba(239,68,68,0.08)' : 'none',
             }}>
-              <Ic icon={b.icon} size={13} color={b.color} />
-              <span style={{ flex:1, fontSize:11, fontWeight:600 }}>{b.text}</span>
-              <span style={{ fontSize:10, color:'var(--accent)', fontWeight:700, flexShrink:0 }}>{b.action}</span>
+              <div style={{ width: isDanger ? 28 : 20, height: isDanger ? 28 : 20, borderRadius: isDanger ? 7 : 5, background:b.color+'15', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Ic icon={b.icon} size={isDanger ? 14 : 13} color={b.color} />
+              </div>
+              <span style={{ flex:1, fontSize: isDanger ? 12 : 11, fontWeight: isDanger ? 700 : 600 }}>{b.text}</span>
+              <span style={{ fontSize:10, color:'var(--accent)', fontWeight:700, flexShrink:0, padding:'4px 10px', background:'rgba(240,165,0,0.08)', borderRadius:5 }}>{b.action}</span>
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -1048,15 +1059,34 @@ export function OverviewTab({ onTabChange }) {
 
         {/* Progress Tracking */}
         <div style={pan}>
-          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
-            <Ic icon={Target} size={12} color="var(--accent)" />
-            <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2 }}>WEEKLY GOAL</span>
+          <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <Ic icon={Target} size={12} color="var(--accent)" />
+              <span style={{ fontSize:10, fontWeight:800, letterSpacing:1.2 }}>WEEKLY GOAL</span>
+            </div>
+            <button className="btn btn-ghost" style={{ fontSize:9 }} onClick={() => setEditingWeeklyGoal(!editingWeeklyGoal)}>
+              {editingWeeklyGoal ? 'Cancel' : 'Edit'}
+            </button>
           </div>
           <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
-              <span className="mono" style={{ fontSize:20, fontWeight:700, color: goalPct >= 100 ? 'var(--success)' : goalPct >= 50 ? 'var(--accent)' : 'var(--danger)' }}>${thisWeekProfit.toLocaleString()}</span>
-              <span style={{ fontSize:11, color:'var(--muted)' }}>/ ${weeklyGoal.toLocaleString()}</span>
-            </div>
+            {editingWeeklyGoal ? (
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>$</span>
+                <input type="number" value={weeklyGoalInput} onChange={e => setWeeklyGoalInput(e.target.value)} min="0" step="500"
+                  style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'6px 10px', color:'var(--text)', fontSize:14, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", outline:'none' }} />
+                <button className="btn btn-primary" style={{ fontSize:10, padding:'6px 14px' }} onClick={() => {
+                  const val = parseInt(weeklyGoalInput) || 5000
+                  updateCompany({ revenue_goal_weekly: val })
+                  showToast('success', 'Goal Set', `Weekly target: $${val.toLocaleString()}`)
+                  setEditingWeeklyGoal(false)
+                }}>Save</button>
+              </div>
+            ) : (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
+                <span className="mono" style={{ fontSize:20, fontWeight:700, color: goalPct >= 100 ? 'var(--success)' : goalPct >= 50 ? 'var(--accent)' : 'var(--danger)' }}>${thisWeekProfit.toLocaleString()}</span>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>/ ${weeklyGoal.toLocaleString()}</span>
+              </div>
+            )}
             <div style={{ height:8, background:'var(--border)', borderRadius:4, overflow:'hidden' }}>
               <div style={{ width: Math.max(goalPct, 2) + '%', height:'100%', background: goalPct >= 100 ? 'var(--success)' : goalPct >= 50 ? 'var(--accent)' : 'var(--danger)', borderRadius:4, transition:'width 0.5s' }} />
             </div>

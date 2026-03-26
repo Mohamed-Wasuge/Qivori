@@ -72,7 +72,13 @@ export function SmartDispatch() {
         })
         const data = await res.json()
         if (data.ok && data.miles > 0) {
-          setQuickRoute({ miles: data.miles, durationText: data.durationText, drivingDays: data.drivingDays, origin: o, destination: d })
+          setQuickRoute({
+            miles: data.miles, durationText: data.durationText, drivingDays: data.drivingDays,
+            origin: o, destination: d,
+            fuelCost: data.fuel?.cost || 0, fuelGallons: data.fuel?.gallons || 0, dieselPrice: data.fuel?.dieselPrice || 0,
+            hasTolls: data.tolls?.hasTolls || false, tollEstimate: data.tolls?.estimate || 0,
+            totalTripCost: data.totalTripCost || 0,
+          })
         } else { setQuickRoute(null) }
       } catch { setQuickRoute(null) }
       setQuickRouteLoading(false)
@@ -419,26 +425,40 @@ export function SmartDispatch() {
 
         {/* Quick mileage result */}
         {(quickRoute || quickRouteLoading) && (
-          <div style={{ padding:'6px 12px', borderBottom:'1px solid var(--border)', background:'rgba(0,212,170,0.04)', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+          <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)', background:'rgba(0,212,170,0.04)' }}>
             {quickRouteLoading ? (
               <span style={{ fontSize:11, color:'var(--muted)' }}>Calculating route...</span>
             ) : quickRoute && (
               <>
-                <span style={{ fontSize:11, color:'var(--muted)' }}>
-                  <Route size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
-                  <b style={{ color:'var(--accent)', fontSize:14, fontFamily:"'Bebas Neue',sans-serif" }}>{quickRoute.miles.toLocaleString()}</b> miles
-                </span>
-                <span style={{ fontSize:11, color:'var(--muted)' }}>
-                  <Clock size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
-                  <b style={{ color:'var(--text)' }}>{quickRoute.durationText}</b> drive
-                </span>
-                <span style={{ fontSize:11, color:'var(--muted)' }}>
-                  <Truck size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
-                  <b style={{ color:'var(--text)' }}>{quickRoute.drivingDays}</b> {quickRoute.drivingDays === 1 ? 'day' : 'days'} (HOS)
-                </span>
-                <button onClick={() => setShowMap(m => !m)} style={{ marginLeft:'auto', background:'none', border:'1px solid var(--border)', borderRadius:6, padding:'3px 10px', color: showMap ? 'var(--accent)' : 'var(--muted)', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-                  <Navigation size={10} style={{ verticalAlign:'middle', marginRight:4 }} />{showMap ? 'Hide Map' : 'Show Map'}
-                </button>
+                <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+                  <span style={{ fontSize:11, color:'var(--muted)' }}>
+                    <Route size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
+                    <b style={{ color:'var(--accent)', fontSize:14, fontFamily:"'Bebas Neue',sans-serif" }}>{quickRoute.miles.toLocaleString()}</b> miles
+                  </span>
+                  <span style={{ fontSize:11, color:'var(--muted)' }}>
+                    <Clock size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
+                    <b style={{ color:'var(--text)' }}>{quickRoute.durationText}</b> drive
+                  </span>
+                  <span style={{ fontSize:11, color:'var(--muted)' }}>
+                    <Truck size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
+                    <b style={{ color:'var(--text)' }}>{quickRoute.drivingDays}</b> {quickRoute.drivingDays === 1 ? 'day' : 'days'} (HOS)
+                  </span>
+                  <span style={{ fontSize:11, color:'var(--muted)' }}>
+                    ⛽ <b style={{ color:'var(--danger)' }}>${quickRoute.fuelCost.toLocaleString()}</b> fuel
+                    <span style={{ fontSize:9, color:'var(--muted)', marginLeft:4 }}>({quickRoute.fuelGallons}gal @ ${quickRoute.dieselPrice}/gal)</span>
+                  </span>
+                  {quickRoute.hasTolls && (
+                    <span style={{ fontSize:11, color:'var(--muted)' }}>
+                      🛣️ <b style={{ color:'var(--accent2)' }}>~${quickRoute.tollEstimate.toLocaleString()}</b> tolls
+                    </span>
+                  )}
+                  <span style={{ fontSize:11, fontWeight:800, color:'var(--text)', background:'rgba(240,165,0,0.1)', padding:'2px 8px', borderRadius:6 }}>
+                    Total: <b style={{ color:'var(--accent)', fontFamily:"'Bebas Neue',sans-serif", fontSize:14 }}>${quickRoute.totalTripCost.toLocaleString()}</b>
+                  </span>
+                  <button onClick={() => setShowMap(m => !m)} style={{ marginLeft:'auto', background:'none', border:'1px solid var(--border)', borderRadius:6, padding:'3px 10px', color: showMap ? 'var(--accent)' : 'var(--muted)', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    <Navigation size={10} style={{ verticalAlign:'middle', marginRight:4 }} />{showMap ? 'Hide Map' : 'Show Map'}
+                  </button>
+                </div>
               </>
             )}
           </div>

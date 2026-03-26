@@ -375,7 +375,6 @@ export function useAIActions(onNavigate) {
             unique.forEach((s, i) => {
               result += `${i + 1}. ${s.name} (${s.type})${s.capacity !== 'Unknown' ? ` — ${s.capacity} spaces` : ''}\n`
             })
-            const first = unique[0]
             window.open(`https://www.google.com/maps/search/truck+parking/@${coords.lat},${coords.lng},11z`, '_blank')
             showToast?.('', 'Truck Parking', `${unique.length} spots found nearby`)
             return result
@@ -603,7 +602,7 @@ export function useAIActions(onNavigate) {
       console.error('[AIAction]', action.type, err)
       return null
     }
-  }, [loads, invoices, activeLoads, company, addLoad, addExpense, updateLoadStatus, updateInvoiceStatus, logCheckCall, showToast, onNavigate])
+  }, [loads, invoices, expenses, activeLoads, company, addLoad, addExpense, updateLoadStatus, updateInvoiceStatus, logCheckCall, showToast, onNavigate])
 
   // Process a full AI reply: parse actions, execute them, return clean text + results
   const processReply = useCallback(async (rawReply) => {

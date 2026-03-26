@@ -654,6 +654,129 @@ export function OverviewTab({ onTabChange }) {
         ))}
       </div>
 
+      {/* ═══ PILOT: OPERATIONS SNAPSHOT ═══════════════════════════════ */}
+      {/* Shows dispatch, compliance, execution, and financial state in one view */}
+      {!isNewCarrier && (
+        <div style={{ ...pan, overflow: 'visible', flexShrink: 0 }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', animation: 'q-online-pulse 2s ease-in-out infinite' }} />
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: 'var(--accent)' }}>OPERATIONS STATUS</span>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0 }}>
+            {/* Dispatch */}
+            {(() => {
+              const booked = loads.filter(l => ['Rate Con Received', 'Booked'].includes(l.status)).length
+              const dispatched = loads.filter(l => ['Assigned to Driver', 'En Route to Pickup', 'Dispatched'].includes(l.status)).length
+              const transit = loads.filter(l => ['Loaded', 'In Transit', 'At Pickup', 'At Delivery'].includes(l.status)).length
+              return (
+                <div onClick={() => onTabChange('loads')} style={{ padding: '12px 14px', borderRight: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, marginBottom: 6 }}>DISPATCH</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Booked</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: booked > 0 ? 'var(--accent)' : 'var(--muted)' }}>{booked}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Dispatched</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: dispatched > 0 ? 'var(--accent2)' : 'var(--muted)' }}>{dispatched}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>In Transit</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: transit > 0 ? 'var(--success)' : 'var(--muted)' }}>{transit}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+            {/* Compliance */}
+            {(() => {
+              const expiredCDL = drivers.filter(d => {
+                const exp = d.cdl_expiry || d.license_expiry
+                return exp && new Date(exp) < new Date()
+              }).length
+              const expiredMed = drivers.filter(d => {
+                const exp = d.medical_card_expiry || d.med_card_expiry
+                return exp && new Date(exp) < new Date()
+              }).length
+              const issues = expiredCDL + expiredMed
+              return (
+                <div onClick={() => onTabChange('compliance')} style={{ padding: '12px 14px', borderRight: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, marginBottom: 6 }}>COMPLIANCE</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Status</span>
+                      <span style={{ fontWeight: 700, fontSize: 9, color: issues > 0 ? '#ef4444' : '#22c55e', background: issues > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', padding: '1px 6px', borderRadius: 4 }}>
+                        {issues > 0 ? `${issues} FAIL` : 'CLEAR'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>CDL</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: expiredCDL > 0 ? '#ef4444' : 'var(--muted)' }}>{expiredCDL > 0 ? `${expiredCDL} expired` : 'OK'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Medical</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: expiredMed > 0 ? '#ef4444' : 'var(--muted)' }}>{expiredMed > 0 ? `${expiredMed} expired` : 'OK'}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+            {/* Execution */}
+            {(() => {
+              const delivered = loads.filter(l => l.status === 'Delivered').length
+              const invoiced = loads.filter(l => l.status === 'Invoiced').length
+              const paid = loads.filter(l => l.status === 'Paid').length
+              return (
+                <div onClick={() => onTabChange('loads')} style={{ padding: '12px 14px', borderRight: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, marginBottom: 6 }}>EXECUTION</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Delivered</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: delivered > 0 ? 'var(--accent2)' : 'var(--muted)' }}>{delivered}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Invoiced</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: invoiced > 0 ? 'var(--accent)' : 'var(--muted)' }}>{invoiced}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Paid</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: paid > 0 ? 'var(--success)' : 'var(--muted)' }}>{paid}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+            {/* Financial */}
+            {(() => {
+              const unpaidTotal = unpaidInvoices.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+              const paidInvs = invoices.filter(i => i.status === 'Paid')
+              const collected = paidInvs.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+              return (
+                <div onClick={() => onTabChange('financials')} style={{ padding: '12px 14px', cursor: 'pointer' }}>
+                  <div style={{ fontSize: 8, fontWeight: 800, color: 'var(--muted)', letterSpacing: 1, marginBottom: 6 }}>FINANCIAL</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Unpaid</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: unpaidTotal > 0 ? 'var(--warning)' : 'var(--muted)' }}>${unpaidTotal > 0 ? unpaidTotal.toLocaleString() : '0'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Collected</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: collected > 0 ? 'var(--success)' : 'var(--muted)' }}>${collected > 0 ? collected.toLocaleString() : '0'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                      <span style={{ color: 'var(--muted)' }}>Margin</span>
+                      <span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono',monospace", color: parseFloat(margin) >= 25 ? 'var(--success)' : parseFloat(margin) >= 15 ? 'var(--accent)' : '#ef4444' }}>{margin}%</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ═══ 4. Q ACTIONS ══════════════════════════════════════════════ */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:10, flexShrink:0 }}>
         {qActions.slice(0,5).map((a, i) => (

@@ -189,7 +189,7 @@ const es = {
   'landing.autopilotAI': 'Autopilot AI',
   'landing.autopilotAISub': 'Autonomia total con IA',
   'landing.1truckOnly': 'Solo 1 camion',
-  'landing.perExtraTruck': '+$75/mes por camion adicional',
+  'landing.perExtraTruck': '+$79/mes por camion adicional',
 
   // Plan features
   'landing.planFeat.aiLoadBoardScoring': 'Tablero de Cargas IA y Calificacion',

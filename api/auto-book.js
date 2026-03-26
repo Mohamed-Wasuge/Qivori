@@ -1,6 +1,7 @@
 // api/auto-book.js — Autonomous load booking: create load, assign driver, invoice, log
 // Called when dispatch engine decision = auto_book
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { validateDispatch, createFetchers } from './_lib/compliance.js'
 
 export const config = { runtime: 'edge' }
 
@@ -120,45 +121,42 @@ export default async function handler(req) {
       timeline.push({ step: 'compliance_check', time: new Date().toISOString(), detail: `Running compliance check for ${driverName}...` })
 
       try {
-        // Check driver compliance: CDL, medical, drug test, availability
-        const dRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driver.id}&select=cdl_expiry,license_expiry,medical_card_expiry,med_card_expiry,is_available,availability_status&limit=1`,
-          { headers: sbHeaders() }
-        )
-        const dData = dRes.ok ? (await dRes.json())?.[0] : null
-        const failing = []
+        const cf = createFetchers(SUPABASE_URL, SERVICE_KEY)
 
-        if (dData) {
-          const daysUntil = (d) => { if (!d) return null; return Math.round((new Date(d) - new Date()) / 86400000) }
-          const cdlDays = daysUntil(dData.cdl_expiry || dData.license_expiry)
-          const medDays = daysUntil(dData.medical_card_expiry || dData.med_card_expiry)
-          if (cdlDays !== null && cdlDays < 0) failing.push(`CDL expired ${Math.abs(cdlDays)}d ago`)
-          if (medDays !== null && medDays < 0) failing.push(`Medical card expired ${Math.abs(medDays)}d ago`)
-          if (dData.is_available === false) failing.push(`Driver status: ${dData.availability_status || 'unavailable'}`)
-        }
+        // Fetch compliance data in parallel
+        const [settings, clearinghouseResult, hosHoursLeft] = await Promise.all([
+          cf.fetchSettings(user.id),
+          cf.fetchClearinghouse(user.id, driverName),
+          cf.fetchHOSHoursLeft(user.id, driverName),
+        ])
 
-        // Check clearinghouse
-        const chRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/clearinghouse_queries?owner_id=eq.${user.id}&driver_name=eq.${encodeURIComponent(driverName)}&order=created_at.desc&limit=1`,
-          { headers: sbHeaders() }
-        ).catch(() => null)
-        if (chRes?.ok) {
-          const ch = (await chRes.json())?.[0]
-          if (ch && (ch.result === 'Positive' || ch.result === 'Refused')) {
-            failing.push(`Drug test: ${ch.result}`)
-          }
-        }
+        // Run shared compliance validation
+        const compliance = validateDispatch({
+          driver,
+          vehicle: null,
+          clearinghouseResult,
+          hosHoursLeft,
+          dvirResult: null,
+          settings,
+          load,
+        })
 
-        if (failing.length > 0) {
-          complianceResult = { status: 'fail', failing }
+        complianceResult = compliance
+
+        if (compliance.compliance_status === 'BLOCKED') {
           timeline.push({
             step: 'compliance_blocked',
             time: new Date().toISOString(),
-            detail: `⚠️ COMPLIANCE BLOCK: ${failing.join('; ')} — driver cannot be dispatched`,
+            detail: `⚠️ COMPLIANCE BLOCK: ${compliance.violations.map(v => v.detail).join('; ')} — driver cannot be dispatched`,
           })
           driverAssigned = false // DO NOT assign this driver
+        } else if (compliance.compliance_status === 'RISK') {
+          timeline.push({
+            step: 'compliance_warning',
+            time: new Date().toISOString(),
+            detail: `⚠ Compliance warnings: ${compliance.warnings.map(w => w.detail).join('; ')} — proceeding with caution`,
+          })
         } else {
-          complianceResult = { status: 'pass', failing: [] }
           timeline.push({
             step: 'compliance_passed',
             time: new Date().toISOString(),
@@ -175,7 +173,7 @@ export default async function handler(req) {
       time: new Date().toISOString(),
       detail: driverAssigned
         ? `Assigned to ${driverName} — ${driver.license_class || 'CDL-A'} · ${driver.license_state || '??'} · ${driver.driver_type === 'owner_operator' ? 'O/O' : 'Company'} · ${driver.equipment_experience || 'General'}`
-        : complianceResult?.status === 'fail'
+        : complianceResult?.compliance_status === 'BLOCKED'
         ? `${driverName} blocked by compliance — load booked unassigned`
         : 'No available driver — load booked unassigned',
     })

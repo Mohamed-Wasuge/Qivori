@@ -215,11 +215,11 @@ export default function MobileMoneyTab({ initialSubTab }) {
   }
 
   const factorInvoice = async (inv) => {
-    const factoringRate = ctx.carrierCompany?.factoring_rate || 2.5
+    const factoringRate = ctx.company?.factoring_rate || 2.5
     const fee = Math.round(inv.amount * factoringRate / 100)
     const net = inv.amount - fee
-    const factoringCompany = ctx.carrierCompany?.factoring_company || 'Factoring Company'
-    const factoringEmail = ctx.carrierCompany?.factoring_email || ''
+    const factoringCompany = ctx.company?.factoring_company || 'Factoring Company'
+    const factoringEmail = ctx.company?.factoring_email || ''
     if (factoringEmail) {
       try {
         await apiFetch('/api/send-invoice', {
@@ -228,7 +228,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
             to: factoringEmail, invoiceNumber: `${inv.invoice_number || inv.id} — FACTORING`,
             loadNumber: inv.load_number || inv.loadId || '', route: inv.route || '',
             amount: inv.amount || 0, dueDate: 'Same-day / 24hr deposit',
-            brokerName: inv.broker || '', carrierName: ctx.carrierCompany?.company_name || 'Carrier',
+            brokerName: inv.broker || '', carrierName: ctx.company?.company_name || 'Carrier',
           }),
         })
       } catch {}
@@ -746,10 +746,10 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
       {/* Factor confirmation modal */}
       {factorModal && (() => {
-        const factoringRate = ctx.carrierCompany?.factoring_rate || 2.5
+        const factoringRate = ctx.company?.factoring_rate || 2.5
         const fee = Math.round(factorModal.amount * factoringRate / 100)
         const net = factorModal.amount - fee
-        const company = ctx.carrierCompany?.factoring_company || 'Your Factoring Company'
+        const company = ctx.company?.factoring_company || 'Your Factoring Company'
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
             onClick={() => setFactorModal(null)}>

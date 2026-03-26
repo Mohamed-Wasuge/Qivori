@@ -5,36 +5,71 @@ import { apiFetch } from '../lib/api'
 
 const PRICING_PLANS = [
   {
-    id: 'autonomous_fleet',
-    name: 'Qivori AI Dispatch',
-    sub: '$199 first truck · $75 each additional · + 3% AI fee per load',
+    id: 'tms_pro',
+    name: 'TMS Pro',
+    sub: 'Core trucking management — no AI',
+    price: '$99',
+    period: '/mo',
+    extraTruck: '$49',
+    color: '#4d8ef0',
+    icon: Zap,
+    features: [
+      'Fleet & dispatch management',
+      'Invoicing & factoring',
+      'IFTA & compliance suite',
+      'Driver portal & scorecards',
+      'Document management',
+      'Fuel optimizer',
+      'Expense tracking',
+      'P&L dashboard',
+    ],
+    limits: [],
+    cta: 'Start Free Trial',
+    stripeId: 'tms_pro',
+  },
+  {
+    id: 'ai_dispatch',
+    name: 'AI Dispatch',
+    sub: 'Q assists — you approve every decision',
     price: '$199',
     period: '/mo',
-    extraTruck: '$75',
+    extraTruck: '$79',
     color: '#f0a500',
-    icon: Crown,
+    icon: Bot,
     popular: true,
     features: [
-      'AI Load Board & Scoring',
-      'AI-Powered Dispatch',
-      'Rate Con OCR Auto-Fill',
-      'Voice AI Assistant',
-      'Fleet Map & GPS Tracking',
-      'P&L Dashboard & Analytics',
-      'IFTA Auto-Filing',
-      'Invoicing & Auto-Factoring',
-      'Fuel Optimizer',
-      'Full Compliance Suite',
-      'Driver Onboarding & Scorecards',
-      'QuickBooks Sync',
-      'Smart Document Handling',
-      'Dedicated Support',
+      'Everything in TMS Pro',
+      'AI load board & scoring',
+      'AI dispatch suggestions',
+      'Rate analysis & lane intel',
+      'Broker risk intelligence',
+      'Market analysis',
+    ],
+    limits: [],
+    cta: 'Start Free Trial',
+    stripeId: 'ai_dispatch',
+  },
+  {
+    id: 'autonomous_fleet',
+    name: 'Autonomous Fleet',
+    sub: 'Fully hands-free AI dispatch — only pay when Q books',
+    price: '3%',
+    period: ' per load',
+    color: '#00d4aa',
+    icon: Crown,
+    features: [
+      'Everything in AI Dispatch',
+      'Voice AI assistant',
+      'Autonomous broker calling',
+      'Auto rate negotiation',
+      'Proactive load finding',
+      'Auto booking & dispatch',
+      'Zero manual work required',
     ],
     limits: [],
     cta: 'Start Free Trial',
     stripeId: 'autonomous_fleet',
-    founder: true,
-    fullPrice: '$299',
+    example: '$2,000 load = $60 AI fee · You keep $1,940',
   },
 ]
 
@@ -84,21 +119,21 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
 
   return (
     <div style={containerStyle}>
-      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
         {!embedded && (
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, letterSpacing: 2, marginBottom: 8 }}>
               SIMPLE, TRANSPARENT PRICING
             </div>
             <div style={{ fontSize: 14, color: 'var(--muted)', maxWidth: 500, margin: '0 auto' }}>
-              One plan. Everything included. No upsells, no hidden fees.
+              Three plans. Choose how much you want Q to handle.
             </div>
           </div>
         )}
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: 16,
         }}>
           {PRICING_PLANS.map(plan => {
@@ -106,25 +141,25 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
             const isLoading = loading === plan.id
             return (
               <div key={plan.id} style={{
-                background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(240,165,0,0.02))',
-                border: `2px solid rgba(240,165,0,0.5)`,
+                background: plan.popular ? `linear-gradient(135deg, ${plan.color}12, ${plan.color}04)` : 'var(--surface)',
+                border: `2px solid ${plan.popular ? `${plan.color}80` : 'var(--border)'}`,
                 borderRadius: 14,
                 padding: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 position: 'relative',
                 overflow: 'hidden',
-                boxShadow: `0 0 24px ${plan.color}15`,
+                boxShadow: plan.popular ? `0 0 24px ${plan.color}15` : 'none',
               }}>
-                {/* Founder badge */}
-                {plan.founder && (
+                {/* Popular badge */}
+                {plan.popular && (
                   <div style={{
                     position: 'absolute', top: 12, right: 12,
                     fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 10,
-                    background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000',
+                    background: plan.color, color: '#000',
                     letterSpacing: 1,
                   }}>
-                    FOUNDER PRICING
+                    MOST POPULAR
                   </div>
                 )}
 
@@ -155,10 +190,9 @@ export default function PricingSection({ embedded = false, onPlanSelect }) {
                       + <span style={{ color: plan.color, fontWeight: 700 }}>{plan.extraTruck}</span>/mo each additional truck
                     </div>
                   )}
-                  {plan.founder && (
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                      <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{plan.fullPrice}/mo after founders</span>
-                      <span style={{ fontSize: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>FOUNDER RATE — LOCKED FOR LIFE</span>
+                  {plan.example && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, fontStyle: 'italic' }}>
+                      {plan.example}
                     </div>
                   )}
                 </div>

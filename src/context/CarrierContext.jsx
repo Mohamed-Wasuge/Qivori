@@ -399,6 +399,16 @@ export function CarrierProvider({ children }) {
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
       try {
         await db.updateLoad(load.id, { status: newStatus })
+        console.log(`[Pilot] Status change: ${load.loadId || load.load_id} — ${load.status} → ${newStatus}`)
+        // Log to audit trail for pilot tracking (fire-and-forget)
+        db.createAuditLog({
+          action: 'load_status_change',
+          entity_type: 'load',
+          entity_id: load.id,
+          old_value: { status: load.status },
+          new_value: { status: newStatus },
+          metadata: { load_id: load.loadId || load.load_id, origin: load.origin, destination: load.dest || load.destination, driver: load.driver },
+        }).catch(() => {})
         // Fire SMS/email notification (fire-and-forget)
         apiFetch('/api/load-status-sms', {
           method: 'POST',
@@ -450,19 +460,25 @@ export function CarrierProvider({ children }) {
         }
 
         if (useDb && !String(l.id).startsWith('mock') && !String(l.id).startsWith('local')) {
-          db.createInvoice({ ...inv, load_id: l._dbId || l.id }).then(dbInv => {
+          const dbLoadId = l.id
+          db.createInvoice({ ...inv, load_id: dbLoadId }).then(dbInv => {
             setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
-          }).catch(err => { console.error('DB operation failed:', err) })
+            console.log(`[Pilot] Invoice created: ${dbInv?.invoice_number} for load ${l.loadId || l.load_number} — $${inv.amount}`)
+            // Auto-advance load to Invoiced after invoice is created
+            db.updateLoad(dbLoadId, { status: 'Invoiced' }).then(() => {
+              setLoads(ls => ls.map(ld => ld.id === dbLoadId ? normalizeLoad({ ...ld, status: 'Invoiced' }) : ld))
+              console.log(`[Pilot] Load auto-advanced to Invoiced: ${l.loadId || l.load_number}`)
+            }).catch(err => console.error('[Pilot] Failed to advance load to Invoiced:', err))
+          }).catch(err => { console.error('[Pilot] Invoice creation failed:', err) })
 
-          // If auto-invoice is enabled, fire the API to email the broker
-          const autoInvoiceSetting = localStorage.getItem('qivori_auto_invoice')
-          if (autoInvoiceSetting === 'true') {
-            apiFetch('/api/auto-invoice', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ loadId: l._dbId || l.id }),
-            }).catch(() => {})
-          }
+          // Always email broker invoice (removed localStorage gate for pilot reliability)
+          apiFetch('/api/auto-invoice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loadId: dbLoadId }),
+          }).then(() => {
+            console.log(`[Pilot] Invoice email sent to broker for load ${l.loadId || l.load_number}`)
+          }).catch(err => { console.error('[Pilot] Invoice email failed:', err) })
 
           // Q Intelligence — charge 3% AI fee on delivered load
           const loadRate = l.gross || l.gross_pay || l.rate || 0
@@ -471,7 +487,7 @@ export function CarrierProvider({ children }) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                loadId: l._dbId || l.id,
+                loadId: dbLoadId,
                 loadNumber: l.loadId || l.load_number,
                 loadRate,
                 origin: l.origin,
@@ -481,9 +497,9 @@ export function CarrierProvider({ children }) {
               }),
             }).then(r => r.json()).then(result => {
               if (result.charged) {
-                console.log(`[Q Intelligence] AI fee charged: $${result.feeAmount} for ${l.loadId || l.load_number}`)
+                console.log(`[Pilot] AI fee charged: $${result.feeAmount} for ${l.loadId || l.load_number}`)
               }
-            }).catch(err => { console.error('[Q Intelligence] Fee charge failed:', err) })
+            }).catch(err => { console.error('[Pilot] AI fee charge failed:', err) })
           }
         } else {
           const fakeInv = normalizeInvoice({
@@ -503,13 +519,20 @@ export function CarrierProvider({ children }) {
     if (demoGuard('assign driver')) return
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.id === loadId)
     if (!load) return
-    const updates = { driver: driverName, driver_name: driverName, status: 'Assigned to Driver' }
+    // DB column is carrier_name, not driver or driver_name
+    const dbUpdates = { carrier_name: driverName, status: 'Assigned to Driver' }
+    const localUpdates = { driver: driverName, driver_name: driverName, carrier_name: driverName, status: 'Assigned to Driver' }
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
-      try { await db.updateLoad(load.id, updates) } catch (e) { console.error('DB assign failed:', e) }
+      try {
+        await db.updateLoad(load.id, dbUpdates)
+        console.log(`[Pilot] Driver assigned: ${driverName} → load ${loadId}`)
+      } catch (e) {
+        console.error('[Pilot] DB assign failed:', e)
+      }
     }
     setLoads(ls => ls.map(l => {
       const match = l.loadId === loadId || l.load_id === loadId || l.id === loadId
-      return match ? normalizeLoad({ ...l, ...updates }) : l
+      return match ? normalizeLoad({ ...l, ...localUpdates }) : l
     }))
   }, [loads, useDb, demoGuard])
 

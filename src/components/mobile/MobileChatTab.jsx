@@ -3147,7 +3147,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
     // ── ACCOUNT MANAGEMENT — upgrade/downgrade plan ──
     if (/\b(upgrade|downgrade|change)\s*(my\s*)?(plan|subscription|account|tier)\b/.test(lowerText) || /\b(upgrade\s*to|switch\s*to)\s*(basic|pro|autopilot|autopilot\s*ai|solo|fleet|enterprise|growing|autonomous)\b/.test(lowerText)) {
-      const targetPlan = { id: 'autonomous_fleet', name: 'Q Platform', price: '$199/mo + $75/truck (founder pricing)' }
+      const targetPlan = { id: 'autonomous_fleet', name: 'Autonomous Fleet', price: '3% per load (only when Q books)' }
       try {
         const res = await apiFetch('/api/create-checkout', {
           method: 'POST',
@@ -3246,7 +3246,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { autonomous_fleet: '$199/mo + $75/truck', autopilot: '$199/mo + $75/truck', autopilot_ai: '$199/mo + $75/truck' }
+      const planPrices = { tms_pro: '$99/mo + $49/truck', ai_dispatch: '$199/mo + $79/truck', autonomous_fleet: '3% per load', autopilot: '$199/mo + $79/truck', autopilot_ai: '3% per load' }
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`

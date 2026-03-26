@@ -5,7 +5,7 @@ import {
   Package, Truck, ChevronRight, ChevronDown, ScanLine, Camera, Plus,
   MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X, FileText, Upload
 } from 'lucide-react'
-import { Ic, haptic, fmt$, statusColor, QInsightCard } from './shared'
+import { Ic, haptic, fmt$, statusColor } from './shared'
 import { apiFetch } from '../../lib/api'
 import { uploadFile } from '../../lib/storage'
 import * as db from '../../lib/database'
@@ -241,29 +241,11 @@ export default function MobileLoadsTab() {
       {/* Load cards */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--muted)' }}>
-            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', animation: 'qBreath 3s ease-in-out infinite' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: 'var(--accent)', fontWeight: 800, lineHeight: 1 }}>Q</span>
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Q has not deployed a load yet</div>
-            <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>Activate Q to begin. Snap a rate confirmation to book instantly, or let Q find your next move.</div>
+          <div style={{ textAlign: 'center', padding: '24px 20px', color: 'var(--muted)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>No loads yet</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>Snap a rate con or let Q find your next move.</div>
           </div>
         )}
-
-        {/* Q Recommendation — shown when loads exist */}
-        {filtered.length > 0 && (() => {
-          const avgRPM = filtered.reduce((s, l) => s + ((l.gross || l.rate || 0) / Math.max(l.miles || 1, 1)), 0) / filtered.length
-          const topLoad = [...filtered].sort((a, b) => ((b.gross || b.rate || 0) / Math.max(b.miles || 1, 1)) - ((a.gross || a.rate || 0) / Math.max(a.miles || 1, 1)))[0]
-          const activeCount = filtered.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length
-          return (
-            <QInsightCard
-              title="Q LOAD INTEL"
-              insight={`${filtered.length} loads displayed · ${activeCount} active · Avg $${avgRPM.toFixed(2)}/mi${topLoad ? ` · Best rate: ${topLoad.origin}→${topLoad.destination || topLoad.dest} at $${((topLoad.gross || topLoad.rate || 0) / Math.max(topLoad.miles || 1, 1)).toFixed(2)}/mi` : ''}`}
-              accent="var(--accent)"
-              style={{ marginBottom: 10 }}
-            />
-          )
-        })()}
 
         {filtered.map((load, index) => {
           const isExpanded = expandedId === (load.id || load.load_id)

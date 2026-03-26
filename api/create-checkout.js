@@ -3,11 +3,13 @@ import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
 export const config = { runtime: 'edge' }
 
 const PLANS = {
-  autonomous_fleet: { name: 'Q Platform', first_truck_cents: 19900, extra_truck_cents: 7500, trial_days: 14 },
+  tms_pro:          { name: 'TMS Pro',          first_truck_cents: 9900,  extra_truck_cents: 4900, trial_days: 14 },
+  ai_dispatch:      { name: 'AI Dispatch',      first_truck_cents: 19900, extra_truck_cents: 7900, trial_days: 14 },
+  autonomous_fleet: { name: 'Autonomous Fleet',  first_truck_cents: 0,     extra_truck_cents: 0,    trial_days: 14, usage_based: true },
 }
 
-// Legacy plan aliases — all old plans redirect to the single plan
-const PLAN_ALIASES = { basic: 'autonomous_fleet', solo: 'autonomous_fleet', pro: 'autonomous_fleet', autopilot: 'autonomous_fleet', autopilot_ai: 'autonomous_fleet', fleet: 'autonomous_fleet', growing: 'autonomous_fleet', enterprise: 'autonomous_fleet', truck_autopilot_ai: 'autonomous_fleet' }
+// Legacy plan aliases
+const PLAN_ALIASES = { basic: 'tms_pro', solo: 'tms_pro', pro: 'ai_dispatch', autopilot: 'ai_dispatch', autopilot_ai: 'autonomous_fleet', fleet: 'autonomous_fleet', growing: 'ai_dispatch', enterprise: 'autonomous_fleet', truck_autopilot_ai: 'autonomous_fleet' }
 
 export default async function handler(req) {
   const corsResponse = handleCors(req)
@@ -30,27 +32,40 @@ export default async function handler(req) {
     const plan = PLANS[resolvedId]
     if (!plan) return Response.json({ error: 'Invalid plan' }, { status: 400, headers: corsHeaders(req) })
 
-    // $199 first truck + $75 each additional (founder pricing)
     const trucks = Math.max(1, parseInt(truckCount) || 1)
-    const totalCents = plan.first_truck_cents + (Math.max(0, trucks - 1) * plan.extra_truck_cents)
-
     const origin = req.headers.get('origin') || 'https://qivori.com'
-
     const params = new URLSearchParams()
-    params.append('mode', 'subscription')
-    params.append('success_url', `${origin}/?checkout=success&plan=${resolvedId}`)
-    params.append('cancel_url', `${origin}/?checkout=cancel`)
-    params.append('line_items[0][price_data][currency]', 'usd')
-    params.append('line_items[0][price_data][product_data][name]', `Q Platform (${trucks} truck${trucks > 1 ? 's' : ''})`)
-    params.append('line_items[0][price_data][recurring][interval]', 'month')
-    params.append('line_items[0][price_data][unit_amount]', totalCents.toString())
-    params.append('line_items[0][quantity]', '1')
+
+    if (plan.usage_based) {
+      // Autonomous Fleet — 3% per load, no monthly subscription
+      // Create a subscription with $0 base + metered billing via charge-ai-fee
+      params.append('mode', 'subscription')
+      params.append('success_url', `${origin}/?checkout=success&plan=${resolvedId}`)
+      params.append('cancel_url', `${origin}/?checkout=cancel`)
+      params.append('line_items[0][price_data][currency]', 'usd')
+      params.append('line_items[0][price_data][product_data][name]', `Autonomous Fleet (3% per load)`)
+      params.append('line_items[0][price_data][recurring][interval]', 'month')
+      params.append('line_items[0][price_data][unit_amount]', '0')
+      params.append('line_items[0][quantity]', '1')
+    } else {
+      // TMS Pro or AI Dispatch — fixed monthly subscription
+      const totalCents = plan.first_truck_cents + (Math.max(0, trucks - 1) * plan.extra_truck_cents)
+      params.append('mode', 'subscription')
+      params.append('success_url', `${origin}/?checkout=success&plan=${resolvedId}`)
+      params.append('cancel_url', `${origin}/?checkout=cancel`)
+      params.append('line_items[0][price_data][currency]', 'usd')
+      params.append('line_items[0][price_data][product_data][name]', `${plan.name} (${trucks} truck${trucks > 1 ? 's' : ''})`)
+      params.append('line_items[0][price_data][recurring][interval]', 'month')
+      params.append('line_items[0][price_data][unit_amount]', totalCents.toString())
+      params.append('line_items[0][quantity]', '1')
+    }
 
     params.append('subscription_data[trial_period_days]', plan.trial_days.toString())
     params.append('subscription_data[metadata][plan_id]', resolvedId)
     params.append('subscription_data[metadata][truck_count]', trucks.toString())
     params.append('subscription_data[metadata][first_truck_cents]', plan.first_truck_cents.toString())
     params.append('subscription_data[metadata][extra_truck_cents]', plan.extra_truck_cents.toString())
+    if (plan.usage_based) params.append('subscription_data[metadata][usage_based]', 'true')
     if (userId) params.append('subscription_data[metadata][user_id]', userId)
     if (email) params.append('customer_email', email)
     params.append('allow_promotion_codes', 'true')

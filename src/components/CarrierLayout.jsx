@@ -38,6 +38,7 @@ const DriverPayReport = lazyN(() => import('../pages/carrier/DriverScorecard'), 
 const CarrierIFTA = lazyN(() => import('../pages/carrier/Compliance'), 'CarrierIFTA')
 const CarrierDVIR = lazyN(() => import('../pages/carrier/Compliance'), 'CarrierDVIR')
 const CarrierClearinghouse = lazyN(() => import('../pages/carrier/Compliance'), 'CarrierClearinghouse')
+const AuditToday = lazyN(() => import('../pages/carrier/Compliance'), 'AuditToday')
 
 // Fleet
 const FleetMap = lazyN(() => import('../pages/carrier/FleetMapGoogle'), 'FleetMapGoogle')
@@ -276,13 +277,14 @@ function FinancialsHub() {
 
 // ── Compliance Hub ──
 function ComplianceHub() {
-  const [tab, setTab] = useState('center')
-  const TABS = [{ id:'center', label:'Compliance Center' },{ id:'ifta', label:'IFTA & DOT' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
+  const [tab, setTab] = useState('audit')
+  const TABS = [{ id:'audit', label:'Audit Today' },{ id:'center', label:'Compliance Center' },{ id:'ifta', label:'IFTA & DOT' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+          {tab === 'audit' && <AuditToday />}
           {tab === 'center' && <CarrierDVIR />}
           {tab === 'ifta' && <CarrierIFTA />}
           {tab === 'broker-risk' && <BrokerRiskIntel />}

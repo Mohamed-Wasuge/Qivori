@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { validateDispatch, createFetchers } from './_lib/compliance.js'
 
 export const config = { runtime: 'edge' }
 
@@ -321,19 +322,6 @@ function round2(n) {
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
-async function fetchDriver(driverId) {
-  if (!driverId || !SUPABASE_URL || !SERVICE_KEY) return null
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driverId}&select=id,pay_model,pay_rate,driver_type,full_name&limit=1`,
-      { headers: sbHeaders() }
-    )
-    if (!res.ok) return null
-    const rows = await res.json()
-    return rows?.[0] || null
-  } catch { return null }
-}
-
 async function fetchLaneAvgRate(ownerId, originCity, destCity) {
   if (!originCity || !destCity || !SUPABASE_URL || !SERVICE_KEY) return 0
   try {
@@ -368,86 +356,7 @@ async function fetchBrokerUrgency(ownerId, brokerName) {
   } catch { return 0 }
 }
 
-async function fetchCarrierSettings(ownerId) {
-  if (!SUPABASE_URL || !SERVICE_KEY) return {}
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/carrier_settings?owner_id=eq.${ownerId}&select=*&limit=1`,
-      { headers: sbHeaders() }
-    )
-    if (!res.ok) return {}
-    const rows = await res.json()
-    return rows?.[0] || {}
-  } catch { return {} }
-}
-
-async function runComplianceCheck(ownerId, driverId, vehicleId) {
-  // Call the compliance-check endpoint internally via Supabase
-  // We replicate the core logic inline for speed (avoid HTTP round-trip)
-  if (!driverId || !SUPABASE_URL || !SERVICE_KEY) return { overall: 'unchecked', checks: {}, failing: [] }
-
-  const failing = []
-  const checks = {}
-
-  try {
-    // Fetch driver
-    const dRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/drivers?id=eq.${driverId}&select=full_name,name,cdl_expiry,license_expiry,medical_card_expiry,med_card_expiry,is_available,availability_status&limit=1`,
-      { headers: sbHeaders() }
-    )
-    if (!dRes.ok) return { overall: 'unchecked', checks: {}, failing: [] }
-    const driver = (await dRes.json())?.[0]
-    if (!driver) return { overall: 'unchecked', checks: {}, failing: [] }
-
-    const daysUntil = (d) => { if (!d) return null; const diff = Math.round((new Date(d) - new Date()) / 86400000); return diff }
-
-    // CDL
-    const cdlDays = daysUntil(driver.cdl_expiry || driver.license_expiry)
-    if (cdlDays !== null && cdlDays < 0) {
-      checks.cdl_valid = { status: 'fail', detail: `Expired ${Math.abs(cdlDays)}d ago` }
-      failing.push('cdl_valid')
-    } else {
-      checks.cdl_valid = { status: 'pass', detail: cdlDays !== null ? `${cdlDays}d left` : 'OK' }
-    }
-
-    // Medical card
-    const medDays = daysUntil(driver.medical_card_expiry || driver.med_card_expiry)
-    if (medDays !== null && medDays < 0) {
-      checks.medical_card = { status: 'fail', detail: `Expired ${Math.abs(medDays)}d ago` }
-      failing.push('medical_card')
-    } else {
-      checks.medical_card = { status: 'pass', detail: medDays !== null ? `${medDays}d left` : 'OK' }
-    }
-
-    // Availability
-    if (driver.is_available === false) {
-      checks.driver_available = { status: 'fail', detail: driver.availability_status || 'unavailable' }
-      failing.push('driver_available')
-    } else {
-      checks.driver_available = { status: 'pass', detail: 'Available' }
-    }
-
-    // Drug test (quick check)
-    const chRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/clearinghouse_queries?owner_id=eq.${ownerId}&driver_name=eq.${encodeURIComponent(driver.full_name || driver.name || '')}&order=created_at.desc&limit=1`,
-      { headers: sbHeaders() }
-    ).catch(() => null)
-    if (chRes?.ok) {
-      const ch = (await chRes.json())?.[0]
-      if (ch && (ch.result === 'Positive' || ch.result === 'Refused')) {
-        checks.drug_test = { status: 'fail', detail: `${ch.result} result` }
-        failing.push('drug_test')
-      } else {
-        checks.drug_test = { status: 'pass', detail: 'Clear' }
-      }
-    }
-
-    const overall = failing.length > 0 ? 'fail' : 'pass'
-    return { overall, checks, failing }
-  } catch {
-    return { overall: 'unchecked', checks: {}, failing: [] }
-  }
-}
+// Compliance data fetching + carrier settings now handled by shared _lib/compliance.js
 
 async function storeDecision(ownerId, loadId, driverId, driverType, result, loadData) {
   if (!SUPABASE_URL || !SERVICE_KEY) return
@@ -505,14 +414,25 @@ export default async function handler(req) {
       return Response.json({ error: 'Missing load data' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // Fetch context in parallel
-    const [driver, laneAvgRate, brokerUrgency, carrierSettings, complianceResult] = await Promise.all([
-      driver_id ? fetchDriver(driver_id) : Promise.resolve(null),
+    // Initialize shared compliance fetchers
+    const cf = createFetchers(SUPABASE_URL, SERVICE_KEY)
+
+    // Phase 1: Fetch independent data in parallel
+    const [driver, laneAvgRate, brokerUrgency, carrierSettings, complianceVehicle, dvirResult] = await Promise.all([
+      driver_id ? cf.fetchDriver(driver_id) : Promise.resolve(null),
       fetchLaneAvgRate(user.id, (load.origin || '').split(',')[0], (load.dest || '').split(',')[0]),
       fetchBrokerUrgency(user.id, load.broker),
-      fetchCarrierSettings(user.id),
-      driver_id ? runComplianceCheck(user.id, driver_id, truck_id) : Promise.resolve({ overall: 'unchecked', checks: {}, failing: [] }),
+      cf.fetchSettings(user.id),
+      truck_id ? cf.fetchVehicle(truck_id) : Promise.resolve(null),
+      truck_id ? cf.fetchDVIRDefects(user.id, truck_id) : Promise.resolve(null),
     ])
+
+    // Phase 2: Fetch driver-dependent compliance data (needs driver name)
+    const driverName = driver?.full_name || driver?.name || ''
+    const [clearinghouseResult, hosHoursLeft] = driver ? await Promise.all([
+      cf.fetchClearinghouse(user.id, driverName),
+      cf.fetchHOSHoursLeft(user.id, driverName),
+    ]) : [null, 11]
 
     const fuelCostPerMile = carrierSettings.fuel_cost_per_mile || 0.55
     const context = {
@@ -522,16 +442,13 @@ export default async function handler(req) {
       brokerUrgency,
     }
 
-    // Evaluate profit/feasibility
+    // ── STEP 1: Evaluate profit/feasibility ──
     const result = evaluateLoad(load, driver, context)
 
-    // Apply carrier threshold overrides if configured
+    // Apply carrier threshold overrides
     const minProfit = carrierSettings.min_profit || 800
     const minRpm = carrierSettings.min_rpm || 1.00
-    const minProfitPerDay = carrierSettings.min_profit_per_day || 400
-    const maxDeadhead = carrierSettings.max_deadhead_miles || 150
 
-    // Re-check with carrier-specific thresholds
     if (result.decision !== 'reject' && result.metrics.estProfit < minProfit) {
       result.decision = 'reject'
       result.confidence = 90
@@ -542,23 +459,37 @@ export default async function handler(req) {
       result.reasons.push(`RPM $${result.metrics.rpm} below your $${minRpm} threshold`)
     }
 
-    // Compliance gate — block dispatch if compliance fails and enforcement is on
-    result.compliance_status = complianceResult.overall
-    result.compliance_checks = complianceResult.checks
-    result.failing_compliance = complianceResult.failing
+    // ── STEP 2: Run compliance validation (shared service) ──
+    const compliance = validateDispatch({
+      driver: complianceDriver,
+      vehicle: complianceVehicle,
+      clearinghouseResult,
+      hosHoursLeft,
+      dvirResult,
+      settings: carrierSettings,
+      load,
+    })
 
-    if (complianceResult.overall === 'fail') {
-      const enforce = carrierSettings.enforce_compliance !== false
-      if (enforce && (result.decision === 'accept' || result.decision === 'auto_book')) {
-        // Downgrade to hold — profitable but can't dispatch
+    // Attach compliance data to every decision record
+    result.compliance_status = compliance.compliance_status
+    result.compliance_checks = compliance.checks
+    result.failing_compliance = compliance.failing
+
+    // ── STEP 3: Apply compliance gate to decision ──
+    if (compliance.compliance_status === 'BLOCKED') {
+      // Force hold — load may be profitable but cannot be dispatched
+      if (result.decision !== 'reject') {
         result.decision = 'hold'
-        result.hold_reason = `Compliance blocked: ${complianceResult.failing.join(', ')}`
-        result.reasons.push(`⚠️ COMPLIANCE BLOCK: ${complianceResult.failing.map(f => complianceResult.checks[f]?.detail || f).join('; ')}`)
+        result.hold_reason = `Compliance blocked: ${compliance.failing.join(', ')}`
         result.auto_booked = false
-      } else if (!enforce) {
-        result.reasons.push(`⚠️ Compliance warning (not enforced): ${complianceResult.failing.join(', ')}`)
       }
+      // Append all compliance block reasons
+      compliance.reasons.forEach(r => result.reasons.push(r))
+    } else if (compliance.compliance_status === 'RISK') {
+      // Allow decision but flag as risky
+      compliance.reasons.forEach(r => result.reasons.push(r))
     }
+    // OK = no compliance issues, no modifications needed
 
     // Disable auto-book if carrier turned it off
     if (result.decision === 'auto_book' && carrierSettings.auto_book_enabled === false) {

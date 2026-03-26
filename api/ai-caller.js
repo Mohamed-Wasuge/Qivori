@@ -53,7 +53,7 @@ async function checkPlanAccess(userId) {
   const users = await supabaseQuery('profiles', `id=eq.${userId}&select=plan,subscription_status`);
   const user = users?.[0];
   if (!user) return { allowed: false, reason: 'User not found' };
-  const validPlans = ['autonomous_fleet', 'autopilot_ai', 'truck_autopilot_ai'];
+  const validPlans = ['autonomous_fleet', 'autopilot_ai', 'truck_autopilot_ai']; // Voice AI = Autonomous Fleet only
   if (!validPlans.includes(user.plan)) {
     return { allowed: false, reason: 'AI Broker Calling requires an active Qivori subscription. Start your free trial to unlock.' };
   }

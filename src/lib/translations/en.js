@@ -189,7 +189,7 @@ const en = {
   'landing.autopilotAI': 'Autopilot AI',
   'landing.autopilotAISub': 'Full AI autonomy',
   'landing.1truckOnly': '1 truck only',
-  'landing.perExtraTruck': '+$75/mo per additional truck',
+  'landing.perExtraTruck': '+$79/mo per additional truck',
 
   // Plan features
   'landing.planFeat.aiLoadBoardScoring': 'AI Load Board & Scoring',

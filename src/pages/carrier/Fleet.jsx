@@ -1,7 +1,11 @@
-import { React, useState, useRef, Ic, S, StatCard, useApp, useCarrier } from './shared'
-import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield } from 'lucide-react'
+import { React, useState, useRef, useEffect, useMemo, useCallback, Ic, S, StatCard, useApp, useCarrier } from './shared'
+import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff } from 'lucide-react'
 import { uploadFile } from '../../lib/storage'
 import { createDocument } from '../../lib/database'
+import { FleetMapGoogle } from './FleetMapGoogle'
+
+// Re-export the Google Maps fleet map as FleetMap
+export { FleetMapGoogle as FleetMap }
 
 // ─── FLEET MAP CONSTANTS ──────────────────────────────────────────────────────
 const CITIES = {
@@ -66,8 +70,8 @@ const EQ_FIELDS_TRAILER = [
   { key:'notes',               label:'Notes',          ph:'53ft dry van...',   span:2 },
 ]
 
-// ─── FLEET MAP ────────────────────────────────────────────────────────────────
-export function FleetMap() {
+// ─── FLEET MAP (legacy SVG — replaced by FleetMapGoogle) ─────────────────────
+function FleetMapLegacy() {
   const { showToast } = useApp()
   const ctx = useCarrier() || {}
   const drivers = ctx.drivers || []

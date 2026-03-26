@@ -33,16 +33,56 @@ export default async function handler(req){
 
     // Payment received — mark as settled
     if(action==='payment_received'){
-      const{loadId,invoiceId,amount}=body
+      const{loadId,invoiceId,amount,driverId,driverPayOverride}=body
       if(!loadId) return json({error:'loadId required'},400)
       const agreedRate=parseFloat(amount)||0
-      const driverPay=Math.round(agreedRate*0.90*100)/100
-      const qivoriFee=Math.round(agreedRate*0.10*100)/100
+
+      // Fetch driver pay config if driverId provided
+      let payModel='percent',payRate=28,driverPay=0,miles=0
+      let driverRecord=null
+
+      if(driverId){
+        const dRes=await fetch(SUPABASE_URL+'/rest/v1/drivers?id=eq.'+driverId+'&select=id,full_name,email,pay_model,pay_rate&limit=1',{headers:sb()})
+        const drivers=await dRes.json()
+        if(Array.isArray(drivers)&&drivers.length>0) driverRecord=drivers[0]
+      }
+
+      if(driverRecord&&driverRecord.pay_model&&driverRecord.pay_rate){
+        payModel=driverRecord.pay_model
+        payRate=parseFloat(driverRecord.pay_rate)
+
+        if(payModel==='percent'){
+          driverPay=Math.round(agreedRate*(payRate/100)*100)/100
+        }else if(payModel==='permile'){
+          // Fetch load miles for per-mile calculation
+          const lRes=await fetch(SUPABASE_URL+'/rest/v1/load_matches?id=eq.'+loadId+'&select=distance_miles&limit=1',{headers:sb()})
+          const loads=await lRes.json()
+          miles=(Array.isArray(loads)&&loads.length>0)?parseFloat(loads[0].distance_miles)||0:0
+          driverPay=Math.round(miles*payRate*100)/100
+        }else if(payModel==='flat'){
+          driverPay=Math.round(payRate*100)/100
+        }else{
+          // Unknown pay model — fall back to percent
+          payModel='percent'
+          driverPay=Math.round(agreedRate*(payRate/100)*100)/100
+        }
+      }else if(driverPayOverride!=null){
+        payModel='override'
+        payRate=0
+        driverPay=Math.round(parseFloat(driverPayOverride)*100)/100
+      }else{
+        // Default: 28% of agreed rate
+        payModel='percent'
+        payRate=28
+        driverPay=Math.round(agreedRate*0.28*100)/100
+      }
+
+      const carrierProfit=Math.round((agreedRate-driverPay)*100)/100
 
       // Create settlement record
       await fetch(SUPABASE_URL+'/rest/v1/settlements',{
         method:'POST',headers:sb(),
-        body:JSON.stringify({load_id:loadId,invoice_id:invoiceId||null,driver_pay:driverPay,agreed_rate:agreedRate,payment_received_at:new Date().toISOString(),status:'settled'})
+        body:JSON.stringify({load_id:loadId,invoice_id:invoiceId||null,driver_id:driverId||null,driver_pay:driverPay,agreed_rate:agreedRate,carrier_profit:carrierProfit,pay_model:payModel,pay_rate:payRate,payment_received_at:new Date().toISOString(),status:'settled',owner_id:user.id})
       })
 
       // Update load status
@@ -57,15 +97,19 @@ export default async function handler(req){
         })
       }
 
-      // Send driver notification
-      if(RESEND_API_KEY&&body.driverEmail){
+      // Send driver notification email
+      const driverEmail=body.driverEmail||(driverRecord&&driverRecord.email)
+      const driverName=(driverRecord&&driverRecord.full_name)||'Driver'
+      if(RESEND_API_KEY&&driverEmail){
+        const payDesc=payModel==='percent'?payRate+'% of $'+agreedRate.toFixed(2):payModel==='permile'?miles+' mi × $'+payRate.toFixed(2)+'/mi':payModel==='flat'?'Flat rate':'Override'
+        const emailHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif"><table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 20px"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="background:#141414;border-radius:12px;overflow:hidden;border:1px solid #2a2a2a"><tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:32px 40px;text-align:center"><img src="https://qivori.com/logo-white.png" alt="Qivori" height="32" style="margin-bottom:8px"><p style="color:#c9a84c;font-size:13px;margin:0;letter-spacing:1px">SETTLEMENT NOTIFICATION</p></td></tr><tr><td style="padding:40px"><p style="color:#e0e0e0;font-size:16px;margin:0 0 24px">Hi ${driverName},</p><p style="color:#b0b0b0;font-size:15px;margin:0 0 32px;line-height:1.6">A payment has been processed and your settlement is ready. Here are the details:</p><table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:8px;border:1px solid #2a2a2a;margin-bottom:32px"><tr><td style="padding:20px 24px;border-bottom:1px solid #2a2a2a"><table width="100%"><tr><td style="color:#888;font-size:13px">Load Reference</td><td align="right" style="color:#e0e0e0;font-size:14px;font-family:monospace">${loadId.substring(0,8)}...</td></tr></table></td></tr><tr><td style="padding:20px 24px;border-bottom:1px solid #2a2a2a"><table width="100%"><tr><td style="color:#888;font-size:13px">Gross Rate</td><td align="right" style="color:#e0e0e0;font-size:14px">$${agreedRate.toFixed(2)}</td></tr></table></td></tr><tr><td style="padding:20px 24px;border-bottom:1px solid #2a2a2a"><table width="100%"><tr><td style="color:#888;font-size:13px">Pay Calculation</td><td align="right" style="color:#b0b0b0;font-size:13px">${payDesc}</td></tr></table></td></tr><tr><td style="padding:20px 24px"><table width="100%"><tr><td style="color:#c9a84c;font-size:14px;font-weight:600">YOUR PAY</td><td align="right" style="color:#c9a84c;font-size:22px;font-weight:700">$${driverPay.toFixed(2)}</td></tr></table></td></tr></table><p style="color:#666;font-size:13px;margin:0;line-height:1.5">If you have any questions about this settlement, please contact your dispatcher.</p></td></tr><tr><td style="padding:24px 40px;background:#0f0f0f;border-top:1px solid #2a2a2a;text-align:center"><p style="color:#555;font-size:12px;margin:0">Powered by <span style="color:#c9a84c">Qivori AI</span> &mdash; Autonomous Trucking Intelligence</p></td></tr></table></td></tr></table></body></html>`
         await fetch('https://api.resend.com/emails',{
           method:'POST',
           headers:{Authorization:'Bearer '+RESEND_API_KEY,'Content-Type':'application/json'},
-          body:JSON.stringify({from:'Qivori <payments@qivori.com>',to:[body.driverEmail],subject:'Payment Received - $'+agreedRate,html:'<h2>Payment Received</h2><p>Load: '+loadId+'</p><p>Amount: $'+agreedRate+'</p><p>Driver Pay: $'+driverPay+'</p><p>Qivori Fee: $'+qivoriFee+'</p>'})
+          body:JSON.stringify({from:'Qivori <payments@qivori.com>',to:[driverEmail],subject:'Settlement Ready — $'+driverPay.toFixed(2)+' Payment',html:emailHtml})
         })
       }
-      return json({ok:true,loadId,agreedRate,driverPay,qivoriFee,status:'settled'})
+      return json({ok:true,loadId,agreedRate,driverPay,carrierProfit,payModel,payRate,status:'settled'})
     }
 
     // Generate settlement report
@@ -78,7 +122,7 @@ export default async function handler(req){
       const data=await r.json()
       const totalRevenue=data.reduce((s,i)=>s+(parseFloat(i.agreed_rate)||0),0)
       const totalDriverPay=data.reduce((s,i)=>s+(parseFloat(i.driver_pay)||0),0)
-      return json({report:{period:{startDate,endDate},loads:data.length,totalRevenue,totalDriverPay,qivoriFees:totalRevenue-totalDriverPay,settlements:data}})
+      return json({report:{period:{startDate,endDate},loads:data.length,totalRevenue,totalDriverPay,carrierProfit:totalRevenue-totalDriverPay,settlements:data}})
     }
     return json({error:'Unknown action'},400)
   }catch(e){return json({error:e.message},500)}

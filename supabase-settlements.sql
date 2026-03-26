@@ -40,7 +40,46 @@ CREATE INDEX idx_settlements_owner ON settlements(owner_id);
 CREATE INDEX idx_settlements_driver ON settlements(driver_id);
 CREATE INDEX idx_settlements_status ON settlements(status);
 
--- 3. Add pay_model and pay_rate columns to drivers table
+-- 3. Add columns used by settlement API endpoint
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'settlements' AND column_name = 'agreed_rate'
+  ) THEN
+    ALTER TABLE settlements ADD COLUMN agreed_rate NUMERIC(10,2) DEFAULT 0;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'settlements' AND column_name = 'carrier_profit'
+  ) THEN
+    ALTER TABLE settlements ADD COLUMN carrier_profit NUMERIC(10,2) DEFAULT 0;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'settlements' AND column_name = 'payment_received_at'
+  ) THEN
+    ALTER TABLE settlements ADD COLUMN payment_received_at TIMESTAMPTZ;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'settlements' AND column_name = 'load_id'
+  ) THEN
+    ALTER TABLE settlements ADD COLUMN load_id UUID;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'settlements' AND column_name = 'invoice_id'
+  ) THEN
+    ALTER TABLE settlements ADD COLUMN invoice_id UUID;
+  END IF;
+END $$;
+
+-- 4. Add pay_model and pay_rate columns to drivers table
 DO $$
 BEGIN
   IF NOT EXISTS (

@@ -50,9 +50,118 @@ function extractState(location) {
   return null
 }
 
-// Estimate mileage distribution across states for a route
-// Simple approach: split miles between origin and destination states
-// (In production, this would use actual route data from Google Maps API)
+// State adjacency map for continental US (used for IFTA transit state estimation)
+const STATE_NEIGHBORS = {
+  Alabama: ['Mississippi','Tennessee','Georgia','Florida'],
+  Arizona: ['California','Nevada','Utah','Colorado','New Mexico'],
+  Arkansas: ['Missouri','Tennessee','Mississippi','Louisiana','Texas','Oklahoma'],
+  California: ['Oregon','Nevada','Arizona'],
+  Colorado: ['Wyoming','Nebraska','Kansas','Oklahoma','New Mexico','Utah'],
+  Connecticut: ['New York','Massachusetts','Rhode Island'],
+  Delaware: ['Maryland','Pennsylvania','New Jersey'],
+  Florida: ['Alabama','Georgia'],
+  Georgia: ['Florida','Alabama','Tennessee','North Carolina','South Carolina'],
+  Idaho: ['Montana','Wyoming','Utah','Nevada','Oregon','Washington'],
+  Illinois: ['Wisconsin','Iowa','Missouri','Kentucky','Indiana'],
+  Indiana: ['Illinois','Michigan','Ohio','Kentucky'],
+  Iowa: ['Minnesota','Wisconsin','Illinois','Missouri','Nebraska','South Dakota'],
+  Kansas: ['Nebraska','Missouri','Oklahoma','Colorado'],
+  Kentucky: ['Indiana','Ohio','West Virginia','Virginia','Tennessee','Missouri','Illinois'],
+  Louisiana: ['Arkansas','Mississippi','Texas'],
+  Maine: ['New Hampshire'],
+  Maryland: ['Pennsylvania','Delaware','Virginia','West Virginia','District of Columbia'],
+  Massachusetts: ['New Hampshire','Vermont','New York','Connecticut','Rhode Island'],
+  Michigan: ['Indiana','Ohio','Wisconsin'],
+  Minnesota: ['Wisconsin','Iowa','South Dakota','North Dakota'],
+  Mississippi: ['Tennessee','Alabama','Louisiana','Arkansas'],
+  Missouri: ['Iowa','Illinois','Kentucky','Tennessee','Arkansas','Oklahoma','Kansas','Nebraska'],
+  Montana: ['North Dakota','South Dakota','Wyoming','Idaho'],
+  Nebraska: ['South Dakota','Iowa','Missouri','Kansas','Colorado','Wyoming'],
+  Nevada: ['Oregon','Idaho','Utah','Arizona','California'],
+  'New Hampshire': ['Maine','Vermont','Massachusetts'],
+  'New Jersey': ['New York','Delaware','Pennsylvania'],
+  'New Mexico': ['Colorado','Oklahoma','Texas','Arizona','Utah'],
+  'New York': ['Vermont','Massachusetts','Connecticut','New Jersey','Pennsylvania'],
+  'North Carolina': ['Virginia','Tennessee','Georgia','South Carolina'],
+  'North Dakota': ['Montana','South Dakota','Minnesota'],
+  Ohio: ['Michigan','Indiana','Kentucky','West Virginia','Pennsylvania'],
+  Oklahoma: ['Kansas','Missouri','Arkansas','Texas','New Mexico','Colorado'],
+  Oregon: ['Washington','Idaho','Nevada','California'],
+  Pennsylvania: ['New York','New Jersey','Delaware','Maryland','West Virginia','Ohio'],
+  'Rhode Island': ['Connecticut','Massachusetts'],
+  'South Carolina': ['North Carolina','Georgia'],
+  'South Dakota': ['North Dakota','Minnesota','Iowa','Nebraska','Wyoming','Montana'],
+  Tennessee: ['Kentucky','Virginia','North Carolina','Georgia','Alabama','Mississippi','Arkansas','Missouri'],
+  Texas: ['New Mexico','Oklahoma','Arkansas','Louisiana'],
+  Utah: ['Idaho','Wyoming','Colorado','New Mexico','Arizona','Nevada'],
+  Vermont: ['New Hampshire','Massachusetts','New York'],
+  Virginia: ['Maryland','West Virginia','Kentucky','Tennessee','North Carolina','District of Columbia'],
+  Washington: ['Oregon','Idaho'],
+  'West Virginia': ['Pennsylvania','Maryland','Virginia','Kentucky','Ohio'],
+  Wisconsin: ['Michigan','Minnesota','Iowa','Illinois'],
+  Wyoming: ['Montana','South Dakota','Nebraska','Colorado','Utah','Idaho'],
+  'District of Columbia': ['Maryland','Virginia'],
+}
+
+// Common trucking corridors with known transit states
+const COMMON_CORRIDORS = {
+  'Texas|California': ['New Mexico','Arizona'],
+  'Texas|Arizona': ['New Mexico'],
+  'Texas|Nevada': ['New Mexico','Arizona'],
+  'Texas|Oregon': ['New Mexico','Arizona','California'],
+  'Texas|Washington': ['New Mexico','Arizona','California','Oregon'],
+  'Texas|Illinois': ['Oklahoma','Missouri'],
+  'Texas|Ohio': ['Oklahoma','Missouri','Indiana'],
+  'Texas|Georgia': ['Louisiana','Mississippi','Alabama'],
+  'Texas|Florida': ['Louisiana','Mississippi','Alabama'],
+  'Texas|New York': ['Oklahoma','Missouri','Illinois','Indiana','Ohio','Pennsylvania'],
+  'Texas|Pennsylvania': ['Oklahoma','Missouri','Illinois','Indiana','Ohio'],
+  'California|Oregon': [],
+  'California|Washington': ['Oregon'],
+  'California|Illinois': ['Nevada','Utah','Wyoming','Nebraska','Iowa'],
+  'California|New York': ['Nevada','Utah','Wyoming','Nebraska','Iowa','Illinois','Indiana','Ohio','Pennsylvania'],
+  'California|Georgia': ['Arizona','New Mexico','Texas','Louisiana','Mississippi','Alabama'],
+  'California|Florida': ['Arizona','New Mexico','Texas','Louisiana','Mississippi','Alabama'],
+  'California|Ohio': ['Nevada','Utah','Wyoming','Nebraska','Iowa','Illinois','Indiana'],
+  'California|Pennsylvania': ['Nevada','Utah','Wyoming','Nebraska','Iowa','Illinois','Indiana','Ohio'],
+  'Florida|New York': ['Georgia','South Carolina','North Carolina','Virginia','Maryland','New Jersey'],
+  'Florida|Illinois': ['Georgia','Tennessee','Kentucky'],
+  'Florida|Texas': ['Alabama','Mississippi','Louisiana'],
+  'Florida|Ohio': ['Georgia','Tennessee','Kentucky'],
+  'Florida|Pennsylvania': ['Georgia','South Carolina','North Carolina','Virginia','Maryland'],
+  'Georgia|New York': ['South Carolina','North Carolina','Virginia','Maryland','New Jersey'],
+  'Georgia|Illinois': ['Tennessee','Kentucky'],
+  'Georgia|Ohio': ['Tennessee','Kentucky'],
+  'Illinois|New York': ['Indiana','Ohio','Pennsylvania'],
+  'Illinois|Pennsylvania': ['Indiana','Ohio'],
+  'Ohio|New York': ['Pennsylvania'],
+  'Washington|New York': ['Idaho','Montana','North Dakota','Minnesota','Wisconsin','Michigan','Ohio','Pennsylvania'],
+}
+
+// BFS pathfinding between two states using the adjacency map
+function findStatePath(fromState, toState) {
+  if (fromState === toState) return [fromState]
+  const visited = new Set([fromState])
+  const queue = [[fromState]]
+  while (queue.length > 0) {
+    const path = queue.shift()
+    const current = path[path.length - 1]
+    const neighbors = STATE_NEIGHBORS[current] || []
+    for (const neighbor of neighbors) {
+      if (neighbor === toState) return [...path, neighbor]
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor)
+        queue.push([...path, neighbor])
+      }
+    }
+  }
+  // Fallback: no path found (should not happen for continental US)
+  return [fromState, toState]
+}
+
+// Estimate mileage distribution across states for a route.
+// Uses common corridors for well-known routes, BFS pathfinding for others,
+// and distributes 100% of miles proportionally across all states in the path.
 function estimateStateMiles(origin, destination, totalMiles) {
   const originState = extractState(origin)
   const destState = extractState(destination)
@@ -60,8 +169,52 @@ function estimateStateMiles(origin, destination, totalMiles) {
   if (originState === destState) return { [originState]: totalMiles }
   if (!originState) return { [destState]: totalMiles }
   if (!destState) return { [originState]: totalMiles }
-  // Split roughly: 40% origin, 40% destination, 20% transit (simplified)
-  return { [originState]: Math.round(totalMiles * 0.4), [destState]: Math.round(totalMiles * 0.4) }
+
+  // Check common corridors first (both directions)
+  const key1 = `${originState}|${destState}`
+  const key2 = `${destState}|${originState}`
+  let transitStates = COMMON_CORRIDORS[key1] || COMMON_CORRIDORS[key2] || null
+
+  let routeStates
+  if (transitStates !== null) {
+    // Known corridor: origin + transit + destination
+    routeStates = [originState, ...transitStates, destState]
+  } else {
+    // Use BFS to find a path through state neighbors
+    routeStates = findStatePath(originState, destState)
+  }
+
+  // Distribute miles: origin and destination get a larger share (they include
+  // city driving, pickup/delivery), transit states split the middle portion.
+  const count = routeStates.length
+  if (count === 2) {
+    // Direct neighbors: 50/50 split
+    const half = Math.round(totalMiles / 2)
+    return { [routeStates[0]]: half, [routeStates[1]]: totalMiles - half }
+  }
+
+  // For multi-state routes: endpoints get 1.5 shares, transit states get 1 share
+  const transitCount = count - 2
+  const totalShares = 3 + transitCount  // 1.5 + 1.5 + transitCount * 1
+  const result = {}
+  let distributed = 0
+
+  for (let i = 0; i < count; i++) {
+    const state = routeStates[i]
+    const isEndpoint = (i === 0 || i === count - 1)
+    const share = isEndpoint ? 1.5 : 1
+    const miles = Math.round(totalMiles * share / totalShares)
+    result[state] = (result[state] || 0) + miles
+    distributed += miles
+  }
+
+  // Assign any rounding remainder to the origin state so 100% is accounted for
+  const remainder = totalMiles - distributed
+  if (remainder !== 0) {
+    result[routeStates[0]] = (result[routeStates[0]] || 0) + remainder
+  }
+
+  return result
 }
 
 export function CarrierIFTA() {

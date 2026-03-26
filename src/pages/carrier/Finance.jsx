@@ -1087,6 +1087,12 @@ export function InvoicesHub() {
 
 // ─── EXPENSE TRACKER ───────────────────────────────────────────────────────────
 const EXPENSE_CATS = ['Fuel', 'Maintenance', 'Tolls', 'Lumper', 'Insurance', 'Permits', 'Other']
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY',
+]
 const CAT_COLORS = { Fuel:'var(--warning)', Maintenance:'var(--danger)', Tolls:'var(--accent2)', Lumper:'var(--accent3)', Insurance:'var(--accent)', Permits:'var(--success)', Other:'var(--muted)' }
 const CAT_ICONS  = { Fuel: Fuel, Maintenance: Wrench, Tolls: Route, Lumper: Dumbbell, Insurance: Shield, Permits: FileText, Other: Paperclip }
 
@@ -1393,8 +1399,11 @@ export function ExpenseTracker() {
               </div>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--accent)', display: 'block', marginBottom: 4 }}>State <span style={{ color:'var(--muted)' }}>(for IFTA)</span></label>
-                <input type="text" placeholder="TX" maxLength={2} value={newExp.state} onChange={e => setNewExp(x => ({ ...x, state: e.target.value.toUpperCase() }))}
-                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box', textTransform: 'uppercase' }} />
+                <select value={newExp.state} onChange={e => setNewExp(x => ({ ...x, state: e.target.value }))}
+                  style={{ width: '100%', background: 'var(--surface2)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }}>
+                  <option value="">Select state</option>
+                  {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </>}
           </div>

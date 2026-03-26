@@ -36,6 +36,7 @@ export default async function handler(req) {
       unpaidInvoicesRes,
       agentActionsRes, escalationsRes, agentRunsRes,
       notificationsRes,
+      auditBlocksRes, auditInvoicesRes,
     ] = await Promise.all([
       fetch(`${supabaseUrl}/rest/v1/profiles?select=id&limit=10000`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/profiles?select=id&created_at=gte.${yesterday}`, { headers }),
@@ -50,6 +51,10 @@ export default async function handler(req) {
       fetch(`${supabaseUrl}/rest/v1/agent_escalations?select=id&status=eq.pending`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/agent_runs?select=id,status,summary,created_at&order=created_at.desc&limit=1`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/notifications?select=id&created_at=gte.${yesterday}`, { headers }),
+      // Audit: compliance blocks in last 24h
+      fetch(`${supabaseUrl}/rest/v1/audit_logs?select=id,action,metadata&action=eq.dispatch_compliance_blocked&created_at=gte.${yesterday}`, { headers }),
+      // Audit: invoices created in last 24h
+      fetch(`${supabaseUrl}/rest/v1/audit_logs?select=id,action&action=eq.invoice_created&created_at=gte.${yesterday}`, { headers }),
     ])
 
     // ── Parse responses (gracefully handle missing tables) ──
@@ -62,6 +67,7 @@ export default async function handler(req) {
       unpaidInvoices,
       agentActions, escalations, agentRuns,
       notifications,
+      auditBlocks, auditInvoices,
     ] = await Promise.all([
       safe(profilesRes), safe(newUsersRes), safe(activeRes), safe(trialRes), safe(churnedRes),
       safe(loadsRes), safe(stuckLoadsRes),
@@ -69,6 +75,7 @@ export default async function handler(req) {
       safe(unpaidInvoicesRes),
       safe(agentActionsRes), safe(escalationsRes), safe(agentRunsRes),
       safe(notificationsRes),
+      safe(auditBlocksRes), safe(auditInvoicesRes),
     ])
 
     // ── Compute metrics ──
@@ -88,7 +95,8 @@ export default async function handler(req) {
       profiles: { total: profiles.length, new_24h: newUsers.length, active: active.length, trial: trial.length, churned: churned.length },
       loads: { by_status: loadsByStatus, stuck: stuckLoads.length, total: loads.length },
       revenue: { payments_24h: paymentCount, revenue_24h_usd: revenueUSD, events_24h: revenueEvents.length },
-      invoices: { unpaid: unpaidInvoices.length, outstanding_usd: outstandingUSD },
+      invoices: { unpaid: unpaidInvoices.length, outstanding_usd: outstandingUSD, created_24h: auditInvoices.length },
+      compliance: { blocks_24h: auditBlocks.length },
       agent: { actions_24h: agentActions.length, pending_escalations: escalations.length, last_run: lastRun ? { status: lastRun.status, summary: lastRun.summary } : null },
       notifications_24h: notifications.length,
     }

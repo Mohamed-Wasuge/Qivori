@@ -362,6 +362,22 @@ export default async function handler(req) {
       timeline,
     }, { headers: corsHeaders(req) })
   } catch (err) {
+    // Alert admin on auto-book crash
+    if (SUPABASE_URL && SERVICE_KEY) {
+      fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+        method: 'POST',
+        headers: {
+          'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`,
+          'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          title: '[CRITICAL] Auto-Book Agent Crashed',
+          body: `Auto-book failed: ${err.message || 'Unknown'}. Load may not have been booked. Manual review needed.`,
+          user_id: 'system',
+          read: false,
+        }),
+      }).catch(() => {})
+    }
     return Response.json({ error: err.message || 'Auto-book failed' }, { status: 500, headers: corsHeaders(req) })
   }
 }

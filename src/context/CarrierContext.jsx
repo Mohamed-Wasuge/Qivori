@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
 import { setInvoiceCompany } from '../utils/generatePDF'
+import { checkCDL, checkMedicalCard, checkDriverAvailability } from '../lib/compliance'
 import {
   DEMO_LOADS,
   DEMO_INVOICES,
@@ -462,15 +463,47 @@ export function CarrierProvider({ children }) {
 
         if (useDb && !String(l.id).startsWith('mock') && !String(l.id).startsWith('local')) {
           const dbLoadId = l.id
-          db.createInvoice({ ...inv, load_id: dbLoadId }).then(dbInv => {
-            setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
-            console.log(`[Pilot] Invoice created: ${dbInv?.invoice_number} for load ${l.loadId || l.load_number} — $${inv.amount}`)
-            // Auto-advance load to Invoiced after invoice is created
-            db.updateLoad(dbLoadId, { status: 'Invoiced' }).then(() => {
-              setLoads(ls => ls.map(ld => ld.id === dbLoadId ? normalizeLoad({ ...ld, status: 'Invoiced' }) : ld))
-              console.log(`[Pilot] Load auto-advanced to Invoiced: ${l.loadId || l.load_number}`)
-            }).catch(err => console.error('[Pilot] Failed to advance load to Invoiced:', err))
-          }).catch(err => { console.error('[Pilot] Invoice creation failed:', err) })
+          // Auto-create invoice with retry (max 2 attempts) + admin alert on failure
+          const createInvoiceWithRetry = async (attempt = 1) => {
+            try {
+              const dbInv = await db.createInvoice({ ...inv, load_id: dbLoadId })
+              setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
+              console.log(`[Pilot] Invoice created: ${dbInv?.invoice_number} for load ${l.loadId || l.load_number} — $${inv.amount}`)
+              // Audit log: invoice auto-created on delivery
+              db.createAuditLog({
+                action: 'invoice_created',
+                entity_type: 'invoice',
+                entity_id: dbInv?.id || dbLoadId,
+                old_value: null,
+                new_value: { invoice_number: dbInv?.invoice_number, amount: inv.amount, status: 'Unpaid' },
+                metadata: { load_id: l.loadId || l.load_number, broker: l.broker, driver: l.driver || l.driver_name, trigger: 'auto_on_delivery' },
+              }).catch(() => {})
+              // Auto-advance load to Invoiced after invoice is created
+              db.updateLoad(dbLoadId, { status: 'Invoiced' }).then(() => {
+                setLoads(ls => ls.map(ld => ld.id === dbLoadId ? normalizeLoad({ ...ld, status: 'Invoiced' }) : ld))
+                console.log(`[Pilot] Load auto-advanced to Invoiced: ${l.loadId || l.load_number}`)
+              }).catch(err => console.error('[Pilot] Failed to advance load to Invoiced:', err))
+            } catch (err) {
+              console.error(`[Pilot] Invoice creation failed (attempt ${attempt}):`, err)
+              if (attempt < 2) {
+                console.log(`[Pilot] Retrying invoice creation for load ${l.loadId || l.load_number}...`)
+                setTimeout(() => createInvoiceWithRetry(attempt + 1), 2000)
+              } else {
+                // Final failure — alert admin
+                apiFetch('/api/admin-alert', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    type: 'invoice_failure',
+                    title: 'Invoice Not Generated After Delivery',
+                    message: `Load ${l.loadId || l.load_number} (${l.origin} → ${l.dest || l.destination}, $${inv.amount}) was marked Delivered but invoice creation failed after 2 attempts. Error: ${err.message || 'Unknown'}`,
+                    severity: 'critical',
+                    source: 'CarrierContext',
+                  }),
+                }).catch(() => {})
+              }
+            }
+          }
+          createInvoiceWithRetry()
 
           // Always email broker invoice (removed localStorage gate for pilot reliability)
           apiFetch('/api/auto-invoice', {
@@ -516,10 +549,54 @@ export function CarrierProvider({ children }) {
   }, [loads, useDb, demoGuard])
 
   // Assign a driver to a load (updates both driver field and status)
+  // Runs compliance pre-check: blocks if CDL expired, medical card expired, or driver unavailable
   const assignLoadToDriver = useCallback(async (loadId, driverName) => {
     if (demoGuard('assign driver')) return
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.id === loadId)
     if (!load) return
+
+    // ── Compliance pre-check before dispatch ──
+    const driver = drivers.find(d => (d.full_name || d.name) === driverName)
+    if (driver) {
+      const cdl = checkCDL(driver)
+      const med = checkMedicalCard(driver)
+      const avail = checkDriverAvailability(driver)
+      const blocks = [cdl, med, avail].filter(c => c.status === 'fail')
+      if (blocks.length > 0) {
+        const reasons = blocks.map(b => b.label).join(', ')
+        showToast?.('', 'Dispatch Blocked', `${driverName}: ${reasons}`)
+        console.warn(`[Compliance] Dispatch blocked for ${driverName}:`, blocks)
+        // Log compliance block to audit trail + alert admin
+        if (useDb && load.id) {
+          db.createAuditLog({
+            action: 'dispatch_compliance_blocked',
+            entity_type: 'load',
+            entity_id: load.id,
+            old_value: { status: load.status },
+            new_value: { attempted_driver: driverName, blocked: true },
+            metadata: { load_id: load.loadId || load.load_id, violations: blocks.map(b => b.label) },
+          }).catch(() => {})
+          // Alert admin of compliance bypass attempt
+          apiFetch('/api/admin-alert', {
+            method: 'POST',
+            body: JSON.stringify({
+              type: 'compliance_block',
+              title: 'Compliance Blocked Dispatch',
+              message: `Driver "${driverName}" was blocked from load ${load.loadId || load.load_id} (${load.origin} → ${load.dest || load.destination}). Violations: ${reasons}. Suggested fix: Update driver documents or resolve compliance issues in Settings → Compliance.`,
+              severity: 'warning',
+              source: 'dispatch_compliance',
+            }),
+          }).catch(() => {})
+        }
+        return
+      }
+      // Log warnings but don't block
+      const warns = [cdl, med, avail].filter(c => c.status === 'warn')
+      if (warns.length > 0) {
+        console.log(`[Compliance] Dispatch warnings for ${driverName}:`, warns.map(w => w.label))
+      }
+    }
+
     // DB column is carrier_name, not driver or driver_name
     const dbUpdates = { carrier_name: driverName, status: 'Assigned to Driver' }
     const localUpdates = { driver: driverName, driver_name: driverName, carrier_name: driverName, status: 'Assigned to Driver' }
@@ -527,6 +604,15 @@ export function CarrierProvider({ children }) {
       try {
         await db.updateLoad(load.id, dbUpdates)
         console.log(`[Pilot] Driver assigned: ${driverName} → load ${loadId}`)
+        // Log assignment to audit trail
+        db.createAuditLog({
+          action: 'driver_assigned',
+          entity_type: 'load',
+          entity_id: load.id,
+          old_value: { driver: load.driver || load.driver_name || null, status: load.status },
+          new_value: { driver: driverName, status: 'Assigned to Driver' },
+          metadata: { load_id: load.loadId || load.load_id, origin: load.origin, destination: load.dest || load.destination },
+        }).catch(() => {})
       } catch (e) {
         console.error('[Pilot] DB assign failed:', e)
       }
@@ -535,7 +621,7 @@ export function CarrierProvider({ children }) {
       const match = l.loadId === loadId || l.load_id === loadId || l.id === loadId
       return match ? normalizeLoad({ ...l, ...localUpdates }) : l
     }))
-  }, [loads, useDb, demoGuard])
+  }, [loads, drivers, useDb, demoGuard, showToast])
 
   const advanceStop = useCallback(async (loadId) => {
     if (demoGuard('advance stops')) return
@@ -574,6 +660,15 @@ export function CarrierProvider({ children }) {
     if (useDb && inv && inv._dbId && !String(inv._dbId).startsWith('mock') && !String(inv._dbId).startsWith('local')) {
       try {
         await db.updateInvoice(inv._dbId, { status })
+        // Audit log: invoice payment status change
+        db.createAuditLog({
+          action: 'invoice_status_change',
+          entity_type: 'invoice',
+          entity_id: inv._dbId,
+          old_value: { status: inv.status },
+          new_value: { status },
+          metadata: { invoice_number: inv.invoice_number, amount: inv.amount, load_number: inv.load_number || inv.loadId },
+        }).catch(() => {})
       } catch (e) {
         console.error('DB operation failed:', e)
       }

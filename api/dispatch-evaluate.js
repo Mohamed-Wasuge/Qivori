@@ -508,6 +508,19 @@ export default async function handler(req) {
 
     return Response.json(result, { headers: corsHeaders(req) })
   } catch (err) {
+    // Alert admin on dispatch evaluation failure
+    if (SUPABASE_URL && SERVICE_KEY) {
+      fetch(`${SUPABASE_URL}/rest/v1/notifications`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          title: '[CRITICAL] Dispatch Evaluation Failed',
+          body: `Load evaluation crashed: ${err.message || 'Unknown error'}. The AI dispatch engine needs attention.`,
+          user_id: 'system',
+          read: false,
+        }),
+      }).catch(() => {})
+    }
     return Response.json({ error: 'Evaluation failed: ' + (err.message || 'unknown') }, { status: 500, headers: corsHeaders(req) })
   }
 }

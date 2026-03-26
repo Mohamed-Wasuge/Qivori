@@ -1092,6 +1092,44 @@ export function SettingsTab() {
   })
   const [settingsSec, setSettingsSec] = useState('company')
   const [keysLoaded, setKeysLoaded] = useState(false)
+  const [fmcsaLoading, setFmcsaLoading] = useState(false)
+  const [fmcsaResult, setFmcsaResult] = useState(null)
+
+  const doFMCSALookup = async () => {
+    const val = (company._lookupVal || '').trim().replace(/[^0-9]/g, '')
+    if (!val) { showToast('error', 'Enter a Number', 'Type your MC# or DOT# to lookup'); return }
+    setFmcsaLoading(true)
+    setFmcsaResult(null)
+    try {
+      // Try DOT first (6-7 digits usually), then MC
+      const param = val.length >= 7 ? `dot=${val}` : `mc=${val}`
+      const res = await apiFetch(`/api/fmcsa-lookup?${param}`)
+      const data = await res.json()
+      if (!res.ok || !data.carrier) {
+        // Try the other param
+        const alt = val.length >= 7 ? `mc=${val}` : `dot=${val}`
+        const res2 = await apiFetch(`/api/fmcsa-lookup?${alt}`)
+        const data2 = await res2.json()
+        if (!res2.ok || !data2.carrier) { showToast('error', 'Not Found', 'No carrier found with that number'); setFmcsaLoading(false); return }
+        data.carrier = data2.carrier
+      }
+      const c = data.carrier
+      setFmcsaResult(c)
+      const addr = [c.phyStreet, c.phyCity, c.phyState, c.phyZip].filter(Boolean).join(', ')
+      setCompany(prev => ({
+        ...prev,
+        name: c.legalName || c.dbaName || prev.name,
+        mc: c.mcNumber || prev.mc,
+        dot: c.dotNumber || prev.dot,
+        phone: c.phone || prev.phone,
+        address: addr || prev.address,
+      }))
+      showToast('success', 'Company Found', `${c.legalName} — info auto-filled`)
+    } catch (err) {
+      showToast('error', 'Lookup Failed', err.message || 'Could not reach FMCSA')
+    }
+    setFmcsaLoading(false)
+  }
 
   // Load provider keys from company record
   useEffect(() => {
@@ -1228,6 +1266,29 @@ export function SettingsTab() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* FMCSA Auto-Lookup */}
+            <div style={{ background:'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))', border:'1px solid rgba(240,165,0,0.2)', borderRadius:12, padding:20 }}>
+              <div style={{ fontSize:12, fontWeight:700, marginBottom:4 }}>Auto-Fill from FMCSA</div>
+              <div style={{ fontSize:11, color:'var(--muted)', marginBottom:14 }}>Enter your MC# or DOT# and we'll pull your company info automatically</div>
+              <div style={{ display:'flex', gap:10, alignItems:'flex-end' }}>
+                <div style={{ flex:1, display:'flex', flexDirection:'column', gap:4 }}>
+                  <label style={{ fontSize:11, color:'var(--muted)' }}>MC or DOT Number</label>
+                  <input type="text" placeholder="e.g. 892451 or 3847291" value={company._lookupVal || ''} onChange={e => setCompany(c => ({ ...c, _lookupVal: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') doFMCSALookup() }}
+                    style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+                </div>
+                <button onClick={doFMCSALookup} disabled={fmcsaLoading}
+                  style={{ padding:'9px 20px', fontSize:12, fontWeight:700, background:'var(--accent)', color:'#000', border:'none', borderRadius:8, cursor:'pointer', whiteSpace:'nowrap', opacity: fmcsaLoading ? 0.6 : 1 }}>
+                  {fmcsaLoading ? 'Looking up...' : 'Lookup'}
+                </button>
+              </div>
+              {fmcsaResult && (
+                <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:8, fontSize:12, color:'var(--success)' }}>
+                  Found: <strong>{fmcsaResult.legalName}</strong> — DOT# {fmcsaResult.dotNumber} {fmcsaResult.mcNumber && `| MC# ${fmcsaResult.mcNumber}`}
+                </div>
+              )}
             </div>
 
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>

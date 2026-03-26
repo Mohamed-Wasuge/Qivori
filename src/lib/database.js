@@ -78,6 +78,15 @@ export async function createLoad(load) {
         load_source: load.load_source || null,
         amazon_block_id: load.amazon_block_id || null,
         payment_terms: load.payment_terms || null,
+        // Route data from Google Maps
+        fuel_estimate: load.fuel_estimate ? parseFloat(load.fuel_estimate) : null,
+        toll_estimate: load.toll_estimate ? parseFloat(load.toll_estimate) : null,
+        origin_lat: load.origin_lat ? parseFloat(load.origin_lat) : null,
+        origin_lng: load.origin_lng ? parseFloat(load.origin_lng) : null,
+        dest_lat: load.dest_lat ? parseFloat(load.dest_lat) : null,
+        dest_lng: load.dest_lng ? parseFloat(load.dest_lng) : null,
+        drive_time_minutes: load.drive_time_minutes ? parseInt(load.drive_time_minutes) : null,
+        diesel_price_at_booking: load.diesel_price_at_booking ? parseFloat(load.diesel_price_at_booking) : null,
       })
       .select()
       .single()
@@ -464,6 +473,15 @@ export async function createLoadWithStops(load, stops) {
         carrier_name: load.carrier_name || load.driver || load.driver_name || null,
         notes: load.notes || load.commodity || null,
         rate_con_url: load.rate_con_url || null,
+        // Route data from Google Maps
+        fuel_estimate: load.fuel_estimate ? parseFloat(load.fuel_estimate) : null,
+        toll_estimate: load.toll_estimate ? parseFloat(load.toll_estimate) : null,
+        origin_lat: load.origin_lat ? parseFloat(load.origin_lat) : null,
+        origin_lng: load.origin_lng ? parseFloat(load.origin_lng) : null,
+        dest_lat: load.dest_lat ? parseFloat(load.dest_lat) : null,
+        dest_lng: load.dest_lng ? parseFloat(load.dest_lng) : null,
+        drive_time_minutes: load.drive_time_minutes ? parseInt(load.drive_time_minutes) : null,
+        diesel_price_at_booking: load.diesel_price_at_booking ? parseFloat(load.diesel_price_at_booking) : null,
       })
       .select()
       .single()

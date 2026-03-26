@@ -518,8 +518,9 @@ export function BookedLoads() {
   ])
   const [showStopBuilder, setShowStopBuilder] = useState(false)
   const [calcMiles, setCalcMiles] = useState(false)
+  const [routeData, setRouteData] = useState(null)
 
-  // Auto-calculate miles when origin + destination are both filled
+  // Auto-calculate miles + route data when origin + destination are both filled
   useEffect(() => {
     if (!form.origin || !form.dest || form.miles) return
     const origin = form.origin.trim()
@@ -536,10 +537,20 @@ export function BookedLoads() {
         const data = await res.json()
         if (data.ok && data.miles > 0) {
           setForm(fm => ({ ...fm, miles: String(data.miles) }))
+          setRouteData({
+            fuel_estimate: data.fuel?.cost || null,
+            toll_estimate: data.tolls?.estimate || null,
+            origin_lat: data.origin?.lat || null,
+            origin_lng: data.origin?.lng || null,
+            dest_lat: data.destination?.lat || null,
+            dest_lng: data.destination?.lng || null,
+            drive_time_minutes: data.durationMinutes || null,
+            diesel_price_at_booking: data.fuel?.dieselPrice || null,
+          })
         }
       } catch {}
       setCalcMiles(false)
-    }, 800) // debounce 800ms
+    }, 800)
     return () => { clearTimeout(t); setCalcMiles(false) }
   }, [form.origin, form.dest])
 
@@ -768,6 +779,8 @@ export function BookedLoads() {
       height_inches: (form.loadType !== 'FTL' && form.heightInches) ? parseFloat(form.heightInches) : null,
       handling_unit: (form.loadType !== 'FTL' && form.handlingUnit) ? form.handlingUnit : null,
       miles, refNum: form.refNum, rateCon: true,
+      // Route data from Google Maps
+      ...(routeData || {}),
     }
     // Use multi-stop creation if stops have meaningful data
     const hasStopData = showStopBuilder && formStops.some(s => s.city)
@@ -790,6 +803,7 @@ export function BookedLoads() {
       ctxAddLoad(loadData)
     }
     setForm({ loadId: '', broker: '', origin: '', dest: '', miles: '', rate: '', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', driver: '', gross: 0, loadType: 'FTL', freightClass: '', palletCount: '', lengthInches: '', widthInches: '', heightInches: '', handlingUnit: 'pallet', stackable: false })
+    setRouteData(null)
     setFormStops([
       { _key: Date.now(), sequence: 1, type: 'pickup', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },
       { _key: Date.now() + 1, sequence: 2, type: 'dropoff', city: '', state: '', address: '', scheduled_date: '', contact_name: '', contact_phone: '', reference_number: '' },

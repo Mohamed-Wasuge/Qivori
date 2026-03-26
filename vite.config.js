@@ -26,6 +26,16 @@ export default defineConfig({
           if (id.includes('node_modules/html2canvas')) return 'html2canvas'
           if (id.includes('node_modules/lucide-react')) return 'icons'
           if (id.includes('node_modules/retell-client') || id.includes('node_modules/livekit-client')) return 'retell'
+          // Shared infrastructure — MUST be in own chunks to prevent TDZ errors
+          if (id.includes('context/AppContext')) return 'app-core'
+          if (id.includes('context/CarrierContext')) return 'carrier-context'
+          if (id.includes('lib/supabase') || id.includes('lib/api.js')) return 'api'
+          if (id.includes('lib/database')) return 'database'
+          if (id.includes('lib/i18n')) return 'i18n'
+          if (id.includes('lib/analytics') || id.includes('lib/conversion-funnel')) return 'analytics'
+          if (id.includes('utils/generatePDF')) return 'pdf-utils'
+          if (id.includes('pages/carrier/shared')) return 'carrier-shared'
+          if (id.includes('hooks/useSubscription')) return 'app-core'
           // Split carrier sub-modules into separate chunks
           if (id.includes('components/carrier/SettingsTab')) return 'carrier-settings'
           if (id.includes('components/carrier/DispatchTab')) return 'carrier-dispatch'

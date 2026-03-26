@@ -1110,8 +1110,15 @@ export function SettingsTab() {
     }
   }
 
+  const [pageEnabled, setPageEnabled] = useState(ctxCompany?.public_page_enabled || false)
+  const [pageSlug, setPageSlug] = useState(ctxCompany?.slug || '')
+  const [pageTagline, setPageTagline] = useState(ctxCompany?.tagline || '')
+  const [pageServiceAreas, setPageServiceAreas] = useState(ctxCompany?.service_areas || '')
+  const [pageEquipment, setPageEquipment] = useState(ctxCompany?.equipment_types || '')
+
   const SECTIONS = [
     { id:'company',        icon: Building2, label:'Company Profile' },
+    { id:'website',        icon: Globe, label:'My Website' },
     { id:'dispatch',       icon: Zap, label:'Dispatch Rules' },
     { id:'loadboards',     icon: Globe, label:'Load Boards' },
     { id:'subscription',   icon: Star, label:'Subscription' },
@@ -1237,6 +1244,94 @@ export function SettingsTab() {
             <div>
               <button className="btn btn-primary" style={{ padding:'11px 28px' }} onClick={() => { updateCompany(company); showToast('','Saved','Company profile updated') }}>Save Changes</button>
             </div>
+          </>
+        )}
+
+        {/* My Website — carrier public landing page */}
+        {settingsSec === 'website' && (
+          <>
+            <div>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>MY WEBSITE</div>
+              <div style={{ fontSize:12, color:'var(--muted)' }}>A professional landing page auto-generated from your company profile — share with brokers and shippers</div>
+            </div>
+
+            {/* Enable Toggle */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700 }}>Publish My Website</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Make your carrier page visible to brokers and the public</div>
+                </div>
+                <div onClick={() => setPageEnabled(!pageEnabled)}
+                  style={{ width:44, height:24, borderRadius:12, background: pageEnabled ? 'var(--accent)' : 'var(--border)', cursor:'pointer', position:'relative', transition:'all 0.2s', flexShrink:0 }}>
+                  <div style={{ position:'absolute', top:3, left: pageEnabled ? 22 : 3, width:18, height:18, borderRadius:'50%', background:'#fff', transition:'all 0.2s' }}/>
+                </div>
+              </div>
+            </div>
+
+            {/* URL Slug */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20 }}>
+              <div style={{ fontSize:12, fontWeight:700, marginBottom:10 }}>Your Page URL</div>
+              <div style={{ display:'flex', alignItems:'center', gap:0, background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', overflow:'hidden' }}>
+                <span style={{ padding:'9px 12px', fontSize:13, color:'var(--muted)', whiteSpace:'nowrap', borderRight:'1px solid var(--border)', background:'rgba(255,255,255,0.02)' }}>qivori.com/#/c/</span>
+                <input type="text" value={pageSlug} onChange={e => setPageSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="your-company-name" style={{ flex:1, padding:'9px 12px', border:'none', background:'transparent', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+              </div>
+              <div style={{ fontSize:11, color:'var(--muted)', marginTop:6 }}>Only lowercase letters, numbers, and hyphens. This is your unique URL.</div>
+              {!pageSlug && company.name && (
+                <button style={{ marginTop:8, padding:'6px 14px', fontSize:11, fontWeight:700, background:'rgba(240,165,0,0.1)', color:'var(--accent)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:6, cursor:'pointer' }}
+                  onClick={() => setPageSlug(company.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))}>
+                  Auto-generate from company name
+                </button>
+              )}
+            </div>
+
+            {/* Tagline */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ fontSize:12, fontWeight:700 }}>Page Details</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                <label style={{ fontSize:11, color:'var(--muted)' }}>Tagline</label>
+                <input type="text" value={pageTagline} onChange={e => setPageTagline(e.target.value)} placeholder="e.g. Reliable freight hauling across the Midwest"
+                  style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                <label style={{ fontSize:11, color:'var(--muted)' }}>Equipment Types (comma-separated)</label>
+                <input type="text" value={pageEquipment} onChange={e => setPageEquipment(e.target.value)} placeholder="e.g. Dry Van, Reefer, Flatbed"
+                  style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                <label style={{ fontSize:11, color:'var(--muted)' }}>Service Areas (comma-separated)</label>
+                <input type="text" value={pageServiceAreas} onChange={e => setPageServiceAreas(e.target.value)} placeholder="e.g. Midwest, Southeast, Nationwide"
+                  style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
+              </div>
+            </div>
+
+            {/* Save + Preview */}
+            <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+              <button className="btn btn-primary" style={{ padding:'11px 28px' }} onClick={() => {
+                if (!pageSlug) { showToast('error','Missing Slug','Enter a URL slug for your page'); return }
+                updateCompany({ public_page_enabled: pageEnabled, slug: pageSlug, tagline: pageTagline, service_areas: pageServiceAreas, equipment_types: pageEquipment })
+                showToast('','Saved', pageEnabled ? 'Your carrier page is now live!' : 'Website settings saved')
+              }}>Save Website Settings</button>
+              {pageSlug && (
+                <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => window.open(`${window.location.origin}/#/c/${pageSlug}`, '_blank')}>
+                  Preview Page ↗
+                </button>
+              )}
+            </div>
+
+            {/* Live Preview Card */}
+            {pageSlug && pageEnabled && (
+              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:20, marginTop:8 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', letterSpacing:1, marginBottom:8 }}>LIVE URL</div>
+                <div style={{ fontSize:14, fontWeight:600, wordBreak:'break-all' }}>
+                  <a href={`${window.location.origin}/#/c/${pageSlug}`} target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent)', textDecoration:'none' }}>
+                    {window.location.origin}/#/c/{pageSlug}
+                  </a>
+                </div>
+                <div style={{ fontSize:11, color:'var(--muted)', marginTop:6 }}>Share this link with brokers, shippers, or add it to your email signature</div>
+              </div>
+            )}
           </>
         )}
 

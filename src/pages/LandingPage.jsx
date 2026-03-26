@@ -120,7 +120,7 @@ function ChatBubble() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori / Q, an AI-powered TMS for trucking. Three plans starting at $99/mo: TMS Pro (basic platform), AI Dispatch (Q assists, you approve), and Autonomous Fleet (fully hands-free AI dispatch). Do NOT reveal specific pricing for each tier — tell them to sign up for the free trial to see full plan details. 14-day free trial, no credit card. AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks sync all included. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
+          context: 'This is a landing page visitor asking about Qivori / Q, an AI-powered TMS for trucking. Three plans: (1) TMS Pro $99/mo + $49/additional truck — full TMS, no AI, everything manual. (2) AI Dispatch $199/mo + $79/additional truck — AI scans boards, finds loads, you approve. No voice AI. (3) Autonomous Fleet 3% per load — fully hands-free AI dispatch, voice AI, auto booking, only charged when Q books. 14-day free trial, no credit card. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
         }),
       })
       const data = await res.json()
@@ -231,10 +231,11 @@ const Q_SYSTEM = [
   },
 ]
 
-// Pricing is two components: Q Platform (subscription) + Q Intelligence (3% per load)
+// Pricing — three plans
 const PRICING = {
-  platform: { price: 199, additional: 75 },
-  ai: { percent: 3 },
+  tms_pro: { price: 99, additional: 49 },
+  ai_dispatch: { price: 199, additional: 79 },
+  autonomous_fleet: { percent: 3 },
 }
 
 export default function LandingPage({ onGetStarted }) {
@@ -329,12 +330,7 @@ export default function LandingPage({ onGetStarted }) {
   useEffect(() => {
     async function fetchFounderCount() {
       try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const url = import.meta.env.VITE_SUPABASE_URL
-        const key = import.meta.env.VITE_SUPABASE_ANON_KEY
-        if (!url || !key) return
-        const sb = createClient(url, key)
-        const { count } = await sb.from('profiles').select('id', { count: 'exact', head: true })
+        const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true })
           .eq('subscription_plan', 'autopilot_ai').in('subscription_status', ['active', 'trialing'])
         setFounderCount(count || 0)
       } catch {}
@@ -756,9 +752,9 @@ export default function LandingPage({ onGetStarted }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
                 {[
-                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, compliance, invoicing', color: 'var(--muted)' },
-                  { label: 'AI Dispatch', desc: 'Q assists — you approve every decision', color: 'var(--accent3)' },
-                  { label: 'Autonomous Fleet', desc: 'Q runs your operation — fully hands-free', color: 'var(--accent)' },
+                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, compliance, invoicing', color: '#4d8ef0' },
+                  { label: 'AI Dispatch', desc: 'Q assists — scans boards, finds loads, you approve', color: '#f0a500' },
+                  { label: 'Autonomous Fleet', desc: 'Fully hands-free — Q books, dispatches, negotiates', color: '#00d4aa' },
                 ].map((p, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
@@ -768,10 +764,6 @@ export default function LandingPage({ onGetStarted }) {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 24 }}>
-                Sign up to see full plan details and choose what fits your operation.
               </div>
             </div>
           </FadeIn>
@@ -807,7 +799,7 @@ export default function LandingPage({ onGetStarted }) {
           {[
             { q: 'What exactly does Q do?', a: 'Q is an AI operating system for trucking. It finds loads, evaluates profitability, negotiates rates, assigns drivers, tracks fleet, manages invoicing and compliance — automatically.' },
             { q: 'Do I need to be tech-savvy?', a: 'No. Q is voice-first. Just talk to it. "Q, find me a load." "Q, what\'s my profit today?" It works like having an intelligent dispatcher on call 24/7.' },
-            { q: 'How does pricing work?', a: 'Three simple plans starting at $99/month. Choose how much you want Q to handle — from basic TMS tools to fully autonomous AI dispatch. Start with a 14-day free trial to explore everything, then pick the plan that fits.' },
+            { q: 'How does pricing work?', a: 'Three simple plans. TMS Pro at $99/mo — full management platform, no AI. AI Dispatch at $199/mo — Q scans boards and finds loads, you approve everything. Autonomous Fleet at 3% per load — fully hands-free, Q only charges when it books a load for you. All plans include a 14-day free trial, no credit card required.' },
             { q: 'Can I try it before paying?', a: '14-day free trial. No credit card required. Full access to every feature. Cancel anytime.' },
           ].map((item, i) => (
             <FadeIn key={i} delay={i * 0.08}>

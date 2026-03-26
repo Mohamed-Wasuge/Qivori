@@ -19,8 +19,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           // Core vendor libs
-          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor'
-          if (id.includes('node_modules/@supabase')) return 'supabase'
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/@supabase')) return 'vendor'
           if (id.includes('node_modules/jspdf') || id.includes('node_modules/pdfjs-dist')) return 'pdf'
           if (id.includes('node_modules/@sentry')) return 'sentry'
           if (id.includes('node_modules/html2canvas')) return 'html2canvas'

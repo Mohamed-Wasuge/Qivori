@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
-import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
+import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity, Clock, Plus, Trash2 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
@@ -917,8 +917,96 @@ export function LoadDetailDrawer({ loadId, onClose }) {
   const [showTONU, setShowTONU] = useState(false)
   const [showFactorPrompt, setShowFactorPrompt] = useState(false)
   const [tonuFee, setTonuFee] = useState('250')
+  // Detention tracking
+  const [detentionRunning, setDetentionRunning] = useState(false)
+  const [detentionStart, setDetentionStart] = useState(null)
+  const [detentionElapsed, setDetentionElapsed] = useState(0)
+  // Accessorial line items
+  const [lineItems, setLineItems] = useState([])
+  const [showAddAccessorial, setShowAddAccessorial] = useState(false)
+  const [newAccessorial, setNewAccessorial] = useState({ description: '', amount: '' })
   const load = loads.find(l => (l.loadId || l.id) === loadId)
+
+  // Initialize line items from load or linked invoice
+  useEffect(() => {
+    if (!load) return
+    const existing = load.line_items || []
+    if (existing.length > 0 && lineItems.length === 0) setLineItems(existing)
+  }, [load?.loadId])
+
+  // Initialize detention from load data
+  useEffect(() => {
+    if (!load) return
+    if (load.detention_start && !detentionStart) {
+      setDetentionStart(new Date(load.detention_start))
+      if (load.detention_end) {
+        setDetentionElapsed(Math.floor((new Date(load.detention_end) - new Date(load.detention_start)) / 1000))
+      } else {
+        setDetentionRunning(true)
+      }
+    }
+  }, [load?.loadId])
+
+  // Detention timer tick
+  useEffect(() => {
+    if (!detentionRunning || !detentionStart) return
+    const interval = setInterval(() => {
+      setDetentionElapsed(Math.floor((Date.now() - detentionStart.getTime()) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [detentionRunning, detentionStart])
+
   if (!load) return null
+
+  const detentionHours = detentionElapsed / 3600
+  const FREE_TIME_HOURS = 2
+  const DETENTION_RATE = 75 // $/hr after free time
+  const billableDetention = Math.max(0, detentionHours - FREE_TIME_HOURS)
+  const detentionCharge = Math.round(billableDetention * DETENTION_RATE)
+
+  const fmtTime = (secs) => {
+    const h = Math.floor(secs / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    const s = secs % 60
+    return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`
+  }
+
+  const startDetention = () => {
+    const now = new Date()
+    setDetentionStart(now)
+    setDetentionRunning(true)
+    setDetentionElapsed(0)
+    // Save to load
+    const dbId = load._dbId || load.id
+    if (dbId && !String(dbId).startsWith('mock') && !String(dbId).startsWith('local')) {
+      import('../../lib/database.js').then(db => db.updateLoad(dbId, { detention_start: now.toISOString() })).catch(() => {})
+    }
+    showToast('', 'Detention Started', `Timer running for ${load.loadId}`)
+  }
+
+  const stopDetention = () => {
+    const end = new Date()
+    setDetentionRunning(false)
+    // Save to load
+    const dbId = load._dbId || load.id
+    if (dbId && !String(dbId).startsWith('mock') && !String(dbId).startsWith('local')) {
+      import('../../lib/database.js').then(db => db.updateLoad(dbId, {
+        detention_end: end.toISOString(),
+        detention_hours: parseFloat(detentionHours.toFixed(2)),
+      })).catch(() => {})
+    }
+    // Auto-add detention as line item if billable
+    if (billableDetention > 0 && !lineItems.find(li => li.type === 'detention')) {
+      const item = { type: 'detention', description: `Detention (${billableDetention.toFixed(1)}hrs @ $${DETENTION_RATE}/hr — ${FREE_TIME_HOURS}hr free time)`, amount: detentionCharge }
+      setLineItems(prev => [...prev, item])
+      showToast('', 'Detention Charge Added', `$${detentionCharge} added to accessorials (${billableDetention.toFixed(1)}hrs billable)`)
+    } else {
+      showToast('', 'Detention Stopped', `Total: ${fmtTime(detentionElapsed)} — within free time, no charge`)
+    }
+  }
+
+  // Calculate total with accessorials
+  const accessorialTotal = lineItems.reduce((sum, li) => sum + (parseFloat(li.amount) || 0), 0)
 
   const origin = load.origin || '—'
   const dest = load.dest || load.destination || '—'
@@ -938,12 +1026,13 @@ export function LoadDetailDrawer({ loadId, onClose }) {
       const res = await apiFetch('/api/auto-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loadId: load._dbId || load.id }),
+        body: JSON.stringify({ loadId: load._dbId || load.id, lineItems: lineItems.length > 0 ? lineItems : undefined }),
       })
       const data = await res.json()
       if (data.success) {
         updateLoadStatus(load.loadId || load.id, 'Invoiced')
-        showToast('', 'Invoice Sent!', `${data.invoiceNumber} — ${data.emailSent ? 'Email sent to broker' : 'Invoice created (no broker email on file)'}`)
+        const totalWithAccessorials = gross + accessorialTotal
+        showToast('', 'Invoice Sent!', `${data.invoiceNumber} — $${totalWithAccessorials.toLocaleString()}${accessorialTotal > 0 ? ` (incl. $${accessorialTotal} accessorials)` : ''} — ${data.emailSent ? 'Email sent to broker' : 'Invoice created (no broker email on file)'}`)
         setShowInvoicePrompt(false)
       } else {
         showToast('', 'Invoice Error', data.error || 'Could not generate invoice')
@@ -1257,6 +1346,153 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* ═══ DETENTION TIMER ═══════════════════════════════════ */}
+          {['En Route to Pickup','Loaded','In Transit','Delivered'].includes(load.status) && (
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, display:'flex', alignItems:'center', gap:6 }}>
+                  <Ic icon={Clock} size={13} /> Detention Timer
+                </div>
+                {detentionStart && !detentionRunning && detentionCharge > 0 && (
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'rgba(239,68,68,0.1)', color:'var(--danger)' }}>
+                    +${detentionCharge} billable
+                  </span>
+                )}
+              </div>
+
+              {!detentionStart ? (
+                <div>
+                  <div style={{ fontSize:11, color:'var(--muted)', marginBottom:10, lineHeight:1.5 }}>
+                    Start the timer when driver arrives at shipper/receiver. Industry standard: {FREE_TIME_HOURS}hr free time, then ${DETENTION_RATE}/hr.
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize:11, width:'100%' }} onClick={startDetention}>
+                    <Ic icon={Clock} size={12} /> Start Detention Timer
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ textAlign:'center', marginBottom:10 }}>
+                    <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:28, fontWeight:800, color: detentionRunning ? (billableDetention > 0 ? 'var(--danger)' : 'var(--accent)') : 'var(--text)', letterSpacing:1 }}>
+                      {fmtTime(detentionElapsed)}
+                    </div>
+                    <div style={{ fontSize:10, color:'var(--muted)', marginTop:4 }}>
+                      Started {detentionStart.toLocaleTimeString()} · Free time: {FREE_TIME_HOURS}hr
+                      {billableDetention > 0 && <span style={{ color:'var(--danger)', fontWeight:700 }}> · Billable: {billableDetention.toFixed(1)}hr = ${detentionCharge}</span>}
+                    </div>
+                  </div>
+                  {/* Progress bar showing free time vs billable */}
+                  <div style={{ height:6, borderRadius:3, background:'var(--surface2)', overflow:'hidden', marginBottom:10 }}>
+                    <div style={{
+                      height:'100%', borderRadius:3, transition:'width 1s linear',
+                      width: `${Math.min(100, (detentionHours / (FREE_TIME_HOURS * 2)) * 100)}%`,
+                      background: billableDetention > 0 ? 'linear-gradient(90deg, var(--accent), var(--danger))' : 'var(--accent)',
+                    }} />
+                  </div>
+                  {detentionRunning ? (
+                    <button className="btn btn-ghost" style={{ fontSize:11, width:'100%', color:'var(--danger)', border:'1px solid rgba(239,68,68,0.3)' }} onClick={stopDetention}>
+                      Stop Timer
+                    </button>
+                  ) : (
+                    <div style={{ fontSize:10, color:'var(--muted)', textAlign:'center' }}>
+                      Timer stopped · {billableDetention > 0 ? `$${detentionCharge} detention charge added to accessorials` : 'Within free time — no charge'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ ACCESSORIAL CHARGES / LINE ITEMS ═══════════════════ */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1 }}>
+                Charges & Accessorials
+              </div>
+              <button className="btn btn-ghost" style={{ fontSize:10, padding:'3px 10px', display:'flex', alignItems:'center', gap:4 }}
+                onClick={() => setShowAddAccessorial(true)}>
+                <Ic icon={Plus} size={11} /> Add
+              </button>
+            </div>
+
+            {/* Freight (always shown) */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
+              <div>
+                <div style={{ fontSize:12, fontWeight:600 }}>Freight — {origin.split(',')[0]} → {dest.split(',')[0]}</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>{(load.miles || 0).toLocaleString()} mi · ${rpm}/mi</div>
+              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)' }}>${gross.toLocaleString()}</div>
+            </div>
+
+            {/* Line items */}
+            {lineItems.map((li, idx) => (
+              <div key={idx} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flex:1 }}>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:600 }}>{li.description}</div>
+                    {li.type && <div style={{ fontSize:9, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.5 }}>{li.type}</div>}
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>+${parseFloat(li.amount || 0).toLocaleString()}</span>
+                  {!linkedInvoice && (
+                    <button onClick={() => setLineItems(prev => prev.filter((_, i) => i !== idx))}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--muted)', padding:2 }}>
+                      <Ic icon={Trash2} size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Add accessorial form */}
+            {showAddAccessorial && (
+              <div style={{ padding:'10px 0', borderBottom:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:8 }}>
+                <select value={newAccessorial.description}
+                  onChange={e => {
+                    const val = e.target.value
+                    const presets = { 'Detention': detentionCharge || 150, 'Lumper Fee': 0, 'Fuel Surcharge': 0, 'Layover': 250, 'TONU': 250, 'Re-delivery': 150, 'Scale Ticket': 15, 'Toll Charges': 0, 'Other': 0 }
+                    setNewAccessorial({ description: val, amount: presets[val] || '' })
+                  }}
+                  style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
+                  <option value="">Select charge type...</option>
+                  {['Detention','Lumper Fee','Fuel Surcharge','Layover','TONU','Re-delivery','Scale Ticket','Toll Charges','Other'].map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input type="number" placeholder="Amount ($)" value={newAccessorial.amount}
+                    onChange={e => setNewAccessorial(prev => ({ ...prev, amount: e.target.value }))}
+                    style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'7px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif" }} />
+                  <button className="btn btn-primary" style={{ fontSize:11, padding:'7px 16px' }}
+                    disabled={!newAccessorial.description || !newAccessorial.amount}
+                    onClick={() => {
+                      setLineItems(prev => [...prev, { type: newAccessorial.description.toLowerCase().replace(/\s+/g, '_'), description: newAccessorial.description, amount: parseFloat(newAccessorial.amount) || 0 }])
+                      setNewAccessorial({ description: '', amount: '' })
+                      setShowAddAccessorial(false)
+                    }}>
+                    Add
+                  </button>
+                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { setShowAddAccessorial(false); setNewAccessorial({ description: '', amount: '' }) }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Total */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', marginTop:4 }}>
+              <span style={{ fontSize:12, fontWeight:700 }}>TOTAL</span>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>
+                ${(gross + accessorialTotal).toLocaleString()}
+              </span>
+            </div>
+            {accessorialTotal > 0 && (
+              <div style={{ fontSize:10, color:'var(--muted)', textAlign:'right' }}>
+                Freight: ${gross.toLocaleString()} + Accessorials: ${accessorialTotal.toLocaleString()}
+              </div>
+            )}
           </div>
 
           {/* Invoice */}

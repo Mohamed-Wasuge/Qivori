@@ -42,7 +42,7 @@ export default async function handler(req) {
 
   try {
     const body = await req.json()
-    const { loadId, cron } = body
+    const { loadId, cron, lineItems } = body
 
     // ── Cron mode: find all delivered loads without invoices ──
     if (cron) {
@@ -116,7 +116,7 @@ export default async function handler(req) {
       }
     }
 
-    const result = await processLoad(load, user, supabaseUrl, headers, resendKey)
+    const result = await processLoad(load, user, supabaseUrl, headers, resendKey, lineItems)
 
     return Response.json({
       success: true,
@@ -133,7 +133,7 @@ export default async function handler(req) {
 /**
  * Process a single load: create invoice, send email, update load status.
  */
-async function processLoad(load, user, supabaseUrl, headers, resendKey) {
+async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItems) {
   const now = new Date()
   const dueDate = new Date(now)
   dueDate.setDate(dueDate.getDate() + 30)
@@ -157,6 +157,10 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey) {
   const route = `${originShort} → ${destShort}`
 
   // ── 1. Create invoice record in Supabase ──
+  const items = lineItems || []
+  const accessorialTotal = items.reduce((sum, li) => sum + (parseFloat(li.amount) || 0), 0)
+  const totalAmount = rate + accessorialTotal
+
   const invoicePayload = {
     owner_id: user.id,
     invoice_number: invoiceNumber,
@@ -164,12 +168,15 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey) {
     load_number: load.load_number || '',
     broker: broker,
     route: route,
-    amount: rate,
+    amount: totalAmount,
+    line_items: items.length > 0 ? items : null,
     invoice_date: now.toISOString().split('T')[0],
     due_date: dueDate.toISOString().split('T')[0],
     status: 'Unpaid',
     driver_name: driverName,
-    notes: `Auto-generated on delivery. Ref: ${refNumber}`,
+    notes: items.length > 0
+      ? `Auto-generated on delivery. Ref: ${refNumber}. Includes ${items.length} accessorial charge(s): $${accessorialTotal.toLocaleString()}`
+      : `Auto-generated on delivery. Ref: ${refNumber}`,
   }
 
   const invRes = await fetch(`${supabaseUrl}/rest/v1/invoices`, {
@@ -214,7 +221,7 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey) {
         invoiceNumber, invoiceDate: now, dueDate,
         carrier: companyInfo, broker, brokerEmail,
         origin, dest, miles, refNumber, driverName,
-        rate, route,
+        rate, route, lineItems: items, totalAmount,
       })
 
       const emailRes = await fetch('https://api.resend.com/emails', {
@@ -227,7 +234,7 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey) {
           from: 'Qivori AI <hello@qivori.com>',
           reply_to: companyInfo.email || 'hello@qivori.com',
           to: [brokerEmail],
-          subject: `Invoice ${invoiceNumber} — ${route} — $${rate.toLocaleString()}`,
+          subject: `Invoice ${invoiceNumber} — ${route} — $${(totalAmount || rate).toLocaleString()}`,
           html: invoiceHtml,
         }),
       })
@@ -242,7 +249,7 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey) {
 /**
  * Build a professional invoice email HTML with Qivori branding.
  */
-function buildInvoiceEmailHtml({ invoiceNumber, invoiceDate, dueDate, carrier, broker, origin, dest, miles, refNumber, driverName, rate, route }) {
+function buildInvoiceEmailHtml({ invoiceNumber, invoiceDate, dueDate, carrier, broker, origin, dest, miles, refNumber, driverName, rate, route, lineItems, totalAmount }) {
   const esc = (s) => String(s || '').replace(/[<>"'&]/g, c => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' }[c]))
   const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   const fmtMoney = (n) => `$${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -338,12 +345,18 @@ function buildInvoiceEmailHtml({ invoiceNumber, invoiceDate, dueDate, carrier, b
         <td style="padding:10px 12px;font-size:12px;color:#e8e6e3;text-align:center;border-bottom:1px solid #2a2a35;">$${rpmVal}</td>
         <td style="padding:10px 12px;font-size:12px;color:#e8e6e3;font-weight:700;text-align:right;border-bottom:1px solid #2a2a35;">${fmtMoney(rate)}</td>
       </tr>
+      ${(lineItems || []).map(li => `<tr>
+        <td style="padding:10px 12px;font-size:12px;color:#e8e6e3;font-weight:600;border-bottom:1px solid #2a2a35;">${esc(li.description || li.type || 'Accessorial')}</td>
+        <td style="padding:10px 12px;font-size:12px;color:#8a8f98;text-align:center;border-bottom:1px solid #2a2a35;">—</td>
+        <td style="padding:10px 12px;font-size:12px;color:#8a8f98;text-align:center;border-bottom:1px solid #2a2a35;">—</td>
+        <td style="padding:10px 12px;font-size:12px;color:#e8e6e3;font-weight:700;text-align:right;border-bottom:1px solid #2a2a35;">${fmtMoney(li.amount)}</td>
+      </tr>`).join('')}
     </table>
 
     <!-- Total -->
     <div style="background:linear-gradient(135deg,rgba(240,165,0,0.08),rgba(240,165,0,0.02));border:1px solid rgba(240,165,0,0.2);border-radius:10px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
       <div style="font-size:14px;font-weight:800;color:#f0a500;letter-spacing:1px;">TOTAL DUE</div>
-      <div style="font-size:28px;font-weight:800;color:#f0a500;">${fmtMoney(rate)}</div>
+      <div style="font-size:28px;font-weight:800;color:#f0a500;">${fmtMoney(totalAmount || rate)}</div>
     </div>
 
     <!-- Payment instructions -->

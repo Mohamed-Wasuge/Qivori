@@ -116,6 +116,7 @@ function normalizeInvoice(inv) {
     due_date: inv.due_date || '',
     driver_name: inv.driver_name || inv.driver || '',
     amount: Number(inv.amount) || 0,
+    line_items: inv.line_items || [],
   }
 }
 

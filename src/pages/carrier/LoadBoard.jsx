@@ -53,6 +53,31 @@ export function SmartDispatch() {
   const [aiLoading, setAiLoading]       = useState(false)
   const [lbSource, setLbSource]         = useState('')
   const [lbLoading, setLbLoading]       = useState(false)
+  const [quickRoute, setQuickRoute]     = useState(null) // { miles, durationText, drivingDays }
+  const [quickRouteLoading, setQuickRouteLoading] = useState(false)
+
+  // Quick mileage lookup when both origin + destination search fields are filled
+  useEffect(() => {
+    if (!searchOrigin || !searchDest) { setQuickRoute(null); return }
+    const o = searchOrigin.trim(), d = searchDest.trim()
+    if (o.length < 2 || d.length < 2) return
+    setQuickRouteLoading(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiFetch('/api/calculate-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin: o, destination: d }),
+        })
+        const data = await res.json()
+        if (data.ok && data.miles > 0) {
+          setQuickRoute({ miles: data.miles, durationText: data.durationText, drivingDays: data.drivingDays })
+        } else { setQuickRoute(null) }
+      } catch { setQuickRoute(null) }
+      setQuickRouteLoading(false)
+    }, 800)
+    return () => { clearTimeout(t); setQuickRouteLoading(false) }
+  }, [searchOrigin, searchDest])
 
   // Fetch live loads from API
   useEffect(() => {
@@ -385,11 +410,35 @@ export function SmartDispatch() {
           <span style={{ color:'var(--muted)', alignSelf:'center', fontSize:12 }}>→</span>
           <input value={searchDest} onChange={e=>setSearchDest(e.target.value)} placeholder="Destination…"
             style={{ flex:1, background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:6, padding:'6px 10px', color:'var(--text)', fontSize:11, fontFamily:"'DM Sans',sans-serif", outline:'none' }} />
-          <button onClick={() => { setSearchOrigin(''); setSearchDest('') }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:14, padding:'0 4px' }}>✕</button>
+          <button onClick={() => { setSearchOrigin(''); setSearchDest(''); setQuickRoute(null) }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:14, padding:'0 4px' }}>✕</button>
           <button onClick={() => setAddModal(true)} className="btn btn-primary" style={{ padding:'5px 12px', fontSize:11, fontWeight:700, whiteSpace:'nowrap', borderRadius:6 }}>
             <Plus size={12} /> Add Load
           </button>
         </div>
+
+        {/* Quick mileage result */}
+        {(quickRoute || quickRouteLoading) && (
+          <div style={{ padding:'6px 12px', borderBottom:'1px solid var(--border)', background:'rgba(0,212,170,0.04)', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            {quickRouteLoading ? (
+              <span style={{ fontSize:11, color:'var(--muted)' }}>Calculating route...</span>
+            ) : quickRoute && (
+              <>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>
+                  <Route size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
+                  <b style={{ color:'var(--accent)', fontSize:14, fontFamily:"'Bebas Neue',sans-serif" }}>{quickRoute.miles.toLocaleString()}</b> miles
+                </span>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>
+                  <Clock size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
+                  <b style={{ color:'var(--text)' }}>{quickRoute.durationText}</b> drive
+                </span>
+                <span style={{ fontSize:11, color:'var(--muted)' }}>
+                  <Truck size={12} style={{ verticalAlign:'middle', marginRight:4 }} />
+                  <b style={{ color:'var(--text)' }}>{quickRoute.drivingDays}</b> {quickRoute.drivingDays === 1 ? 'day' : 'days'} (HOS)
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Equipment + filter tabs */}
         <div style={{ padding:'8px 12px', borderBottom:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:6 }}>

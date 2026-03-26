@@ -21,7 +21,7 @@ export const ROLES = {
     badge: 'role-admin', badgeText: 'ADMIN',
     nav: [
       { id: 'dashboard', icon: Home, label: 'Overview' },
-      { id: 'carriers', icon: Users, label: 'Users' },
+      { id: 'users', icon: Users, label: 'Manage Users' },
       { id: 'brokers', icon: Building2, label: 'Brokers' },
       { id: 'loadboard', icon: ClipboardList, label: 'All Loads' },
       { id: 'payments', icon: DollarSign, label: 'Revenue' },

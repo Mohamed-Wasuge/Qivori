@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import {
   Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Moon, Eye, Zap,
   Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info
@@ -7,7 +7,12 @@ import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { Ic } from './shared'
-import { SMSSettings, InvoicingSettings, TeamManagement } from '../../pages/carrier/Settings'
+
+// Lazy-load Settings domain components
+const lazyN = (fn, name) => lazy(() => fn().then(m => ({ default: m[name] })))
+const SMSSettings = lazyN(() => import('../../pages/carrier/Settings'), 'SMSSettings')
+const InvoicingSettings = lazyN(() => import('../../pages/carrier/Settings'), 'InvoicingSettings')
+const TeamManagement = lazyN(() => import('../../pages/carrier/Settings'), 'TeamManagement')
 
 // ── Subscription Settings (inside Settings tab) ────────────────────────────────
 export function SubscriptionSettings() {
@@ -47,9 +52,11 @@ export function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    autonomous_fleet: { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
-    autopilot_ai:     { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
-    autopilot:        { name: 'Q Platform', price: '$199/mo + $75/truck', color: '#f0a500', tier: 2 },
+    tms_pro:          { name: 'TMS Pro',          price: '$99/mo + $49/additional truck', color: '#4d8ef0', tier: 0 },
+    ai_dispatch:      { name: 'AI Dispatch',      price: '$199/mo + $79/additional truck', color: '#f0a500', tier: 1 },
+    autonomous_fleet: { name: 'Autonomous Fleet',  price: '3% per load (AI books only)', color: '#00d4aa', tier: 2 },
+    autopilot_ai:     { name: 'Autonomous Fleet',  price: '3% per load (AI books only)', color: '#00d4aa', tier: 2 },
+    autopilot:        { name: 'AI Dispatch',      price: '$199/mo + $79/additional truck', color: '#f0a500', tier: 1 },
   }
 
   // Q Intelligence — AI usage metrics from real q_ai_fees table
@@ -213,37 +220,36 @@ export function SubscriptionSettings() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
         <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* TMS Pro Card — $99 */}
+          {/* TMS Pro — $99/mo */}
           <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(77,142,240,0.3)', background: 'rgba(77,142,240,0.04)' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent3)', marginBottom: 2 }}>TMS Pro</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#4d8ef0', marginBottom: 2 }}>TMS Pro</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Core trucking management</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>$99</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo per truck</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo per truck · $49 each additional</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {['Fleet & dispatch management', 'Invoicing & factoring', 'IFTA & compliance suite', 'Driver portal & scorecards',
                 'Document management', 'Fuel optimizer'].map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
-                  <span style={{ color: 'var(--accent3)', fontSize: 11, flexShrink: 0 }}>{'\u2713'}</span>
+                  <span style={{ color: '#4d8ef0', fontSize: 11, flexShrink: 0 }}>{'\u2713'}</span>
                   <span>{f}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* AI Dispatch Card — $199 */}
+          {/* AI Dispatch — $199/mo */}
           <div style={{ flex: '1 1 180px', position: 'relative', padding: 18, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
-            <div style={{ position: 'absolute', top: -1, right: 12, fontSize: 8, fontWeight: 800, padding: '2px 10px', borderRadius: '0 0 6px 6px', background: '#f0a500', color: '#000', letterSpacing: 1 }}>FOUNDER PRICING</div>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>AI Dispatch</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Q assists, you approve</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>$199</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · $75 each additional</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · $79 each additional</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {['Everything in TMS Pro', 'P&L dashboard & analytics', 'Fleet map & GPS tracking', 'AI load scoring & selection',
-                'Rate negotiation AI', 'Voice AI assistant', 'Broker risk intelligence', 'Market & lane analysis'].map((f, i) => (
+              {['Everything in TMS Pro', 'AI load board & scoring', 'Rate analysis & lane intel', 'Broker risk intelligence',
+                'Market & lane analysis', 'AI dispatch suggestions'].map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
                   <span style={{ color: '#f0a500', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
                   <span style={i === 0 ? { fontWeight: 700, color: '#f0a500' } : undefined}>{f}</span>
@@ -252,23 +258,23 @@ export function SubscriptionSettings() {
             </div>
           </div>
 
-          {/* Autonomous Fleet Card — 3% */}
+          {/* Autonomous Fleet — 3% per load */}
           <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(0,212,170,0.3)', background: 'rgba(0,212,170,0.04)' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--success)', marginBottom: 2 }}>Autonomous Fleet</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#00d4aa', marginBottom: 2 }}>Autonomous Fleet</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Fully hands-free AI dispatch</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>3%</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>per load · only when Q dispatches</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>per load · only when Q books</span>
             </div>
             <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 12, fontStyle: 'italic' }}>
               $2,000 load = $60 AI fee · You keep $1,940
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {['Everything in AI Dispatch', 'Smart dispatch automation', 'Proactive load finding', 'Autonomous broker calling',
-                'Auto rate negotiation', 'Profit optimization', 'Zero manual work required'].map((f, i) => (
+              {['Everything in AI Dispatch', 'Voice AI assistant', 'Autonomous broker calling', 'Auto rate negotiation',
+                'Proactive load finding', 'Auto booking & dispatch', 'Zero manual work required'].map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
-                  <span style={{ color: 'var(--success)', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
-                  <span style={i === 0 ? { fontWeight: 700, color: 'var(--success)' } : undefined}>{f}</span>
+                  <span style={{ color: '#00d4aa', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
+                  <span style={i === 0 ? { fontWeight: 700, color: '#00d4aa' } : undefined}>{f}</span>
                 </div>
               ))}
             </div>
@@ -289,7 +295,7 @@ export function SubscriptionSettings() {
         </div>
       </div>
 
-      {/* Q Intelligence — AI Usage Tracking */}
+      {/* Q Intelligence — AI Usage Tracking (3% per load) */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>Q Intelligence Usage</div>
@@ -387,17 +393,17 @@ export function SubscriptionSettings() {
               </div>
               {truckPicker.trucks > 1 && (
                 <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $75</span>
-                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 75).toLocaleString()}/mo</span>
+                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $79</span>
+                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 79).toLocaleString()}/mo</span>
                 </div>
               )}
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
-                <span>Q Platform (subscription) + Q Intelligence (3% per load)</span>
+                <span>AI Dispatch (subscription) · Autonomous Fleet adds 3% per load</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
                 <span style={{ fontWeight:800 }}>Platform Total</span>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
-                  ${(199 + Math.max(0, truckPicker.trucks - 1) * 75).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                  ${(199 + Math.max(0, truckPicker.trucks - 1) * 79).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
                 </span>
               </div>
             </div>
@@ -1307,7 +1313,9 @@ export function SettingsTab() {
 
         {/* Team */}
         {settingsSec === 'team' && (
-          <TeamManagement />
+          <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+            <TeamManagement />
+          </Suspense>
         )}
 
         {/* Notifications */}
@@ -1354,12 +1362,16 @@ export function SettingsTab() {
 
         {/* SMS Alerts */}
         {settingsSec === 'sms' && (
-          <SMSSettings />
+          <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+            <SMSSettings />
+          </Suspense>
         )}
 
         {/* Invoicing Settings */}
         {settingsSec === 'invoicing' && (
-          <InvoicingSettings />
+          <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+            <InvoicingSettings />
+          </Suspense>
         )}
 
         {/* Import Data */}

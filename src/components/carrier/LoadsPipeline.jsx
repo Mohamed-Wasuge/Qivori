@@ -1,12 +1,32 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { Target, Bot, TrendingUp, AlertTriangle, CheckCircle, XCircle, MessageSquare, Zap, Shield, Package, DollarSign, Truck, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { Ic, HubTabBar } from './shared'
 import { DispatchTab } from './DispatchTab'
-import { SmartDispatch, CommandCenter, CheckCallCenter, LaneIntel, RateNegotiation, RateBadge } from '../../pages/carrier/LoadBoard'
 import { QDispatchAI } from './QDispatchAI'
+
+// Lazy-load LoadBoard components to prevent pulling entire LoadBoard chunk into CarrierLayout
+const lazyN = (fn, name) => lazy(() => fn().then(m => ({ default: m[name] })))
+const SmartDispatch = lazyN(() => import('../../pages/carrier/LoadBoard'), 'SmartDispatch')
+const CommandCenter = lazyN(() => import('../../pages/carrier/LoadBoard'), 'CommandCenter')
+const CheckCallCenter = lazyN(() => import('../../pages/carrier/LoadBoard'), 'CheckCallCenter')
+const LaneIntel = lazyN(() => import('../../pages/carrier/LoadBoard'), 'LaneIntel')
+const RateNegotiation = lazyN(() => import('../../pages/carrier/LoadBoard'), 'RateNegotiation')
+// Inline RateBadge to avoid importing entire LoadBoard chunk
+function RateBadge({ rpm, equipment, onClick, compact }) {
+  const mktAvg = { 'Dry Van': 2.50, 'Reefer': 2.90, 'Flatbed': 3.10, 'Step Deck': 3.30, 'Power Only': 2.10, 'Tanker': 3.30 }
+  const avg = mktAvg[equipment] || 2.50
+  const rpmNum = Number(rpm) || 0
+  if (rpmNum <= 0) return null
+  let color, label, emoji
+  if (rpmNum >= avg * 1.1) { color = 'var(--success)'; label = 'Good'; emoji = '\u{1F7E2}' }
+  else if (rpmNum >= avg * 0.92) { color = 'var(--accent)'; label = 'Fair'; emoji = '\u{1F7E1}' }
+  else { color = 'var(--danger)'; label = 'Below'; emoji = '\u{1F534}' }
+  if (compact) return <span onClick={onClick} title={label + ' rate'} style={{ fontSize: 10, cursor: onClick ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 2 }}>{emoji}</span>
+  return (<div onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 8px', borderRadius: 6, background: color + '12', border: '1px solid ' + color + '25', cursor: onClick ? 'pointer' : 'default', fontSize: 10, fontWeight: 700, color }}>{emoji} {label} &middot; ${rpmNum.toFixed(2)}/mi{onClick && <span style={{ fontSize: 9, opacity: 0.7 }}> Analyze</span>}</div>)
+}
 
 // ── Q Load Intelligence Engine ───────────────────────────────────────────────
 // Evaluates loads using real trucking profit logic — not just top-line rate.
@@ -845,11 +865,13 @@ export function LoadsPipeline({ onOpenDrawer }) {
         )}
         {pipeTab === 'q-dispatch' && <QDispatchAI />}
         {pipeTab === 'list' && <DispatchTab />}
-        {pipeTab === 'dispatch' && <SmartDispatch />}
-        {pipeTab === 'check-calls' && <CheckCallCenter />}
-        {pipeTab === 'command' && <CommandCenter />}
-        {pipeTab === 'lane-intel' && <LaneIntel />}
-        {pipeTab === 'rate-check' && <RateNegotiation />}
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
+          {pipeTab === 'dispatch' && <SmartDispatch />}
+          {pipeTab === 'check-calls' && <CheckCallCenter />}
+          {pipeTab === 'command' && <CommandCenter />}
+          {pipeTab === 'lane-intel' && <LaneIntel />}
+          {pipeTab === 'rate-check' && <RateNegotiation />}
+        </Suspense>
       </div>
 
       {/* Q Animations */}

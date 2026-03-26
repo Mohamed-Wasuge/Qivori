@@ -1,4 +1,7 @@
-import { React, useState, useRef, useEffect, useMemo, useCallback, Ic, S, StatCard, useApp, useCarrier } from './shared'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { Ic, S, StatCard } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
 import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff } from 'lucide-react'
 import { uploadFile } from '../../lib/storage'
 import { createDocument } from '../../lib/database'

@@ -1,8 +1,9 @@
-import {
-  React, useState, useMemo, useEffect, useRef, useCallback,
-  Ic, S, StatCard, AiBanner,
-  useApp, useCarrier, apiFetch, useTranslation,
-} from './shared'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { Ic, S, StatCard, AiBanner } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
+import { apiFetch } from '../../lib/api'
+import { useTranslation } from '../../lib/i18n'
 
 import {
   Activity, AlertCircle, AlertTriangle, ArrowRight, BarChart2, Bell, BellOff,

@@ -1,5 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { Ic, S, StatCard, AiBanner, useApp, useCarrier, generateSettlementPDF, apiFetch, useTranslation } from './shared'
+import { Ic, S, StatCard, AiBanner } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
+import { generateSettlementPDF } from '../../utils/generatePDF'
+import { apiFetch } from '../../lib/api'
+import { useTranslation } from '../../lib/i18n'
 import {
   DollarSign, CheckCircle, Clock, Package, Truck, Users, CreditCard, Star,
   Shield, User, UserPlus, Briefcase, Settings, Download, Upload, Send, Check,

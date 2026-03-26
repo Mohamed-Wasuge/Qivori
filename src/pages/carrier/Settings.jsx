@@ -1,9 +1,11 @@
+import React, { useState, useEffect } from 'react'
+import { Ic, S, StatCard } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
+import { apiFetch } from '../../lib/api'
 import {
-  React, useState, useEffect,
-  Ic, S, StatCard,
-  useApp, useCarrier, apiFetch,
   Briefcase, Shield, FileText, Check, Send, RefreshCw, Trophy, UserPlus, CreditCard, Zap, Star, Users, Phone, MessageCircle, Package, DollarSign, Clock, Target, Bell, CheckCircle,
-} from './shared'
+} from 'lucide-react'
 
 // ─── CARRIER PACKAGE ──────────────────────────────────────────────────────────
 export function CarrierPackage() {

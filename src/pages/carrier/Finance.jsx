@@ -1,13 +1,16 @@
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { Ic, S, StatCard, AiBanner } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
+import { generateInvoicePDF } from '../../utils/generatePDF'
+import { apiFetch } from '../../lib/api'
 import {
-  React, useState, useMemo, useEffect, useRef, useCallback,
-  Ic, S, StatCard, AiBanner,
-  useApp, useCarrier, generateInvoicePDF, apiFetch,
   BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock,
   Wrench, FileText, Package, Truck, Receipt, Zap, Bot, Star, Activity,
   Shield, Briefcase, Settings, Layers, Eye, Download, Send, Check,
   Calendar, TrendingUp, TrendingDown, Lightbulb, Fuel, Route, Navigation,
   Paperclip, Dumbbell, AlertCircle, Brain, Sparkles, CircleDot
-} from './shared'
+} from 'lucide-react'
 
 // ─── ACCOUNTING HELPERS ───────────────────────────────────────────────────────
 const ACCT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']

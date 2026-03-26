@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { Ic, S, StatCard, useApp, useCarrier, apiFetch } from './shared'
+import { Ic, S, StatCard } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
+import { apiFetch } from '../../lib/api'
 import {
   FileCheck, AlertTriangle, FileText, Shield, User, Users, Upload, Download,
   Plus, Filter, Calendar, Clock, Check, ChevronRight, Eye, Trash2, Search,

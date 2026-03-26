@@ -1,4 +1,7 @@
-import { React, useState, useEffect, useMemo, Ic, useApp, useCarrier } from './shared'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Ic } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
 import { Truck, User, MapPin, Package, Radio, MessageCircle, Scale, Navigation } from 'lucide-react'
 
 const STATUS_PROGRESS = { 'Rate Con Received':0.05, 'Assigned to Driver':0.10, 'En Route to Pickup':0.20, 'Loaded':0.45, 'In Transit':0.65, 'Delivered':1, 'Invoiced':1 }

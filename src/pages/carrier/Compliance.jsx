@@ -1,12 +1,15 @@
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import { Ic, S, AiBanner } from './shared'
+import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
+import { generateIFTAPDF } from '../../utils/generatePDF'
+import { apiFetch } from '../../lib/api'
 import {
-  React, useState, useMemo, useEffect, useCallback,
-  Ic, S, AiBanner,
-  useApp, useCarrier, generateIFTAPDF, apiFetch,
-  BarChart2, PencilIcon, Upload, Check, Download, FileText,
+  BarChart2, Edit3 as PencilIcon, Upload, Check, Download, FileText,
   Truck, Clock, Wrench, User, FlaskConical, AlertTriangle, Shield,
   Activity, FileCheck, Search, Brain, Bot, CheckCircle, Users,
   Calendar, RefreshCw, Siren, GraduationCap,
-} from './shared'
+} from 'lucide-react'
 import * as db from '../../lib/database'
 
 // ─── IFTA ─────────────────────────────────────────────────────────────────────

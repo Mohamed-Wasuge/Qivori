@@ -1,10 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock, MapPin, Wrench, FileText, Phone, Package, Truck, Users, CreditCard, Receipt, Zap, Bot, Star, Activity, Search, Shield, Bell, Wallet, Map, Droplets, FileCheck, ShieldCheck, AlertCircle, User, UserPlus, Briefcase, Settings, Layers, Eye, Download, Upload, Send, Check, ChevronRight, Plus, Filter, Calendar, Hash, Gauge, Radio, TrendingUp, TrendingDown, MessageCircle, Flag, Square, Edit3 as PencilIcon, Moon, Lightbulb, Cpu, Fuel, Route, Navigation, CircleDot, Bookmark, MailOpen, Inbox, Building2, FlaskConical, Sparkles, Trophy, ArrowRight, RefreshCw, Brain, Construction, Snowflake, TrafficCone, BellOff, Banknote, Archive, Paperclip, HardDrive, Siren, Dumbbell, GraduationCap, Dice5, Plug, Heart, Pill, Beer, Bomb, Save, Trash2 } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
-import { useCarrier } from '../../context/CarrierContext'
-import { generateInvoicePDF, generateSettlementPDF, generateIFTAPDF } from '../../utils/generatePDF'
-import { apiFetch } from '../../lib/api'
-import { useTranslation } from '../../lib/i18n'
+import { Bot } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 14, ...p }) => <Icon size={size} {...p} />
 
@@ -53,5 +48,3 @@ function AiBanner({ title, sub, action, onAction }) {
 
 export { React, useState, useMemo, useEffect, useRef, useCallback }
 export { Ic, S, StatCard, AiBanner }
-export { useApp, useCarrier, generateInvoicePDF, generateSettlementPDF, generateIFTAPDF, apiFetch, useTranslation }
-export { BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock, MapPin, Wrench, FileText, Phone, Package, Truck, Users, CreditCard, Receipt, Zap, Bot, Star, Activity, Search, Shield, Bell, Wallet, Map, Droplets, FileCheck, ShieldCheck, AlertCircle, User, UserPlus, Briefcase, Settings, Layers, Eye, Download, Upload, Send, Check, ChevronRight, Plus, Filter, Calendar, Hash, Gauge, Radio, TrendingUp, TrendingDown, MessageCircle, Flag, Square, PencilIcon, Moon, Lightbulb, Cpu, Fuel, Route, Navigation, CircleDot, Bookmark, MailOpen, Inbox, Building2, FlaskConical, Sparkles, Trophy, ArrowRight, RefreshCw, Brain, Construction, Snowflake, TrafficCone, BellOff, Banknote, Archive, Paperclip, HardDrive, Siren, Dumbbell, GraduationCap, Dice5, Plug, Heart, Pill, Beer, Bomb, Save, Trash2 } from 'lucide-react'

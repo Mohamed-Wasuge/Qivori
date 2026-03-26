@@ -109,20 +109,25 @@ function buildInvoicePdfHtml({ invoice, load, company }) {
   const origin = load?.origin || invoice.route?.split('→')[0]?.trim() || '—'
   const dest = load?.destination || invoice.route?.split('→')[1]?.trim() || '—'
   const miles = load?.miles || 0
-  const rate = parseFloat(invoice.amount) || 0
-  const rpmVal = miles > 0 ? (rate / miles).toFixed(2) : '—'
+  const lineItems = invoice.line_items || []
+  const accessorialTotal = lineItems.reduce((sum, li) => sum + (parseFloat(li.amount) || 0), 0)
+  const freightRate = parseFloat(invoice.amount) || 0
+  // If line_items exist, the stored amount already includes accessorials; freight = amount - accessorials
+  const freightOnly = lineItems.length > 0 ? freightRate - accessorialTotal : freightRate
+  const totalDue = freightRate
+  const rpmVal = miles > 0 ? (freightOnly / miles).toFixed(2) : '—'
   const refNumber = load?.reference_number || load?.po_number || load?.load_number || invoice.load_number || '—'
   const driverName = invoice.driver_name || load?.driver_name || '—'
   const broker = invoice.broker || load?.broker || '—'
   const brokerEmail = load?.broker_email || ''
 
-  // Status badge color
   const statusColors = {
-    'Unpaid': { bg: 'rgba(240,165,0,0.15)', color: '#f0a500' },
-    'Paid': { bg: 'rgba(34,197,94,0.15)', color: '#22c55e' },
-    'Overdue': { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
-    'Factored': { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
-    'Disputed': { bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
+    'Unpaid': { bg: '#FEF3C7', color: '#92400E', label: 'UNPAID' },
+    'Paid': { bg: '#D1FAE5', color: '#065F46', label: 'PAID' },
+    'Overdue': { bg: '#FEE2E2', color: '#991B1B', label: 'OVERDUE' },
+    'Factored': { bg: '#DBEAFE', color: '#1E40AF', label: 'FACTORED' },
+    'Disputed': { bg: '#FEE2E2', color: '#991B1B', label: 'DISPUTED' },
+    'Pending': { bg: '#F3F4F6', color: '#374151', label: 'PENDING' },
   }
   const st = statusColors[invoice.status] || statusColors['Unpaid']
 
@@ -131,56 +136,83 @@ function buildInvoicePdfHtml({ invoice, load, company }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invoice ${esc(invoice.invoice_number)} — Qivori AI</title>
+  <title>Invoice ${esc(invoice.invoice_number)}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Bebas+Neue&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0a0a0e; color: #e8e6e3;
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa; color: #1a1a1a;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px; line-height: 1.5;
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
     @media print {
-      body { background: #fff; color: #1a1a1a; }
+      body { background: #fff; }
       .no-print { display: none !important; }
-      .invoice-card { border-color: #ddd !important; background: #fff !important; }
-      .dark-text { color: #1a1a1a !important; }
-      .muted-text { color: #666 !important; }
-      .accent-text { color: #b87a00 !important; }
-      .surface { background: #f5f5f5 !important; border-color: #ddd !important; }
-      .border-row { border-color: #eee !important; }
+      .page { padding: 0; }
+      .invoice-card { box-shadow: none; }
     }
-    .page { max-width: 800px; margin: 0 auto; padding: 40px 24px; }
-    .invoice-card { background: #16161e; border: 1px solid #2a2a35; border-radius: 16px; overflow: hidden; }
-    .header { background: linear-gradient(135deg, #12121a, #1a1a28); padding: 32px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #2a2a35; }
-    .logo { font-size: 32px; font-weight: 800; letter-spacing: 5px; color: #fff; }
-    .logo .gold { color: #f0a500; }
-    .logo .ai { font-size: 12px; color: #00d4aa; letter-spacing: 2px; margin-left: 6px; font-weight: 700; }
-    .badge { display: inline-block; padding: 4px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-    .body { padding: 32px; }
-    .section-label { font-size: 10px; font-weight: 700; color: #f0a500; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
-    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #2a2a35; font-size: 13px; }
-    .detail-row .label { color: #8a8f98; }
-    .detail-row .value { color: #e8e6e3; font-weight: 600; text-align: right; }
-    .total-box { background: linear-gradient(135deg, rgba(240,165,0,0.1), rgba(240,165,0,0.03)); border: 1px solid rgba(240,165,0,0.25); border-radius: 12px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin: 24px 0; }
-    .total-label { font-size: 16px; font-weight: 800; color: #f0a500; letter-spacing: 2px; }
-    .total-value { font-size: 36px; font-weight: 800; color: #f0a500; font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; }
-    .line-items { width: 100%; border-collapse: collapse; margin: 16px 0; }
-    .line-items th { padding: 10px 14px; font-size: 11px; color: #8a8f98; font-weight: 600; text-align: left; background: #1e1e2a; border-bottom: 1px solid #2a2a35; }
-    .line-items th:last-child, .line-items td:last-child { text-align: right; }
-    .line-items th:nth-child(2), .line-items td:nth-child(2),
-    .line-items th:nth-child(3), .line-items td:nth-child(3) { text-align: center; }
-    .line-items td { padding: 12px 14px; font-size: 13px; color: #e8e6e3; border-bottom: 1px solid #2a2a35; }
-    .payment-box { background: #1e1e2a; border: 1px solid #2a2a35; border-radius: 10px; padding: 20px; margin-top: 24px; }
-    .footer { background: #12121a; border-top: 1px solid #2a2a35; padding: 16px 32px; text-align: center; font-size: 11px; color: #555; }
-    .print-btn { position: fixed; bottom: 24px; right: 24px; background: #f0a500; color: #000; border: none; padding: 14px 28px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 4px 20px rgba(240,165,0,0.3); }
-    .print-btn:hover { background: #d49200; }
-    .parties { display: flex; justify-content: space-between; margin-bottom: 24px; }
-    .party { flex: 1; }
-    .party-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; margin-bottom: 6px; }
-    .party-name { font-size: 16px; font-weight: 700; color: #e8e6e3; margin-bottom: 4px; }
-    .party-detail { font-size: 11px; color: #8a8f98; line-height: 1.6; }
-    .divider { height: 1px; background: #2a2a35; margin: 20px 0; }
+    .page { max-width: 820px; margin: 0 auto; padding: 32px 16px; }
+    .invoice-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+
+    /* Header */
+    .header { padding: 32px 40px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f0f0f0; }
+    .company-name { font-size: 22px; font-weight: 800; color: #111; letter-spacing: -0.3px; }
+    .company-details { font-size: 12px; color: #666; line-height: 1.7; margin-top: 6px; }
+    .invoice-title { font-size: 28px; font-weight: 800; color: #111; letter-spacing: -0.5px; text-align: right; }
+    .invoice-number { font-size: 15px; font-weight: 600; color: #555; margin-top: 4px; text-align: right; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+
+    /* Body */
+    .body { padding: 32px 40px; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+    .meta-label { font-size: 10px; font-weight: 700; color: #999; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+    .meta-value { font-size: 14px; font-weight: 600; color: #111; }
+
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 28px; padding: 20px 24px; background: #f9fafb; border-radius: 8px; border: 1px solid #f0f0f0; }
+    .party-label { font-size: 10px; font-weight: 700; color: #999; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .party-name { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 4px; }
+    .party-detail { font-size: 12px; color: #666; line-height: 1.7; }
+
+    .section-label { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; margin-top: 28px; }
+    .divider { height: 1px; background: #f0f0f0; margin: 24px 0; }
+
+    /* Details */
+    .detail-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+    .detail-row .label { color: #888; }
+    .detail-row .value { color: #111; font-weight: 600; }
+
+    /* Line items table */
+    .line-items { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .line-items th { padding: 12px 16px; font-size: 11px; color: #888; font-weight: 600; text-align: left; background: #f9fafb; border-bottom: 2px solid #eee; letter-spacing: 0.5px; text-transform: uppercase; }
+    .line-items th:last-child { text-align: right; }
+    .line-items th:nth-child(2), .line-items th:nth-child(3) { text-align: center; }
+    .line-items td { padding: 14px 16px; font-size: 13px; color: #333; border-bottom: 1px solid #f0f0f0; }
+    .line-items td:last-child { text-align: right; font-weight: 700; }
+    .line-items td:nth-child(2), .line-items td:nth-child(3) { text-align: center; color: #888; }
+
+    /* Total */
+    .total-section { margin: 20px 0 28px; }
+    .subtotal-row { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 13px; color: #666; }
+    .total-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #111; color: #fff; border-radius: 8px; margin-top: 8px; }
+    .total-row .label { font-size: 14px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+    .total-row .value { font-size: 28px; font-weight: 800; letter-spacing: 0.5px; }
+
+    /* Payment */
+    .payment-box { background: #f9fafb; border: 1px solid #eee; border-radius: 8px; padding: 20px 24px; margin-top: 24px; }
+    .payment-title { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; }
+    .payment-text { font-size: 13px; color: #555; line-height: 1.8; }
+    .payment-text strong { color: #111; }
+
+    .notes-box { margin-top: 16px; padding: 14px 18px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; }
+    .notes-label { font-size: 10px; font-weight: 700; color: #92400e; letter-spacing: 1px; margin-bottom: 4px; }
+    .notes-text { font-size: 12px; color: #78350f; }
+
+    /* Footer */
+    .footer { border-top: 1px solid #f0f0f0; padding: 16px 40px; text-align: center; font-size: 11px; color: #bbb; }
+
+    .print-btn { position: fixed; bottom: 24px; right: 24px; background: #111; color: #fff; border: none; padding: 14px 28px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+    .print-btn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -189,117 +221,135 @@ function buildInvoicePdfHtml({ invoice, load, company }) {
       <!-- Header -->
       <div class="header">
         <div>
-          <div class="logo">QI<span class="gold">VORI</span><span class="ai">AI</span></div>
-          <div style="font-size:12px;color:#8a8f98;margin-top:4px;">Invoice from ${esc(company.name || 'Carrier')}</div>
+          <div class="company-name">${esc(company.name || 'Carrier')}</div>
+          <div class="company-details">
+            ${company.mc_number ? `MC# ${esc(company.mc_number)}` : ''}${company.dot_number ? ` &middot; DOT# ${esc(company.dot_number)}` : ''}<br>
+            ${company.address ? `${esc(company.address)}<br>` : ''}
+            ${company.phone ? `${esc(company.phone)}` : ''}${company.email ? ` &middot; ${esc(company.email)}` : ''}
+          </div>
         </div>
-        <div style="text-align:right;">
-          <div class="badge" style="background:${st.bg};color:${st.color};">${esc(invoice.status)}</div>
-          <div style="font-size:22px;font-weight:800;color:#f0a500;margin-top:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;">${esc(invoice.invoice_number)}</div>
+        <div>
+          <div class="invoice-title">INVOICE</div>
+          <div class="invoice-number">${esc(invoice.invoice_number)}</div>
+          <div style="text-align:right;margin-top:8px;">
+            <span class="badge" style="background:${st.bg};color:${st.color};">${st.label}</span>
+          </div>
         </div>
       </div>
 
       <div class="body">
         <!-- Invoice meta -->
-        <div style="display:flex;gap:32px;margin-bottom:24px;">
+        <div class="meta-grid">
           <div>
-            <div style="font-size:10px;color:#8a8f98;text-transform:uppercase;letter-spacing:1px;">Invoice Date</div>
-            <div style="font-size:14px;font-weight:600;margin-top:2px;" class="dark-text">${fmtDate(invoice.invoice_date)}</div>
+            <div class="meta-label">Invoice Date</div>
+            <div class="meta-value">${fmtDate(invoice.invoice_date)}</div>
           </div>
           <div>
-            <div style="font-size:10px;color:#8a8f98;text-transform:uppercase;letter-spacing:1px;">Due Date</div>
-            <div style="font-size:14px;font-weight:600;margin-top:2px;" class="dark-text">${fmtDate(invoice.due_date)}</div>
+            <div class="meta-label">Due Date</div>
+            <div class="meta-value">${fmtDate(invoice.due_date)}</div>
           </div>
           <div>
-            <div style="font-size:10px;color:#8a8f98;text-transform:uppercase;letter-spacing:1px;">Terms</div>
-            <div style="font-size:14px;font-weight:700;color:#f0a500;margin-top:2px;">Net 30</div>
+            <div class="meta-label">Payment Terms</div>
+            <div class="meta-value">Net 30</div>
           </div>
         </div>
 
-        <div class="divider"></div>
-
         <!-- Parties -->
         <div class="parties">
-          <div class="party">
-            <div class="party-label accent-text" style="color:#f0a500;">FROM (CARRIER)</div>
-            <div class="party-name dark-text">${esc(company.name || 'Carrier')}</div>
-            <div class="party-detail muted-text">
+          <div>
+            <div class="party-label">From</div>
+            <div class="party-name">${esc(company.name || 'Carrier')}</div>
+            <div class="party-detail">
               ${company.mc_number ? `MC# ${esc(company.mc_number)}<br>` : ''}
-              ${company.dot_number ? `DOT# ${esc(company.dot_number)}<br>` : ''}
               ${company.address ? `${esc(company.address)}<br>` : ''}
               ${company.phone ? `${esc(company.phone)}<br>` : ''}
               ${company.email ? `${esc(company.email)}` : ''}
             </div>
           </div>
-          <div class="party" style="text-align:right;">
-            <div class="party-label" style="color:#00d4aa;">BILL TO (BROKER)</div>
-            <div class="party-name dark-text">${esc(broker)}</div>
-            ${brokerEmail ? `<div class="party-detail muted-text">${esc(brokerEmail)}</div>` : ''}
+          <div>
+            <div class="party-label">Bill To</div>
+            <div class="party-name">${esc(broker)}</div>
+            ${brokerEmail ? `<div class="party-detail">${esc(brokerEmail)}</div>` : ''}
           </div>
         </div>
 
-        <div class="divider"></div>
-
         <!-- Load Details -->
         <div class="section-label">Load Details</div>
-        <div class="detail-row border-row"><span class="label muted-text">Origin</span><span class="value dark-text">${esc(origin)}</span></div>
-        <div class="detail-row border-row"><span class="label muted-text">Destination</span><span class="value dark-text">${esc(dest)}</span></div>
-        <div class="detail-row border-row"><span class="label muted-text">Miles</span><span class="value dark-text">${miles > 0 ? miles.toLocaleString() : '—'}</span></div>
-        <div class="detail-row border-row"><span class="label muted-text">Reference #</span><span class="value dark-text">${esc(refNumber)}</span></div>
-        <div class="detail-row border-row"><span class="label muted-text">Load #</span><span class="value dark-text">${esc(invoice.load_number || '—')}</span></div>
-        <div class="detail-row border-row"><span class="label muted-text">Driver</span><span class="value dark-text">${esc(driverName)}</span></div>
-
-        <div style="height:24px;"></div>
+        <div class="detail-row"><span class="label">Origin</span><span class="value">${esc(origin)}</span></div>
+        <div class="detail-row"><span class="label">Destination</span><span class="value">${esc(dest)}</span></div>
+        <div class="detail-row"><span class="label">Miles</span><span class="value">${miles > 0 ? miles.toLocaleString() : '—'}</span></div>
+        <div class="detail-row"><span class="label">Reference #</span><span class="value">${esc(refNumber)}</span></div>
+        <div class="detail-row"><span class="label">Load #</span><span class="value">${esc(invoice.load_number || '—')}</span></div>
+        <div class="detail-row"><span class="label">Driver</span><span class="value">${esc(driverName)}</span></div>
+        ${load?.equipment ? `<div class="detail-row"><span class="label">Equipment</span><span class="value">${esc(load.equipment)}</span></div>` : ''}
+        ${load?.weight ? `<div class="detail-row"><span class="label">Weight</span><span class="value">${esc(load.weight)} lbs</span></div>` : ''}
 
         <!-- Line Items -->
-        <div class="section-label">Line Items</div>
-        <table class="line-items surface">
+        <div class="section-label">Charges</div>
+        <table class="line-items">
           <thead>
             <tr>
               <th>Description</th>
-              <th>Miles</th>
-              <th>Rate/Mi</th>
+              <th>Qty / Miles</th>
+              <th>Rate</th>
               <th>Amount</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td class="dark-text" style="font-weight:600;">Freight — ${esc(invoice.route || (origin.split(',')[0] + ' to ' + dest.split(',')[0]))}</td>
-              <td class="dark-text" style="text-align:center;">${miles > 0 ? miles.toLocaleString() : '—'}</td>
-              <td class="dark-text" style="text-align:center;">$${rpmVal}</td>
-              <td class="dark-text" style="font-weight:700;">${fmtMoney(rate)}</td>
+              <td style="font-weight:600;">Freight — ${esc(invoice.route || (origin.split(',')[0] + ' → ' + dest.split(',')[0]))}</td>
+              <td>${miles > 0 ? miles.toLocaleString() + ' mi' : '—'}</td>
+              <td>${miles > 0 ? '$' + rpmVal + '/mi' : '—'}</td>
+              <td>${fmtMoney(freightOnly)}</td>
             </tr>
+            ${lineItems.map(li => `<tr>
+              <td style="font-weight:600;">${esc(li.description || li.type || 'Accessorial')}</td>
+              <td>—</td>
+              <td>—</td>
+              <td>${fmtMoney(li.amount)}</td>
+            </tr>`).join('')}
           </tbody>
         </table>
 
         <!-- Total -->
-        <div class="total-box">
-          <div class="total-label">TOTAL DUE</div>
-          <div class="total-value">${fmtMoney(rate)}</div>
+        <div class="total-section">
+          ${lineItems.length > 0 ? `
+            <div class="subtotal-row">
+              <span>Freight</span><span>${fmtMoney(freightOnly)}</span>
+            </div>
+            <div class="subtotal-row">
+              <span>Accessorials (${lineItems.length} item${lineItems.length > 1 ? 's' : ''})</span><span>${fmtMoney(accessorialTotal)}</span>
+            </div>
+          ` : ''}
+          <div class="total-row">
+            <span class="label">Total Due</span>
+            <span class="value">${fmtMoney(totalDue)}</span>
+          </div>
         </div>
 
         <!-- Payment Instructions -->
-        <div class="payment-box surface">
-          <div style="font-size:10px;color:#00d4aa;font-weight:700;letter-spacing:2px;margin-bottom:10px;">PAYMENT INSTRUCTIONS</div>
-          <div style="font-size:13px;color:#c8c8d0;line-height:1.8;" class="muted-text">
-            Payment is due within <strong style="color:#f0a500;" class="accent-text">30 days</strong> of the invoice date.<br>
-            Please remit payment to <strong class="dark-text" style="color:#e8e6e3;">${esc(company.name || 'Carrier')}</strong>.<br>
+        <div class="payment-box">
+          <div class="payment-title">Payment Instructions</div>
+          <div class="payment-text">
+            Payment is due within <strong>30 days</strong> of the invoice date.<br>
+            Please remit payment to <strong>${esc(company.name || 'Carrier')}</strong>.<br>
             For questions regarding this invoice, please contact us directly.
-            ${company.phone ? `<br>Phone: ${esc(company.phone)}` : ''}
-            ${company.email ? `<br>Email: ${esc(company.email)}` : ''}
+            ${company.phone ? `<br>Phone: <strong>${esc(company.phone)}</strong>` : ''}
+            ${company.email ? `<br>Email: <strong>${esc(company.email)}</strong>` : ''}
           </div>
         </div>
 
         ${invoice.notes ? `
-        <div style="margin-top:16px;padding:12px 16px;background:#1e1e2a;border:1px solid #2a2a35;border-radius:8px;">
-          <div style="font-size:10px;color:#8a8f98;font-weight:700;letter-spacing:1px;margin-bottom:4px;">NOTES</div>
-          <div style="font-size:12px;color:#c8c8d0;">${esc(invoice.notes)}</div>
+        <div class="notes-box">
+          <div class="notes-label">NOTES</div>
+          <div class="notes-text">${esc(invoice.notes)}</div>
         </div>
         ` : ''}
       </div>
 
       <!-- Footer -->
       <div class="footer">
-        Generated by <span style="color:#f0a500;font-weight:700;">Qivori AI</span> — The AI-powered carrier operating system
+        Generated by Qivori AI
       </div>
     </div>
 

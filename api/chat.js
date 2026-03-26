@@ -184,7 +184,12 @@ Available actions (use these — they execute REAL operations on the driver's ac
 - {"type":"hos_check"}
 - {"type":"start_hos"}
 - {"type":"reset_hos"}
-- {"type":"weather_check"}
+- {"type":"weather_check","lat":0,"lng":0,"location":"City, ST"}
+  → Gets real weather at coordinates or load location. Shows current conditions, 3-day forecast, and driver safety warnings (ice, wind, storms).
+- {"type":"find_parking","lat":0,"lng":0,"radius":25}
+  → Finds truck parking, truck stops, and rest areas within radius (miles). Uses Overpass API for real data. Opens Google Maps.
+- {"type":"stop_driving"}
+  → Stop the drive clock. Logs session hours.
 - {"type":"rate_check","origin":"...","destination":"...","miles":0,"rate":0,"equipment":"Dry Van|Reefer|Flatbed|Stepdeck"}
 - {"type":"rate_analysis","origin":"City, ST","destination":"City, ST","miles":700,"rate":2500,"equipment":"Dry Van","weight":"42000"}
 - {"type":"start_detention","location_type":"shipper|receiver|warehouse","free_time_hours":2,"load_id":"..."}
@@ -226,6 +231,18 @@ BROKER RISK: "is this broker good" / "broker risk check" / "do they pay on time"
 WEEKLY TARGET: "how am I doing this week" / "weekly target" / "set target to 6000" → weekly_target. Tracks weekly revenue vs goal.
 
 WEIGH STATIONS: ANY mention of weigh stations, scales, chicken coops → ALWAYS use check_weigh_station. NEVER search_nearby.
+
+PARKING: "find parking" / "where can I park" / "truck parking" / "rest area" / "need to stop" → find_parking. Uses real data from Overpass API. If driver mentions being tired, find parking AND remind them about HOS.
+
+HOS TRACKING: "start driving" / "rolling" / "wheels turning" → start_hos. "stop driving" / "parked" / "shut down" → stop_driving. "how many hours" / "HOS check" / "clock" → hos_check. "10 hour break" / "restart" → reset_hos. "34 hour restart" → reset_hos with cycle:true. ALWAYS track HOS — this is legally required.
+
+WEATHER: "weather" / "storm" / "ice" / "snow" / "rain" / "wind" → weather_check with coordinates from active load. Give driver actionable safety advice, not just numbers.
+
+TRIP P&L: "how much did I make" / "trip profit" / "what was my net" → trip_pnl. Shows real numbers from their data.
+
+BROKER RISK: "is this broker good" / "broker check" / "do they pay" → broker_risk. Check their actual invoice/payment history.
+
+WEEKLY TARGET: "how am I doing this week" / "weekly target" / "set target" → weekly_target. Track revenue vs goal.
 
 FINDING PLACES: Truck stop, fuel, rest area, restaurant → IMMEDIATELY trigger search_nearby. Don't ask location — GPS auto-detects.
 

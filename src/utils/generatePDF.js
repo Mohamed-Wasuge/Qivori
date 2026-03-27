@@ -22,77 +22,83 @@ export function generateInvoicePDF(invoice) {
     }
   }
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
-  const gold  = [240, 165, 0]
-  const dark  = [7, 9, 14]
-  const gray  = [120, 130, 150]
-  const light = [240, 242, 248]
+  const accent = [26, 54, 93]      // deep navy
+  const black  = [17, 24, 39]
+  const gray   = [107, 114, 128]
+  const lgray  = [156, 163, 175]
+  const border = [229, 231, 235]
+  const white  = [255, 255, 255]
   const W = 612, PAD = 50
 
-  // Background
-  doc.setFillColor(...dark)
+  // Background — clean white
+  doc.setFillColor(255, 255, 255)
   doc.rect(0, 0, W, 792, 'F')
 
-  // Header bar
-  doc.setFillColor(...gold)
-  doc.rect(0, 0, W, 5, 'F')
+  // Top accent bar
+  doc.setFillColor(...accent)
+  doc.rect(0, 0, W, 4, 'F')
 
   // Company name or Qivori logo
   const companyName = invoice.companyName || ''
   doc.setFont('helvetica', 'bold')
   if (companyName) {
-    doc.setFontSize(22)
-    doc.setTextColor(255, 255, 255)
-    doc.text(companyName, PAD, 58)
-    let subY = 72
+    doc.setFontSize(20)
+    doc.setTextColor(...black)
+    doc.text(companyName, PAD, 52)
+    let subY = 66
     if (invoice.companyMC || invoice.companyDOT) {
       doc.setFontSize(9)
       doc.setTextColor(...gray)
-      doc.text([invoice.companyMC, invoice.companyDOT].filter(Boolean).join(' · '), PAD, subY)
+      doc.text([invoice.companyMC, invoice.companyDOT].filter(Boolean).join('  |  '), PAD, subY)
+      subY += 13
+    }
+    if (invoice.companyAddress) {
+      doc.setFontSize(8)
+      doc.setTextColor(...gray)
+      doc.text(invoice.companyAddress, PAD, subY)
       subY += 12
     }
     if (invoice.companyEmail || invoice.companyPhone) {
       doc.setFontSize(8)
       doc.setTextColor(...gray)
-      doc.text([invoice.companyEmail, invoice.companyPhone].filter(Boolean).join(' · '), PAD, subY)
+      doc.text([invoice.companyEmail, invoice.companyPhone].filter(Boolean).join('  |  '), PAD, subY)
     }
   } else {
-    doc.setFontSize(26)
-    doc.setTextColor(...gold)
-    doc.text('QI', PAD, 60)
-    const logoW = doc.getTextWidth('QI')
-    doc.setTextColor(255, 255, 255)
-    doc.text('VORI', PAD + logoW, 60)
-    doc.setFontSize(9)
+    doc.setFontSize(24)
+    doc.setTextColor(...accent)
+    doc.text('QIVORI', PAD, 54)
+    doc.setFontSize(8)
     doc.setTextColor(...gray)
-    doc.text('AI-POWERED TMS', PAD, 74)
+    doc.text('AI-POWERED TMS', PAD, 66)
   }
 
-  // INVOICE label
+  // INVOICE label (right)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(32)
-  doc.setTextColor(...gold)
-  doc.text('INVOICE', W - PAD, 60, { align: 'right' })
+  doc.setFontSize(28)
+  doc.setTextColor(...accent)
+  doc.text('INVOICE', W - PAD, 52, { align: 'right' })
   doc.setFontSize(10)
   doc.setTextColor(...gray)
-  doc.text(invoice.id || 'INV-000', W - PAD, 76, { align: 'right' })
+  doc.text(invoice.id || 'INV-000', W - PAD, 68, { align: 'right' })
 
-  // Divider
-  doc.setDrawColor(...gold)
-  doc.setLineWidth(0.5)
-  doc.line(PAD, 90, W - PAD, 90)
+  // Divider line
+  doc.setDrawColor(...border)
+  doc.setLineWidth(1)
+  doc.line(PAD, 95, W - PAD, 95)
 
-  // Bill to / Invoice info
+  // Bill To section
   doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...gray)
-  doc.text('BILL TO', PAD, 112)
+  doc.setTextColor(...lgray)
+  doc.text('BILL TO', PAD, 118)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...black)
+  doc.setFontSize(14)
+  doc.text(invoice.broker || '—', PAD, 136)
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(12)
-  doc.text(invoice.broker || '—', PAD, 128)
   doc.setFontSize(9)
   doc.setTextColor(...gray)
-  doc.text('Freight Broker', PAD, 142)
+  doc.text('Freight Broker', PAD, 150)
 
   // Invoice meta (right side)
   const meta = [
@@ -102,105 +108,112 @@ export function generateInvoicePDF(invoice) {
     ['Route',        invoice.route || '—'],
     ['Driver',       invoice.driver || '—'],
   ]
-  let mY = 112
+  let mY = 118
   meta.forEach(([label, val]) => {
     doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...gray)
-    doc.text(label.toUpperCase(), W - PAD - 120, mY)
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(255, 255, 255)
+    doc.setTextColor(...lgray)
+    doc.text(label.toUpperCase(), W - PAD - 130, mY)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...black)
     doc.setFontSize(9)
     doc.text(String(val), W - PAD, mY, { align: 'right' })
     mY += 16
   })
 
   // Line item table header
-  const tY = 190
-  doc.setFillColor(20, 24, 34)
-  doc.rect(PAD, tY, W - PAD*2, 26, 'F')
+  const tY = 200
+  doc.setFillColor(248, 250, 252)
+  doc.rect(PAD, tY, W - PAD*2, 28, 'F')
+  doc.setDrawColor(...border)
+  doc.setLineWidth(0.5)
+  doc.line(PAD, tY + 28, W - PAD, tY + 28)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
-  doc.setTextColor(...gray)
-  doc.text('DESCRIPTION', PAD + 10, tY + 17)
-  doc.text('AMOUNT', W - PAD - 10, tY + 17, { align: 'right' })
+  doc.setTextColor(...lgray)
+  doc.text('DESCRIPTION', PAD + 12, tY + 18)
+  doc.text('AMOUNT', W - PAD - 12, tY + 18, { align: 'right' })
 
   // Line item row
-  doc.setFillColor(15, 18, 26)
-  doc.rect(PAD, tY + 26, W - PAD*2, 36, 'F')
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)
-  doc.setTextColor(255, 255, 255)
-  doc.text(`Freight services — ${invoice.route || ''}`, PAD + 10, tY + 47)
+  doc.setTextColor(...black)
+  doc.text(`Freight services — ${invoice.route || ''}`, PAD + 12, tY + 50)
   doc.setFontSize(9)
   doc.setTextColor(...gray)
-  doc.text(`Load ${invoice.loadId || ''} · ${invoice.broker || ''}`, PAD + 10, tY + 60)
+  doc.text(`Load ${invoice.loadId || ''} · ${invoice.broker || ''}`, PAD + 12, tY + 64)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.setTextColor(...gold)
-  doc.text(`$${(invoice.amount || 0).toLocaleString()}`, W - PAD - 10, tY + 52, { align: 'right' })
+  doc.setFontSize(14)
+  doc.setTextColor(...accent)
+  doc.text(`$${(invoice.amount || 0).toLocaleString()}`, W - PAD - 12, tY + 55, { align: 'right' })
+
+  // Bottom divider for line items
+  doc.setDrawColor(...border)
+  doc.line(PAD, tY + 76, W - PAD, tY + 76)
 
   // Total box
-  const totY = tY + 80
-  doc.setFillColor(...gold)
-  doc.rect(W - PAD - 180, totY, 180, 50, 'F')
+  const totY = tY + 96
+  doc.setFillColor(...accent)
+  doc.roundedRect(W - PAD - 190, totY, 190, 52, 4, 4, 'F')
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(...dark)
-  doc.text('TOTAL DUE', W - PAD - 10, totY + 18, { align: 'right' })
+  doc.setFontSize(9)
+  doc.setTextColor(200, 210, 230)
+  doc.text('TOTAL DUE', W - PAD - 14, totY + 18, { align: 'right' })
   doc.setFontSize(22)
-  doc.text(`$${(invoice.amount || 0).toLocaleString()}`, W - PAD - 10, totY + 40, { align: 'right' })
+  doc.setTextColor(...white)
+  doc.text(`$${(invoice.amount || 0).toLocaleString()}`, W - PAD - 14, totY + 42, { align: 'right' })
 
   // Status badge
   if (invoice.status) {
-    const statusColors = { Unpaid: [239, 68, 68], Factored: [77, 142, 240], Paid: [34, 197, 94] }
+    const statusColors = { Unpaid: [220, 38, 38], Factored: [37, 99, 235], Paid: [22, 163, 74] }
     const sc = statusColors[invoice.status] || gray
     doc.setFillColor(...sc)
-    doc.roundedRect(PAD, totY + 8, 80, 26, 4, 4, 'F')
+    doc.roundedRect(PAD, totY + 10, 82, 28, 4, 4, 'F')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(255, 255, 255)
-    doc.text(invoice.status.toUpperCase(), PAD + 40, totY + 25, { align: 'center' })
+    doc.setTextColor(...white)
+    doc.text(invoice.status.toUpperCase(), PAD + 41, totY + 28, { align: 'center' })
   }
 
   // Same Day Pay / QuickPay notice
   const isSameDay = invoice.paymentTerms === 'Same Day Pay' || invoice.dueDate === 'Same Day'
   if (isSameDay) {
-    const sdY = totY + 70
-    doc.setFillColor(240, 165, 0)
-    doc.rect(PAD, sdY, W - PAD*2, 28, 'F')
+    const sdY = totY + 68
+    doc.setFillColor(254, 243, 199)
+    doc.roundedRect(PAD, sdY, W - PAD*2, 28, 4, 4, 'F')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(...dark)
+    doc.setFontSize(9)
+    doc.setTextColor(146, 64, 14)
     doc.text('SAME DAY PAY — QUICKPAY (2.5% FEE APPLIED)', W/2, sdY + 18, { align: 'center' })
   }
 
   // Payment instructions
-  const piY = totY + (isSameDay ? 115 : 150)
-  doc.setFillColor(15, 18, 26)
-  doc.rect(PAD, piY, W - PAD*2, 90, 'F')
+  const piY = totY + (isSameDay ? 112 : 80)
+  doc.setFillColor(248, 250, 252)
+  doc.roundedRect(PAD, piY, W - PAD*2, 90, 4, 4, 'F')
+  doc.setDrawColor(...border)
+  doc.roundedRect(PAD, piY, W - PAD*2, 90, 4, 4, 'S')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...gold)
-  doc.text('PAYMENT INSTRUCTIONS', PAD + 14, piY + 18)
+  doc.setTextColor(...accent)
+  doc.text('PAYMENT INSTRUCTIONS', PAD + 14, piY + 20)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.setTextColor(255, 255, 255)
-  doc.text('ACH / Wire Transfer  ·  Routing: 021000021  ·  Account: 4892810043', PAD + 14, piY + 34)
-  doc.text(isSameDay ? 'Same Day Pay requested — 2.5% QuickPay fee applied' : 'QuickPay available via Qivori portal — 2.5% factoring fee', PAD + 14, piY + 49)
+  doc.setTextColor(...black)
+  doc.text('ACH / Wire Transfer  ·  Routing: 021000021  ·  Account: 4892810043', PAD + 14, piY + 38)
+  doc.text(isSameDay ? 'Same Day Pay requested — 2.5% QuickPay fee applied' : 'QuickPay available via Qivori portal — 2.5% factoring fee', PAD + 14, piY + 54)
   doc.setTextColor(...gray)
   doc.setFontSize(8)
-  doc.text(isSameDay ? 'Payment due immediately upon receipt.' : `Payment due by ${invoice.dueDate || '—'}. Late payments subject to 1.5%/month finance charge.`, PAD + 14, piY + 65)
+  doc.text(isSameDay ? 'Payment due immediately upon receipt.' : `Payment due by ${invoice.dueDate || '—'}. Late payments subject to 1.5%/month finance charge.`, PAD + 14, piY + 72)
 
   // Footer
-  doc.setDrawColor(...gold)
+  doc.setDrawColor(...border)
   doc.setLineWidth(0.5)
   doc.line(PAD, 740, W - PAD, 740)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(...gray)
-  doc.text(companyName ? `${companyName} · Powered by Qivori AI` : 'Qivori AI · qivori.com · support@qivori.com', W/2, 756, { align: 'center' })
-  doc.text('Generated by Qivori AI', W/2, 768, { align: 'center' })
+  doc.setFontSize(7)
+  doc.setTextColor(...lgray)
+  doc.text(companyName ? `${companyName}  |  Powered by Qivori AI` : 'Qivori AI  |  qivori.com  |  support@qivori.com', W/2, 755, { align: 'center' })
 
   doc.save(`${invoice.id || 'invoice'}-Qivori.pdf`)
 }

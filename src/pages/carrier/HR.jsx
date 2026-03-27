@@ -1004,14 +1004,20 @@ export function PayrollTracker() {
   const { drivers, loads } = useCarrier()
   const [payroll, setPayroll] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedDriverId, setSelectedDriverId] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {
     db.fetchPayroll().then(p => { setPayroll(p); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!selectedDriverId && drivers.length > 0) setSelectedDriverId(drivers[0].id)
+  }, [drivers, selectedDriverId])
+
   const driverMap = useMemo(() => Object.fromEntries(drivers.map(d => [d.id, d.full_name || d.name || 'Unknown'])), [drivers])
 
-  // YTD summary per driver
   const ytd = useMemo(() => {
     const map = {}
     payroll.forEach(p => {
@@ -1029,133 +1035,306 @@ export function PayrollTracker() {
 
   const totalGross = Object.values(ytd).reduce((s, d) => s + d.gross, 0)
   const totalNet = Object.values(ytd).reduce((s, d) => s + d.net, 0)
+  const totalDeductions = Object.values(ytd).reduce((s, d) => s + d.deductions, 0)
+
+  const filteredDrivers = useMemo(() => {
+    if (!searchQuery) return drivers
+    const q = searchQuery.toLowerCase()
+    return drivers.filter(d => (d.full_name || d.name || '').toLowerCase().includes(q))
+  }, [drivers, searchQuery])
+
+  const selectedDriver = drivers.find(d => d.id === selectedDriverId)
+  const selYtd = ytd[selectedDriverId] || { gross:0, net:0, deductions:0, perDiem:0, fuel:0, loads:0, miles:0 }
+  const selPayroll = payroll.filter(p => p.driver_id === selectedDriverId)
+  const selNeeds1099 = selYtd.gross >= 600
+
+  const exportCSV = () => {
+    const rows = [['Driver','Gross Pay','Net Pay','Deductions','Per Diem','Fuel Advance','Loads','Miles','1099 Required']]
+    Object.entries(ytd).forEach(([dId, d]) => {
+      rows.push([driverMap[dId] || dId, d.gross.toFixed(2), d.net.toFixed(2), d.deductions.toFixed(2), d.perDiem.toFixed(2), d.fuel.toFixed(2), d.loads, d.miles, d.gross >= 600 ? 'Yes' : 'No'])
+    })
+    const csv = rows.map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `1099-report-${new Date().getFullYear()}.csv`; a.click()
+    URL.revokeObjectURL(url)
+    showToast('','Exported',`1099 data for ${Object.keys(ytd).length} drivers downloaded`)
+  }
+
+  const fmtPay = (d) => d.pay_model === 'percent' ? `${d.pay_rate || 28}%` : d.pay_model === 'permile' ? `$${Number(d.pay_rate||0).toFixed(2)}/mi` : d.pay_model === 'flat' ? `$${d.pay_rate} flat` : '28%'
+  const fmtMoney = (n) => `$${Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`
+
+  const ps = {
+    panel: { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 },
+    sectionTitle: { fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1.2, marginBottom:12 },
+    row: { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:'1px solid var(--border)' },
+    rowLast: { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0' },
+    label: { fontSize:13, color:'var(--text-secondary,#94a3b8)' },
+    value: { fontSize:13, fontWeight:600 },
+  }
 
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      {/* Header bar */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
         <div>
-          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>1099 & PAYROLL TRACKING</div>
-          <div style={{ fontSize:12, color:'var(--muted)' }}>YTD earnings, per diem, W9, direct deposit management</div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:1.5 }}>PAYROLL</div>
+          <div style={{ fontSize:12, color:'var(--muted)' }}>Settlements, 1099s & driver compensation</div>
         </div>
-        <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => {
-          const rows = [['Driver','Gross Pay','Net Pay','Deductions','Per Diem','Fuel Advance','Loads','Miles','1099 Required']]
-          Object.entries(ytd).forEach(([dId, d]) => {
-            rows.push([driverMap[dId] || dId, d.gross.toFixed(2), d.net.toFixed(2), d.deductions.toFixed(2), d.perDiem.toFixed(2), d.fuel.toFixed(2), d.loads, d.miles, d.gross >= 600 ? 'Yes' : 'No'])
-          })
-          const csv = rows.map(r => r.join(',')).join('\n')
-          const blob = new Blob([csv], { type: 'text/csv' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url; a.download = `1099-report-${new Date().getFullYear()}.csv`; a.click()
-          URL.revokeObjectURL(url)
-          showToast('','Exported',`1099 data for ${Object.keys(ytd).length} drivers downloaded`)
-        }}><Ic icon={Download} /> Export 1099s</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={exportCSV}>
+            <Ic icon={Download} size={14} /> Export 1099s
+          </button>
+        </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+      {/* Company-wide summary strip */}
+      <div style={{ ...ps.panel, padding:'16px 20px', display:'flex', gap:32, flexWrap:'wrap', marginBottom:16 }}>
         {[
-          { label:'YTD GROSS', value:`$${totalGross.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--accent)' },
-          { label:'YTD NET', value:`$${totalNet.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--success)' },
-          { label:'DRIVERS', value:String(Object.keys(ytd).length), color:'var(--accent3)' },
-          { label:'PERIODS', value:String(payroll.length), color:'var(--muted)' },
-        ].map(k => (
-          <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px' }}>
-            <div style={{ fontSize:10, color:'var(--muted)', letterSpacing:0.5, marginBottom:4 }}>{k.label}</div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:k.color }}>{k.value}</div>
+          { label:'Total Gross Pay', val: fmtMoney(totalGross), color:'var(--accent)' },
+          { label:'Total Net Pay', val: fmtMoney(totalNet), color:'var(--success)' },
+          { label:'Total Deductions', val: fmtMoney(totalDeductions), color:'var(--danger)' },
+          { label:'Active Drivers', val: String(drivers.length), color:'var(--accent3)' },
+          { label:'Pay Periods', val: String(payroll.length), color:'var(--muted)' },
+        ].map(s => (
+          <div key={s.label} style={{ minWidth:120 }}>
+            <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:2 }}>{s.label}</div>
+            <div style={{ fontSize:20, fontWeight:800, color:s.color, fontFamily:"'DM Sans',sans-serif" }}>{s.val}</div>
           </div>
         ))}
       </div>
 
-      {/* Per-driver YTD — compact table */}
-      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
-        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:32, height:32, borderRadius:8, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Ic icon={Users} size={16} color="var(--accent)" />
-          </div>
-          <div>
-            <div style={{ fontSize:14, fontWeight:700 }}>Driver Payroll Summary</div>
-            <div style={{ fontSize:11, color:'var(--muted)' }}>YTD earnings breakdown per driver</div>
-          </div>
-        </div>
-        {drivers.length === 0 ? (
-          <div style={{ padding:40, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet</div>
-        ) : (
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead>
-              <tr style={{ background:'var(--bg)' }}>
-                {['Driver', 'Loads', 'Miles', 'Gross Pay', 'Net Pay', 'Deductions', 'Per Diem', 'Fuel Adv.', '1099'].map(h => (
-                  <th key={h} style={{ padding:'10px 16px', fontSize:9, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, borderBottom:'1px solid var(--border)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {drivers.map((d, i) => {
-                const name = d.full_name || d.name || 'Unknown'
-                const avatar = name.split(' ').map(w => w[0]).join('').slice(0,2)
-                const dYtd = ytd[d.id] || { gross:0, net:0, deductions:0, perDiem:0, fuel:0, loads:0, miles:0 }
-                const needs1099 = dYtd.gross >= 600
-                return (
-                  <tr key={d.id} style={{ borderBottom: i < drivers.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <td style={{ padding:'12px 16px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                        <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent)', color:'#000', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", flexShrink:0 }}>{avatar}</div>
-                        <div>
-                          <div style={{ fontSize:13, fontWeight:700 }}>{name}</div>
-                          <div style={{ fontSize:10, color:'var(--muted)' }}>{d.pay_model === 'percent' ? `${d.pay_rate || 28}%` : d.pay_model === 'permile' ? `$${Number(d.pay_rate||0).toFixed(2)}/mi` : d.pay_model === 'flat' ? `$${d.pay_rate} flat` : '28%'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding:'12px 16px', fontSize:13, fontWeight:600 }}>{dYtd.loads}</td>
-                    <td style={{ padding:'12px 16px', fontSize:13 }}>{dYtd.miles.toLocaleString()}</td>
-                    <td style={{ padding:'12px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>${dYtd.gross.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                    <td style={{ padding:'12px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--success)' }}>${dYtd.net.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                    <td style={{ padding:'12px 16px', fontSize:12, color:'var(--danger)' }}>{dYtd.deductions > 0 ? `-$${dYtd.deductions.toLocaleString(undefined,{maximumFractionDigits:0})}` : '$0'}</td>
-                    <td style={{ padding:'12px 16px', fontSize:12, color:'var(--accent2)' }}>${dYtd.perDiem.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                    <td style={{ padding:'12px 16px', fontSize:12 }}>${dYtd.fuel.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-                    <td style={{ padding:'12px 16px' }}>
-                      <span style={{
-                        fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:20,
-                        background: needs1099 ? 'rgba(240,165,0,0.1)' : 'rgba(74,85,112,0.1)',
-                        color: needs1099 ? 'var(--accent)' : 'var(--muted)',
-                      }}>{needs1099 ? 'Required' : 'Under $600'}</span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* Two-panel layout */}
+      <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:16, minHeight:500 }}>
 
-      {/* Recent payroll records */}
-      {payroll.length > 0 && (
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-          <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}>Recent Settlement Periods</div>
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
-            <thead><tr style={{ borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-              {['Driver','Period','Gross','Deductions','Net Pay','Status'].map(h => (
-                <th key={h} style={{ padding:'10px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {payroll.slice(0,20).map(p => (
-                <tr key={p.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                  <td style={{ padding:'12px 14px', fontSize:13, fontWeight:600 }}>{driverMap[p.driver_id] || '?'}</td>
-                  <td style={{ padding:'12px 14px', fontSize:12, color:'var(--muted)' }}>{p.period_start && new Date(p.period_start).toLocaleDateString('en-US',{month:'short',day:'numeric'})} — {p.period_end && new Date(p.period_end).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
-                  <td style={{ padding:'12px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>${Number(p.gross_pay||0).toLocaleString()}</td>
-                  <td style={{ padding:'12px 14px', fontSize:12, color:'var(--danger)' }}>-${Number(p.deductions||0).toLocaleString()}</td>
-                  <td style={{ padding:'12px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--success)' }}>${Number(p.net_pay||0).toLocaleString()}</td>
-                  <td style={{ padding:'12px 14px' }}>
-                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, textTransform:'capitalize',
-                      background: p.status==='paid' ? 'rgba(34,197,94,0.1)' : p.status==='approved' ? 'rgba(240,165,0,0.1)' : 'rgba(74,85,112,0.1)',
-                      color: p.status==='paid' ? 'var(--success)' : p.status==='approved' ? 'var(--accent)' : 'var(--muted)' }}>{p.status}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* LEFT: Driver list */}
+        <div style={{ ...ps.panel, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+          <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)' }}>
+            <div style={{ position:'relative' }}>
+              <Ic icon={Search} size={14} color="var(--muted)" style={{ position:'absolute', left:10, top:9 }} />
+              <input
+                value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search drivers..."
+                style={{ width:'100%', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px 8px 32px', fontSize:12, color:'var(--text)', outline:'none' }}
+              />
+            </div>
+          </div>
+          <div style={{ flex:1, overflowY:'auto' }}>
+            {filteredDrivers.length === 0 ? (
+              <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No drivers found</div>
+            ) : filteredDrivers.map(d => {
+              const name = d.full_name || d.name || 'Unknown'
+              const initials = name.split(' ').map(w => w[0]).join('').slice(0,2)
+              const isActive = d.id === selectedDriverId
+              const dYtd = ytd[d.id] || { gross:0, net:0 }
+              return (
+                <div key={d.id} onClick={() => setSelectedDriverId(d.id)}
+                  style={{
+                    padding:'12px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                    background: isActive ? 'rgba(240,165,0,0.06)' : 'transparent',
+                    borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
+                    transition:'all 0.15s',
+                  }}>
+                  <div style={{ width:36, height:36, borderRadius:'50%', background: isActive ? 'var(--accent)' : 'var(--border)', color: isActive ? '#000' : 'var(--muted)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, flexShrink:0 }}>{initials}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight: isActive ? 700 : 500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{name}</div>
+                    <div style={{ fontSize:10, color:'var(--muted)' }}>{fmtPay(d)} · {dYtd.gross > 0 ? fmtMoney(dYtd.gross) + ' YTD' : 'No pay yet'}</div>
+                  </div>
+                  {(ytd[d.id]?.gross || 0) >= 600 && (
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--accent)', flexShrink:0 }} title="1099 Required" />
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
-      )}
+
+        {/* RIGHT: Selected driver detail */}
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {!selectedDriver ? (
+            <div style={{ ...ps.panel, padding:60, textAlign:'center', color:'var(--muted)' }}>
+              <Ic icon={Users} size={32} color="var(--muted)" />
+              <div style={{ marginTop:12, fontSize:14 }}>Select a driver to view payroll</div>
+            </div>
+          ) : (
+            <>
+              {/* Driver header card */}
+              <div style={{ ...ps.panel, padding:'20px 24px' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                    <div style={{ width:48, height:48, borderRadius:'50%', background:'var(--accent)', color:'#000', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:800 }}>
+                      {(selectedDriver.full_name || selectedDriver.name || 'U').split(' ').map(w => w[0]).join('').slice(0,2)}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:18, fontWeight:700 }}>{selectedDriver.full_name || selectedDriver.name}</div>
+                      <div style={{ fontSize:12, color:'var(--muted)', display:'flex', gap:12, marginTop:2 }}>
+                        <span>Pay: {fmtPay(selectedDriver)}</span>
+                        <span>·</span>
+                        <span>{selectedDriver.phone || 'No phone'}</span>
+                        <span>·</span>
+                        <span style={{ color: selNeeds1099 ? 'var(--accent)' : 'var(--muted)' }}>
+                          {selNeeds1099 ? '1099 Required' : '1099 Not Required'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button className="btn btn-ghost" style={{ fontSize:11, padding:'6px 12px' }} onClick={() => {
+                      const rows = [['Period','Gross','Deductions','Net','Per Diem','Fuel Adv','Status']]
+                      selPayroll.forEach(p => rows.push([
+                        `${p.period_start||''} - ${p.period_end||''}`, Number(p.gross_pay||0).toFixed(2), Number(p.deductions||0).toFixed(2),
+                        Number(p.net_pay||0).toFixed(2), Number(p.per_diem||0).toFixed(2), Number(p.fuel_advance||0).toFixed(2), p.status||'pending'
+                      ]))
+                      const csv = rows.map(r=>r.join(',')).join('\n')
+                      const blob = new Blob([csv],{type:'text/csv'})
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a'); a.href=url; a.download=`settlement-${(selectedDriver.full_name||'driver').replace(/\s/g,'-')}.csv`; a.click()
+                      URL.revokeObjectURL(url)
+                      showToast('','Downloaded','Settlement exported')
+                    }}><Ic icon={Download} size={13} /> Export</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs: Overview / Settlements / 1099 */}
+              <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border)' }}>
+                {['overview','settlements','1099'].map(t => (
+                  <button key={t} onClick={() => setActiveTab(t)} style={{
+                    padding:'10px 20px', fontSize:12, fontWeight: activeTab === t ? 700 : 500, cursor:'pointer', border:'none', background:'none',
+                    color: activeTab === t ? 'var(--accent)' : 'var(--muted)',
+                    borderBottom: activeTab === t ? '2px solid var(--accent)' : '2px solid transparent',
+                    textTransform:'capitalize', transition:'all 0.15s',
+                  }}>{t}</button>
+                ))}
+              </div>
+
+              {activeTab === 'overview' && (
+                <>
+                  {/* Earnings breakdown cards */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+                    {[
+                      { label:'YTD Gross', val: fmtMoney(selYtd.gross), sub:`${selYtd.loads} loads · ${selYtd.miles.toLocaleString()} mi`, color:'var(--accent)' },
+                      { label:'YTD Net', val: fmtMoney(selYtd.net), sub:'After deductions', color:'var(--success)' },
+                      { label:'YTD Deductions', val: fmtMoney(selYtd.deductions), sub:`Per diem: ${fmtMoney(selYtd.perDiem)}`, color:'var(--danger)' },
+                    ].map(c => (
+                      <div key={c.label} style={{ ...ps.panel, padding:'16px 20px' }}>
+                        <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:6 }}>{c.label}</div>
+                        <div style={{ fontSize:22, fontWeight:800, color:c.color, fontFamily:"'DM Sans',sans-serif" }}>{c.val}</div>
+                        <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{c.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Pay breakdown details */}
+                  <div style={{ ...ps.panel, padding:'20px 24px' }}>
+                    <div style={ps.sectionTitle}>Compensation Breakdown</div>
+                    {[
+                      { label:'Gross Revenue (Driver Share)', val: fmtMoney(selYtd.gross), color:'var(--accent)' },
+                      { label:'Deductions', val: selYtd.deductions > 0 ? `-${fmtMoney(selYtd.deductions)}` : '$0.00', color:'var(--danger)' },
+                      { label:'Per Diem Allowance', val: fmtMoney(selYtd.perDiem), color:'var(--text)' },
+                      { label:'Fuel Advances', val: selYtd.fuel > 0 ? `-${fmtMoney(selYtd.fuel)}` : '$0.00', color:'var(--danger)' },
+                    ].map((r, i, arr) => (
+                      <div key={r.label} style={i < arr.length - 1 ? ps.row : ps.rowLast}>
+                        <span style={ps.label}>{r.label}</span>
+                        <span style={{ ...ps.value, color: r.color }}>{r.val}</span>
+                      </div>
+                    ))}
+                    <div style={{ borderTop:'2px solid var(--border)', marginTop:8, paddingTop:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontSize:14, fontWeight:700 }}>Net Pay (YTD)</span>
+                      <span style={{ fontSize:20, fontWeight:800, color:'var(--success)' }}>{fmtMoney(selYtd.net)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'settlements' && (
+                <div style={{ ...ps.panel, overflow:'hidden' }}>
+                  {selPayroll.length === 0 ? (
+                    <div style={{ padding:48, textAlign:'center' }}>
+                      <Ic icon={Calendar} size={28} color="var(--muted)" />
+                      <div style={{ marginTop:10, fontSize:13, color:'var(--muted)' }}>No settlement periods recorded yet</div>
+                    </div>
+                  ) : (
+                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                      <thead>
+                        <tr style={{ background:'var(--bg)' }}>
+                          {['Period','Loads','Miles','Gross Pay','Deductions','Per Diem','Net Pay','Status'].map(h => (
+                            <th key={h} style={{ padding:'10px 14px', fontSize:9, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, borderBottom:'1px solid var(--border)' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selPayroll.map((p, i) => {
+                          const start = p.period_start ? new Date(p.period_start).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—'
+                          const end = p.period_end ? new Date(p.period_end).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—'
+                          const statusColors = { paid: { bg:'rgba(34,197,94,0.1)', text:'var(--success)' }, approved: { bg:'rgba(240,165,0,0.1)', text:'var(--accent)' } }
+                          const sc = statusColors[p.status] || { bg:'rgba(74,85,112,0.1)', text:'var(--muted)' }
+                          return (
+                            <tr key={p.id || i} style={{ borderBottom:'1px solid var(--border)' }}>
+                              <td style={{ padding:'12px 14px', fontSize:12, fontWeight:600 }}>{start} — {end}</td>
+                              <td style={{ padding:'12px 14px', fontSize:12 }}>{p.loads_completed || 0}</td>
+                              <td style={{ padding:'12px 14px', fontSize:12 }}>{Number(p.miles_driven||0).toLocaleString()}</td>
+                              <td style={{ padding:'12px 14px', fontSize:13, fontWeight:700, color:'var(--accent)' }}>{fmtMoney(p.gross_pay)}</td>
+                              <td style={{ padding:'12px 14px', fontSize:12, color:'var(--danger)' }}>-{fmtMoney(p.deductions)}</td>
+                              <td style={{ padding:'12px 14px', fontSize:12 }}>{fmtMoney(p.per_diem)}</td>
+                              <td style={{ padding:'12px 14px', fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtMoney(p.net_pay)}</td>
+                              <td style={{ padding:'12px 14px' }}>
+                                <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:20, background: sc.bg, color: sc.text, textTransform:'capitalize' }}>{p.status || 'pending'}</span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {activeTab === '1099' && (
+                <div style={{ ...ps.panel, padding:'24px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
+                    <div style={{ width:40, height:40, borderRadius:10, background: selNeeds1099 ? 'rgba(240,165,0,0.1)' : 'rgba(74,85,112,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Ic icon={FileText} size={18} color={selNeeds1099 ? 'var(--accent)' : 'var(--muted)'} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:16, fontWeight:700 }}>1099-NEC Status</div>
+                      <div style={{ fontSize:12, color:'var(--muted)' }}>Tax year {new Date().getFullYear()}</div>
+                    </div>
+                    <div style={{ marginLeft:'auto' }}>
+                      <span style={{
+                        fontSize:11, fontWeight:700, padding:'5px 14px', borderRadius:20,
+                        background: selNeeds1099 ? 'rgba(240,165,0,0.15)' : 'rgba(34,197,94,0.1)',
+                        color: selNeeds1099 ? 'var(--accent)' : 'var(--success)',
+                      }}>{selNeeds1099 ? '1099 Required' : 'Under Threshold'}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ background:'var(--bg)', borderRadius:10, padding:'16px 20px', marginBottom:16 }}>
+                    {[
+                      { label:'Total Compensation', val: fmtMoney(selYtd.gross) },
+                      { label:'1099 Threshold', val: '$600.00' },
+                      { label: selNeeds1099 ? 'Amount Over Threshold' : 'Remaining Before Threshold', val: selNeeds1099 ? fmtMoney(selYtd.gross - 600) : fmtMoney(600 - selYtd.gross) },
+                    ].map((r, i, arr) => (
+                      <div key={r.label} style={i < arr.length - 1 ? ps.row : ps.rowLast}>
+                        <span style={ps.label}>{r.label}</span>
+                        <span style={ps.value}>{r.val}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>
+                    {selNeeds1099
+                      ? `A 1099-NEC must be issued to ${selectedDriver.full_name || selectedDriver.name} by January 31, ${new Date().getFullYear() + 1} for non-employee compensation totaling ${fmtMoney(selYtd.gross)}.`
+                      : `${selectedDriver.full_name || selectedDriver.name} has earned ${fmtMoney(selYtd.gross)} YTD. A 1099-NEC is only required if total compensation reaches $600 or more.`
+                    }
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

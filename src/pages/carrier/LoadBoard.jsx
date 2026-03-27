@@ -1717,107 +1717,82 @@ export function CommandCenter() {
           </div>
         </div>
 
-        {/* CENTER: Live Map */}
-        <div style={{ flex:1, position:'relative', overflow:'hidden', background:'#070d1a' }}>
-          {/* Grid */}
-          <svg width="100%" height="100%" style={{ position:'absolute', inset:0, opacity:0.07, pointerEvents:'none' }}>
-            <defs>
-              <pattern id="ccgrid" width="44" height="44" patternUnits="userSpaceOnUse">
-                <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#4d8ef0" strokeWidth="0.5"/>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#ccgrid)"/>
-          </svg>
-
-          {/* Map label */}
-          <div style={{ position:'absolute', top:12, left:16, zIndex:10, pointerEvents:'none' }}>
-            <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:2 }}>● LIVE FLEET MAP</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.35)' }}>{trucks.filter(t=>t.load).length} trucks on load · Real-time</div>
-          </div>
-
-          {/* SVG Map */}
-          <svg viewBox="0 0 1000 750" width="100%" height="100%" style={{ position:'absolute', inset:0 }} preserveAspectRatio="xMidYMid meet">
-            <defs>
-              {trucks.filter(t=>t.load && t.fromXY && t.toXY).map(t => (
-                <marker key={t.driver} id={`cc-arr-${t.driver.replace(' ','-')}`} markerWidth="7" markerHeight="7" refX="3" refY="3.5" orient="auto">
-                  <polygon points="0 0, 7 3.5, 0 7" fill={t.color}/>
-                </marker>
-              ))}
-            </defs>
-
-            {/* Route lines */}
-            {trucks.filter(t=>t.load && t.fromXY && t.toXY).map(t => (
-              <g key={t.driver}>
-                <line x1={t.fromXY[0]} y1={t.fromXY[1]} x2={t.toXY[0]} y2={t.toXY[1]}
-                  stroke={t.color} strokeWidth="1.5" strokeOpacity="0.18" strokeDasharray="8 5"/>
-                <line x1={t.fromXY[0]} y1={t.fromXY[1]}
-                  x2={t.fromXY[0] + (t.toXY[0]-t.fromXY[0])*t.prog}
-                  y2={t.fromXY[1] + (t.toXY[1]-t.fromXY[1])*t.prog}
-                  stroke={t.color} strokeWidth="2.5" strokeOpacity="0.85"
-                  markerEnd={`url(#cc-arr-${t.driver.replace(' ','-')})`}/>
-              </g>
-            ))}
-
-            {/* City dots */}
-            {Object.entries(CITY_XY).map(([city, [cx, cy]]) => {
-              const abbr     = city.split(',')[0].slice(0,3).toUpperCase()
-              const isActive = trucks.some(t => t.load && (t.load.origin===city || t.load.dest===city))
-              return (
-                <g key={city}>
-                  <circle cx={cx} cy={cy} r={isActive ? 5 : 3}
-                    fill={isActive ? '#fff' : 'rgba(255,255,255,0.22)'}
-                    stroke={isActive ? 'rgba(255,255,255,0.45)' : 'none'} strokeWidth="1.5"/>
-                  <text x={cx+8} y={cy+4} fontSize="11" fill={isActive ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)'}
-                    fontFamily="'DM Sans',sans-serif" fontWeight={isActive ? '700' : '400'}>{abbr}</text>
-                </g>
-              )
-            })}
-
-            {/* Truck pins */}
-            {trucks.filter(t=>t.load && t.tx && t.ty).map(t => (
-              <g key={t.driver} onClick={() => setSelDriver(t.driver === selDriver ? null : t.driver)} style={{ cursor:'pointer' }}>
-                <circle cx={t.tx} cy={t.ty} r="18" fill={t.color} opacity="0.12">
-                  <animate attributeName="r" values="14;22;14" dur="2.2s" repeatCount="indefinite"/>
-                  <animate attributeName="opacity" values="0.18;0;0.18" dur="2.2s" repeatCount="indefinite"/>
-                </circle>
-                <circle cx={t.tx} cy={t.ty} r="11" fill={t.color} stroke="#07090e" strokeWidth="2.5"/>
-                <text x={t.tx} y={t.ty+4} textAnchor="middle" fontSize="9" fill="#000"
-                  fontWeight="900" fontFamily="'DM Sans',sans-serif">{t.unit.replace('Unit ','U')}</text>
-                <rect x={t.tx+15} y={t.ty-16} width="72" height="32" rx="5"
-                  fill="rgba(7,9,14,0.92)" stroke={t.color} strokeWidth="1.2"/>
-                <text x={t.tx+51} y={t.ty-2} textAnchor="middle" fontSize="9.5" fill={t.color}
-                  fontWeight="700" fontFamily="'DM Sans',sans-serif">{t.driver.split(' ')[0]}</text>
-                <text x={t.tx+51} y={t.ty+11} textAnchor="middle" fontSize="8.5" fill="rgba(255,255,255,0.45)"
-                  fontFamily="'DM Sans',sans-serif">{t.load?.loadId}</text>
-              </g>
-            ))}
-          </svg>
-
-          {/* Bottom info strip — selected truck */}
-          {selected && selected.load && (
-            <div style={{ position:'absolute', bottom:14, left:'50%', transform:'translateX(-50%)',
-              background:'rgba(7,9,14,0.96)', border:`1px solid ${selected.color}`,
-              borderRadius:10, padding:'11px 22px', display:'flex', gap:22, zIndex:20,
-              backdropFilter:'blur(12px)', boxShadow:`0 0 24px ${selected.color}20` }}>
-              <div style={{ width:8, height:8, borderRadius:'50%', background:selected.color,
-                boxShadow:`0 0 8px ${selected.color}`, alignSelf:'center', flexShrink:0 }}/>
-              {[
-                { l:'UNIT',     v: selected.unit },
-                { l:'DRIVER',   v: selected.driver.split(' ')[0] },
-                { l:'LOAD',     v: selected.load.loadId },
-                { l:'ROUTE',    v: `${selected.load.origin?.split(',')[0]} → ${selected.load.dest?.split(',')[0]}` },
-                { l:'PROGRESS', v: Math.round(selected.prog*100) + '%' },
-                { l:'ETA',      v: selected.load.delivery?.split(' · ')[0] || 'TBD' },
-                { l:'HOS',      v: driverHOS[selected.driver] ? `${driverHOS[selected.driver].weekRemaining.toFixed(1)}h` : '—' },
-              ].map(item => (
-                <div key={item.l} style={{ textAlign:'center' }}>
-                  <div style={{ fontSize:8, color:'rgba(255,255,255,0.35)', marginBottom:2, fontWeight:700, letterSpacing:1 }}>{item.l}</div>
-                  <div style={{ fontSize:12, fontWeight:700, color: item.l==='PROGRESS' ? selected.color : 'var(--text)', whiteSpace:'nowrap' }}>{item.v}</div>
+        {/* CENTER: Google Maps */}
+        {(() => {
+          const mapsKey = typeof import.meta !== 'undefined' ? (import.meta.env?.VITE_GOOGLE_MAPS_API_KEY || '') : ''
+          const selTruck = selected?.load ? selected : null
+          const activeTruck = trucks.find(t => t.load)
+          let mapUrl = ''
+          if (mapsKey) {
+            if (selTruck?.load?.origin && selTruck?.load?.dest) {
+              mapUrl = `https://www.google.com/maps/embed/v1/directions?key=${mapsKey}&origin=${encodeURIComponent(selTruck.load.origin)}&destination=${encodeURIComponent(selTruck.load.dest)}&mode=driving`
+            } else if (activeTruck?.load?.origin && activeTruck?.load?.dest) {
+              mapUrl = `https://www.google.com/maps/embed/v1/directions?key=${mapsKey}&origin=${encodeURIComponent(activeTruck.load.origin)}&destination=${encodeURIComponent(activeTruck.load.dest)}&mode=driving`
+            } else {
+              mapUrl = `https://www.google.com/maps/embed/v1/view?key=${mapsKey}&center=39.8283,-98.5795&zoom=4&maptype=roadmap`
+            }
+          }
+          return (
+            <div style={{ flex:1, position:'relative', overflow:'hidden', background:'var(--surface2)' }}>
+              {mapsKey ? (
+                <iframe width="100%" height="100%" style={{ border:0, display:'block' }} loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade" src={mapUrl} />
+              ) : (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', flexDirection:'column', gap:8 }}>
+                  <div style={{ fontSize:13, color:'var(--muted)' }}>Google Maps API key not configured</div>
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>Add VITE_GOOGLE_MAPS_API_KEY to Vercel</div>
                 </div>
-              ))}
+              )}
+
+              {/* Top label overlay */}
+              <div style={{ position:'absolute', top:12, left:12, zIndex:10, pointerEvents:'none' }}>
+                <div style={{ background:'rgba(0,0,0,0.75)', borderRadius:8, padding:'6px 12px', backdropFilter:'blur(8px)' }}>
+                  <span style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2 }}>
+                    ● LIVE FLEET — {trucks.filter(t=>t.load).length} on load
+                  </span>
+                </div>
+              </div>
+
+              {/* Truck legend (bottom right) */}
+              <div style={{ position:'absolute', bottom:12, right:12, display:'flex', flexDirection:'column', gap:4, zIndex:10 }}>
+                {trucks.filter(t => t.load).map(t => (
+                  <div key={t.driver} onClick={() => setSelDriver(t.driver === selDriver ? null : t.driver)}
+                    style={{ display:'flex', alignItems:'center', gap:6, background: selDriver===t.driver ? 'rgba(240,165,0,0.15)' : 'rgba(0,0,0,0.75)',
+                      border:`1px solid ${selDriver===t.driver ? t.color : 'rgba(255,255,255,0.1)'}`, borderRadius:8, padding:'5px 10px', cursor:'pointer', backdropFilter:'blur(8px)' }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:t.color }} />
+                    <span style={{ fontSize:10, color:'#fff', fontWeight: selDriver===t.driver ? 700 : 400 }}>{t.driver.split(' ')[0]}</span>
+                    <span style={{ fontSize:9, color:'#00d4aa' }}>● {t.load.status}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom info strip — selected truck */}
+              {selected && selected.load && (
+                <div style={{ position:'absolute', bottom:12, left:'50%', transform:'translateX(-50%)',
+                  background:'rgba(0,0,0,0.85)', border:`1px solid ${selected.color}`,
+                  borderRadius:10, padding:'10px 20px', display:'flex', gap:18, zIndex:20,
+                  backdropFilter:'blur(12px)', boxShadow:`0 0 24px ${selected.color}20` }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:selected.color,
+                    boxShadow:`0 0 8px ${selected.color}`, alignSelf:'center', flexShrink:0 }}/>
+                  {[
+                    { l:'UNIT',     v: selected.unit },
+                    { l:'DRIVER',   v: selected.driver.split(' ')[0] },
+                    { l:'LOAD',     v: selected.load.loadId },
+                    { l:'ROUTE',    v: `${selected.load.origin?.split(',')[0]} → ${selected.load.dest?.split(',')[0]}` },
+                    { l:'PROGRESS', v: Math.round(selected.prog*100) + '%' },
+                    { l:'ETA',      v: selected.load.delivery?.split(' · ')[0] || 'TBD' },
+                    { l:'HOS',      v: driverHOS[selected.driver] ? `${driverHOS[selected.driver].weekRemaining.toFixed(1)}h` : '—' },
+                  ].map(item => (
+                    <div key={item.l} style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:8, color:'rgba(255,255,255,0.35)', marginBottom:2, fontWeight:700, letterSpacing:1 }}>{item.l}</div>
+                      <div style={{ fontSize:12, fontWeight:700, color: item.l==='PROGRESS' ? selected.color : '#fff', whiteSpace:'nowrap' }}>{item.v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          )
+        })()}
 
         {/* RIGHT: Truck Detail */}
         <div style={{ width:320, flexShrink:0, borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', background:'var(--surface)', overflowY:'auto' }}>

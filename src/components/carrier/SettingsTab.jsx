@@ -1074,6 +1074,7 @@ export function SettingsTab() {
     { name:'Motive ELD',       keyField:'motive_api_key',  icon: Smartphone, desc:'Connect your Motive (KeepTruckin) ELD', section:'providers' },
     { name:'QuickBooks Online', keyField:'quickbooks_key',  icon: BarChart2, desc:'Connect to auto-sync expenses & invoices', section:'providers' },
     { name:'DAT Load Board',    keyField:'dat_api_key',     icon: Truck, desc:'Connect to pull spot rates on your lanes', section:'loadboards' },
+    { name:'Uber Freight',      keyField:'uber_freight_key', icon: Truck, desc:'Access Uber Freight loads, quotes, and tracking', section:'loadboards' },
     { name:'123Loadboard',      keyField:'lb123_api_key',   icon: Truck, desc:'Connect to search and book loads', section:'loadboards' },
   ].map(int => ({
     ...int,

@@ -213,9 +213,14 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
     }
   } catch { /* use defaults */ }
 
-  // ── 4. Send invoice email to broker ──
+  // ── 4. Send invoice email to broker + factoring company ──
   let emailSent = false
-  if (resendKey && brokerEmail) {
+  const factoringEmail = companyInfo.factoring_email || ''
+  const recipients = []
+  if (brokerEmail) recipients.push(brokerEmail)
+  if (factoringEmail && factoringEmail !== brokerEmail) recipients.push(factoringEmail)
+
+  if (resendKey && recipients.length > 0) {
     try {
       const invoiceHtml = buildInvoiceEmailHtml({
         invoiceNumber, invoiceDate: now, dueDate,
@@ -233,7 +238,7 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
         body: JSON.stringify({
           from: 'Qivori AI <hello@qivori.com>',
           reply_to: companyInfo.email || 'hello@qivori.com',
-          to: [brokerEmail],
+          to: recipients,
           subject: `Invoice ${invoiceNumber} — ${route} — $${(totalAmount || rate).toLocaleString()}`,
           html: invoiceHtml,
         }),
@@ -243,7 +248,7 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
     } catch { emailSent = false }
   }
 
-  return { invoiceId, invoiceNumber, emailSent }
+  return { invoiceId, invoiceNumber, emailSent, factoringEmailed: emailSent && !!factoringEmail }
 }
 
 /**

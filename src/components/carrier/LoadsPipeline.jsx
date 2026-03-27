@@ -962,12 +962,18 @@ export function LoadDetailDrawer({ loadId, onClose }) {
         if (doc) setLoadDocs(prev => [doc, ...prev])
         showToast('success', 'Uploaded', `${docType} attached to ${load?.loadId || 'load'}`)
 
-        // POD uploaded on a Delivered load → auto-create & send invoice
+        // POD uploaded → auto-mark Delivered + create & send invoice
         const isPOD = docType.toLowerCase() === 'pod' || docType.toLowerCase() === 'proof of delivery'
-        const isDelivered = load?.status === 'Delivered'
+        const canAutoInvoice = isPOD && ['In Transit', 'Loaded', 'Delivered', 'En Route to Pickup'].includes(load?.status)
         const notYetInvoiced = load?.status !== 'Invoiced' && load?.status !== 'Paid'
-        if (isPOD && isDelivered && notYetInvoiced) {
+        if (isPOD && canAutoInvoice && notYetInvoiced) {
           try {
+            // Step 1: Mark as Delivered if not already
+            if (load.status !== 'Delivered') {
+              updateLoadStatus(load.loadId || load.id, 'Delivered')
+              showToast('', 'Load Delivered', `${load.loadId || load.load_number} marked as Delivered`)
+            }
+            // Step 2: Auto-create invoice and email broker/factoring
             const invRes = await apiFetch('/api/auto-invoice', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -976,7 +982,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
             const invData = await invRes.json()
             if (invData.success) {
               updateLoadStatus(load.loadId || load.id, 'Invoiced')
-              showToast('', 'Invoice Auto-Created', `${invData.invoiceNumber} — $${(load.rate || load.gross || 0).toLocaleString()} ${invData.emailSent ? '— emailed to broker' : ''}`)
+              showToast('', 'Invoice Auto-Created', `${invData.invoiceNumber} — $${(load.rate || load.gross || 0).toLocaleString()} ${invData.emailSent ? '— emailed to broker' : '— no broker email on file'}`)
             }
           } catch {
             // Invoice API unavailable — user can still create manually

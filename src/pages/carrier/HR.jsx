@@ -2452,3 +2452,401 @@ export function DriverPortal() {
     </div>
   )
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DRIVER CONTRACTS — Lease Agreements & Independent Contractor Agreements
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CONTRACT_TYPES = [
+  { id:'lease', label:'Owner-Operator Lease Agreement', desc:'49 CFR §376.12 compliant equipment lease' },
+  { id:'ic', label:'Independent Contractor Agreement', desc:'1099 contractor relationship terms' },
+  { id:'non_compete', label:'Non-Compete / Non-Solicitation', desc:'Broker and customer protection clause' },
+  { id:'custom', label:'Custom Contract', desc:'Upload your own contract document' },
+]
+
+const LEASE_SECTIONS = [
+  'Equipment Description (VIN, Year, Make, Model)',
+  'Lease Duration & Renewal Terms',
+  'Compensation Structure (% of revenue, per-mile, or flat)',
+  'Fuel, Insurance & Toll Responsibility',
+  'Escrow & Deduction Policies',
+  'Maintenance & Repair Obligations',
+  'Insurance Requirements & Minimums',
+  'Cargo Liability',
+  '45-Day Settlement Guarantee (FMCSA)',
+  'Termination & Return of Equipment',
+]
+
+const IC_SECTIONS = [
+  'Independent Contractor Status (not W-2)',
+  'Compensation & Pay Schedule',
+  'Tax Obligations (1099)',
+  'Insurance Requirements',
+  'Equipment & Operating Authority',
+  'Load Acceptance / Right to Refuse',
+  'Non-Compete / Non-Solicitation',
+  'Confidentiality',
+  'Termination Terms (30-day notice)',
+  'Dispute Resolution & Governing Law',
+]
+
+export function DriverContracts() {
+  const { showToast, user } = useApp()
+  const { drivers, vehicles, company } = useCarrier()
+  const [contracts, setContracts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showNew, setShowNew] = useState(false)
+  const [selDriver, setSelDriver] = useState('')
+  const [selType, setSelType] = useState('lease')
+  const [customTerms, setCustomTerms] = useState('')
+  const [payStructure, setPayStructure] = useState('percent')
+  const [payRate, setPayRate] = useState('')
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState('')
+  const [signing, setSigning] = useState(false)
+  const [sigCanvas, setSigCanvas] = useState(null)
+  const [sigDrawing, setSigDrawing] = useState(false)
+  const [hasSig, setHasSig] = useState(false)
+  const [viewContract, setViewContract] = useState(null)
+  const [uploading, setUploading] = useState(false)
+
+  // Load contracts
+  useEffect(() => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey || !user?.id) { setLoading(false); return }
+    fetch(`${supabaseUrl}/rest/v1/driver_contracts?owner_id=eq.${user.id}&order=created_at.desc`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+    }).then(r => r.ok ? r.json() : []).then(d => setContracts(d || [])).catch(() => {}).finally(() => setLoading(false))
+  }, [user?.id])
+
+  const saveContract = async (sigDataUrl) => {
+    const driver = drivers.find(d => d.full_name === selDriver || d.id === selDriver)
+    if (!driver) { showToast('','Error','Select a driver'); return }
+    const vehicle = vehicles?.find(v => v.driver_id === driver.id || v.assigned_driver === driver.full_name)
+
+    const contractData = {
+      owner_id: user.id,
+      driver_id: driver.id,
+      driver_name: driver.full_name,
+      contract_type: selType,
+      pay_structure: payStructure,
+      pay_rate: parseFloat(payRate) || 0,
+      start_date: startDate,
+      end_date: endDate || null,
+      vehicle_vin: vehicle?.vin || null,
+      vehicle_info: vehicle ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() : null,
+      company_name: company?.company_name || company?.name || 'Carrier',
+      custom_terms: customTerms || null,
+      carrier_signature: sigDataUrl || null,
+      status: 'active',
+      signed_date: new Date().toISOString(),
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) { showToast('','Error','Database not configured'); return }
+
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/driver_contracts`, {
+        method: 'POST',
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(contractData),
+      })
+      if (!res.ok) throw new Error('Save failed')
+      const saved = await res.json()
+      setContracts(prev => [Array.isArray(saved) ? saved[0] : saved, ...prev])
+      showToast('','Contract Created',`${CONTRACT_TYPES.find(t=>t.id===selType)?.label} for ${driver.full_name}`)
+      setShowNew(false)
+      setSelDriver(''); setCustomTerms(''); setPayRate(''); setEndDate('')
+    } catch {
+      showToast('','Error','Failed to save contract')
+    }
+  }
+
+  const uploadCustomContract = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const { uploadFile } = await import('../../lib/storage')
+      const result = await uploadFile(file, `contracts/${selDriver || 'general'}`)
+      setCustomTerms(result.url || result.path)
+      showToast('','Uploaded', file.name)
+    } catch { showToast('','Error','Upload failed') }
+    setUploading(false)
+  }
+
+  const terminateContract = async (id) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) return
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/driver_contracts?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'terminated', end_date: new Date().toISOString().split('T')[0] }),
+      })
+      setContracts(prev => prev.map(c => c.id === id ? { ...c, status: 'terminated', end_date: new Date().toISOString().split('T')[0] } : c))
+      showToast('','Contract Terminated','Contract has been ended')
+    } catch { showToast('','Error','Failed to terminate') }
+  }
+
+  // Signature pad helpers
+  const initSigCanvas = useCallback(node => {
+    if (!node) return
+    setSigCanvas(node)
+    const ctx = node.getContext('2d')
+    ctx.strokeStyle = '#f0a500'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+  }, [])
+
+  const sigStart = (e) => {
+    if (!sigCanvas) return
+    const ctx = sigCanvas.getContext('2d')
+    const rect = sigCanvas.getBoundingClientRect()
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
+    ctx.beginPath(); ctx.moveTo(x, y)
+    setSigDrawing(true)
+  }
+  const sigMove = (e) => {
+    if (!sigDrawing || !sigCanvas) return
+    e.preventDefault()
+    const ctx = sigCanvas.getContext('2d')
+    const rect = sigCanvas.getBoundingClientRect()
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
+    ctx.lineTo(x, y); ctx.stroke()
+    setHasSig(true)
+  }
+  const sigEnd = () => setSigDrawing(false)
+  const sigClear = () => {
+    if (!sigCanvas) return
+    const ctx = sigCanvas.getContext('2d')
+    ctx.clearRect(0, 0, sigCanvas.width, sigCanvas.height)
+    setHasSig(false)
+  }
+
+  const handleSign = () => {
+    if (!hasSig || !sigCanvas) { showToast('','Sign Required','Please draw your signature'); return }
+    const dataUrl = sigCanvas.toDataURL('image/png')
+    saveContract(dataUrl)
+  }
+
+  const activeContracts = contracts.filter(c => c.status === 'active')
+  const expiredContracts = contracts.filter(c => c.status !== 'active')
+
+  const sections = selType === 'lease' ? LEASE_SECTIONS : selType === 'ic' ? IC_SECTIONS : []
+
+  return (
+    <div style={{ padding:20, maxWidth:1200, margin:'0 auto' }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:16, fontWeight:700 }}>Driver Contracts</div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>Lease agreements, IC agreements & compliance documents</div>
+        </div>
+        <button className="btn btn-primary" style={{ fontSize:12 }} onClick={() => setShowNew(true)}>
+          <Ic icon={Plus} /> New Contract
+        </button>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+        {[
+          { label:'Active Contracts', val: activeContracts.length, color:'var(--success)' },
+          { label:'Lease Agreements', val: contracts.filter(c=>c.contract_type==='lease' && c.status==='active').length, color:'var(--accent)' },
+          { label:'IC Agreements', val: contracts.filter(c=>c.contract_type==='ic' && c.status==='active').length, color:'var(--accent3)' },
+          { label:'Drivers Without Contract', val: Math.max(0, drivers.length - new Set(activeContracts.map(c=>c.driver_id)).size), color: drivers.length - new Set(activeContracts.map(c=>c.driver_id)).size > 0 ? 'var(--danger)' : 'var(--muted)' },
+        ].map(s => (
+          <div key={s.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', textAlign:'center' }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color:s.color }}>{s.val}</div>
+            <div style={{ fontSize:10, color:'var(--muted)' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* New Contract Form */}
+      {showNew && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--accent)', borderRadius:12, padding:24, marginBottom:20 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:'var(--accent)', marginBottom:16 }}>Create New Contract</div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Driver</label>
+              <select className="form-input" value={selDriver} onChange={e => setSelDriver(e.target.value)} style={{ width:'100%' }}>
+                <option value="">Select driver...</option>
+                {drivers.map(d => <option key={d.id} value={d.full_name}>{d.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Contract Type</label>
+              <select className="form-input" value={selType} onChange={e => setSelType(e.target.value)} style={{ width:'100%' }}>
+                {CONTRACT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Pay Structure</label>
+              <select className="form-input" value={payStructure} onChange={e => setPayStructure(e.target.value)} style={{ width:'100%' }}>
+                <option value="percent">Percentage of Gross (%)</option>
+                <option value="permile">Per Mile ($)</option>
+                <option value="flat">Flat Rate per Load ($)</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Pay Rate</label>
+              <input className="form-input" type="number" placeholder={payStructure === 'percent' ? 'e.g. 88' : payStructure === 'permile' ? 'e.g. 0.65' : 'e.g. 500'} value={payRate} onChange={e => setPayRate(e.target.value)} style={{ width:'100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Start Date</label>
+              <input className="form-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ width:'100%' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>End Date (optional)</label>
+              <input className="form-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ width:'100%' }} />
+            </div>
+          </div>
+
+          {/* Contract sections preview */}
+          {sections.length > 0 && (
+            <div style={{ background:'var(--surface2)', borderRadius:8, padding:16, marginBottom:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', marginBottom:8 }}>
+                {selType === 'lease' ? 'FMCSA §376.12 REQUIRED SECTIONS' : 'IC AGREEMENT SECTIONS'}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {sections.map((s, i) => (
+                  <div key={i} style={{ fontSize:11, color:'var(--text)', display:'flex', alignItems:'center', gap:6 }}>
+                    <Check size={12} color="var(--success)" /> {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom upload for custom type */}
+          {selType === 'custom' && (
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Upload Contract Document</label>
+              <input type="file" accept=".pdf,.doc,.docx" onChange={uploadCustomContract} style={{ fontSize:12 }} />
+              {uploading && <span style={{ fontSize:11, color:'var(--accent)' }}> Uploading...</span>}
+              {customTerms && <div style={{ fontSize:11, color:'var(--success)', marginTop:4 }}>Document uploaded</div>}
+            </div>
+          )}
+
+          {/* Additional terms */}
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:11, fontWeight:600, color:'var(--muted)', display:'block', marginBottom:4 }}>Additional Terms / Notes</label>
+            <textarea className="form-input" rows={3} placeholder="Any additional terms, special conditions, or notes..." value={selType === 'custom' ? '' : customTerms} onChange={e => setCustomTerms(e.target.value)} style={{ width:'100%', resize:'vertical' }} />
+          </div>
+
+          {/* Signature */}
+          {!signing ? (
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="btn btn-primary" style={{ fontSize:12 }} onClick={() => setSigning(true)} disabled={!selDriver}>
+                <Ic icon={PencilIcon} /> Sign & Create
+              </button>
+              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => setShowNew(false)}>Cancel</button>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--accent)', marginBottom:6 }}>Carrier Signature</div>
+              <div style={{ position:'relative', marginBottom:8 }}>
+                <canvas ref={initSigCanvas} width={500} height={100}
+                  style={{ width:'100%', height:100, background:'var(--bg)', border:`2px solid ${hasSig ? 'var(--accent)' : 'var(--border)'}`, borderRadius:8, cursor:'crosshair', touchAction:'none' }}
+                  onMouseDown={sigStart} onMouseMove={sigMove} onMouseUp={sigEnd} onMouseLeave={sigEnd}
+                  onTouchStart={sigStart} onTouchMove={sigMove} onTouchEnd={sigEnd} />
+                {!hasSig && <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', fontSize:12, color:'var(--muted)', pointerEvents:'none' }}>Draw your signature here</div>}
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn btn-primary" style={{ fontSize:12 }} onClick={handleSign} disabled={!hasSig}>
+                  <Ic icon={Check} /> Create Contract
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={sigClear}>Clear</button>
+                <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { setSigning(false); sigClear() }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Active Contracts */}
+      {loading ? (
+        <div style={{ textAlign:'center', padding:40, color:'var(--muted)' }}>Loading contracts...</div>
+      ) : contracts.length === 0 && !showNew ? (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'40px 20px', textAlign:'center' }}>
+          <FileText size={32} color="var(--muted)" style={{ marginBottom:12 }} />
+          <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>No Contracts Yet</div>
+          <div style={{ fontSize:12, color:'var(--muted)', marginBottom:16 }}>Create lease agreements and IC contracts for your drivers</div>
+          <button className="btn btn-primary" style={{ fontSize:12 }} onClick={() => setShowNew(true)}>
+            <Ic icon={Plus} /> Create First Contract
+          </button>
+        </div>
+      ) : (
+        <>
+          {activeContracts.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--accent)', marginBottom:8, letterSpacing:1 }}>ACTIVE CONTRACTS</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {activeContracts.map(c => {
+                  const typeLabel = CONTRACT_TYPES.find(t => t.id === c.contract_type)?.label || c.contract_type
+                  const daysActive = Math.round((new Date() - new Date(c.start_date || c.created_at)) / 86400000)
+                  const isExpiringSoon = c.end_date && ((new Date(c.end_date) - new Date()) / 86400000) < 30
+                  return (
+                    <div key={c.id} style={{ background:'var(--surface)', border:`1px solid ${isExpiringSoon ? 'var(--warning)' : 'var(--border)'}`, borderRadius:10, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
+                      <div style={{ width:40, height:40, borderRadius:10, background:'rgba(240,165,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <FileText size={18} color="var(--accent)" />
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
+                          <span style={{ fontSize:13, fontWeight:700 }}>{c.driver_name}</span>
+                          <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'rgba(34,197,94,0.12)', color:'var(--success)' }}>ACTIVE</span>
+                          {isExpiringSoon && <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'rgba(245,158,11,0.12)', color:'var(--warning)' }}>EXPIRING SOON</span>}
+                        </div>
+                        <div style={{ fontSize:11, color:'var(--muted)' }}>
+                          {typeLabel} · {c.pay_structure === 'percent' ? `${c.pay_rate}% of gross` : c.pay_structure === 'permile' ? `$${c.pay_rate}/mi` : `$${c.pay_rate}/load`} · {daysActive} days active
+                        </div>
+                        {c.vehicle_info && <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>Vehicle: {c.vehicle_info} {c.vehicle_vin ? `· VIN: ${c.vehicle_vin}` : ''}</div>}
+                      </div>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button className="btn btn-ghost" style={{ fontSize:10 }} onClick={() => setViewContract(viewContract === c.id ? null : c.id)}>
+                          <Ic icon={Eye} /> View
+                        </button>
+                        <button className="btn btn-ghost" style={{ fontSize:10, color:'var(--danger)' }} onClick={() => { if (confirm('Terminate this contract?')) terminateContract(c.id) }}>
+                          <Ic icon={XCircle} /> Terminate
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Expired / Terminated */}
+          {expiredContracts.length > 0 && (
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--muted)', marginBottom:8, letterSpacing:1 }}>TERMINATED / EXPIRED</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {expiredContracts.map(c => {
+                  const typeLabel = CONTRACT_TYPES.find(t => t.id === c.contract_type)?.label || c.contract_type
+                  return (
+                    <div key={c.id} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 18px', display:'flex', alignItems:'center', gap:16, opacity:0.6 }}>
+                      <FileText size={16} color="var(--muted)" />
+                      <div style={{ flex:1 }}>
+                        <span style={{ fontSize:12, fontWeight:600 }}>{c.driver_name}</span>
+                        <span style={{ fontSize:11, color:'var(--muted)', marginLeft:8 }}>{typeLabel} · Ended {c.end_date || '—'}</span>
+                      </div>
+                      <span style={{ fontSize:9, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'rgba(217,85,85,0.12)', color:'var(--danger)' }}>TERMINATED</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}

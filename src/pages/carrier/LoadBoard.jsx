@@ -1446,51 +1446,142 @@ export function LaneIntel() {
 // ─── COMMAND CENTER ────────────────────────────────────────────────────────────
 
 const CITY_XY = {
-  'Atlanta, GA':      [695, 540],
-  'Chicago, IL':      [610, 335],
-  'Dallas, TX':       [525, 600],
-  'Miami, FL':        [718, 666],
-  'Memphis, TN':      [625, 510],
-  'New York, NY':     [790, 295],
-  'Denver, CO':       [400, 425],
-  'Houston, TX':      [538, 648],
-  'Phoenix, AZ':      [305, 558],
-  'Los Angeles, CA':  [208, 510],
-  'Minneapolis, MN':  [558, 278],
+  'Atlanta, GA':[695,540],'Chicago, IL':[610,335],'Dallas, TX':[525,600],'Miami, FL':[718,666],
+  'Memphis, TN':[625,510],'New York, NY':[790,295],'Denver, CO':[400,425],'Houston, TX':[538,648],
+  'Phoenix, AZ':[305,558],'Los Angeles, CA':[208,510],'Minneapolis, MN':[558,278],
+  'Nashville, TN':[645,500],'Columbus, OH':[680,380],'Indianapolis, IN':[640,390],
+  'St. Louis, MO':[580,430],'Kansas City, MO':[520,420],'Detroit, MI':[665,330],
+  'Charlotte, NC':[725,490],'Jacksonville, FL':[720,590],'Louisville, KY':[650,420],
+  'Las Vegas, NV':[255,480],'Seattle, WA':[175,210],'Portland, OR':[175,255],
+  'Sacramento, CA':[185,410],'San Francisco, CA':[165,430],'San Antonio, TX':[485,640],
+  'Orlando, FL':[720,610],'Tampa, FL':[700,620],'Raleigh, NC':[740,470],
+  'Pittsburgh, PA':[720,360],'Baltimore, MD':[755,370],'Boston, MA':[810,265],
+  'Philadelphia, PA':[770,340],'Salt Lake City, UT':[320,390],'Albuquerque, NM':[365,530],
+  'Omaha, NE':[500,370],'Oklahoma City, OK':[500,510],'Cincinnati, OH':[665,400],
+  'Milwaukee, WI':[600,310],'Cleveland, OH':[685,350],'San Diego, CA':[225,545],
+  'Tucson, AZ':[315,575],'El Paso, TX':[370,580],'Boise, ID':[265,320],
+  'Little Rock, AR':[560,520],'Birmingham, AL':[650,540],'Savannah, GA':[720,560],
+  'Norfolk, VA':[760,440],'Knoxville, TN':[670,480],'Laredo, TX':[470,670],
+  'Fresno, CA':[195,460],'Austin, TX':[500,630],'New Orleans, LA':[600,610],
+  'Richmond, VA':[745,430],'Harrisburg, PA':[750,350],'Buffalo, NY':[730,300],
 }
 
-const CC_COLOR = {}
-const CC_UNIT  = {}
-const CC_HOS   = {}
-const CC_PROG  = { 'Rate Con Received':0.05, 'Assigned to Driver':0.15, 'En Route to Pickup':0.30, 'Loaded':0.45, 'In Transit':0.65, 'Delivered':1.0 }
+function findCityXY(loc) {
+  if (!loc) return null
+  if (CITY_XY[loc]) return CITY_XY[loc]
+  const city = loc.split(',')[0].trim().toLowerCase()
+  for (const [key, xy] of Object.entries(CITY_XY)) {
+    if (key.split(',')[0].trim().toLowerCase() === city) return xy
+  }
+  return null
+}
 
-// Gantt: 7 AM – midnight (17 hrs). Simulated "now" = 10:30 AM
+function latlngToSVG(lat, lng) {
+  if (!lat || !lng) return null
+  const x = ((lng - (-125)) / ((-66) - (-125))) * 900 + 50
+  const y = ((50 - lat) / (50 - 24)) * 650 + 50
+  return [x, y]
+}
+
+const CC_PROG  = { 'Rate Con Received':0.05, 'Booked':0.1, 'Assigned to Driver':0.15, 'En Route to Pickup':0.30, 'Loaded':0.45, 'In Transit':0.65, 'Delivered':1.0 }
+const CC_PALETTE = ['#f0a500','#4d8ef0','#22c55e','#ef4444','#a855f7','#ec4899','#06b6d4','#f97316','#14b8a6','#e879f9']
+
 const GANTT_START = 7
 const GANTT_HOURS = 17
-const NOW_HOUR    = 10.5
-const NOW_PCT     = ((NOW_HOUR - GANTT_START) / GANTT_HOURS) * 100
 const GANTT_HOURS_LABELS = ['7AM','8AM','9AM','10AM','11AM','12PM','1PM','2PM','3PM','4PM','5PM','6PM','7PM','8PM','9PM','10PM','11PM','12AM']
-
-// Per-driver Gantt block positions (start hour, end hour)
-const GANTT_BLOCKS = {}
 
 export function CommandCenter() {
   const { showToast } = useApp()
-  const { loads, activeLoads, drivers: dbDrivers } = useCarrier()
+  const { loads, activeLoads, drivers: dbDrivers, vehicles } = useCarrier()
   const [selDriver, setSelDriver] = useState(null)
   const [filterStatus, setFilterStatus] = useState('All')
+  const [smsModal, setSmsModal] = useState(null)
+  const [smsText, setSmsText] = useState('')
+  const [smsSending, setSmsSending] = useState(false)
+
+  // Live clock for Gantt NOW line
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+  const nowHour = now.getHours() + now.getMinutes() / 60
+  const nowPct = Math.max(0, Math.min(100, ((nowHour - GANTT_START) / GANTT_HOURS) * 100))
 
   const drivers = dbDrivers.length ? dbDrivers.map(d => d.full_name) : []
 
-  // Build enriched truck data
+  // Dynamic color + unit maps
+  const driverColorMap = useMemo(() => {
+    const map = {}
+    dbDrivers.forEach((d, i) => { map[d.full_name] = CC_PALETTE[i % CC_PALETTE.length] })
+    return map
+  }, [dbDrivers])
+
+  const driverUnitMap = useMemo(() => {
+    const map = {}
+    dbDrivers.forEach((d, i) => {
+      const veh = (vehicles || []).find(v => v.driver_id === d.id || v.assigned_driver === d.full_name)
+      map[d.full_name] = veh?.unit_number || d.vehicle_unit || `Unit ${i + 1}`
+    })
+    return map
+  }, [dbDrivers, vehicles])
+
+  // HOS estimation from load data
+  const driverHOS = useMemo(() => {
+    const hos = {}
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0)
+    dbDrivers.forEach(d => {
+      const name = d.full_name
+      const recent = loads.filter(l => l.driver === name && l.pickup_date && new Date(l.pickup_date) >= weekAgo)
+      let weekHrs = 0
+      recent.forEach(l => { weekHrs += l.drive_time_minutes ? l.drive_time_minutes / 60 : (l.miles || 0) / 50 })
+      weekHrs = Math.min(70, Math.round(weekHrs * 10) / 10)
+      const todayLoads = loads.filter(l => l.driver === name && l.pickup_date && new Date(l.pickup_date) >= todayStart)
+      let todayHrs = 0
+      todayLoads.forEach(l => { todayHrs += l.drive_time_minutes ? l.drive_time_minutes / 60 : (l.miles || 0) / 50 })
+      todayHrs = Math.min(11, Math.round(todayHrs * 10) / 10)
+      const rem = Math.max(0, 70 - weekHrs)
+      hos[name] = { weekUsed: weekHrs, weekRemaining: rem, weekPct: (weekHrs / 70) * 100, todayUsed: todayHrs, todayRemaining: Math.max(0, 11 - todayHrs) }
+    })
+    return hos
+  }, [dbDrivers, loads])
+
+  // Gantt blocks from real load data
+  const ganttBlocks = useMemo(() => {
+    const blocks = {}
+    const todayStr = new Date().toISOString().split('T')[0]
+    drivers.forEach(name => {
+      const load = activeLoads.find(l => l.driver === name)
+      if (!load) return
+      let startH = 7, endH = 17
+      if (load.pickup_date) {
+        const pd = new Date(load.pickup_date)
+        if (pd.toISOString().split('T')[0] === todayStr) startH = pd.getHours() + pd.getMinutes() / 60
+      }
+      if (load.delivery_date) {
+        const dd = new Date(load.delivery_date)
+        endH = dd.getHours() + dd.getMinutes() / 60
+        if (endH <= startH) endH = startH + (load.drive_time_minutes ? load.drive_time_minutes / 60 : (load.miles || 300) / 50)
+      } else {
+        endH = startH + (load.drive_time_minutes ? load.drive_time_minutes / 60 : (load.miles || 300) / 50)
+      }
+      startH = Math.max(GANTT_START, Math.min(GANTT_START + GANTT_HOURS, startH))
+      endH = Math.max(startH + 0.5, Math.min(GANTT_START + GANTT_HOURS, endH))
+      blocks[name] = { start: startH, end: endH }
+    })
+    return blocks
+  }, [drivers, activeLoads])
+
+  // Build enriched truck data with smart city matching
   const trucks = drivers.map(driver => {
     const load  = activeLoads.find(l => l.driver === driver)
-    const color = CC_COLOR[driver]
-    const unit  = CC_UNIT[driver]
+    const color = driverColorMap[driver] || 'var(--accent)'
+    const unit  = driverUnitMap[driver] || 'Unit'
     if (!load) return { driver, color, unit, load: null, prog: 0, tx: null, ty: null, fromXY: null, toXY: null }
     const prog  = CC_PROG[load.status] || 0.5
-    const fromXY = CITY_XY[load.origin] || null
-    const toXY   = CITY_XY[load.dest]   || null
+    const fromXY = latlngToSVG(load.origin_lat, load.origin_lng) || findCityXY(load.origin)
+    const toXY   = latlngToSVG(load.dest_lat, load.dest_lng) || findCityXY(load.dest)
     const tx = fromXY && toXY ? fromXY[0] + (toXY[0] - fromXY[0]) * prog : null
     const ty = fromXY && toXY ? fromXY[1] + (toXY[1] - fromXY[1]) * prog : null
     return { driver, color, unit, load, prog, tx, ty, fromXY, toXY }
@@ -1498,6 +1589,18 @@ export function CommandCenter() {
 
   const selected  = trucks.find(t => t.driver === selDriver) || trucks.find(t => t.load) || trucks[0]
   const queueLoad = filterStatus === 'All' ? activeLoads : activeLoads.filter(l => l.status === filterStatus)
+
+  const handleSendSMS = async () => {
+    if (!smsText.trim() || !smsModal) return
+    setSmsSending(true)
+    try {
+      const res = await apiFetch('/api/send-sms', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to: smsModal.phone, message: smsText }) })
+      const data = await res.json()
+      if (data.ok || data.success || data.sid) { showToast('','SMS Sent',`Message sent to ${smsModal.driverName}`); setSmsModal(null) }
+      else showToast('','SMS Failed', data.error || 'Failed to send')
+    } catch { showToast('','Error','Could not send SMS') }
+    setSmsSending(false)
+  }
 
   return (
     <div className="cc-root" style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'auto', background:'var(--bg)' }}>
@@ -1547,7 +1650,7 @@ export function CommandCenter() {
             )}
             {queueLoad.map(load => {
               const prog   = CC_PROG[load.status] || 0.3
-              const color  = CC_COLOR[load.driver] || 'var(--accent)'
+              const color  = driverColorMap[load.driver] || 'var(--accent)'
               const isSel  = selDriver === load.driver
               const statusC = load.status === 'In Transit' ? 'var(--success)' : load.status === 'Loaded' ? 'var(--accent2)' : 'var(--accent)'
               return (
@@ -1567,7 +1670,7 @@ export function CommandCenter() {
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                     <div style={{ fontSize:11, color:'var(--muted)', display:'flex', alignItems:'center', gap:6 }}>
-                      {CC_UNIT[load.driver]} · {load.driver}
+                      {driverUnitMap[load.driver] || ''} · {load.driver}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <span style={{ fontSize:11, color:'var(--muted)' }}>{load.miles} mi</span>
@@ -1705,7 +1808,7 @@ export function CommandCenter() {
                 { l:'ROUTE',    v: `${selected.load.origin?.split(',')[0]} → ${selected.load.dest?.split(',')[0]}` },
                 { l:'PROGRESS', v: Math.round(selected.prog*100) + '%' },
                 { l:'ETA',      v: selected.load.delivery?.split(' · ')[0] || 'TBD' },
-                { l:'HOS',      v: CC_HOS[selected.driver] },
+                { l:'HOS',      v: driverHOS[selected.driver] ? `${driverHOS[selected.driver].weekRemaining.toFixed(1)}h` : '—' },
               ].map(item => (
                 <div key={item.l} style={{ textAlign:'center' }}>
                   <div style={{ fontSize:8, color:'rgba(255,255,255,0.35)', marginBottom:2, fontWeight:700, letterSpacing:1 }}>{item.l}</div>
@@ -1750,26 +1853,45 @@ export function CommandCenter() {
                     onClick={() => {
                       const drvRecord = dbDrivers.find(d => d.full_name === selected.driver)
                       const phone = drvRecord?.phone
-                      if (phone) {
-                        window.open('sms:' + phone)
-                      } else {
-                        showToast('','No Phone','No phone number on file for ' + selected.driver)
-                      }
+                      if (phone) { setSmsModal({ driverName: selected.driver, phone }); setSmsText('') }
+                      else showToast('','No Phone','No phone number on file for ' + selected.driver)
                     }}><Ic icon={MessageCircle} /> Message</button>
                 </div>
+                {/* Inline SMS compose */}
+                {smsModal && smsModal.driverName === selected.driver && (
+                  <div style={{ padding:'10px 12px 12px', background:'var(--surface2)', borderRadius:8, margin:'8px 0 0' }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:'var(--accent)', marginBottom:6 }}>SMS to {smsModal.driverName}</div>
+                    <textarea value={smsText} onChange={e => setSmsText(e.target.value)} placeholder="Type message..."
+                      style={{ width:'100%', height:60, background:'var(--bg)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:6, padding:8, fontSize:11, fontFamily:"'DM Sans',sans-serif", resize:'none' }}/>
+                    <div style={{ display:'flex', gap:6, marginTop:6 }}>
+                      <button className="btn btn-primary" style={{ flex:1, fontSize:10, padding:'6px 8px' }} onClick={handleSendSMS} disabled={smsSending || !smsText.trim()}>
+                        {smsSending ? 'Sending...' : 'Send SMS'}
+                      </button>
+                      <button className="btn btn-ghost" style={{ fontSize:10, padding:'6px 8px' }} onClick={() => setSmsModal(null)}>Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* HOS */}
-              <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)' }}>
-                <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5, marginBottom:8 }}>HOURS OF SERVICE</div>
-                <div style={{ fontSize:22, fontFamily:"'Bebas Neue',sans-serif", color:'var(--success)', marginBottom:6 }}>
-                  {CC_HOS[selected.driver] || '—'}
-                </div>
-                <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden', marginBottom:4 }}>
-                  <div style={{ height:'100%', width: CC_HOS[selected.driver] ? '72%' : '0%', background:'linear-gradient(90deg,var(--success),var(--accent2))', borderRadius:3 }}/>
-                </div>
-                <div style={{ fontSize:10, color:'var(--muted)' }}>{CC_HOS[selected.driver] ? '70-hr week: 38h used · 32h remaining' : 'No HOS data available'}</div>
-              </div>
+              {(() => {
+                const hos = driverHOS[selected.driver]
+                const hosColor = hos ? (hos.weekRemaining > 20 ? 'var(--success)' : hos.weekRemaining > 5 ? 'var(--warning)' : 'var(--danger)') : 'var(--muted)'
+                return (
+                  <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)' }}>
+                    <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5, marginBottom:8 }}>HOURS OF SERVICE</div>
+                    <div style={{ fontSize:22, fontFamily:"'Bebas Neue',sans-serif", color:hosColor, marginBottom:6 }}>
+                      {hos ? `${hos.weekRemaining.toFixed(1)}h remaining` : '70.0h remaining'}
+                    </div>
+                    <div style={{ height:6, background:'var(--surface2)', borderRadius:3, overflow:'hidden', marginBottom:4 }}>
+                      <div style={{ height:'100%', width:`${hos ? hos.weekPct : 0}%`, background:`linear-gradient(90deg,var(--success),${hosColor})`, borderRadius:3, transition:'width 0.3s' }}/>
+                    </div>
+                    <div style={{ fontSize:10, color:'var(--muted)' }}>
+                      {hos ? `70-hr week: ${hos.weekUsed.toFixed(1)}h used · Today: ${hos.todayUsed.toFixed(1)}h / 11h` : 'No loads this week — full hours available'}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Active load */}
               {selected.load ? (
@@ -1816,7 +1938,13 @@ export function CommandCenter() {
               <div style={{ padding:'14px 18px' }}>
                 <div style={{ fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:1.5, marginBottom:10 }}>PERFORMANCE · MTD</div>
                 {(() => {
-                  const drvLoads = loads.filter(l => l.driver === selected.driver)
+                  const drvLoads = loads.filter(l => {
+                    if (l.driver !== selected.driver) return false
+                    const d = l.pickup_date || l.created_at
+                    if (!d) return false
+                    const ld = new Date(d)
+                    return ld.getMonth() === now.getMonth() && ld.getFullYear() === now.getFullYear()
+                  })
                   const totalMi  = drvLoads.reduce((s,l)=>s+l.miles,0)
                   const totalGr  = drvLoads.reduce((s,l)=>s+l.gross,0)
                   const avgRpm   = drvLoads.length ? (drvLoads.reduce((s,l)=>s+(l.rate||0),0)/drvLoads.length).toFixed(2) : '0.00'
@@ -1869,24 +1997,24 @@ export function CommandCenter() {
           {/* Driver rows */}
           {drivers.map(driver => {
             const t     = trucks.find(tk => tk.driver === driver)
-            const color = CC_COLOR[driver]
-            const blk   = GANTT_BLOCKS[driver]
-            if (!blk) return null
-            const left  = ((blk.start - GANTT_START) / GANTT_HOURS) * 100
-            const width = ((blk.end - blk.start)    / GANTT_HOURS) * 100
+            const color = driverColorMap[driver] || 'var(--accent)'
+            const blk   = ganttBlocks[driver]
+            const hasBlock = !!blk
+            const left  = hasBlock ? ((blk.start - GANTT_START) / GANTT_HOURS) * 100 : 0
+            const width = hasBlock ? ((blk.end - blk.start)    / GANTT_HOURS) * 100 : 0
 
             return (
               <div key={driver} style={{ display:'flex', alignItems:'center', marginBottom:6, height:30 }}>
                 <div style={{ width:88, paddingLeft:16, flexShrink:0 }}>
-                  <div style={{ fontSize:10, fontWeight:700, color }}>{CC_UNIT[driver]}</div>
+                  <div style={{ fontSize:10, fontWeight:700, color }}>{driverUnitMap[driver] || ''}</div>
                   <div style={{ fontSize:9,  color:'var(--muted)' }}>{driver.split(' ')[0]}</div>
                 </div>
                 <div style={{ flex:1, position:'relative', height:22, background:'var(--surface2)', borderRadius:4, marginRight:16 }}>
                   {/* NOW line */}
-                  <div style={{ position:'absolute', top:0, bottom:0, left:`${NOW_PCT}%`, width:1.5,
+                  <div style={{ position:'absolute', top:0, bottom:0, left:`${nowPct}%`, width:1.5,
                     background:'rgba(239,68,68,0.85)', zIndex:3 }}/>
                   {/* Load block */}
-                  {t?.load && (
+                  {t?.load && hasBlock && (
                     <div style={{ position:'absolute', top:2, height:18, left:`${left}%`, width:`${width}%`,
                       background:color+'22', border:`1px solid ${color}55`, borderRadius:3,
                       display:'flex', alignItems:'center', paddingLeft:6, overflow:'hidden', zIndex:1 }}>

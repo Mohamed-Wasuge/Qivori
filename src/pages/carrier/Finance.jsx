@@ -1508,12 +1508,16 @@ export function FactoringCashflow() {
 
   return (
     <div style={{ ...S.page, paddingBottom:40 }}>
-      <AiBanner
-        title="AI Cashflow Alert: INV-0035 is 11 days old — factor now to avoid cash gap next week"
-        sub="Transplace historically pays slow · Factoring today gets you $3,298 by tomorrow vs waiting up to 7 more days"
-        action="Factor It Now"
-        onAction={() => { setSelected(new Set(['INV-0035'])); setTab('invoices') }}
-      />
+      {pendingInvoices.length > 0 && (() => {
+        const oldest = pendingInvoices.reduce((a, b) => new Date(a.created_at || a.date) < new Date(b.created_at || b.date) ? a : b)
+        const daysOld = Math.floor((Date.now() - new Date(oldest.created_at || oldest.date)) / 86400000)
+        return daysOld > 7 ? <AiBanner
+          title={`AI Cashflow Alert: ${oldest.invoice_number || oldest.id} is ${daysOld} days old — factor now to avoid cash gap`}
+          sub={`Factoring today gets you ~$${Math.round(oldest.amount * 0.97).toLocaleString()} by tomorrow vs waiting for broker payment`}
+          action="Factor It Now"
+          onAction={() => { setSelected(new Set([oldest.id])); setTab('invoices') }}
+        /> : null
+      })()}
 
       {/* KPIs */}
       <div style={S.grid(4)}>
@@ -2023,7 +2027,7 @@ export function CashFlowForecaster() {
             <div style={{ marginBottom:8, padding:'8px 0', borderBottom:'1px solid var(--border)' }}>
               {[
                 { label:`Driver Pay (${Math.round(avgPayRate * 100)}%)`, amount: Math.round(incoming[selWeek] * avgPayRate), out:true },
-                { label:`Fuel est. ($${(fuelCostPerMile || 0.22).toFixed(2)}/mi)`, amount: Math.round((totalExpAmt || 0) / 4), out:true },
+                { label:`Fuel est.${fuelCostPerMile ? ` ($${fuelCostPerMile.toFixed(2)}/mi)` : ''}`, amount: Math.round((totalExpAmt || 0) / 4), out:true },
                 { label:'Ops / Maintenance',    amount: Math.max(0, outgoing[selWeek] - Math.round(incoming[selWeek] * avgPayRate) - Math.round((totalExpAmt || 0) / 4)), out:true },
               ].filter(e => e.amount > 0).map(e => (
                 <div key={e.label} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0' }}>
@@ -2405,7 +2409,7 @@ export function ReceivablesAging() {
           <div style={{ fontWeight:700, marginBottom:4 }}>Collection Intelligence</div>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.7 }}>
             {pastDue > 0
-              ? `$${pastDue.toLocaleString()} is past due — send reminders now to avoid write-offs. Echo Global typically pays within 30 days. Consider factoring INV-043 for same-day cash at 2-3% fee.`
+              ? `$${pastDue.toLocaleString()} is past due — send reminders now to avoid write-offs. Average collection time is ${avgDays} days. Consider factoring your oldest outstanding invoice for same-day cash at 2-3% fee.`
               : `All invoices are within terms. Average collection time is ${avgDays} days — below industry average of 35 days. You're in great shape.`}
           </div>
         </div>
@@ -2525,7 +2529,7 @@ export function CashRunway() {
           <div style={{ fontWeight:700, marginBottom:4 }}>Cash Flow Intelligence</div>
           <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.7 }}>
             {runway >= 4
-              ? `${runway}-week runway is healthy. You have $${incomingRevenue.toLocaleString()} in outstanding A/R — collect by end of month to maintain positive trajectory. Consider factoring INV-043 for same-day liquidity at 2.5% fee.`
+              ? `${runway}-week runway is healthy. You have $${incomingRevenue.toLocaleString()} in outstanding A/R — collect by end of month to maintain positive trajectory. Consider factoring your oldest invoice for same-day liquidity at 2.5% fee.`
               : `Cash runway is only ${runway} weeks. Collect outstanding A/R immediately — send reminders from Receivables Aging. Consider factoring to close the gap.`}
           </div>
         </div>

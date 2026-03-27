@@ -42,9 +42,9 @@ export function CarrierPackage() {
     general: { company:'\u2014', policy:'\u2014', amount:'\u2014', expiry:'\u2014' },
   })
   const [docs, setDocs] = useState({
-    w9:        { uploaded:true,  filename:'Swift-Carriers-W9.pdf' },
-    authority: { uploaded:true,  filename:'MC-294810-Authority.pdf' },
-    boc3:      { uploaded:true,  filename:'BOC3-Swift-Carriers.pdf' },
+    w9:        { uploaded:false, filename:'' },
+    authority: { uploaded:false, filename:'' },
+    boc3:      { uploaded:false, filename:'' },
     drug:      { uploaded:false, filename:'' },
   })
   const [brokerEmail, setBrokerEmail] = useState('')

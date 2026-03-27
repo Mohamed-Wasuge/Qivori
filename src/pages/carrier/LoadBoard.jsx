@@ -34,8 +34,14 @@ const COPILOT_SUGGESTIONS = (load) => [
 export function SmartDispatch() {
   const { showToast } = useApp()
   const { language: currentLang } = useTranslation()
-  const { loads: ctxLoads, addLoad, addLoadWithStops, totalRevenue, expenses, drivers: dbDrivers } = useCarrier()
+  const { loads: ctxLoads, addLoad, addLoadWithStops, totalRevenue, expenses, drivers: dbDrivers, fuelCostPerMile } = useCarrier()
   const { processReply } = useAIActions()
+  // Compute average driver pay rate from actual driver profiles (fallback: industry avg 28%)
+  const avgDriverPayPct = useMemo(() => {
+    const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
+    if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
+    return 0.28
+  }, [dbDrivers])
   const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
     name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
     location: d.location || '', hos: d.hos_remaining || '—', unit: d.unit_number || '',
@@ -208,7 +214,7 @@ export function SmartDispatch() {
 
   const avgScore = filtered.length ? Math.round(filtered.reduce((s,l)=>s+l.aiScore,0)/filtered.length) : 0
   const bestNet  = filtered.length ? Math.max(...filtered.map(l => {
-    const f = l.miles/6.8*3.89; const d = l.gross*0.28; return l.gross-f-d
+    const f = l.miles/6.8*(fuelCostPerMile ? fuelCostPerMile * 6.8 : 3.89); const d = l.gross*avgDriverPayPct; return l.gross-f-d
   })) : 0
 
   // AI score breakdown computed from load fields
@@ -1148,7 +1154,12 @@ function buildLanesFromHistory(loads) {
 
 export function LaneIntel() {
   const { showToast } = useApp()
-  const { loads } = useCarrier()
+  const { loads, drivers: laneDrivers } = useCarrier()
+  const laneAvgPayPct = useMemo(() => {
+    const pctDrivers = laneDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
+    if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
+    return 0.28
+  }, [laneDrivers])
   const [selected, setSelected] = useState(null)
   const [sortBy, setSortBy] = useState('loads')
   const [savedLanes, setSavedLanes] = useState(() => JSON.parse(localStorage.getItem('qivori_saved_lanes') || '[]'))
@@ -1186,7 +1197,7 @@ export function LaneIntel() {
   const laneHistory = lane?._myLoads || []
 
   const estFuel = lane ? Math.round(lane.miles / 6.9 * 3.85) : 0
-  const estDriverPay = lane ? Math.round(lane.avgGross * 0.28) : 0
+  const estDriverPay = lane ? Math.round(lane.avgGross * laneAvgPayPct) : 0
   const estNet = lane ? lane.avgGross - estFuel - estDriverPay : 0
 
   return (
@@ -1321,7 +1332,7 @@ export function LaneIntel() {
                     {[
                       { label:'Gross Revenue',  value:'$' + lane.avgGross.toLocaleString(),                       color:'var(--accent)' },
                       { label:'Est. Fuel Cost', value:'−$' + estFuel.toLocaleString(),                             color:'var(--danger)' },
-                      { label:'Driver Pay (28%)',value:'−$' + estDriverPay.toLocaleString(),                       color:'var(--danger)' },
+                      { label:`Driver Pay (${Math.round(laneAvgPayPct * 100)}%)`,value:'−$' + estDriverPay.toLocaleString(),                       color:'var(--danger)' },
                       { label:'Net Profit',      value:'$' + estNet.toLocaleString(),                              color:'var(--success)', bold:true },
                       { label:'Net / Mile',      value:'$' + (estNet / lane.miles).toFixed(2) + '/mi',             color:'var(--success)' },
                     ].map(item => (
@@ -2077,7 +2088,12 @@ function AIRateNegotiator({ load, lane, bkr }) {
 
 export function AILoadBoard() {
   const { showToast } = useApp()
-  const { addLoad, drivers: dbDrivers } = useCarrier()
+  const { addLoad, drivers: dbDrivers, fuelCostPerMile: boardFuelCpm } = useCarrier()
+  const boardPayPct = useMemo(() => {
+    const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
+    if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
+    return 0.28
+  }, [dbDrivers])
   const [filters, setFilters] = useState({ equip:'All', minRpm:'', sortBy:'score' })
   const [boardLoads, setBoardLoads] = useState(SAMPLE_BOARD_LOADS)
   const [selected, setSelected] = useState(SAMPLE_BOARD_LOADS[0]?.id || null)
@@ -2238,7 +2254,7 @@ export function AILoadBoard() {
   }
 
   const estFuel   = load ? Math.round(load.miles / 6.9 * 3.85) : 0
-  const estDriver = load ? Math.round(load.gross * 0.28) : 0
+  const estDriver = load ? Math.round(load.gross * boardPayPct) : 0
   const estNet    = load ? load.gross - estFuel - estDriver : 0
 
   const inputStyle = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'6px 10px', color:'var(--text)', fontSize:12, fontFamily:"'DM Sans',sans-serif", outline:'none' }
@@ -3272,7 +3288,7 @@ export function DATAlertBot() {
                   { l:'Gross',    v:`$${selLoad.gross?.toLocaleString()}`,     c:'var(--accent)'  },
                   { l:'Rate/mi',  v:`$${selLoad.rate?.toFixed(2)}`,            c:'var(--text)'    },
                   { l:'Est. Fuel',v:`−$${Math.round(selLoad.miles/6.9*3.85).toLocaleString()}`, c:'var(--danger)' },
-                  { l:'Est. Net', v:`$${Math.round(selLoad.gross - selLoad.miles/6.9*3.85 - selLoad.gross*0.28).toLocaleString()}`, c:'var(--success)' },
+                  { l:'Est. Net', v:`$${Math.round(selLoad.gross - selLoad.miles/6.9*3.85 - selLoad.gross*boardPayPct).toLocaleString()}`, c:'var(--success)' },
                 ].map(k => (
                   <div key={k.l} style={{ background:'var(--surface2)', borderRadius:10, padding:'10px 12px', textAlign:'center' }}>
                     <div style={{ fontSize:10, color:'var(--muted)', fontWeight:600, marginBottom:3 }}>{k.l}</div>

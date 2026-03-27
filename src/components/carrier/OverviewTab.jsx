@@ -449,13 +449,16 @@ export function OverviewTab({ onTabChange }) {
   const goalPct = weeklyGoal > 0 ? Math.min(Math.round((thisWeekProfit / weeklyGoal) * 100), 100) : 0
   const goalRemaining = Math.max(weeklyGoal - thisWeekProfit, 0)
 
-  // Idle truck cost estimate ($450/day per idle truck)
+  // Idle truck cost estimate (based on actual avg daily revenue or $0 if no data)
   const idleTruckCount = idleDrivers.length
-  const idleDailyCost = idleTruckCount * 450
+  const avgDailyRevenue = deliveredLoads.length > 0
+    ? deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0) / Math.max(30, deliveredLoads.length)
+    : 0
+  const idleDailyCost = idleTruckCount > 0 && avgDailyRevenue > 0 ? Math.round(idleTruckCount * avgDailyRevenue) : 0
 
-  // Missed opportunity estimate (loads not taken when drivers were idle)
-  const avgGrossPerLoad = deliveredLoads.length > 0 ? deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0) / deliveredLoads.length : 2500
-  const missedEstimate = idleTruckCount > 0 && deliveredLoads.length > 0 ? Math.round(idleTruckCount * avgGrossPerLoad * 0.3) : 0
+  // Missed opportunity estimate (based on actual avg gross per load)
+  const avgGrossPerLoad = deliveredLoads.length > 0 ? deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0) / deliveredLoads.length : 0
+  const missedEstimate = idleTruckCount > 0 && avgGrossPerLoad > 0 ? Math.round(idleTruckCount * avgGrossPerLoad * 0.3) : 0
 
   // AI usage this week
   const aiLoadsThisWeek = thisWeekDelivered.length // approximate — all delivered loads went through Q

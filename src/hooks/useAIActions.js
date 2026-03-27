@@ -552,24 +552,24 @@ export function useAIActions(onNavigate) {
         case 'smart_reposition': {
           const currentDest = activeLoads?.[0]?.destination || activeLoads?.[0]?.dest
           if (!currentDest) return 'No active delivery destination to compare markets from.'
-          const markets = [
-            { city: 'Dallas, TX', avgRpm: 2.65 }, { city: 'Atlanta, GA', avgRpm: 2.55 },
-            { city: 'Chicago, IL', avgRpm: 2.50 }, { city: 'Memphis, TN', avgRpm: 2.70 },
-            { city: 'Indianapolis, IN', avgRpm: 2.45 }, { city: 'Nashville, TN', avgRpm: 2.60 },
-            { city: 'Charlotte, NC', avgRpm: 2.50 }, { city: 'Columbus, OH', avgRpm: 2.40 },
-            { city: 'Laredo, TX', avgRpm: 2.85 }, { city: 'Savannah, GA', avgRpm: 2.75 },
-          ]
           const driverAvg = loads?.length > 0
             ? loads.reduce((s, l) => s + (parseFloat(l.rate || 0) / Math.max(parseFloat(l.miles || 1), 1)), 0) / loads.length
-            : 2.50
-          let result = `You're delivering to ${currentDest}. Nearby markets:\n`
-          const top = markets.sort((a, b) => b.avgRpm - a.avgRpm).slice(0, 5)
-          top.forEach((m, i) => {
-            const diff = m.avgRpm - driverAvg
-            result += `${i + 1}. ${m.city} — avg $${m.avgRpm.toFixed(2)}/mi (${diff >= 0 ? '+' : ''}${diff.toFixed(2)} vs your avg)\n`
-          })
-          result += `\nYour avg RPM: $${driverAvg.toFixed(2)}/mi. Reposition if the market premium beats your deadhead cost.`
-          return result
+            : 0
+          // Use AI to analyze reposition markets based on carrier's real data
+          const recentLanes = loads?.slice(0, 20).map(l => `${l.origin||l.orig}→${l.destination||l.dest} $${l.rate||0} ${l.miles||0}mi`).join('; ') || 'No history'
+          try {
+            const aiRes = await apiFetch('/api/ai-chat', {
+              method: 'POST',
+              body: JSON.stringify({
+                messages: [{ role: 'user', content: `I'm delivering to ${currentDest}. My avg RPM is $${driverAvg.toFixed(2)}/mi. Recent lanes: ${recentLanes}. What are the best nearby freight markets to reposition to? Consider distance, typical outbound rates, and freight volume. Give me top 5 markets with estimated RPM ranges. Be concise, use numbered list format.` }],
+                system: 'You are a freight market analyst. Give specific, actionable repositioning advice for truckers. Use your knowledge of freight lanes, seasonal patterns, and regional markets. Format as numbered list with city, estimated RPM range, and one-line reasoning. No disclaimers.'
+              })
+            })
+            const aiText = aiRes?.reply || aiRes?.content || ''
+            if (aiText) return `Delivering to ${currentDest} | Your avg: $${driverAvg.toFixed(2)}/mi\n\n${aiText}\n\nReposition if the market premium beats your deadhead cost.`
+          } catch {}
+          // Fallback if AI unavailable
+          return `You're delivering to ${currentDest}. Your avg RPM: $${driverAvg > 0 ? driverAvg.toFixed(2) : '—'}/mi.\n\nCheck DAT or Truckstop.com for live outbound rates from ${currentDest}. Look for markets within 150mi with rates above your average. Reposition if the market premium beats your deadhead cost (~$1.50-2.00/mi empty).`
         }
 
         case 'check_weigh_station': {

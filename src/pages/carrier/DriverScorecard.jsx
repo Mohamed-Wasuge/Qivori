@@ -1675,11 +1675,8 @@ export function DriverScorecard() {
         const mLoads = myLoads.filter(l => l.month === mi || false)
         return mLoads.reduce((s,l) => s + (parseFloat(l.gross)||0), 0)
       })
-      // For demo data, generate plausible monthly numbers
-      const monthlyRev = monthlyRevenue.some(r => r > 0) ? monthlyRevenue : [
-        Math.round(gross * 0.12), Math.round(gross * 0.14), Math.round(gross * 0.16),
-        Math.round(gross * 0.18), Math.round(gross * 0.20), Math.round(gross * 0.20),
-      ]
+      // Use real monthly data — show zeros if no load history (no fake generation)
+      const monthlyRev = monthlyRevenue
 
       return {
         id: drv.id, name, phone: drv.phone || '', email: drv.email || '',

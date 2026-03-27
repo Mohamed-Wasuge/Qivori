@@ -769,15 +769,8 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
     try {
       const saved = await db.createClearinghouseQuery(newOrder)
       setChOrders(o => [saved || { ...newOrder, id: orderId }, ...o])
-      showToast('','Query Submitted',`${chDriver} · ${chType} · Processing — complete this query on the FMCSA Clearinghouse portal`)
+      showToast('','Query Submitted',`${chDriver} · ${chType} · Complete this query on the FMCSA Clearinghouse portal and update the status here when results are received`)
       setChDriver(''); setChConsent(false)
-      // Simulate completion after 3s (in production this would be updated after real FMCSA query)
-      setTimeout(async () => {
-        const updated = { status:'Complete', result:'Clear', completed_at: new Date().toISOString() }
-        const savedId = saved?.id || orderId
-        try { await db.updateClearinghouseQuery(savedId, updated) } catch {}
-        setChOrders(o => o.map(x => (x.id === savedId || x.query_id === orderId) ? {...x, ...updated} : x))
-      }, 3000)
     } catch (err) {
       // Fallback to local state if DB fails
       setChOrders(o => [{ ...newOrder, id: orderId }, ...o])
@@ -790,12 +783,13 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const complianceScore = useMemo(() => {
     const basics = getBasicScores()
     const avgBasicPct = basics.reduce((s, b) => s + (b.score / b.threshold), 0) / basics.length
-    const hosScore = 25 // 25/25 — no violations
+    const hosViolationCount = eldStatus?.violations || 0
+    const hosScore = Math.max(0, 25 - hosViolationCount * 5)
     const dvirScore = defects === 0 ? 25 : Math.max(0, 25 - defects * 5)
     const csaScore = Math.round((1 - avgBasicPct) * 25)
     const clearScore = chOrders.length === 0 || chOrders.every(o => o.result === 'Clear' || o.result === 'Pending') ? 25 : 15
     return Math.min(100, hosScore + dvirScore + csaScore + clearScore)
-  }, [defects, chOrders])
+  }, [defects, chOrders, eldStatus])
 
   const COMP_TABS = [
     { id:'overview', label:'Overview',       icon: Brain },

@@ -3,7 +3,8 @@ import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
   Package, Truck, ChevronRight, ChevronDown, ScanLine, Camera, Plus,
-  MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X, FileText, Upload
+  MapPin, Clock, DollarSign, CheckCircle, ArrowRight, Filter, X, FileText, Upload,
+  Zap, Send, AlertCircle
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
 import { apiFetch } from '../../lib/api'
@@ -15,10 +16,13 @@ const STATUS_FLOW = ['Rate Con Received', 'Booked', 'Dispatched', 'En Route to P
 
 export default function MobileLoadsTab() {
   const ctx = useCarrier() || {}
-  const { showToast } = useApp()
+  const { showToast, user } = useApp()
   const loads = ctx.loads || []
+  const invoices = ctx.invoices || []
   const updateLoadStatus = ctx.updateLoadStatus || (() => {})
   const addLoad = ctx.addLoad || (() => {})
+  const addInvoice = ctx.addInvoice || (() => {})
+  const updateInvoiceStatus = ctx.updateInvoiceStatus || (() => {})
   const [filter, setFilter] = useState('All')
   const [expandedId, setExpandedId] = useState(null)
   const [scanning, setScanning] = useState(false)
@@ -28,6 +32,75 @@ export default function MobileLoadsTab() {
   const [uploadingDoc, setUploadingDoc] = useState(null) // { loadId, docType }
   const docInputRef = useRef(null)
   const [loadDocs, setLoadDocs] = useState({}) // { loadId: [docs] }
+
+  // Delivered loads needing action (no invoice yet)
+  const deliveredNeedAction = loads.filter(l => {
+    const s = (l.status || '').toLowerCase()
+    return s === 'delivered' || s === 'at delivery'
+  })
+
+  // Check if load has invoice
+  const loadHasInvoice = (load) => {
+    const lid = load.id || load.load_id || load.loadId
+    return invoices.some(inv => (inv.load_id || inv.loadId || inv.load_number) === lid)
+  }
+
+  // Generate invoice for a delivered load
+  const generateInvoiceForLoad = async (load) => {
+    const lid = load.id || load.load_id || load.loadId
+    if (loadHasInvoice(load)) {
+      showToast?.('info', 'Already Invoiced', 'Invoice exists for this load')
+      return
+    }
+    try {
+      await addInvoice({
+        load_id: lid,
+        load_number: load.load_id || load.loadId || lid,
+        amount: load.gross || load.rate || 0,
+        broker: load.broker_name || load.broker || '',
+        broker_email: load.broker_email || '',
+        route: `${load.origin || ''} → ${load.destination || load.dest || ''}`,
+        status: 'Pending',
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      })
+      updateLoadStatus(lid, 'Invoiced')
+      haptic('success')
+      showToast?.('success', 'Invoice Created', `${fmt$(load.gross || load.rate)} — ready to send or factor`)
+    } catch (err) {
+      showToast?.('error', 'Error', err.message || 'Could not create invoice')
+    }
+  }
+
+  // Quick factor — sends to factoring company
+  const quickFactor = async (load) => {
+    const lid = load.id || load.load_id || load.loadId
+    const inv = invoices.find(i => (i.load_id || i.loadId || i.load_number) === lid)
+    if (!inv) {
+      showToast?.('error', 'No Invoice', 'Create an invoice first')
+      return
+    }
+    const factoringRate = ctx.company?.factoring_rate || 2.5
+    const fee = Math.round(inv.amount * factoringRate / 100)
+    const net = inv.amount - fee
+    const factoringEmail = ctx.company?.factoring_email || ''
+    if (factoringEmail) {
+      try {
+        await apiFetch('/api/send-invoice', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: factoringEmail, invoiceNumber: `${inv.invoice_number || inv.id} — FACTORING`,
+            loadNumber: inv.load_number || '', route: inv.route || '',
+            amount: inv.amount || 0, dueDate: 'Same-day / 24hr deposit',
+            brokerName: inv.broker || '', carrierName: ctx.company?.company_name || 'Carrier',
+          }),
+        })
+      } catch {}
+    }
+    updateInvoiceStatus(inv.id || inv.invoice_number || inv._dbId, 'Factored')
+    haptic('success')
+    showToast?.('success', 'Factored!', `$${net.toLocaleString()} net — 24hr deposit`)
+  }
 
   const filtered = filter === 'All'
     ? loads
@@ -202,6 +275,73 @@ export default function MobileLoadsTab() {
         })}
       </div>
 
+      {/* ── GET PAID Banner — Delivered loads needing action ── */}
+      {deliveredNeedAction.length > 0 && !showAddLoad && (
+        <div style={{
+          margin: '0 16px 8px', padding: '12px 14px',
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(240,165,0,0.08))',
+          border: '1px solid rgba(139,92,246,0.25)', borderRadius: 14,
+          animation: 'fadeInUp 0.3s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Ic icon={DollarSign} size={12} color="#fff" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#8b5cf6' }}>GET PAID</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                {deliveredNeedAction.length} load{deliveredNeedAction.length > 1 ? 's' : ''} delivered — upload docs & invoice
+              </div>
+            </div>
+          </div>
+          {deliveredNeedAction.slice(0, 3).map(load => {
+            const lid = load.id || load.load_id
+            const hasInv = loadHasInvoice(load)
+            const docs = loadDocs[load.id] || []
+            const hasBOL = docs.some(d => d.doc_type === 'BOL' || d.doc_type === 'Signed BOL') || load.bol_url || load.signed_bol_url
+            const hasPOD = docs.some(d => d.doc_type === 'POD') || load.pod_url
+            return (
+              <div key={lid} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
+                borderTop: '1px solid rgba(139,92,246,0.12)',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {load.origin} → {load.destination || load.dest}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{fmt$(load.gross || load.rate)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {!hasBOL && (
+                    <button onClick={() => { setExpandedId(lid); if (load.id) fetchLoadDocs(load.id) }}
+                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: 'rgba(240,165,0,0.12)', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 6, color: 'var(--accent)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                      BOL
+                    </button>
+                  )}
+                  {!hasPOD && (
+                    <button onClick={() => { setExpandedId(lid); if (load.id) fetchLoadDocs(load.id) }}
+                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: 'rgba(240,165,0,0.12)', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 6, color: 'var(--accent)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                      POD
+                    </button>
+                  )}
+                  {!hasInv ? (
+                    <button onClick={() => generateInvoiceForLoad(load)}
+                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: '#8b5cf6', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                      Invoice
+                    </button>
+                  ) : (
+                    <button onClick={() => quickFactor(load)}
+                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: 'var(--success)', border: 'none', borderRadius: 6, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                      Factor
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {showAddLoad && (
         <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: '14px', animation: 'fadeInUp 0.3s ease' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -333,6 +473,132 @@ export default function MobileLoadsTab() {
                       </div>
                     ))}
                   </div>
+
+                  {/* ── GET PAID Workflow — for Delivered/Invoiced loads ── */}
+                  {(() => {
+                    const st = (load.status || '').toLowerCase()
+                    const isDelivered = st === 'delivered' || st === 'at delivery'
+                    const isInvoiced = st === 'invoiced'
+                    if (!isDelivered && !isInvoiced) return null
+                    const lid = load.id || load.load_id || load.loadId
+                    const hasInv = loadHasInvoice(load)
+                    const docs = loadDocs[load.id] || []
+                    const hasBOL = docs.some(d => d.doc_type === 'BOL' || d.doc_type === 'Signed BOL') || load.bol_url || load.signed_bol_url
+                    const hasPOD = docs.some(d => d.doc_type === 'POD') || load.pod_url
+                    const inv = invoices.find(i => (i.load_id || i.loadId || i.load_number) === lid)
+                    const isFactored = inv && (inv.status || '').toLowerCase() === 'factored'
+                    const steps = [
+                      { label: 'BOL', done: !!hasBOL },
+                      { label: 'POD', done: !!hasPOD },
+                      { label: 'Invoice', done: !!hasInv },
+                      { label: 'Get Paid', done: !!isFactored || (inv && (inv.status || '').toLowerCase() === 'paid') },
+                    ]
+                    return (
+                      <div style={{
+                        margin: '0 14px 10px', padding: '12px',
+                        background: 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(0,212,170,0.06))',
+                        border: '1px solid rgba(139,92,246,0.2)', borderRadius: 12,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Ic icon={DollarSign} size={10} color="#fff" />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#8b5cf6', letterSpacing: 1 }}>GET PAID WORKFLOW</span>
+                        </div>
+                        {/* Progress steps */}
+                        <div style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
+                          {steps.map((s, i) => (
+                            <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                              <div style={{
+                                width: '100%', height: 3, borderRadius: 2,
+                                background: s.done ? 'var(--success)' : 'var(--border)',
+                                transition: 'background 0.3s',
+                              }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                {s.done && <Ic icon={CheckCircle} size={8} color="var(--success)" />}
+                                <span style={{ fontSize: 8, fontWeight: 700, color: s.done ? 'var(--success)' : 'var(--muted)' }}>{s.label}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Action buttons */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {!hasBOL && (
+                            <button onClick={() => {
+                              const inp = document.createElement('input')
+                              inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                              inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'BOL') }
+                              inp.click()
+                            }} style={{
+                              flex: 1, minWidth: 80, padding: '10px', background: 'var(--accent)', border: 'none', borderRadius: 8,
+                              cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                            }}>
+                              <Ic icon={Upload} size={12} color="#000" /> Upload BOL
+                            </button>
+                          )}
+                          {!hasPOD && (
+                            <button onClick={() => {
+                              const inp = document.createElement('input')
+                              inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                              inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'POD') }
+                              inp.click()
+                            }} style={{
+                              flex: 1, minWidth: 80, padding: '10px', background: 'var(--surface)', border: '1px solid var(--accent)',
+                              borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                            }}>
+                              <Ic icon={Camera} size={12} color="var(--accent)" /> Upload POD
+                            </button>
+                          )}
+                          {!hasInv && (
+                            <button onClick={() => generateInvoiceForLoad(load)} style={{
+                              flex: 1, minWidth: 100, padding: '10px', background: '#8b5cf6', border: 'none', borderRadius: 8,
+                              cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                            }}>
+                              <Ic icon={FileText} size={12} color="#fff" /> Create Invoice
+                            </button>
+                          )}
+                          {hasInv && !isFactored && (inv?.status || '').toLowerCase() !== 'paid' && (
+                            <>
+                              <button onClick={() => quickFactor(load)} style={{
+                                flex: 1, minWidth: 80, padding: '10px', background: '#8b5cf6', border: 'none', borderRadius: 8,
+                                cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif",
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              }}>
+                                <Ic icon={Zap} size={12} color="#fff" /> Factor Now
+                              </button>
+                              <button onClick={async () => {
+                                const email = inv.broker_email || inv.email
+                                if (!email) { showToast?.('error', 'No Email', 'No broker email on file'); return }
+                                try {
+                                  await apiFetch('/api/send-invoice', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ to: email, invoiceNumber: inv.invoice_number || inv.id, loadNumber: inv.load_number || '', route: inv.route || '', amount: inv.amount || 0, dueDate: inv.due_date || 'Net 30', brokerName: inv.broker || '' }),
+                                  })
+                                  haptic('success')
+                                  showToast?.('success', 'Sent!', `Invoice sent to ${email}`)
+                                } catch { showToast?.('error', 'Error', 'Could not send') }
+                              }} style={{
+                                flex: 1, minWidth: 80, padding: '10px', background: 'var(--accent)', border: 'none', borderRadius: 8,
+                                cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif",
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              }}>
+                                <Ic icon={Send} size={12} color="#000" /> Send Invoice
+                              </button>
+                            </>
+                          )}
+                          {(isFactored || (inv?.status || '').toLowerCase() === 'paid') && (
+                            <div style={{ width: '100%', textAlign: 'center', padding: '8px', fontSize: 11, fontWeight: 700, color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                              <Ic icon={CheckCircle} size={14} color="var(--success)" />
+                              {isFactored ? 'Factored — 24hr deposit' : 'Payment received'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Documents */}
                   <div style={{ padding: '0 14px 10px' }}>

@@ -2,13 +2,16 @@ import { useState, useCallback } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
-import { Home, Package, DollarSign, MoreHorizontal, X, Clock } from 'lucide-react'
+import { Home, Package, DollarSign, MoreHorizontal, X, Clock, Wallet } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic } from './shared'
 import MobileHomeTab from './MobileHomeTab'
 import MobileLoadsTab from './MobileLoadsTab'
 import MobileMoneyTab from './MobileMoneyTab'
 import MobileMoreTab from './MobileMoreTab'
 import MobileChatTab from './MobileChatTab'
+import DriverHomeTab from './DriverHomeTab'
+import DriverPayTab from './DriverPayTab'
+import DriverMoreTab from './DriverMoreTab'
 
 const TABS = [
   { id: 'home', label: 'Home', icon: Home },
@@ -17,8 +20,15 @@ const TABS = [
   { id: 'more', label: 'More', icon: MoreHorizontal },
 ]
 
+const DRIVER_TABS = [
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'loads', label: 'My Loads', icon: Package },
+  { id: 'pay', label: 'Pay', icon: Wallet },
+  { id: 'more', label: 'More', icon: MoreHorizontal },
+]
+
 export default function MobileShell() {
-  const { logout, user, profile, demoMode, showToast } = useApp()
+  const { logout, user, profile, demoMode, showToast, isDriver } = useApp()
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
   const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing'
   const ctx = useCarrier() || {}
@@ -135,18 +145,39 @@ export default function MobileShell() {
 
       {/* ── TAB CONTENT ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />
-        </div>
-        <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileLoadsTab />
-        </div>
-        <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileMoneyTab initialSubTab={moneySubTab} />
-        </div>
-        <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-          <MobileMoreTab />
-        </div>
+        {isDriver ? (
+          <>
+            {/* DRIVER TABS */}
+            <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <DriverHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />
+            </div>
+            <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <MobileLoadsTab />
+            </div>
+            <div style={{ flex: 1, display: activeTab === 'pay' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <DriverPayTab />
+            </div>
+            <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <DriverMoreTab />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* OWNER/ADMIN TABS */}
+            <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />
+            </div>
+            <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <MobileLoadsTab />
+            </div>
+            <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <MobileMoneyTab initialSubTab={moneySubTab} />
+            </div>
+            <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
+              <MobileMoreTab />
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── FLOATING Q BUTTON ── */}
@@ -238,7 +269,7 @@ export default function MobileShell() {
         justifyContent: 'space-around',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
-        {TABS.map(tab => {
+        {(isDriver ? DRIVER_TABS : TABS).map(tab => {
           const isActive = activeTab === tab.id
           const badge = tab.id === 'loads' && activeLoads.length > 0 ? activeLoads.length
             : tab.id === 'money' && unpaidInvoices.length > 0 ? unpaidInvoices.length

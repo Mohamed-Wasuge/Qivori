@@ -912,7 +912,7 @@ export function InvoiceStatusBadge({ status }) {
 
 // ── Load Detail Drawer ─────────────────────────────────────────────────────
 export function LoadDetailDrawer({ loadId, onClose }) {
-  const { loads, invoices, checkCalls, updateLoadStatus, updateInvoiceStatus, removeLoad, drivers, fuelCostPerMile, company: carrierCompany, brokerStats, allLoads } = useCarrier()
+  const { loads, invoices, checkCalls, updateLoadStatus, updateInvoiceStatus, removeLoad, drivers, fuelCostPerMile, company: carrierCompany, brokerStats, allLoads, advanceStop } = useCarrier()
   const { showToast, user } = useApp()
   const [invoiceSending, setInvoiceSending] = useState(false)
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false)
@@ -1478,6 +1478,71 @@ export function LoadDetailDrawer({ loadId, onClose }) {
               ))}
             </div>
           </div>
+
+          {/* ═══ STOPS TIMELINE ═══════════════════════════════════ */}
+          {(() => {
+            const stops = load.stops || load.load_stops
+            if (!stops?.length) return null
+            const currentIdx = stops.findIndex(s => s.status === 'current')
+            const hasNext = currentIdx >= 0 && currentIdx < stops.length - 1
+            return (
+              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, display:'flex', alignItems:'center', gap:6 }}>
+                    <Ic icon={MapPin} size={13} /> Stops ({stops.length})
+                  </div>
+                  {hasNext && (
+                    <button className="btn btn-primary" style={{ fontSize:10, padding:'4px 12px' }}
+                      onClick={() => { advanceStop(load.loadId || load.id); showToast('','Stop Advanced', `${load.loadId} → ${stops[currentIdx + 1]?.city || 'Next stop'}`) }}>
+                      Advance to Next Stop →
+                    </button>
+                  )}
+                </div>
+                {stops.sort((a, b) => (a.sequence || 0) - (b.sequence || 0)).map((stop, i) => {
+                  const isComplete = stop.status === 'complete'
+                  const isCurrent = stop.status === 'current'
+                  const color = isComplete ? 'var(--success)' : isCurrent ? 'var(--accent)' : 'var(--muted)'
+                  return (
+                    <div key={stop.id || i} style={{ display:'flex', gap:10, position:'relative', paddingBottom: i < stops.length - 1 ? 16 : 0 }}>
+                      {/* Timeline line */}
+                      {i < stops.length - 1 && (
+                        <div style={{ position:'absolute', left:7, top:16, bottom:0, width:2, background: isComplete ? 'var(--success)' : 'var(--border)' }} />
+                      )}
+                      {/* Dot */}
+                      <div style={{ width:16, height:16, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center',
+                        background: isComplete ? 'var(--success)' : isCurrent ? 'var(--accent)' : 'var(--surface2)',
+                        border: `2px solid ${color}` }}>
+                        {isComplete && <span style={{ fontSize:8, color:'#fff' }}>✓</span>}
+                        {isCurrent && <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)' }} />}
+                      </div>
+                      {/* Content */}
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div style={{ fontSize:11, fontWeight:700, color }}>
+                            <span style={{ fontSize:9, fontWeight:800, padding:'1px 6px', borderRadius:4, background: stop.type === 'pickup' ? 'rgba(0,212,170,0.1)' : 'rgba(240,165,0,0.1)', color: stop.type === 'pickup' ? 'var(--success)' : 'var(--accent)', marginRight:6 }}>
+                              {(stop.type || 'stop').toUpperCase()}
+                            </span>
+                            {stop.city}{stop.state ? `, ${stop.state}` : ''}
+                          </div>
+                          <span style={{ fontSize:9, color:'var(--muted)' }}>
+                            {isComplete ? 'Complete' : isCurrent ? 'Current' : 'Pending'}
+                          </span>
+                        </div>
+                        {stop.address && <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{stop.address}</div>}
+                        <div style={{ display:'flex', gap:12, marginTop:3, fontSize:10, color:'var(--muted)' }}>
+                          {stop.scheduled_date && <span>📅 {new Date(stop.scheduled_date).toLocaleDateString()}</span>}
+                          {stop.contact_name && <span>👤 {stop.contact_name}</span>}
+                          {stop.contact_phone && <span>📞 {stop.contact_phone}</span>}
+                        </div>
+                        {stop.actual_arrival && <div style={{ fontSize:9, color:'var(--success)', marginTop:2 }}>Arrived: {new Date(stop.actual_arrival).toLocaleString()}</div>}
+                        {stop.actual_departure && <div style={{ fontSize:9, color:'var(--success)' }}>Departed: {new Date(stop.actual_departure).toLocaleString()}</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           {/* ═══ DETENTION TIMER ═══════════════════════════════════ */}
           {['En Route to Pickup','Loaded','In Transit','Delivered'].includes(load.status) && (

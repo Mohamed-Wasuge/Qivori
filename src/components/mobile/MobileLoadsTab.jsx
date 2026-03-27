@@ -23,6 +23,7 @@ export default function MobileLoadsTab() {
   const addLoad = ctx.addLoad || (() => {})
   const addInvoice = ctx.addInvoice || (() => {})
   const updateInvoiceStatus = ctx.updateInvoiceStatus || (() => {})
+  const advanceStop = ctx.advanceStop || (() => {})
   const [filter, setFilter] = useState('All')
   const [expandedId, setExpandedId] = useState(null)
   const [scanning, setScanning] = useState(false)
@@ -473,6 +474,60 @@ export default function MobileLoadsTab() {
                       </div>
                     ))}
                   </div>
+
+                  {/* ── STOPS TIMELINE ── */}
+                  {(() => {
+                    const stops = load.stops || load.load_stops
+                    if (!stops?.length) return null
+                    const currentStopIdx = stops.findIndex(s => s.status === 'current')
+                    const hasNextStop = currentStopIdx >= 0 && currentStopIdx < stops.length - 1
+                    return (
+                      <div style={{ padding: '0 14px 10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>Stops ({stops.length})</span>
+                          {hasNextStop && (
+                            <button onClick={(e) => {
+                              e.stopPropagation()
+                              advanceStop(load.loadId || load.load_number || load.id)
+                              haptic?.()
+                              showToast?.('', 'Stop Advanced', `→ ${stops[currentStopIdx + 1]?.city || 'Next stop'}`)
+                            }} style={{
+                              padding: '5px 12px', background: 'var(--accent)', border: 'none', borderRadius: 8,
+                              fontSize: 10, fontWeight: 700, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif"
+                            }}>
+                              Next Stop →
+                            </button>
+                          )}
+                        </div>
+                        {stops.sort((a, b) => (a.sequence || 0) - (b.sequence || 0)).map((stop, si) => {
+                          const isDone = stop.status === 'complete'
+                          const isNow = stop.status === 'current'
+                          const dotColor = isDone ? 'var(--success)' : isNow ? 'var(--accent)' : 'var(--surface2)'
+                          const borderColor = isDone ? 'var(--success)' : isNow ? 'var(--accent)' : 'var(--border)'
+                          return (
+                            <div key={stop.id || si} style={{ display: 'flex', gap: 8, position: 'relative', paddingBottom: si < stops.length - 1 ? 12 : 0 }}>
+                              {si < stops.length - 1 && (
+                                <div style={{ position: 'absolute', left: 6, top: 14, bottom: 0, width: 2, background: isDone ? 'var(--success)' : 'var(--border)' }} />
+                              )}
+                              <div style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, background: dotColor, border: `2px solid ${borderColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {isDone && <span style={{ fontSize: 7, color: '#fff' }}>✓</span>}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: isDone ? 'var(--success)' : isNow ? 'var(--accent)' : 'var(--muted)' }}>
+                                  <span style={{ fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 4, background: stop.type === 'pickup' ? 'rgba(0,212,170,0.1)' : 'rgba(240,165,0,0.1)', color: stop.type === 'pickup' ? 'var(--success)' : 'var(--accent)', marginRight: 4 }}>
+                                    {(stop.type || 'stop').toUpperCase()}
+                                  </span>
+                                  {stop.city}{stop.state ? `, ${stop.state}` : ''}
+                                </div>
+                                {stop.contact_name && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 1 }}>{stop.contact_name}{stop.contact_phone ? ` · ${stop.contact_phone}` : ''}</div>}
+                                {stop.actual_arrival && <div style={{ fontSize: 9, color: 'var(--success)', marginTop: 1 }}>Arrived {new Date(stop.actual_arrival).toLocaleString()}</div>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
 
                   {/* ── GET PAID Workflow — for Delivered/Invoiced loads ── */}
                   {(() => {

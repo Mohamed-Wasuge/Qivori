@@ -237,9 +237,44 @@ function DriversHub() {
 // ── Fleet Hub ──
 function FleetHub() {
   const [tab, setTab] = useState('fleet')
-  const TABS = [{ id:'fleet', label:'My Fleet' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'manager', label:'Maintenance' }]
+  const { loads, activeLoads, drivers, expenses, fuelCostPerMile, deliveredLoads } = useCarrier()
+  const TABS = [{ id:'fleet', label:'Vehicles' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'manager', label:'Maintenance' }]
+
+  const totalMiles = (deliveredLoads || []).reduce((s, l) => s + (Number(l.miles) || 0), 0)
+  const onRoad = (activeLoads || []).filter(l => ['In Transit','Loaded','En Route to Pickup'].includes(l.status)).length
+  const fuelExpenses = (expenses || []).filter(e => (e.category || '').toLowerCase().includes('fuel'))
+  const totalFuel = fuelExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+  const truckCount = Math.max((drivers || []).length, 1)
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+      {/* Fleet header */}
+      <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Ic icon={Truck} size={18} color="var(--accent3,#3b82f6)" />
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:700, letterSpacing:0.3 }}>Fleet Management</div>
+              <div style={{ fontSize:11, color:'var(--muted)' }}>Vehicles, tracking, fuel & maintenance</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:24 }}>
+            {[
+              { label:'Trucks', val: String(truckCount), color:'var(--accent3,#3b82f6)' },
+              { label:'On Road', val: String(onRoad), color:'var(--success)' },
+              { label:'Total Miles', val: totalMiles > 1000 ? `${(totalMiles/1000).toFixed(1)}K` : String(totalMiles), color:'var(--accent)' },
+              { label:'Fuel Cost', val: `$${totalFuel.toLocaleString()}`, color:'var(--danger)' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign:'center', minWidth:60 }}>
+                <div style={{ fontSize:18, fontWeight:800, color:s.color, fontFamily:"'DM Sans',sans-serif" }}>{s.val}</div>
+                <div style={{ fontSize:9, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.8 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
@@ -534,9 +569,36 @@ function FinancialsHub() {
 // ── Compliance Hub ──
 function ComplianceHub() {
   const [tab, setTab] = useState('audit')
-  const TABS = [{ id:'audit', label:'Audit Today' },{ id:'center', label:'Compliance Center' },{ id:'ifta', label:'IFTA & DOT' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
+  const { drivers } = useCarrier()
+  const TABS = [{ id:'audit', label:'Audit Today' },{ id:'center', label:'DVIR / ELD' },{ id:'ifta', label:'IFTA' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+      {/* Compliance header */}
+      <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Ic icon={Shield} size={18} color="var(--success)" />
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:700, letterSpacing:0.3 }}>Safety & Compliance</div>
+              <div style={{ fontSize:11, color:'var(--muted)' }}>FMCSA, IFTA, ELD, DVIR & DOT readiness</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:20 }}>
+            {[
+              { label:'Drivers', val: String((drivers || []).length), color:'var(--accent3,#3b82f6)' },
+              { label:'DOT Ready', val: 'Active', color:'var(--success)' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign:'center', minWidth:60 }}>
+                <div style={{ fontSize:16, fontWeight:800, color:s.color, fontFamily:"'DM Sans',sans-serif" }}>{s.val}</div>
+                <div style={{ fontSize:9, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.8 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>

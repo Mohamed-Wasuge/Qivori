@@ -1453,13 +1453,9 @@ export function EquipmentManager() {
 
   const isExpiringSoon = (dateStr) => {
     if (!dateStr) return false
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    const parts = dateStr.replace(',','').split(' ')
-    const mon = months.indexOf(parts[0])
-    const day = parseInt(parts[1])
-    const year = parseInt(parts[2])
-    if (mon < 0 || isNaN(day)) return false
-    const d = new Date(year || 2026, mon, day)
+    const str = String(dateStr)
+    const d = new Date(str)
+    if (isNaN(d.getTime())) return false
     const diff = (d.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     return diff < 45
   }

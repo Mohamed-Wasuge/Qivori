@@ -2794,6 +2794,57 @@ export function DriverContracts() {
                           <Ic icon={XCircle} /> Terminate
                         </button>
                       </div>
+                      {/* Expandable contract detail */}
+                      {viewContract === c.id && (
+                        <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:18, marginTop:12, width:'100%' }}>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14 }}>
+                            {[
+                              { l:'Contract Type', v: typeLabel },
+                              { l:'Driver', v: c.driver_name },
+                              { l:'Pay Structure', v: c.pay_structure === 'percent' ? `${c.pay_rate}% of gross revenue` : c.pay_structure === 'permile' ? `$${c.pay_rate} per mile` : `$${c.pay_rate} per load` },
+                              { l:'Company', v: c.company_name || '—' },
+                              { l:'Start Date', v: c.start_date || '—' },
+                              { l:'End Date', v: c.end_date || 'Open-ended' },
+                              { l:'Vehicle', v: c.vehicle_info || '—' },
+                              { l:'VIN', v: c.vehicle_vin || '—' },
+                              { l:'Signed', v: c.signed_date ? new Date(c.signed_date).toLocaleDateString() : '—' },
+                              { l:'Status', v: c.status?.toUpperCase() || 'ACTIVE' },
+                            ].map(item => (
+                              <div key={item.l} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid var(--border)' }}>
+                                <span style={{ fontSize:11, color:'var(--muted)' }}>{item.l}</span>
+                                <span style={{ fontSize:11, fontWeight:600 }}>{item.v}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {/* Required sections */}
+                          {(c.contract_type === 'lease' || c.contract_type === 'ic') && (
+                            <div style={{ marginBottom:14 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:'var(--accent)', marginBottom:6 }}>
+                                {c.contract_type === 'lease' ? 'FMCSA §376.12 SECTIONS' : 'IC AGREEMENT SECTIONS'}
+                              </div>
+                              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
+                                {(c.contract_type === 'lease' ? LEASE_SECTIONS : IC_SECTIONS).map((s, i) => (
+                                  <div key={i} style={{ fontSize:10, color:'var(--text)', display:'flex', alignItems:'center', gap:4 }}>
+                                    <Check size={10} color="var(--success)" /> {s}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {c.custom_terms && (
+                            <div style={{ marginBottom:14 }}>
+                              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:4 }}>ADDITIONAL TERMS</div>
+                              <div style={{ fontSize:11, color:'var(--text)', background:'var(--bg)', padding:10, borderRadius:6, whiteSpace:'pre-wrap' }}>{c.custom_terms}</div>
+                            </div>
+                          )}
+                          {c.carrier_signature && (
+                            <div>
+                              <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', marginBottom:4 }}>CARRIER SIGNATURE</div>
+                              <img src={c.carrier_signature} alt="Signature" style={{ height:60, background:'var(--bg)', borderRadius:6, padding:4, border:'1px solid var(--border)' }} />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

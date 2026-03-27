@@ -110,17 +110,17 @@ export function AppProvider({ children }) {
   const isAdmin = companyRole === 'owner' || companyRole === 'admin'
   const isDispatcher = companyRole === 'dispatcher'
 
-  // Apply theme class — only when logged in (don't affect landing/login pages)
+  // Apply theme class — only in app view (don't affect landing/login pages)
   useEffect(() => {
     const root = document.documentElement
-    if (user) {
+    if (view === 'app') {
       if (theme === 'default') root.removeAttribute('data-theme')
       else root.setAttribute('data-theme', theme)
     } else {
       root.removeAttribute('data-theme')
     }
     localStorage.setItem('fm_theme', theme)
-  }, [theme, user])
+  }, [theme, view])
 
   // Fetch company membership — returns { role, company_id, driver_id } or null
   const fetchCompanyMembership = useCallback(async (userId) => {

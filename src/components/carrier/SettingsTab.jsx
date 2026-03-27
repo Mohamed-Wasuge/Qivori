@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import {
-  Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Moon, Eye, Zap,
+  Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Sun, Moon, Eye, Zap,
   Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info, FileCheck
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
@@ -1682,6 +1682,13 @@ export function SettingsTab() {
                     sub: 'The classic Qivori dark theme — gold accents, deep navy background',
                     icon: Moon,
                     preview: ['#07090e','#f0a500','#22c55e','#ef4444'],
+                  },
+                  {
+                    id: 'light',
+                    label: 'Light Mode',
+                    sub: 'Clean white background with dark text — great for daytime use or bright environments',
+                    icon: Sun,
+                    preview: ['#f5f7fa','#c78c00','#16853e','#c93b3b'],
                   },
                   {
                     id: 'colorblind',

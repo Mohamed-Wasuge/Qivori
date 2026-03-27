@@ -42,6 +42,36 @@
 [data-theme="colorblind"] .ob-line.done  { background: var(--success); }
 [data-theme="colorblind"] .live-dot      { background: var(--success); }
 
+/* ── Light mode */
+[data-theme="light"] {
+  --bg:       #f5f7fa;
+  --surface:  #ffffff;
+  --surface2: #eef1f6;
+  --surface3: #e2e6ed;
+  --border:   #d1d5de;
+  --accent:   #c78c00;
+  --accent2:  #0f8a6e;
+  --accent3:  #2b6fcc;
+  --accent4:  #6d3fc7;
+  --text:     #1a1e2a;
+  --muted:    #6b7280;
+  --success:  #16853e;
+  --danger:   #c93b3b;
+  --warning:  #b07a12;
+}
+[data-theme="light"] ::-webkit-scrollbar-track { background: #eef1f6; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #c4c9d4; }
+[data-theme="light"] .panel,
+[data-theme="light"] .stat-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .btn-primary {
+  color: #fff;
+}
+[data-theme="light"] .btn-ghost {
+  border-color: var(--border);
+}
+
 /* ── High contrast mode */
 [data-theme="high-contrast"] {
   --bg:       #000000;

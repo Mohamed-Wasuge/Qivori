@@ -1185,112 +1185,283 @@ export function DriverPortal() {
   const completedRequired = requiredTypes.filter(t => uploadedTypes.has(t.id)).length
   const compliancePct = requiredTypes.length > 0 ? Math.round((completedRequired / requiredTypes.length) * 100) : 0
 
+  // Pay model info
+  const payModel = driver.pay_model || 'percent'
+  const payRate = Number(driver.pay_rate) || 28
+  const payModelText = payModel === 'percent' ? `${payRate}% of gross`
+    : payModel === 'permile' ? `$${payRate.toFixed(2)}/mile`
+    : payModel === 'flat' ? `$${payRate} flat/load` : `${payRate}%`
+
+  // Avg per load
+  const avgPerLoad = delivered.length > 0 ? Math.round(totalGross / delivered.length) : 0
+
+  // Status color
+  const statusColor = (driver.status || 'Active') === 'Active' ? 'var(--success)' : '#f59e0b'
+
   return (
     <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
-      {/* Driver selector */}
-      <div style={{ width:200, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--surface)', overflowY:'auto' }}>
-        <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', fontSize:10, fontWeight:800, color:'var(--accent)', letterSpacing:2 }}>DRIVER PORTAL</div>
+      {/* ── Driver Selector Panel ── */}
+      <div style={{ width:220, flexShrink:0, borderRight:'1px solid var(--border)', background:'var(--bg)', overflowY:'auto', display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'16px 18px', borderBottom:'1px solid var(--border)' }}>
+          <div style={{ fontSize:9, fontWeight:800, color:'var(--accent)', letterSpacing:2, marginBottom:4 }}>DRIVER PORTAL</div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>{drivers.length} driver{drivers.length !== 1 ? 's' : ''}</div>
+        </div>
         {drivers.map(d => {
           const isSel = selectedDriver === d.id
           const n = d.full_name || d.name || '?'
+          const initials = n.split(' ').map(w => w[0]).join('').slice(0,2)
+          const dLoads = loads.filter(l => l.driver === n || l.driver_name === n)
+          const dStatus = d.status || 'Active'
           return (
             <div key={d.id} onClick={() => setSelectedDriver(d.id)}
-              style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', cursor:'pointer', borderLeft:`3px solid ${isSel?'var(--accent)':'transparent'}`, background:isSel?'rgba(240,165,0,0.05)':'transparent' }}>
-              <div style={{ fontSize:12, fontWeight:600, color:isSel?'var(--accent)':'var(--text)' }}>{n}</div>
+              style={{
+                padding:'12px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                borderLeft:`3px solid ${isSel ? 'var(--accent)' : 'transparent'}`,
+                background: isSel ? 'rgba(240,165,0,0.06)' : 'transparent',
+                borderBottom:'1px solid var(--border)',
+                transition:'all 0.15s ease',
+              }}>
+              <div style={{
+                width:36, height:36, borderRadius:'50%', flexShrink:0,
+                background: isSel ? 'var(--accent)' : 'var(--surface)',
+                border: isSel ? 'none' : '1px solid var(--border)',
+                color: isSel ? '#000' : 'var(--muted)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:12, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif",
+              }}>{initials}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight: isSel ? 700 : 500, color: isSel ? 'var(--text)' : 'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{n}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
+                  <div style={{ width:5, height:5, borderRadius:'50%', background: dStatus === 'Active' ? 'var(--success)' : '#f59e0b' }} />
+                  <span style={{ fontSize:9, color:'var(--muted)' }}>{dLoads.length} load{dLoads.length !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
             </div>
           )
         })}
       </div>
 
-      {/* Portal content */}
-      <div style={{ flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
-        {/* Header */}
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          <div style={{ width:56, height:56, borderRadius:'50%', background:'var(--accent)', color:'#000', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:800 }}>{avatar}</div>
-          <div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:1 }}>{name}</div>
-            <div style={{ fontSize:12, color:'var(--muted)' }}>CDL: {driver.license_number || '—'} · Status: {driver.status || 'Active'}</div>
+      {/* ── Portal Content ── */}
+      <div style={{ flex:1, overflowY:'auto', padding:'24px 28px', display:'flex', flexDirection:'column', gap:20 }}>
+
+        {/* ── HEADER — Driver Profile Card ── */}
+        <div style={{
+          background:'linear-gradient(135deg, var(--surface) 0%, rgba(240,165,0,0.04) 100%)',
+          border:'1px solid var(--border)', borderRadius:16, padding:'24px 28px',
+          display:'flex', alignItems:'center', gap:20,
+        }}>
+          <div style={{
+            width:72, height:72, borderRadius:'50%',
+            background:'linear-gradient(135deg, var(--accent), #d4940a)',
+            color:'#000', display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:26, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif",
+            boxShadow:'0 4px 20px rgba(240,165,0,0.2)',
+          }}>{avatar}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:1.5 }}>{name}</div>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:4 }}>
+              <span style={{ fontSize:12, color:'var(--muted)' }}>CDL: <span style={{ color:'var(--text)', fontWeight:600 }}>{driver.license_number || driver.cdl_number || '—'}</span></span>
+              <span style={{ width:1, height:12, background:'var(--border)' }} />
+              <span style={{ fontSize:12, color:'var(--muted)' }}>Class: <span style={{ color:'var(--text)', fontWeight:600 }}>{driver.license_class || 'A'}</span></span>
+              <span style={{ width:1, height:12, background:'var(--border)' }} />
+              <span style={{ fontSize:12, color:'var(--muted)' }}>Pay: <span style={{ color:'var(--accent)', fontWeight:700 }}>{payModelText}</span></span>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8 }}>
+              <span style={{
+                display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700,
+                padding:'3px 10px', borderRadius:20,
+                background: statusColor === 'var(--success)' ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)',
+                color: statusColor,
+              }}>
+                <div style={{ width:5, height:5, borderRadius:'50%', background:statusColor }} />
+                {driver.status || 'Active'}
+              </span>
+              {driver.endorsements && (
+                <span style={{ fontSize:10, color:'var(--muted)', padding:'3px 10px', background:'var(--surface2)', borderRadius:20 }}>
+                  {driver.endorsements}
+                </span>
+              )}
+              {driver.equipment_experience && (
+                <span style={{ fontSize:10, color:'var(--muted)', padding:'3px 10px', background:'var(--surface2)', borderRadius:20 }}>
+                  {driver.equipment_experience}
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Right side — quick contact */}
+          <div style={{ display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end' }}>
+            {driver.phone && (
+              <a href={`tel:${driver.phone}`} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--accent)', textDecoration:'none', fontWeight:600 }}>
+                <Phone size={12} /> {driver.phone}
+              </a>
+            )}
+            {driver.email && (
+              <a href={`mailto:${driver.email}`} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--muted)', textDecoration:'none' }}>
+                <Send size={12} /> {driver.email}
+              </a>
+            )}
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        {/* ── STATS ROW ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12 }}>
           {[
-            { label:'LOADS COMPLETED', value:String(delivered.length), color:'var(--accent3)' },
-            { label:'TOTAL MILES', value:totalMiles.toLocaleString(), color:'var(--accent)' },
-            { label:'GROSS EARNINGS', value:`$${totalGross.toLocaleString()}`, color:'var(--accent)' },
-            { label:'YTD NET PAY', value:`$${ytdPay.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--success)' },
+            { label:'Loads Completed', value:String(delivered.length), icon:Package, color:'var(--accent)' },
+            { label:'Total Miles', value:totalMiles.toLocaleString(), icon:Truck, color:'var(--text)' },
+            { label:'Gross Earnings', value:`$${totalGross.toLocaleString()}`, icon:DollarSign, color:'var(--accent)' },
+            { label:'Avg / Load', value:`$${avgPerLoad.toLocaleString()}`, icon:TrendingUp, color:'#8b5cf6' },
+            { label:'YTD Net Pay', value:`$${ytdPay.toLocaleString(undefined,{maximumFractionDigits:0})}`, icon:CreditCard, color:'var(--success)' },
           ].map(k => (
-            <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px' }}>
-              <div style={{ fontSize:10, color:'var(--muted)', letterSpacing:0.5, marginBottom:4 }}>{k.label}</div>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:k.color }}>{k.value}</div>
+            <div key={k.label} style={{
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14,
+              padding:'16px 18px', position:'relative', overflow:'hidden',
+            }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                <div style={{ width:28, height:28, borderRadius:8, background:`${k.color}12`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Ic icon={k.icon} size={14} color={k.color} />
+                </div>
+                <span style={{ fontSize:9, fontWeight:700, color:'var(--muted)', letterSpacing:0.8, textTransform:'uppercase' }}>{k.label}</span>
+              </div>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:k.color, letterSpacing:0.5 }}>{k.value}</div>
             </div>
           ))}
         </div>
 
-        {/* Compliance status */}
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'16px 20px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-            <span style={{ fontSize:13, fontWeight:700 }}><Ic icon={Shield} /> Compliance Status</span>
-            <span style={{ fontSize:13, fontWeight:700, color: compliancePct === 100 ? 'var(--success)' : 'var(--accent)' }}>{compliancePct}%</span>
-          </div>
-          <div style={{ height:8, background:'var(--surface2)', borderRadius:4, overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${compliancePct}%`, background: compliancePct === 100 ? 'var(--success)' : 'var(--accent)', borderRadius:4 }} />
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginTop:12 }}>
-            {[
-              { label:'CDL', ok: uploadedTypes.has('cdl') },
-              { label:'Medical Card', ok: uploadedTypes.has('medical_card') },
-              { label:'MVR', ok: uploadedTypes.has('mvr') },
-              { label:'Drug Test', ok: uploadedTypes.has('drug_pre_employment') },
-              { label:'Background', ok: uploadedTypes.has('background_check') },
-              { label:'Road Test', ok: uploadedTypes.has('road_test') },
-            ].map(c => (
-              <div key={c.label} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', background: c.ok ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)', borderRadius:6 }}>
-                {c.ok ? <CheckCircle size={12} style={{ color:'var(--success)' }} /> : <XCircle size={12} style={{ color:'var(--danger)' }} />}
-                <span style={{ fontSize:11, color: c.ok ? 'var(--success)' : 'var(--danger)' }}>{c.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* ── TWO-COLUMN LAYOUT ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
 
-        {/* Recent loads */}
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-          <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={Package} /> Recent Loads</div>
-          {driverLoads.length === 0 ? (
-            <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No loads yet</div>
-          ) : (
-            <div style={{ maxHeight:250, overflowY:'auto' }}>
-              {driverLoads.slice(0,10).map((l, i) => (
-                <div key={l.id || i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', borderBottom:'1px solid var(--border)' }}>
-                  <div>
-                    <div style={{ fontSize:12, fontWeight:700 }}>{l.loadId || l.load_id} · {(l.origin||'').split(',')[0]} → {(l.dest||l.destination||'').split(',')[0]}</div>
-                    <div style={{ fontSize:10, color:'var(--muted)' }}>{l.status} · {l.miles || 0} mi</div>
-                  </div>
-                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--accent)' }}>${(l.gross||0).toLocaleString()}</div>
+          {/* Compliance status */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'20px', display:'flex', flexDirection:'column' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:8, background: compliancePct === 100 ? 'rgba(34,197,94,0.1)' : 'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Shield size={16} style={{ color: compliancePct === 100 ? 'var(--success)' : 'var(--accent)' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700 }}>Compliance Status</div>
+                  <div style={{ fontSize:10, color:'var(--muted)' }}>DQ file requirements</div>
+                </div>
+              </div>
+              <div style={{
+                fontSize:18, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif",
+                color: compliancePct === 100 ? 'var(--success)' : compliancePct >= 50 ? 'var(--accent)' : 'var(--danger)',
+              }}>{compliancePct}%</div>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height:6, background:'var(--bg)', borderRadius:3, overflow:'hidden', marginBottom:14 }}>
+              <div style={{
+                height:'100%', borderRadius:3, transition:'width 0.5s ease',
+                width:`${compliancePct}%`,
+                background: compliancePct === 100 ? 'var(--success)' : compliancePct >= 50 ? 'var(--accent)' : 'var(--danger)',
+              }} />
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, flex:1 }}>
+              {[
+                { label:'CDL License', ok: uploadedTypes.has('cdl') },
+                { label:'Medical Card', ok: uploadedTypes.has('medical_card') },
+                { label:'MVR Record', ok: uploadedTypes.has('mvr') },
+                { label:'Drug Test', ok: uploadedTypes.has('drug_pre_employment') },
+                { label:'Background', ok: uploadedTypes.has('background_check') },
+                { label:'Road Test', ok: uploadedTypes.has('road_test') },
+              ].map(c => (
+                <div key={c.label} style={{
+                  display:'flex', alignItems:'center', gap:8, padding:'8px 12px',
+                  background: c.ok ? 'rgba(34,197,94,0.05)' : 'rgba(239,68,68,0.05)',
+                  border:`1px solid ${c.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}`,
+                  borderRadius:10,
+                }}>
+                  {c.ok ? <CheckCircle size={14} style={{ color:'var(--success)', flexShrink:0 }} /> : <XCircle size={14} style={{ color:'var(--danger)', flexShrink:0 }} />}
+                  <span style={{ fontSize:11, fontWeight:600, color: c.ok ? 'var(--success)' : 'var(--danger)' }}>{c.label}</span>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+
+          {/* Documents on file */}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+            <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:'rgba(139,92,246,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <FileText size={16} style={{ color:'#8b5cf6' }} />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700 }}>Documents on File</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>{dqFiles.length} document{dqFiles.length !== 1 ? 's' : ''} uploaded</div>
+              </div>
+            </div>
+            {dqFiles.length === 0 ? (
+              <div style={{ padding:32, textAlign:'center', color:'var(--muted)', flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                <div style={{ width:48, height:48, borderRadius:'50%', background:'rgba(240,165,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:12 }}>
+                  <Upload size={20} style={{ color:'var(--accent)' }} />
+                </div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>No documents yet</div>
+                <div style={{ fontSize:11 }}>Upload DQ files from the DQ Files tab</div>
+              </div>
+            ) : (
+              <div style={{ flex:1, overflowY:'auto', maxHeight:280 }}>
+                {dqFiles.map((f, i) => {
+                  const type = DQ_DOC_TYPES.find(t => t.id === f.doc_type)
+                  const status = DOC_STATUS_COLORS[getExpiryStatus(f.expiry_date)] || DOC_STATUS_COLORS.valid
+                  return (
+                    <div key={f.id} style={{
+                      display:'flex', alignItems:'center', gap:12, padding:'10px 20px',
+                      borderBottom: i < dqFiles.length - 1 ? '1px solid var(--border)' : 'none',
+                    }}>
+                      <div style={{ width:8, height:8, borderRadius:'50%', background:status.color, flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{type?.label || f.doc_type}</div>
+                        <div style={{ fontSize:10, color:'var(--muted)' }}>{f.file_name}</div>
+                      </div>
+                      <span style={{ fontSize:9, fontWeight:700, padding:'3px 10px', borderRadius:20, background:status.bg, color:status.color }}>{status.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Documents on file */}
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-          <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}><Ic icon={FileText} /> Documents on File ({dqFiles.length})</div>
-          {dqFiles.length === 0 ? (
-            <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No documents uploaded</div>
+        {/* ── RECENT LOADS ── */}
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
+          <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Package size={16} style={{ color:'var(--accent)' }} />
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:700 }}>Recent Loads</div>
+              <div style={{ fontSize:10, color:'var(--muted)' }}>{driverLoads.length} total · {delivered.length} delivered</div>
+            </div>
+          </div>
+          {driverLoads.length === 0 ? (
+            <div style={{ padding:32, textAlign:'center', color:'var(--muted)' }}>
+              <div style={{ width:48, height:48, borderRadius:'50%', background:'rgba(240,165,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px' }}>
+                <Package size={20} style={{ color:'var(--accent)' }} />
+              </div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>No loads assigned</div>
+              <div style={{ fontSize:11 }}>Assign loads from the Dispatch tab</div>
+            </div>
           ) : (
-            <div style={{ maxHeight:200, overflowY:'auto' }}>
-              {dqFiles.map(f => {
-                const type = DQ_DOC_TYPES.find(t => t.id === f.doc_type)
-                const status = DOC_STATUS_COLORS[getExpiryStatus(f.expiry_date)] || DOC_STATUS_COLORS.valid
+            <div style={{ maxHeight:300, overflowY:'auto' }}>
+              {/* Table header */}
+              <div style={{ display:'grid', gridTemplateColumns:'40px 1fr 1fr 100px 80px 100px', gap:8, padding:'8px 20px', borderBottom:'1px solid var(--border)', background:'var(--bg)' }}>
+                {['', 'Load ID', 'Route', 'Status', 'Miles', 'Gross'].map(h => (
+                  <span key={h} style={{ fontSize:9, fontWeight:700, color:'var(--muted)', letterSpacing:0.8, textTransform:'uppercase' }}>{h}</span>
+                ))}
+              </div>
+              {driverLoads.slice(0,12).map((l, i) => {
+                const st = l.status || ''
+                const stColor = st === 'Delivered' || st === 'Paid' ? 'var(--success)' : st === 'In Transit' ? 'var(--accent)' : st === 'Invoiced' ? '#8b5cf6' : 'var(--muted)'
                 return (
-                  <div key={f.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 16px', borderBottom:'1px solid var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize:12, fontWeight:600 }}>{type?.label || f.doc_type}</div>
-                      <div style={{ fontSize:10, color:'var(--muted)' }}>{f.file_name}</div>
-                    </div>
-                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:status.bg, color:status.color }}>{status.label}</span>
+                  <div key={l.id || i} style={{
+                    display:'grid', gridTemplateColumns:'40px 1fr 1fr 100px 80px 100px', gap:8,
+                    padding:'10px 20px', alignItems:'center',
+                    borderBottom: i < Math.min(driverLoads.length, 12) - 1 ? '1px solid var(--border)' : 'none',
+                  }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:stColor }} />
+                    <div style={{ fontSize:12, fontWeight:600, fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.loadId || l.load_id || '—'}</div>
+                    <div style={{ fontSize:12, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{(l.origin||'').split(',')[0]} → {(l.dest||l.destination||'').split(',')[0]}</div>
+                    <span style={{ fontSize:10, fontWeight:700, color:stColor, padding:'2px 8px', background:`${stColor}12`, borderRadius:20, textAlign:'center', whiteSpace:'nowrap' }}>{st}</span>
+                    <span style={{ fontSize:12, color:'var(--muted)' }}>{(l.miles || 0).toLocaleString()}</span>
+                    <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>${(l.gross || l.rate || 0).toLocaleString()}</span>
                   </div>
                 )
               })}

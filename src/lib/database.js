@@ -441,6 +441,85 @@ export async function updatePayroll(id, updates) {
   return data
 }
 
+// ─── DRIVER BANK INFO ───────────────────────────────────────
+export async function fetchBankInfo() {
+  const data = await safeSelect('driver_bank_info', supabase.from('driver_bank_info').select('*'))
+  return data || []
+}
+
+export async function upsertBankInfo(driverId, info) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('upsertBankInfo',
+    supabase.from('driver_bank_info').upsert({
+      driver_id: driverId, owner_id: userId,
+      method: info.method || 'direct', bank_name: info.bankName || null,
+      account_type: info.accountType || 'checking', routing_number: info.routing || null,
+      account_last4: info.last4 || null, other_details: info.otherDetails || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'driver_id,owner_id' }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── RECURRING DEDUCTIONS ───────────────────────────────────
+export async function fetchRecurringDeductions(driverId) {
+  let query = supabase.from('driver_recurring_deductions').select('*').eq('active', true)
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_recurring_deductions', query)
+  return data || []
+}
+
+export async function setRecurringDeductions(driverId, deductions) {
+  const userId = await getUserId()
+  // Delete old, insert new
+  await safeMutate('deleteRecurringDeductions',
+    supabase.from('driver_recurring_deductions').delete().eq('driver_id', driverId).eq('owner_id', userId)
+  )
+  if (deductions.length === 0) return []
+  const rows = deductions.map(d => ({
+    driver_id: driverId, owner_id: userId,
+    label: d.label, amount: Number(d.amount) || 0, deduction_type: d.type || 'flat', active: true,
+  }))
+  const { data, error } = await safeMutate('insertRecurringDeductions',
+    supabase.from('driver_recurring_deductions').insert(rows).select()
+  )
+  if (error) throw error
+  return data || []
+}
+
+// ─── HIRING CANDIDATES ─────────────────────────────────────
+export async function fetchHiringCandidates() {
+  const data = await safeSelect('hiring_candidates',
+    supabase.from('hiring_candidates').select('*').order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export async function createHiringCandidate(candidate) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createHiringCandidate',
+    supabase.from('hiring_candidates').insert({ ...candidate, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateHiringCandidate(id, updates) {
+  const { data, error } = await safeMutate('updateHiringCandidate',
+    supabase.from('hiring_candidates').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function deleteHiringCandidate(id) {
+  const { error } = await safeMutate('deleteHiringCandidate',
+    supabase.from('hiring_candidates').delete().eq('id', id)
+  )
+  if (error) throw error
+}
+
 // ─── MESSAGES ───────────────────────────────────────────────
 export async function fetchMessages(loadId) {
   const { data } = await supabase.from('messages').select('*').eq('load_id', loadId).order('created_at', { ascending: true })

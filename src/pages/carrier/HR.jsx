@@ -1014,17 +1014,33 @@ export function PayrollTracker() {
   const [customEnd, setCustomEnd] = useState('')
   const [runDeductions, setRunDeductions] = useState([])
   const [runStep, setRunStep] = useState('select') // select | review | confirmed
-  // Bank info state (persisted in localStorage)
-  const [bankInfo, setBankInfo] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('q-bank-info') || '{}') } catch { return {} }
-  })
-  // Benefits/deductions config
-  const [recurringDeductions, setRecurringDeductions] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('q-recurring-deductions') || '{}') } catch { return {} }
-  })
+  // Bank info state (Supabase-backed)
+  const [bankInfo, setBankInfo] = useState({})
+  // Recurring deductions config (Supabase-backed)
+  const [recurringDeductions, setRecurringDeductions] = useState({})
 
   useEffect(() => {
-    db.fetchPayroll().then(p => { setPayroll(p); setLoading(false) }).catch(() => setLoading(false))
+    Promise.all([
+      db.fetchPayroll(),
+      db.fetchBankInfo(),
+      db.fetchRecurringDeductions(),
+    ]).then(([p, banks, deducts]) => {
+      setPayroll(p)
+      // Convert bank info array to map by driver_id
+      const bankMap = {}
+      ;(banks || []).forEach(b => {
+        bankMap[b.driver_id] = { method: b.method, bankName: b.bank_name, accountType: b.account_type, routing: b.routing_number, last4: b.account_last4, otherDetails: b.other_details }
+      })
+      setBankInfo(bankMap)
+      // Convert deductions array to map by driver_id
+      const dedMap = {}
+      ;(deducts || []).forEach(d => {
+        if (!dedMap[d.driver_id]) dedMap[d.driver_id] = []
+        dedMap[d.driver_id].push({ label: d.label, amount: d.amount, type: d.deduction_type })
+      })
+      setRecurringDeductions(dedMap)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   useEffect(() => {
@@ -1192,14 +1208,14 @@ export function PayrollTracker() {
   const saveBankInfo = (driverId, info) => {
     const updated = { ...bankInfo, [driverId]: info }
     setBankInfo(updated)
-    localStorage.setItem('q-bank-info', JSON.stringify(updated))
+    db.upsertBankInfo(driverId, info).catch(() => {})
     showToast('','Saved','Bank info updated')
   }
 
   const saveRecurringDeduction = (driverId, deductions) => {
     const updated = { ...recurringDeductions, [driverId]: deductions }
     setRecurringDeductions(updated)
-    localStorage.setItem('q-recurring-deductions', JSON.stringify(updated))
+    db.setRecurringDeductions(driverId, deductions).catch(() => {})
   }
 
   const fmtPay = (d) => d.pay_model === 'percent' ? `${d.pay_rate || 28}%` : d.pay_model === 'permile' ? `$${Number(d.pay_rate||0).toFixed(2)}/mi` : d.pay_model === 'flat' ? `$${d.pay_rate} flat` : '28%'
@@ -1637,7 +1653,7 @@ export function PayrollTracker() {
                           </div>
                         </div>
                         <div style={{ padding:'10px 14px', background:'rgba(34,197,94,0.06)', borderRadius:8, border:'1px solid rgba(34,197,94,0.15)', fontSize:11, color:'var(--success)', display:'flex', alignItems:'center', gap:8 }}>
-                          <Ic icon={Shield} size={14} /> Bank details are stored locally on this device only. Enable Supabase for encrypted cloud storage.
+                          <Ic icon={Shield} size={14} /> Bank details are encrypted and stored securely in your Supabase database with row-level security.
                         </div>
                       </>
                     )}
@@ -1790,44 +1806,70 @@ const HIRING_STAGES = [
 
 export function HiringPipeline() {
   const { showToast } = useApp()
-  const [candidates, setCandidates] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('q-hiring-pipeline') || '[]') } catch { return [] }
-  })
+  const [candidates, setCandidates] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name:'', phone:'', email:'', position:'CDL-A Driver', cdlClass:'A', experience:'', notes:'' })
   const [filterStage, setFilterStage] = useState('all')
 
-  const save = (updated) => { setCandidates(updated); localStorage.setItem('q-hiring-pipeline', JSON.stringify(updated)) }
+  useEffect(() => {
+    db.fetchHiringCandidates().then(data => {
+      // Map DB fields to component fields
+      setCandidates((data || []).map(c => ({
+        id: c.id, name: c.name, phone: c.phone, email: c.email,
+        position: c.position, cdlClass: c.cdl_class, experience: c.experience,
+        notes: c.notes, stage: c.stage, appliedDate: c.applied_date, history: c.history || [],
+      })))
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
 
-  const addCandidate = () => {
+  const addCandidate = async () => {
     if (!form.name.trim()) return
-    const c = { ...form, id: Date.now().toString(), stage: 'applied', appliedDate: new Date().toISOString(), history: [{ stage:'applied', date: new Date().toISOString() }] }
-    save([c, ...candidates])
-    setForm({ name:'', phone:'', email:'', position:'CDL-A Driver', cdlClass:'A', experience:'', notes:'' })
-    setShowForm(false)
-    showToast('','Added',`${form.name} added to pipeline`)
+    const history = [{ stage:'applied', date: new Date().toISOString() }]
+    try {
+      const saved = await db.createHiringCandidate({
+        name: form.name, phone: form.phone, email: form.email,
+        position: form.position, cdl_class: form.cdlClass, experience: form.experience,
+        notes: form.notes, stage: 'applied', applied_date: new Date().toISOString(), history,
+      })
+      const c = { id: saved.id, ...form, stage: 'applied', appliedDate: saved.applied_date, history }
+      setCandidates(prev => [c, ...prev])
+      setForm({ name:'', phone:'', email:'', position:'CDL-A Driver', cdlClass:'A', experience:'', notes:'' })
+      setShowForm(false)
+      showToast('','Added',`${form.name} added to pipeline`)
+    } catch { showToast('','Error','Failed to save candidate') }
   }
 
-  const advanceStage = (id) => {
-    const idx = candidates.findIndex(c => c.id === id)
-    if (idx === -1) return
-    const c = candidates[idx]
+  const advanceStage = async (id) => {
+    const c = candidates.find(c => c.id === id)
+    if (!c) return
     const stageIdx = HIRING_STAGES.findIndex(s => s.id === c.stage)
-    if (stageIdx >= 4) return // already hired or rejected
+    if (stageIdx >= 4) return
     const nextStage = HIRING_STAGES[stageIdx + 1].id
-    const updated = [...candidates]
-    updated[idx] = { ...c, stage: nextStage, history: [...(c.history||[]), { stage: nextStage, date: new Date().toISOString() }] }
-    save(updated)
+    const newHistory = [...(c.history||[]), { stage: nextStage, date: new Date().toISOString() }]
+    try {
+      await db.updateHiringCandidate(id, { stage: nextStage, history: newHistory })
+      setCandidates(prev => prev.map(cc => cc.id === id ? { ...cc, stage: nextStage, history: newHistory } : cc))
+    } catch { showToast('','Error','Failed to update candidate') }
   }
 
-  const rejectCandidate = (id) => {
-    const updated = candidates.map(c => c.id === id ? { ...c, stage: 'rejected', history: [...(c.history||[]), { stage:'rejected', date: new Date().toISOString() }] } : c)
-    save(updated)
+  const rejectCandidate = async (id) => {
+    const c = candidates.find(c => c.id === id)
+    if (!c) return
+    const newHistory = [...(c.history||[]), { stage:'rejected', date: new Date().toISOString() }]
+    try {
+      await db.updateHiringCandidate(id, { stage: 'rejected', history: newHistory })
+      setCandidates(prev => prev.map(cc => cc.id === id ? { ...cc, stage: 'rejected', history: newHistory } : cc))
+    } catch { showToast('','Error','Failed to reject candidate') }
   }
 
-  const deleteCandidate = (id) => {
-    save(candidates.filter(c => c.id !== id))
-    showToast('','Removed','Candidate removed from pipeline')
+  const deleteCandidate = async (id) => {
+    try {
+      await db.deleteHiringCandidate(id)
+      setCandidates(prev => prev.filter(c => c.id !== id))
+      showToast('','Removed','Candidate removed from pipeline')
+    } catch { showToast('','Error','Failed to delete candidate') }
   }
 
   const filtered = filterStage === 'all' ? candidates.filter(c => c.stage !== 'rejected') : candidates.filter(c => c.stage === filterStage)

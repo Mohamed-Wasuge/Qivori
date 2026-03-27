@@ -132,3 +132,71 @@ CREATE POLICY "Owners manage their payroll" ON driver_payroll
   FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
 CREATE POLICY "Service role full access on driver_payroll" ON driver_payroll
   FOR ALL USING (true) WITH CHECK (true);
+
+-- 5. Driver Bank Info — payment method & account details
+CREATE TABLE IF NOT EXISTS driver_bank_info (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  driver_id UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES auth.users(id),
+  method TEXT NOT NULL DEFAULT 'direct' CHECK (method IN ('direct','check','other')),
+  bank_name TEXT,
+  account_type TEXT DEFAULT 'checking' CHECK (account_type IN ('checking','savings')),
+  routing_number TEXT,
+  account_last4 TEXT,
+  other_details TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (driver_id, owner_id)
+);
+
+ALTER TABLE driver_bank_info ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners manage their driver bank info" ON driver_bank_info
+  FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+CREATE POLICY "Service role full access on driver_bank_info" ON driver_bank_info
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. Recurring Deductions — per-driver deduction templates
+CREATE TABLE IF NOT EXISTS driver_recurring_deductions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  driver_id UUID NOT NULL REFERENCES drivers(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES auth.users(id),
+  label TEXT NOT NULL,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+  deduction_type TEXT NOT NULL DEFAULT 'flat' CHECK (deduction_type IN ('flat','percent')),
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_recurring_deductions_driver ON driver_recurring_deductions (driver_id);
+
+ALTER TABLE driver_recurring_deductions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners manage their recurring deductions" ON driver_recurring_deductions
+  FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+CREATE POLICY "Service role full access on driver_recurring_deductions" ON driver_recurring_deductions
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. Hiring Candidates — applicant tracking pipeline
+CREATE TABLE IF NOT EXISTS hiring_candidates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES auth.users(id),
+  name TEXT NOT NULL,
+  phone TEXT,
+  email TEXT,
+  position TEXT DEFAULT 'CDL-A Driver',
+  cdl_class TEXT DEFAULT 'A',
+  experience TEXT,
+  notes TEXT,
+  stage TEXT NOT NULL DEFAULT 'applied' CHECK (stage IN ('applied','screening','interview','offer','hired','rejected')),
+  applied_date TIMESTAMPTZ DEFAULT now(),
+  history JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_hiring_stage ON hiring_candidates (stage);
+
+ALTER TABLE hiring_candidates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Owners manage their hiring candidates" ON hiring_candidates
+  FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+CREATE POLICY "Service role full access on hiring_candidates" ON hiring_candidates
+  FOR ALL USING (true) WITH CHECK (true);

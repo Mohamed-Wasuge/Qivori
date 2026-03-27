@@ -2512,13 +2512,8 @@ export function DriverContracts() {
 
   // Load contracts
   useEffect(() => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey || !user?.id) { setLoading(false); return }
-    fetch(`${supabaseUrl}/rest/v1/driver_contracts?owner_id=eq.${user.id}&order=created_at.desc`, {
-      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
-    }).then(r => r.ok ? r.json() : []).then(d => setContracts(d || [])).catch(() => {}).finally(() => setLoading(false))
-  }, [user?.id])
+    db.fetchDriverContracts().then(d => setContracts(d || [])).catch(() => {}).finally(() => setLoading(false))
+  }, [])
 
   const saveContract = async (sigDataUrl) => {
     const driver = drivers.find(d => d.full_name === selDriver || d.id === selDriver)
@@ -2526,7 +2521,6 @@ export function DriverContracts() {
     const vehicle = vehicles?.find(v => v.driver_id === driver.id || v.assigned_driver === driver.full_name)
 
     const contractData = {
-      owner_id: user.id,
       driver_id: driver.id,
       driver_name: driver.full_name,
       contract_type: selType,
@@ -2543,19 +2537,9 @@ export function DriverContracts() {
       signed_date: new Date().toISOString(),
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) { showToast('','Error','Database not configured'); return }
-
     try {
-      const res = await fetch(`${supabaseUrl}/rest/v1/driver_contracts`, {
-        method: 'POST',
-        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-        body: JSON.stringify(contractData),
-      })
-      if (!res.ok) throw new Error('Save failed')
-      const saved = await res.json()
-      setContracts(prev => [Array.isArray(saved) ? saved[0] : saved, ...prev])
+      const saved = await db.createDriverContract(contractData)
+      setContracts(prev => [saved, ...prev])
       showToast('','Contract Created',`${CONTRACT_TYPES.find(t=>t.id===selType)?.label} for ${driver.full_name}`)
       setShowNew(false)
       setSelDriver(''); setCustomTerms(''); setPayRate(''); setEndDate('')
@@ -2578,15 +2562,8 @@ export function DriverContracts() {
   }
 
   const terminateContract = async (id) => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) return
     try {
-      await fetch(`${supabaseUrl}/rest/v1/driver_contracts?id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'terminated', end_date: new Date().toISOString().split('T')[0] }),
-      })
+      await db.updateDriverContract(id, { status: 'terminated', end_date: new Date().toISOString().split('T')[0] })
       setContracts(prev => prev.map(c => c.id === id ? { ...c, status: 'terminated', end_date: new Date().toISOString().split('T')[0] } : c))
       showToast('','Contract Terminated','Contract has been ended')
     } catch { showToast('','Error','Failed to terminate') }

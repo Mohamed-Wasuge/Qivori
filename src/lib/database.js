@@ -416,6 +416,31 @@ export async function updateClearinghouseQuery(id, updates) {
   return data
 }
 
+// ─── DRIVER CONTRACTS ────────────────────────────────────────
+export async function fetchDriverContracts() {
+  const data = await safeSelect('driver_contracts',
+    supabase.from('driver_contracts').select('*').order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export async function createDriverContract(contract) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createDriverContract',
+    supabase.from('driver_contracts').insert({ ...contract, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateDriverContract(id, updates) {
+  const { data, error } = await safeMutate('updateDriverContract',
+    supabase.from('driver_contracts').update(updates).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
 // ─── DRIVER PAYROLL ─────────────────────────────────────────
 export async function fetchPayroll(driverId) {
   let query = supabase.from('driver_payroll').select('*').order('period_start', { ascending: false })

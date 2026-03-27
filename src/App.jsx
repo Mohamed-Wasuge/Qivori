@@ -16,6 +16,7 @@ const PrivacyPage = lazyNamed(() => import('./pages/LegalPages'), 'PrivacyPage')
 const DriverOnboarding = lazy(() => import('./pages/DriverOnboarding'))
 const CarrierPublicPage = lazy(() => import('./pages/CarrierPublicPage'))
 const LoadTrackingPage = lazyNamed(() => import('./pages/ExtraPages'), 'LoadTrackingPage')
+const SignContract = lazy(() => import('./pages/SignContract'))
 
 // Blog / SEO guide pages (lazy-loaded)
 const IFTAGuidePage = lazyNamed(() => import('./pages/BlogPages'), 'IFTAGuidePage')
@@ -146,6 +147,7 @@ function AppContent() {
   const [driverOnboarding, setDriverOnboarding] = useState(false)
   const [carrierSlug, setCarrierSlug] = useState(null) // carrier public page slug
   const [trackingToken, setTrackingToken] = useState(null) // public load tracking token
+  const [contractToken, setContractToken] = useState(null) // public contract signing token
   const [guidePage, setGuidePage] = useState(null) // 'ifta' | 'start-trucking' | 'rate-negotiation' | 'trucking-expenses' | null
 
   const GUIDE_ROUTES = {
@@ -159,7 +161,7 @@ function AppContent() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash
-      const clear = () => { setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false); setCarrierSlug(null); setTrackingToken(null) }
+      const clear = () => { setLegalPage(null); setPublicLoadBoard(false); setGuidePage(null); setDriverOnboarding(false); setCarrierSlug(null); setTrackingToken(null); setContractToken(null) }
       if (hash === '#/terms') { clear(); setLegalPage('terms') }
       else if (hash === '#/privacy') { clear(); setLegalPage('privacy') }
       else if (hash === '#/loads') { clear(); setPublicLoadBoard(true) }
@@ -173,6 +175,11 @@ function AppContent() {
         } else if (hash.startsWith('#/track/')) {
           setTrackingToken(hash.slice(8))
         }
+      }
+      else if (hash.startsWith('#/sign-contract')) {
+        clear()
+        const params = new URLSearchParams(hash.split('?')[1] || '')
+        setContractToken(params.get('token') || '')
       }
       else if (hash.startsWith('#/c/')) { clear(); setCarrierSlug(hash.slice(4)) }
       else if (GUIDE_ROUTES[hash]) { clear(); setGuidePage(GUIDE_ROUTES[hash]) }
@@ -223,6 +230,13 @@ function AppContent() {
         {trackingToken && !legalPage && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
             <LoadTrackingPage token={trackingToken} />
+          </div>
+        )}
+
+        {/* Public Contract Signing */}
+        {contractToken && !legalPage && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
+            <SignContract token={contractToken} />
           </div>
         )}
 

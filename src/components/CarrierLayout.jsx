@@ -72,6 +72,7 @@ const ExpiryAlerts = lazyN(() => import('../pages/carrier/HR'), 'ExpiryAlerts')
 const DrugAlcoholCompliance = lazyN(() => import('../pages/carrier/HR'), 'DrugAlcoholCompliance')
 const IncidentTracker = lazyN(() => import('../pages/carrier/HR'), 'IncidentTracker')
 const PayrollTracker = lazyN(() => import('../pages/carrier/HR'), 'PayrollTracker')
+const HiringPipeline = lazyN(() => import('../pages/carrier/HR'), 'HiringPipeline')
 const DriverPortal = lazyN(() => import('../pages/carrier/HR'), 'DriverPortal')
 
 // ── Extracted component imports ──────────────────────────────────────────────
@@ -151,6 +152,7 @@ function DriversHub() {
     { id:'compliance', label:'Compliance' },
     { id:'performance', label:'Performance' },
     { id:'onboarding', label:'Onboarding' },
+    { id:'hiring', label:'Hiring' },
   ]
 
   const activeCount = drivers.filter(d => d.status === 'Active' || !d.status).length
@@ -225,6 +227,7 @@ function DriversHub() {
           )}
           {tab === 'performance' && <DriverScorecard />}
           {tab === 'onboarding' && <DriverOnboarding />}
+          {tab === 'hiring' && <HiringPipeline />}
         </Suspense>
       </div>
     </div>

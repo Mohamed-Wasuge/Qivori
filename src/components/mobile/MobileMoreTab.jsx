@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel } from 'lucide-react'
+import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown } from 'lucide-react'
 import { Ic, haptic } from './shared'
 import MobileIFTATab from './MobileIFTATab'
 
@@ -16,7 +16,9 @@ export default function MobileMoreTab() {
   const { logout, user, profile } = useApp()
   const ctx = useCarrier() || {}
   const drivers = ctx.drivers || []
-  const firstDriver = drivers[0] // Current user's driver profile (if exists)
+  const company = ctx.company || {}
+  // Match current user to their driver profile (fall back to first driver for single-driver carriers)
+  const firstDriver = drivers.find(d => d.user_id === user?.id) || drivers.find(d => (d.full_name || d.name || '') === (profile?.full_name || '')) || drivers[0]
   const [activeSection, setActiveSection] = useState(null)
 
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
@@ -31,6 +33,152 @@ export default function MobileMoreTab() {
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
         </button>
         <MobileIFTATab />
+      </div>
+    )
+  }
+
+  if (activeSection === 'profile') {
+    const fullName = profile?.full_name || user?.user_metadata?.full_name || '—'
+    const email = user?.email || '—'
+    const phone = profile?.phone || '—'
+    const companyName = company.name || company.company_name || '—'
+    const mc = company.mc_number || company.mc || '—'
+    const dot = company.dot_number || company.dot || '—'
+    const fields = [
+      { label: 'Full Name', value: fullName },
+      { label: 'Email', value: email },
+      { label: 'Phone', value: phone },
+      { label: 'Company', value: companyName },
+      { label: 'MC #', value: mc },
+      { label: 'DOT #', value: dot },
+    ]
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <button onClick={() => { haptic(); setActiveSection(null) }}
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+        </button>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Profile</div>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {fields.map((f, i) => (
+              <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < fields.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{f.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textAlign: 'right', maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (activeSection === 'compliance') {
+    const d = firstDriver
+    const complianceItems = d ? [
+      { label: 'CDL License', value: d.license_class || 'CDL-A', sub: d.license_state || '—', expiry: d.license_expiry },
+      { label: 'Medical Card', value: d.medical_card_expiry ? 'Active' : 'Unknown', expiry: d.medical_card_expiry },
+      ...(d.drug_test_date || d.drug_test_status ? [{ label: 'Drug Test', value: d.drug_test_status || 'Completed', sub: d.drug_test_date ? new Date(d.drug_test_date).toLocaleDateString() : undefined }] : []),
+      { label: 'Equipment', value: d.equipment_experience || d.equipment || '—' },
+      { label: 'Endorsements', value: d.endorsements || 'None on file' },
+    ] : []
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <button onClick={() => { haptic(); setActiveSection(null) }}
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+        </button>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Compliance</div>
+          {d ? (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {complianceItems.map(item => {
+                const isExpiring = item.expiry && new Date(item.expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                const isExpired = item.expiry && new Date(item.expiry) < new Date()
+                const expiryColor = isExpired ? 'var(--danger)' : isExpiring ? '#f59e0b' : 'var(--success)'
+                return (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{item.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                        {item.value} {item.sub && <span style={{ color: 'var(--muted)', fontWeight: 500 }}>({item.sub})</span>}
+                      </div>
+                    </div>
+                    {item.expiry && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 9, color: expiryColor, fontWeight: 700 }}>
+                          {isExpired ? 'EXPIRED' : isExpiring ? 'EXPIRING SOON' : 'VALID'}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(item.expiry).toLocaleDateString()}</div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, textAlign: 'center' }}>
+              <div style={{ fontSize: 13, color: 'var(--muted)' }}>No driver profile found. Add a driver to view compliance info.</div>
+            </div>
+          )}
+          <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 10, textAlign: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Full compliance management available on desktop</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (activeSection === 'help') {
+    const faqs = [
+      { q: 'How do I add a load?', a: "Tap 'Add Load' on the Loads tab or snap a rate con." },
+      { q: 'How do I invoice a broker?', a: 'When a load is delivered, Q auto-generates an invoice. View in Money tab.' },
+      { q: 'How do I track my IFTA?', a: 'Go to More \u2192 IFTA Report. Log fuel purchases as expenses with state.' },
+    ]
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <button onClick={() => { haptic(); setActiveSection(null) }}
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+        </button>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Help & Support</div>
+
+          {/* Contact */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>CONTACT US</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10, marginBottom: 8 }}>
+              <Ic icon={Mail} size={15} color="var(--accent)" />
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Email</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>support@qivori.com</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
+              <Ic icon={MessageCircle} size={15} color="var(--accent2)" />
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Talk to Q</div>
+                <div style={{ fontSize: 12, color: 'var(--text)' }}>Open Q from the home screen for AI assistance</div>
+              </div>
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>FAQ</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {faqs.map(faq => (
+                <div key={faq.q} style={{ padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{faq.q}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{faq.a}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

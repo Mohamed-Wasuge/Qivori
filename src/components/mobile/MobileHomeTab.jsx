@@ -43,7 +43,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
   const recentLoads = [...loads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5)
   const qState = getQSystemState(ctx)
-  const firstDriver = drivers[0]
+  const firstDriver = drivers.find(d => d.user_id === user?.id) || drivers.find(d => (d.full_name || d.name || '') === (profile?.full_name || '')) || drivers[0]
   const marginTarget = 18
   const marginReached = profitMargin >= marginTarget
 

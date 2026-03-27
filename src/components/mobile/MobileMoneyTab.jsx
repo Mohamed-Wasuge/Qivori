@@ -12,6 +12,19 @@ import { apiFetch } from '../../lib/api'
 const EXPENSE_CATEGORIES = ['Fuel', 'Tolls', 'Repairs', 'Insurance', 'Meals', 'Parking', 'Permits', 'Tires', 'DEF', 'Lumper', 'Scale', 'Other']
 const MARGIN_TARGET = 18
 
+// Calculate driver pay using actual pay_model + pay_rate from driver profile
+function calcDriverPay(revenue, miles, driverName, drivers) {
+  const driver = drivers.find(d => (d.full_name || d.name || d.driver_name) === driverName)
+  if (driver?.pay_model && driver?.pay_rate) {
+    const rate = Number(driver.pay_rate) || 0
+    if (driver.pay_model === 'percent') return revenue * (rate / 100)
+    if (driver.pay_model === 'permile') return (miles || 0) * rate
+    if (driver.pay_model === 'flat') return rate
+  }
+  // Fallback: 28% of revenue (industry average for OO)
+  return revenue * 0.28
+}
+
 function isToday(d) {
   if (!d) return false
   const t = new Date(), dd = new Date(d)
@@ -85,7 +98,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
           const rev = l.gross || l.rate || 0
           const miles = l.miles || 0
           const fuelCost = miles * fuelCostPerMile
-          const driverPay = l.driver_pay || (rev * 0.28)
+          const driverPay = l.driver_pay || calcDriverPay(rev, miles, l.driver_name || l.driver, drivers)
           return s + (rev - fuelCost - driverPay)
         }, 0) / deliveredLoads.length
       : 0
@@ -101,7 +114,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
     })
     const truckStats = Object.entries(truckMap).map(([name, data]) => {
       const fuelCost = data.miles * fuelCostPerMile
-      const estDriverPay = data.revenue * 0.28
+      const estDriverPay = calcDriverPay(data.revenue, data.miles, name, drivers)
       const profit = data.revenue - fuelCost - estDriverPay
       return { name, ...data, profit, profitPerLoad: data.loads > 0 ? profit / data.loads : 0 }
     }).sort((a, b) => b.profit - a.profit)

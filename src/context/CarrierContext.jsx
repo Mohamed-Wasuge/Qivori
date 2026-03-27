@@ -705,6 +705,30 @@ export function CarrierProvider({ children }) {
     return fakeExp
   }, [useDb, demoGuard])
 
+  const editExpense = useCallback(async (id, updates) => {
+    if (demoGuard('edit expenses')) return
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.updateExpense(id, updates) } catch (e) { console.error('DB operation failed:', e) }
+    }
+    setExpenses(es => es.map(e => e.id === id ? normalizeExpense({ ...e, ...updates }) : e))
+  }, [useDb, demoGuard])
+
+  const removeExpense = useCallback(async (id) => {
+    if (demoGuard('remove expenses')) return
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.deleteExpense(id) } catch (e) { console.error('DB operation failed:', e) }
+    }
+    setExpenses(es => es.filter(e => e.id !== id))
+  }, [useDb, demoGuard])
+
+  const removeInvoice = useCallback(async (id) => {
+    if (demoGuard('remove invoices')) return
+    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
+      try { await db.deleteInvoice(id) } catch (e) { console.error('DB operation failed:', e) }
+    }
+    setInvoices(is => is.filter(i => i.id !== id && i._dbId !== id))
+  }, [useDb, demoGuard])
+
   // ─── Check calls ──────────────────────────────────────────────
   const logCheckCall = useCallback(async (loadNumber, call) => {
     if (demoGuard('log check calls')) return
@@ -982,7 +1006,7 @@ export function CarrierProvider({ children }) {
       deliveredLoads, activeLoads, unpaidInvoices,
       totalRevenue, totalExpenses, brokerStats, fuelCostPerMile,
       updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
-      updateInvoiceStatus, addExpense,
+      updateInvoiceStatus, addExpense, editExpense, removeExpense, removeInvoice,
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,
       addConsolidation, editConsolidation,

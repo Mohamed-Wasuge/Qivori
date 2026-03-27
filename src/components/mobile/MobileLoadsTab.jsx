@@ -24,7 +24,7 @@ export default function MobileLoadsTab() {
   const [scanning, setScanning] = useState(false)
   const rateConRef = useRef(null)
   const [showAddLoad, setShowAddLoad] = useState(false)
-  const [newLoad, setNewLoad] = useState({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '' })
+  const [newLoad, setNewLoad] = useState({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', shipper: '', consignee: '' })
   const [uploadingDoc, setUploadingDoc] = useState(null) // { loadId, docType }
   const docInputRef = useRef(null)
   const [loadDocs, setLoadDocs] = useState({}) // { loadId: [docs] }
@@ -114,12 +114,15 @@ export default function MobileLoadsTab() {
       pickup_date: newLoad.pickup,
       delivery_date: newLoad.delivery,
       reference_number: newLoad.refNum,
+      commodity: newLoad.commodity,
+      shipper_name: newLoad.shipper,
+      consignee_name: newLoad.consignee,
       status: 'Booked',
       load_type: 'FTL',
     })
     haptic('success')
     showToast?.('success', 'Load Added', `${newLoad.origin} → ${newLoad.destination}`)
-    setNewLoad({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '' })
+    setNewLoad({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', shipper: '', consignee: '' })
     setShowAddLoad(false)
   }
 
@@ -229,6 +232,12 @@ export default function MobileLoadsTab() {
             <input placeholder="Weight (lbs)" value={newLoad.weight} onChange={e => setNewLoad(x => ({ ...x, weight: e.target.value }))}
               style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
             <input placeholder="Ref #" value={newLoad.refNum} onChange={e => setNewLoad(x => ({ ...x, refNum: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Commodity" value={newLoad.commodity} onChange={e => setNewLoad(x => ({ ...x, commodity: e.target.value }))}
+              style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Shipper name" value={newLoad.shipper} onChange={e => setNewLoad(x => ({ ...x, shipper: e.target.value }))}
+              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <input placeholder="Consignee name" value={newLoad.consignee} onChange={e => setNewLoad(x => ({ ...x, consignee: e.target.value }))}
               style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
           </div>
           <button onClick={saveNewLoad}

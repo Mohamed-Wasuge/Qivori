@@ -144,6 +144,13 @@ export async function updateInvoice(id, updates) {
   return data
 }
 
+export async function deleteInvoice(id) {
+  const { error } = await safeMutate('deleteInvoice',
+    supabase.from('invoices').delete().eq('id', id)
+  )
+  if (error) throw error
+}
+
 // ─── EXPENSES ────────────────────────────────────────────────
 export async function fetchExpenses() {
   const data = await safeSelect('expenses',

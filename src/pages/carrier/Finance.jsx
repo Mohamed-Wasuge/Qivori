@@ -1485,20 +1485,35 @@ export function FactoringCashflow() {
   const selectedFee   = Math.round(selectedTotal * (factoringRate / 100) * 100) / 100
   const selectedNet   = selectedTotal - selectedFee
 
-  const factorNow = () => {
+  const [factoring, setFactoring] = useState(false)
+  const factorNow = async () => {
     if (selected.size === 0) return
+    setFactoring(true)
     const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric' })
     const tmrw  = new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month:'short', day:'numeric' })
+    let successCount = 0
+    for (const inv of selectedInvoices) {
+      try {
+        const res = await apiFetch('/api/factor-invoice', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: company || carrierCompany?.factoring_company || '', factoringRate })
+        })
+        const data = await res.json()
+        if (data.success) successCount++
+      } catch {}
+      // Also update local status
+      updateInvoiceStatus(inv.id, 'Factored')
+    }
     const newHist = selectedInvoices.map(inv => ({
       id: inv.id, broker: inv.broker, amount: inv.amount,
       fee: Math.round(inv.amount * factoringRate / 100 * 100) / 100,
       net: Math.round(inv.amount * (1 - factoringRate / 100) * 100) / 100,
       factoredOn: today, received: tmrw, status: 'Pending',
     }))
-    selectedInvoices.forEach(inv => updateInvoiceStatus(inv.id, 'Factored'))
     setHistory(h => [...newHist, ...h])
     setSelected(new Set())
-    showToast('', 'Invoices Submitted', `${selected.size} invoice${selected.size > 1 ? 's' : ''} · $${selectedNet.toLocaleString()} net · 24hr deposit`)
+    setFactoring(false)
+    showToast('', 'Invoices Submitted', `${selected.size} invoice${selected.size > 1 ? 's' : ''} · $${selectedNet.toLocaleString()} net${successCount > 0 ? ` · ${successCount} emailed to factoring` : ''} · 24hr deposit`)
   }
 
   const totalAvailable = readyInvoices.reduce((s, i) => s + i.amount, 0)
@@ -1797,10 +1812,10 @@ export function FactoringCashflow() {
                     <div style={{ fontSize: 12, fontWeight: 700 }}>{acc.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>{acc.bank}</div>
                   </div>
-                  <button className="btn btn-ghost" style={{ fontSize: 10, padding: '3px 10px' }} onClick={() => showToast('', 'Coming Soon', 'Bank connection via Plaid is coming soon')}>Connect</button>
+                  <span style={{ fontSize: 10, padding: '3px 10px', color: 'var(--muted)', fontStyle: 'italic' }}>Plaid integration pending</span>
                 </div>
               ))}
-              <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>Bank linking via Plaid — coming soon</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>Bank linking via Plaid — integration in progress</div>
             </div>
           </div>
         </div>
@@ -1844,7 +1859,7 @@ const { weeks: CF_WEEKS, dueMap: CF_DUE_WEEK } = buildCFWeeks()
 const CF_START_BALANCE = 0
 
 export function CashFlowForecaster() {
-  const { loads, invoices, expenses, drivers: ctxDrivers, fuelCostPerMile } = useCarrier()
+  const { loads, invoices, expenses, drivers: ctxDrivers, fuelCostPerMile, company: cfCompany, updateInvoiceStatus: cfUpdateInvStatus } = useCarrier()
   const { showToast } = useApp()
   const [selWeek, setSelWeek] = useState(0)
   const [factorId, setFactorId] = useState(null)
@@ -2050,10 +2065,22 @@ export function CashFlowForecaster() {
                   </div>
                   <div style={{ textAlign:'right', flexShrink:0 }}>
                     <div style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>+${item.amount.toLocaleString()}</div>
-                    {item.factorAmt && !item.projected && (
+                    {item.factorAmt && !item.projected && carrierCompany?.factoring_company && (
                       <div style={{ fontSize:10, color:'var(--accent)', cursor:'pointer' }}
-                        onClick={() => showToast('','Factor Now',`Factoring ${item.id} — $${item.factorAmt.toLocaleString()} same-day deposit initiated`)}>
-                        Factor Now (Coming Soon)
+                        onClick={async () => {
+                          try {
+                            const res = await apiFetch('/api/factor-invoice', {
+                              method:'POST', headers:{'Content-Type':'application/json'},
+                              body: JSON.stringify({ invoiceId: item._dbId || item.id, factoringCompany: carrierCompany.factoring_company, factoringRate: carrierCompany.factoring_rate || 2.5 })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                              updateInvoiceStatus(item.id, 'Factored')
+                              showToast('','Factored',`${data.invoiceNumber} — $${data.net?.toLocaleString()} depositing · sent to ${data.sentTo}`)
+                            } else { showToast('','Error', data.error || 'Could not factor') }
+                          } catch { showToast('','Error','Factoring API unavailable') }
+                        }}>
+                        Factor Now
                       </div>
                     )}
                   </div>
@@ -2091,8 +2118,21 @@ export function CashFlowForecaster() {
                     <div key={inv.id} style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <span style={{ fontSize:11, flex:1, color:'var(--muted)' }}>{inv.id} · ${inv.amount.toLocaleString()}</span>
                       <button className="btn btn-ghost" style={{ fontSize:10, padding:'3px 10px', color:'var(--accent)', borderColor:'rgba(240,165,0,0.3)' }}
-                        onClick={() => showToast('','Factored',`${inv.id} sent to factor — $${Math.round(inv.amount*0.975).toLocaleString()} incoming`)}>
-                        Factor (Coming Soon)
+                        onClick={async () => {
+                          if (!cfCompany?.factoring_company) { showToast('','Setup Required','Set up your factoring company in Financials → Factoring first'); return }
+                          try {
+                            const res = await apiFetch('/api/factor-invoice', {
+                              method:'POST', headers:{'Content-Type':'application/json'},
+                              body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: cfCompany.factoring_company, factoringRate: cfCompany.factoring_rate || 2.5 })
+                            })
+                            const data = await res.json()
+                            if (data.success) {
+                              cfUpdateInvStatus?.(inv.id, 'Factored')
+                              showToast('','Factored',`${data.invoiceNumber} — $${data.net?.toLocaleString()} depositing · sent to ${data.sentTo}`)
+                            } else { showToast('','Error', data.error || 'Could not factor') }
+                          } catch { showToast('','Error','Factoring API unavailable') }
+                        }}>
+                        Factor Now
                       </button>
                     </div>
                   ))}

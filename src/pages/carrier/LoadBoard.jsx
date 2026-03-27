@@ -17,9 +17,7 @@ import { useAIActions } from '../../hooks/useAIActions'
 
 // ─── AI DISPATCH COPILOT ───────────────────────────────────────────────────────
 // Fallback sample data — used when no load board API keys are configured
-const SAMPLE_MARKET_LOADS = [
-  { id:'DAT-8821', from:'ATL', fromFull:'Atlanta, GA', to:'CHI', toFull:'Chicago, IL', miles:674, gross:3840, rpm:2.94, weight:'42,000', commodity:'Auto Parts', broker:'Echo Global', brokerScore:98, brokerPay:'< 24hr', pickup:'Today 2PM', delivery:'Mar 9 · 10AM', equipment:'Dry Van', deadhead:22, aiScore:96, mktLow:2.55, mktAvg:2.80, mktHigh:3.10, tags:['AI TOP PICK','FAST PAY'], source:'sample' },
-]
+const SAMPLE_MARKET_LOADS = []
 
 const DISPATCH_DRIVERS = []
 

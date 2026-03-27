@@ -42,10 +42,10 @@ export function CarrierPackage() {
     general: { company:'\u2014', policy:'\u2014', amount:'\u2014', expiry:'\u2014' },
   })
   const [docs, setDocs] = useState({
-    w9:        { uploaded:false, filename:'' },
-    authority: { uploaded:false, filename:'' },
-    boc3:      { uploaded:false, filename:'' },
-    drug:      { uploaded:false, filename:'' },
+    w9:        { uploaded:!!company?.w9_doc_url,        filename:company?.w9_doc_name || '' },
+    authority: { uploaded:!!company?.authority_doc_url, filename:company?.authority_doc_name || '' },
+    boc3:      { uploaded:!!company?.boc3_doc_url,     filename:company?.boc3_doc_name || '' },
+    drug:      { uploaded:!!company?.drug_doc_url,     filename:company?.drug_doc_name || '' },
   })
   const [brokerEmail, setBrokerEmail] = useState('')
   const [pkgSent, setPkgSent] = useState({})
@@ -242,14 +242,30 @@ export function CarrierPackage() {
                   <label style={{ padding:'5px 12px', fontSize:11, fontWeight:700, borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--muted)', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
                     Replace
                     <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }}
-                      onChange={e => { if (e.target.files?.[0]) { const name = e.target.files[0].name; setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:name } })); showToast('', f.label+' Updated', name) } }} />
+                      onChange={async e => {
+                        const file = e.target.files?.[0]; if (!file) return
+                        try {
+                          const result = await uploadFile(file, 'carrier-docs/' + f.key)
+                          setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:file.name, url:result.url } }))
+                          updateCompany({ [`${f.key}_doc_url`]: result.url, [`${f.key}_doc_name`]: file.name })
+                          showToast('', f.label+' Updated', file.name)
+                        } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload') }
+                      }} />
                   </label>
                 </div>
               ) : (
                 <label style={{ padding:'8px 18px', fontSize:12, fontWeight:700, borderRadius:8, background:'var(--accent)', color:'#000', cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
                   Upload
                   <input type="file" accept=".pdf,.doc,.docx" style={{ display:'none' }}
-                    onChange={e => { if (e.target.files?.[0]) { const name = e.target.files[0].name; setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:name } })); showToast('', f.label+' Uploaded', name) } }} />
+                    onChange={async e => {
+                      const file = e.target.files?.[0]; if (!file) return
+                      try {
+                        const result = await uploadFile(file, 'carrier-docs/' + f.key)
+                        setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:file.name, url:result.url } }))
+                        updateCompany({ [`${f.key}_doc_url`]: result.url, [`${f.key}_doc_name`]: file.name })
+                        showToast('', f.label+' Uploaded', file.name)
+                      } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload') }
+                    }} />
                 </label>
               )}
             </div>

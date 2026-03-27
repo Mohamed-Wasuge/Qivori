@@ -7,7 +7,7 @@ import { apiFetch } from '../../lib/api'
 import {
   BarChart2, Flame, Target, DollarSign, AlertTriangle, CheckCircle, Clock,
   Wrench, FileText, Package, Truck, Receipt, Zap, Bot, Star, Activity,
-  Shield, Briefcase, Settings, Layers, Eye, Download, Send, Check,
+  Shield, Briefcase, Settings, Layers, Eye, Download, Send, Check, CreditCard,
   Calendar, TrendingUp, TrendingDown, Lightbulb, Fuel, Route, Navigation,
   Paperclip, Dumbbell, AlertCircle, Brain, Sparkles, CircleDot,
   CheckSquare, Square, X
@@ -1799,23 +1799,78 @@ export function FactoringCashflow() {
           </div>
 
           <div style={S.panel}>
-            <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Briefcase} /> Connected Accounts</div></div>
-            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { label: 'Business Checking', bank: 'Not connected', color: 'var(--muted)' },
-                { label: 'Fuel Card',          bank: 'Not connected', color: 'var(--muted)' },
-                { label: 'Payroll Account',    bank: 'Not connected', color: 'var(--muted)' },
-              ].map(acc => (
-                <div key={acc.label} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--surface2)', borderRadius: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Briefcase size={16} color="var(--muted)" /></div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{acc.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{acc.bank}</div>
-                  </div>
-                  <span style={{ fontSize: 10, padding: '3px 10px', color: 'var(--muted)', fontStyle: 'italic' }}>Plaid integration pending</span>
+            <div style={S.panelHead}><div style={S.panelTitle}><Ic icon={Briefcase} /> Payment Accounts</div></div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Bank Account */}
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <CreditCard size={16} color="var(--accent)" />
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>Business Checking (ACH)</span>
+                  {carrierCompany?.bank_name && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', fontWeight: 700 }}>Connected</span>}
                 </div>
-              ))}
-              <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', marginTop: 4 }}>Bank linking via Plaid — integration in progress</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>Bank Name</div>
+                    <input value={carrierCompany?.bank_name || ''} onChange={e => updateCompany({ bank_name: e.target.value })}
+                      placeholder="Chase, Wells Fargo..." style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>Account Type</div>
+                    <select value={carrierCompany?.bank_account_type || 'checking'} onChange={e => updateCompany({ bank_account_type: e.target.value })}
+                      style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}>
+                      <option value="checking">Checking</option>
+                      <option value="savings">Savings</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>Routing Number</div>
+                    <input value={carrierCompany?.bank_routing || ''} onChange={e => updateCompany({ bank_routing: e.target.value })}
+                      placeholder="9 digits" maxLength={9} style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>Account # (last 4)</div>
+                    <input value={carrierCompany?.bank_last4 || ''} onChange={e => updateCompany({ bank_last4: e.target.value })}
+                      placeholder="Last 4" maxLength={4} style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Venmo */}
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 4, background: '#008CFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff' }}>V</div>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>Venmo</span>
+                  {carrierCompany?.venmo_handle && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', fontWeight: 700 }}>Connected</span>}
+                </div>
+                <input value={carrierCompany?.venmo_handle || ''} onChange={e => updateCompany({ venmo_handle: e.target.value })}
+                  placeholder="@your-venmo-handle" style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* CashApp */}
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 4, background: '#00D632', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff' }}>$</div>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>Cash App</span>
+                  {carrierCompany?.cashapp_handle && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', fontWeight: 700 }}>Connected</span>}
+                </div>
+                <input value={carrierCompany?.cashapp_handle || ''} onChange={e => updateCompany({ cashapp_handle: e.target.value })}
+                  placeholder="$your-cashtag" style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Zelle */}
+              <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 4, background: '#6D1ED4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff' }}>Z</div>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>Zelle</span>
+                  {carrierCompany?.zelle_email && <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: 'var(--success)', fontWeight: 700 }}>Connected</span>}
+                </div>
+                <input value={carrierCompany?.zelle_email || ''} onChange={e => updateCompany({ zelle_email: e.target.value })}
+                  placeholder="Email or phone linked to Zelle" style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ padding: '8px 12px', background: 'rgba(34,197,94,0.06)', borderRadius: 8, border: '1px solid rgba(34,197,94,0.15)', fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Shield size={12} /> All payment info is encrypted and stored with row-level security. Auto-saved on change.
+              </div>
             </div>
           </div>
         </div>

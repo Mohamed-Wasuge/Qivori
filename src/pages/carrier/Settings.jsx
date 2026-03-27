@@ -4,14 +4,37 @@ import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import {
-  Briefcase, Shield, FileText, Check, Send, RefreshCw, Trophy, UserPlus, CreditCard, Zap, Star, Users, Phone, MessageCircle, Package, DollarSign, Clock, Target, Bell, CheckCircle,
+  Briefcase, Shield, FileText, Check, Send, RefreshCw, Trophy, UserPlus, CreditCard, Zap, Star, Users, Phone, MessageCircle, Package, DollarSign, Clock, Target, Bell, CheckCircle, Upload, Camera,
 } from 'lucide-react'
+import { uploadFile } from '../../lib/storage'
 
 // ─── CARRIER PACKAGE ──────────────────────────────────────────────────────────
 export function CarrierPackage() {
   const { showToast } = useApp()
-  const { company } = useCarrier()
+  const { company, updateCompany } = useCarrier()
   const [tab, setTab] = useState('overview')
+  const [logoUploading, setLogoUploading] = useState(false)
+
+  const handleLogoUpload = async () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/png,image/jpeg,image/svg+xml,image/webp'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      if (file.size > 2 * 1024 * 1024) { showToast('error', 'Too Large', 'Logo must be under 2MB'); return }
+      setLogoUploading(true)
+      try {
+        const result = await uploadFile(file, 'logos')
+        await updateCompany({ logo: result.url })
+        showToast('success', 'Logo Updated', 'Your company logo has been saved')
+      } catch (err) {
+        showToast('error', 'Upload Failed', err.message || 'Could not upload logo')
+      }
+      setLogoUploading(false)
+    }
+    input.click()
+  }
 
   const [insurance, setInsurance] = useState({
     auto:    { company:'\u2014', policy:'\u2014', amount:'\u2014', expiry:'\u2014' },
@@ -88,13 +111,20 @@ export function CarrierPackage() {
               <span style={S.badge(pct===100?'var(--success)':'var(--accent)')}>{pct===100?'Ready to Send':'In Progress'}</span>
             </div>
             <div style={{ padding:20, display:'flex', alignItems:'center', gap:20 }}>
-              <div style={{ width:56, height:56, borderRadius:12, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                {company?.logo
-                  ? <img src={company.logo} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain', borderRadius:12 }} />
-                  : <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)' }}>
-                      {(company?.name || 'SC').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()}
-                    </span>
-                }
+              <div style={{ position:'relative', width:56, height:56, flexShrink:0 }}>
+                <div style={{ width:56, height:56, borderRadius:12, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                  {company?.logo
+                    ? <img src={company.logo} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain', borderRadius:12 }} />
+                    : <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:'var(--accent)' }}>
+                        {(company?.name || 'SC').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()}
+                      </span>
+                  }
+                </div>
+                <button onClick={handleLogoUpload} disabled={logoUploading}
+                  style={{ position:'absolute', bottom:-4, right:-4, width:22, height:22, borderRadius:'50%', background:'var(--accent)', border:'2px solid var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0 }}
+                  title="Upload company logo">
+                  <Camera size={10} color="#000" />
+                </button>
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:700, fontSize:16, marginBottom:4 }}>{company?.name || 'Your Company'}</div>

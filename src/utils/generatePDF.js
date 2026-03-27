@@ -2,7 +2,29 @@ import { jsPDF } from 'jspdf'
 
 // Global company info — set by CarrierContext for PDF generation
 let _cachedCompany = null
-export function setInvoiceCompany(company) { _cachedCompany = company }
+let _cachedLogoData = null // preloaded logo as data URL
+export function setInvoiceCompany(company) {
+  _cachedCompany = company
+  // Preload logo image for PDF use
+  if (company?.logo && company.logo !== _cachedLogoData?.src) {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        _cachedLogoData = { src: company.logo, dataUrl: canvas.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight }
+      } catch { _cachedLogoData = null }
+    }
+    img.onerror = () => { _cachedLogoData = null }
+    img.src = company.logo
+  } else if (!company?.logo) {
+    _cachedLogoData = null
+  }
+}
 
 // ── Invoice PDF ────────────────────────────────────────────────────────────────
 export function generateInvoicePDF(invoice) {
@@ -38,38 +60,50 @@ export function generateInvoicePDF(invoice) {
   doc.setFillColor(...accent)
   doc.rect(0, 0, W, 4, 'F')
 
-  // Company name or Qivori logo
+  // Company logo + name
   const companyName = invoice.companyName || ''
+  let logoOffset = 0
+  if (_cachedLogoData?.dataUrl) {
+    try {
+      const maxH = 40, maxW = 100
+      const ratio = _cachedLogoData.w / _cachedLogoData.h
+      let imgW = maxH * ratio, imgH = maxH
+      if (imgW > maxW) { imgW = maxW; imgH = maxW / ratio }
+      doc.addImage(_cachedLogoData.dataUrl, 'PNG', PAD, 22, imgW, imgH)
+      logoOffset = imgW + 12
+    } catch { logoOffset = 0 }
+  }
+
   doc.setFont('helvetica', 'bold')
   if (companyName) {
     doc.setFontSize(20)
     doc.setTextColor(...black)
-    doc.text(companyName, PAD, 52)
+    doc.text(companyName, PAD + logoOffset, 52)
     let subY = 66
     if (invoice.companyMC || invoice.companyDOT) {
       doc.setFontSize(9)
       doc.setTextColor(...gray)
-      doc.text([invoice.companyMC, invoice.companyDOT].filter(Boolean).join('  |  '), PAD, subY)
+      doc.text([invoice.companyMC, invoice.companyDOT].filter(Boolean).join('  |  '), PAD + logoOffset, subY)
       subY += 13
     }
     if (invoice.companyAddress) {
       doc.setFontSize(8)
       doc.setTextColor(...gray)
-      doc.text(invoice.companyAddress, PAD, subY)
+      doc.text(invoice.companyAddress, PAD + logoOffset, subY)
       subY += 12
     }
     if (invoice.companyEmail || invoice.companyPhone) {
       doc.setFontSize(8)
       doc.setTextColor(...gray)
-      doc.text([invoice.companyEmail, invoice.companyPhone].filter(Boolean).join('  |  '), PAD, subY)
+      doc.text([invoice.companyEmail, invoice.companyPhone].filter(Boolean).join('  |  '), PAD + logoOffset, subY)
     }
   } else {
     doc.setFontSize(24)
     doc.setTextColor(...accent)
-    doc.text('QIVORI', PAD, 54)
+    doc.text('QIVORI', PAD + logoOffset, 54)
     doc.setFontSize(8)
     doc.setTextColor(...gray)
-    doc.text('AI-POWERED TMS', PAD, 66)
+    doc.text('AI-POWERED TMS', PAD + logoOffset, 66)
   }
 
   // INVOICE label (right)
@@ -234,25 +268,37 @@ export function generateSettlementPDF(driver, loads, period = 'Mar 1–15, 2026'
   doc.setFillColor(...gold)
   doc.rect(0, 0, W, 5, 'F')
 
-  // Header — company name or Qivori
+  // Header — company logo + name
   const companyName = _cachedCompany?.name || _cachedCompany?.company_name || ''
+  let sLogoOffset = 0
+  if (_cachedLogoData?.dataUrl) {
+    try {
+      const maxH = 36, maxW = 90
+      const ratio = _cachedLogoData.w / _cachedLogoData.h
+      let imgW = maxH * ratio, imgH = maxH
+      if (imgW > maxW) { imgW = maxW; imgH = maxW / ratio }
+      doc.addImage(_cachedLogoData.dataUrl, 'PNG', PAD, 20, imgW, imgH)
+      sLogoOffset = imgW + 12
+    } catch { sLogoOffset = 0 }
+  }
+
   doc.setFont('helvetica', 'bold')
   if (companyName) {
     doc.setFontSize(20)
     doc.setTextColor(255, 255, 255)
-    doc.text(companyName, PAD, 55)
+    doc.text(companyName, PAD + sLogoOffset, 55)
     if (_cachedCompany?.mc || _cachedCompany?.dot) {
       doc.setFontSize(8)
       doc.setTextColor(...gray)
-      doc.text([_cachedCompany.mc ? `MC# ${_cachedCompany.mc}` : '', _cachedCompany.dot ? `DOT# ${_cachedCompany.dot}` : ''].filter(Boolean).join(' · '), PAD, 68)
+      doc.text([_cachedCompany.mc ? `MC# ${_cachedCompany.mc}` : '', _cachedCompany.dot ? `DOT# ${_cachedCompany.dot}` : ''].filter(Boolean).join(' · '), PAD + sLogoOffset, 68)
     }
   } else {
     doc.setFontSize(20)
     doc.setTextColor(...gold)
-    doc.text('QI', PAD, 55)
+    doc.text('QI', PAD + sLogoOffset, 55)
     const lw = doc.getTextWidth('QI')
     doc.setTextColor(255, 255, 255)
-    doc.text('VORI', PAD + lw, 55)
+    doc.text('VORI', PAD + sLogoOffset + lw, 55)
   }
   doc.setFontSize(22)
   doc.setTextColor(...gold)
@@ -435,10 +481,23 @@ export function generateIFTAPDF(quarter, stateData, totalMiles, totalFuel, netOw
   doc.setFillColor(...gold)
   doc.rect(0, 0, W, 5, 'F')
 
+  let iftaLogoOffset = 0
+  if (_cachedLogoData?.dataUrl) {
+    try {
+      const maxH = 36, maxW = 90
+      const ratio = _cachedLogoData.w / _cachedLogoData.h
+      let imgW = maxH * ratio, imgH = maxH
+      if (imgW > maxW) { imgW = maxW; imgH = maxW / ratio }
+      doc.addImage(_cachedLogoData.dataUrl, 'PNG', PAD, 20, imgW, imgH)
+      iftaLogoOffset = imgW + 12
+    } catch { iftaLogoOffset = 0 }
+  }
+
+  const iftaCompany = _cachedCompany?.name || _cachedCompany?.company_name || ''
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(20)
-  doc.setTextColor(...gold)
-  doc.text('QIVORI', PAD, 55)
+  if (iftaCompany) { doc.setTextColor(255, 255, 255) } else { doc.setTextColor(...gold) }
+  doc.text(iftaCompany || 'QIVORI', PAD + iftaLogoOffset, 55)
   doc.setFontSize(20)
   doc.setTextColor(255, 255, 255)
   doc.text(`IFTA ${quarter} RETURN`, W - PAD, 55, { align: 'right' })

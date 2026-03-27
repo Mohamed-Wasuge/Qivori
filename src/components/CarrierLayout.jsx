@@ -142,6 +142,135 @@ const DRIVER_NAV = [
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 
+// ── Q Intelligence Feed — AI-powered insights for each hub ──
+function QInsightsFeed({ hub, summary, onNavigate }) {
+  const [insights, setInsights] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(null)
+  const [dismissed, setDismissed] = useState(new Set())
+
+  const fetchInsights = useCallback(async () => {
+    if (!summary || loaded) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await apiFetch('/api/q-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hub, summary }),
+      })
+      if (res.insights && res.insights.length > 0) {
+        setInsights(res.insights)
+      }
+    } catch (e) {
+      setError('Q is thinking...')
+    } finally {
+      setLoading(false)
+      setLoaded(true)
+    }
+  }, [hub, summary, loaded])
+
+  useEffect(() => { fetchInsights() }, [fetchInsights])
+
+  const iconMap = {
+    dollar: DollarSign, alert: AlertTriangle, truck: Truck, clock: Clock,
+    shield: Shield, user: User, chart: BarChart2, zap: Zap,
+  }
+  const priorityColors = {
+    critical: { bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.2)', accent: '#ef4444', glow: 'rgba(239,68,68,0.08)' },
+    high: { bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.2)', accent: '#f59e0b', glow: 'rgba(245,158,11,0.08)' },
+    medium: { bg: 'rgba(59,130,246,0.06)', border: 'rgba(59,130,246,0.2)', accent: '#3b82f6', glow: 'rgba(59,130,246,0.08)' },
+    low: { bg: 'rgba(107,114,128,0.04)', border: 'var(--border)', accent: 'var(--muted)', glow: 'transparent' },
+  }
+
+  const visible = insights.filter(i => !dismissed.has(i.id))
+  if (!loading && visible.length === 0 && !error) return null
+
+  return (
+    <div style={{ background: 'linear-gradient(135deg, rgba(240,165,0,0.03) 0%, rgba(240,165,0,0.01) 100%)', border: '1px solid rgba(240,165,0,0.12)', borderRadius: 14, overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: visible.length > 0 || loading ? '1px solid rgba(240,165,0,0.08)' : 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Ic icon={Zap} size={14} color="var(--accent)" />
+          </div>
+          <div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', fontFamily: "'DM Sans',sans-serif", letterSpacing: 0.5 }}>Q Intelligence</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 8 }}>AI-powered insights</span>
+          </div>
+        </div>
+        {loaded && !loading && (
+          <button onClick={() => { setLoaded(false); setInsights([]); setDismissed(new Set()) }} style={{ fontSize: 10, color: 'var(--accent)', background: 'none', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 600 }}>
+            Refresh
+          </button>
+        )}
+      </div>
+
+      {/* Loading state */}
+      {loading && (
+        <div style={{ padding: '20px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 16, height: 16, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'qspin 0.8s linear infinite' }} />
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Q is analyzing your operation...</span>
+          <style>{`@keyframes qspin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+        </div>
+      )}
+
+      {/* Insights */}
+      {visible.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {visible.map((insight, idx) => {
+            const colors = priorityColors[insight.priority] || priorityColors.medium
+            const InsightIcon = iconMap[insight.icon] || Zap
+            return (
+              <div key={insight.id || idx} style={{
+                padding: '14px 18px', display: 'flex', gap: 14, alignItems: 'flex-start',
+                borderBottom: idx < visible.length - 1 ? '1px solid rgba(240,165,0,0.06)' : 'none',
+                background: colors.bg, transition: 'background 0.15s',
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                  background: colors.glow, border: `1px solid ${colors.border}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <InsightIcon size={15} color={colors.accent} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans',sans-serif" }}>{insight.title}</span>
+                    {insight.priority === 'critical' && (
+                      <span style={{ fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#fca5a5', textTransform: 'uppercase', letterSpacing: 0.5 }}>Urgent</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 10 }}>{insight.body}</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      onClick={() => onNavigate && onNavigate(insight.action_target, insight.action_type, insight)}
+                      style={{
+                        padding: '5px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                        background: colors.accent, color: '#fff', border: 'none', cursor: 'pointer',
+                        fontFamily: "'DM Sans',sans-serif", transition: 'opacity 0.15s',
+                      }}
+                    >
+                      {insight.action_label || 'View'}
+                    </button>
+                    <button
+                      onClick={() => setDismissed(prev => new Set([...prev, insight.id]))}
+                      style={{ padding: '5px 10px', borderRadius: 8, fontSize: 10, fontWeight: 500, background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer' }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Drivers Hub ──
 function DriversHub() {
   const [tab, setTab] = useState('team')
@@ -155,6 +284,25 @@ function DriversHub() {
     { id:'onboarding', label:'Onboarding' },
     { id:'hiring', label:'Hiring' },
   ]
+
+  // Q Intelligence summary for drivers hub
+  const driversSummary = useMemo(() => {
+    const active = drivers.filter(d => d.status === 'Active' || !d.status)
+    const names = drivers.map(d => d.full_name || d.name).join(', ')
+    const expiring = drivers.filter(d => {
+      const exp = d.cdl_expiry || d.license_expiry || d.medical_card_expiry
+      if (!exp) return false
+      const days = Math.round((new Date(exp) - new Date()) / 86400000)
+      return days >= 0 && days <= 60
+    })
+    const loadsThisWeek = (loads || []).filter(l => {
+      const d = l.created_at || l.pickup_date
+      if (!d) return false
+      const diff = (new Date() - new Date(d)) / 86400000
+      return diff <= 7
+    })
+    return `HUB: Drivers/HR\nDrivers (${drivers.length}): ${names}\nActive: ${active.length}\nLoads this week: ${loadsThisWeek.length}\nDrivers with expiring docs (60 days): ${expiring.map(d => `${d.full_name||d.name} (${d.cdl_expiry||d.medical_card_expiry})`).join(', ') || 'None'}\nPay models: ${drivers.map(d => `${d.full_name||d.name}: ${d.pay_model||'percent'} @ ${d.pay_rate||'28'}${d.pay_model==='permile'?'/mi':'%'}`).join(', ')}`
+  }, [drivers, loads])
 
   const activeCount = drivers.filter(d => d.status === 'Active' || !d.status).length
   const onRoadCount = drivers.filter(d => {
@@ -204,7 +352,14 @@ function DriversHub() {
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
-          {tab === 'team' && <DriverProfiles />}
+          {tab === 'team' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              <div style={{ padding:'16px 20px 0' }}>
+                <QInsightsFeed hub="drivers" summary={driversSummary} onNavigate={(target) => { if (target) setTab(target === 'audit' ? 'compliance' : target) }} />
+              </div>
+              <DriverProfiles />
+            </div>
+          )}
           {tab === 'payroll' && <PayrollTracker />}
           {tab === 'compliance' && (
             <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -247,6 +402,10 @@ function FleetHub() {
   const totalFuel = fuelExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const truckCount = Math.max((drivers || []).length, 1)
 
+  const fleetSummary = useMemo(() => {
+    return `HUB: Fleet\nTrucks: ${truckCount}\nOn road: ${onRoad}\nTotal miles driven: ${totalMiles.toLocaleString()}\nFuel spend: $${totalFuel.toLocaleString()}\nFuel cost/mile: $${fuelCostPerMile?.toFixed(2) || 'N/A'}\nActive loads: ${(activeLoads||[]).length}\nActive load routes: ${(activeLoads||[]).slice(0,10).map(l => `${l.origin}→${l.destination} (${l.driver||'unassigned'})`).join(', ') || 'None'}`
+  }, [truckCount, onRoad, totalMiles, totalFuel, fuelCostPerMile, activeLoads])
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Fleet header */}
@@ -279,7 +438,14 @@ function FleetHub() {
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
-          {tab === 'fleet' && <EquipmentManager />}
+          {tab === 'fleet' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              <div style={{ padding:'16px 20px 0' }}>
+                <QInsightsFeed hub="fleet" summary={fleetSummary} onNavigate={(target) => { if (target) setTab(target) }} />
+              </div>
+              <EquipmentManager />
+            </div>
+          )}
           {tab === 'map' && <FleetMap />}
           {tab === 'fuel' && <FuelOptimizer />}
           {tab === 'manager' && <FleetManager />}
@@ -315,6 +481,14 @@ function FinancialsHub() {
   const truckCount = Math.max((ctxDrivers || []).length, 1)
   const profitPerTruck = Math.round(netProfit / truckCount)
   const marginColor = margin >= 30 ? 'var(--success)' : margin >= 20 ? 'var(--warning,#f59e0b)' : 'var(--danger)'
+
+  const financialsSummary = useMemo(() => {
+    const avgDaysToCollect = paidInvoices.length > 0 ? Math.round(paidInvoices.reduce((s, i) => {
+      const inv = new Date(i.date || i.created_at); const paid = new Date(i.paid_at || i.updated_at || Date.now())
+      return s + (paid - inv) / 86400000
+    }, 0) / paidInvoices.length) : 0
+    return `HUB: Financials\nRevenue: $${totalRevenue.toLocaleString()}\nExpenses: $${totalExpenses.toLocaleString()}\nNet profit: $${netProfit.toLocaleString()}\nMargin: ${margin.toFixed(1)}%\nProfit per truck: $${profitPerTruck.toLocaleString()}\nUnpaid invoices: ${unpaidInvoices.length} ($${unpaidTotal.toLocaleString()})\nOverdue invoices: ${overdueInvoices.length} ($${overdueTotal.toLocaleString()})\nFactored: ${factoredInvoices.length} ($${factoredTotal.toLocaleString()})\nCollected: ${paidInvoices.length} ($${collectedTotal.toLocaleString()})\nAvg days to collect: ${avgDaysToCollect}\nTrucks: ${truckCount}\nDelivered loads: ${(deliveredLoads||[]).length}\nTop brokers unpaid: ${unpaidInvoices.slice(0,5).map(i => `${i.broker||'Unknown'} $${(i.amount||0).toLocaleString()}`).join(', ') || 'None'}`
+  }, [totalRevenue, totalExpenses, netProfit, margin, profitPerTruck, unpaidInvoices, unpaidTotal, overdueInvoices, overdueTotal, factoredInvoices, factoredTotal, paidInvoices, collectedTotal, truckCount, deliveredLoads])
 
   // Revenue by month (last 6 months)
   const monthlyData = useMemo(() => {
@@ -406,6 +580,8 @@ function FinancialsHub() {
 
           {tab === 'overview' && (
             <div style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+              {/* Q Intelligence */}
+              <QInsightsFeed hub="financials" summary={financialsSummary} onNavigate={(target) => { if (target) setTab(target) }} />
               {/* Alerts */}
               {alerts.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -614,6 +790,11 @@ function ComplianceHub() {
   const totalChecks = passCount + stats.critCount + stats.warnCount
   const complianceScore = totalChecks > 0 ? Math.round((passCount / totalChecks) * 100) : 100
 
+  const complianceSummary = useMemo(() => {
+    if (!compData.loaded) return ''
+    return `HUB: Compliance\nDrivers: ${(drivers||[]).length}\nVehicles: ${(vehicles||[]).length}\nCompliance score: ${complianceScore}%\nCritical failures: ${stats.critCount}\nWarnings: ${stats.warnCount}\nPassing checks: ${passCount} of ${totalChecks}\nExpired docs: ${expiredDocs.length}\nExpiring within 30 days: ${expiringDocs.length}\nOpen incidents: ${openIncidents.length}\nDVIR defects unresolved: ${dvirDefects.length}\nPending drug tests: ${pendingDrugTests.length}\nFailure details: ${(failures||[]).slice(0,10).map(f => `${f.entity}: ${f.label}`).join(', ') || 'None'}\nWarning details: ${(warnings||[]).slice(0,10).map(w => `${w.entity}: ${w.label}`).join(', ') || 'None'}`
+  }, [compData.loaded, drivers, vehicles, complianceScore, stats, passCount, totalChecks, expiredDocs, expiringDocs, openIncidents, dvirDefects, pendingDrugTests, failures, warnings])
+
   const headerColor = stats.critCount > 0 ? 'var(--danger)' : stats.warnCount > 0 ? 'var(--warning,#f59e0b)' : 'var(--success)'
   const headerIcon = stats.critCount > 0 ? 'rgba(239,68,68,0.08)' : stats.warnCount > 0 ? 'rgba(245,158,11,0.08)' : 'rgba(34,197,94,0.08)'
   const headerBorder = stats.critCount > 0 ? 'rgba(239,68,68,0.15)' : stats.warnCount > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.15)'
@@ -656,6 +837,8 @@ function ComplianceHub() {
 
           {tab === 'overview' && (
             <div style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+              {/* Q Intelligence */}
+              {compData.loaded && <QInsightsFeed hub="compliance" summary={complianceSummary} onNavigate={(target) => { if (target) setTab(target) }} />}
               {/* Alerts */}
               {compData.loaded && (() => {
                 const alerts = []

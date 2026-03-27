@@ -1024,7 +1024,7 @@ export function PayrollTracker() {
   const [payingDriverId, setPayingDriverId] = useState(null)
 
   useEffect(() => {
-    apiFetch('/api/stripe-connect').then(data => setConnectStatus(data)).catch(() => {})
+    apiFetch('/api/stripe-connect').then(r => r.json()).then(data => setConnectStatus(data)).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -1216,8 +1216,10 @@ export function PayrollTracker() {
   const connectBank = async () => {
     setConnectLoading(true)
     try {
-      const data = await apiFetch('/api/stripe-connect', { method: 'POST', body: JSON.stringify({ action: 'create-account' }) })
+      const res = await apiFetch('/api/stripe-connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create-account' }) })
+      const data = await res.json()
       if (data.url) window.location.href = data.url
+      else if (data.error) showToast('', 'Error', data.error)
     } catch (err) {
       showToast('', 'Error', err.message || 'Failed to start bank connection')
     }
@@ -1227,10 +1229,12 @@ export function PayrollTracker() {
   const payDriver = async (payrollId, speed = 'standard') => {
     setPayingDriverId(payrollId)
     try {
-      const data = await apiFetch('/api/pay-driver', {
+      const res = await apiFetch('/api/pay-driver', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payrollId, paymentSpeed: speed }),
       })
+      const data = await res.json()
       if (data.ok) {
         showToast('', 'Payment Sent', `$${data.amount.toLocaleString()} → ${data.driver} (${data.estimated_arrival})`)
         setPayroll(prev => prev.map(p => p.id === payrollId ? { ...p, status: 'paid', payment_status: 'in_transit', payment_method: speed === 'instant' ? 'ach_instant' : 'ach_standard' } : p))

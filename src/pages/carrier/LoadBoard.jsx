@@ -36,12 +36,6 @@ export function SmartDispatch() {
   const { language: currentLang } = useTranslation()
   const { loads: ctxLoads, addLoad, addLoadWithStops, totalRevenue, expenses, drivers: dbDrivers, fuelCostPerMile } = useCarrier()
   const { processReply } = useAIActions()
-  // Compute average driver pay rate from actual driver profiles (fallback: industry avg 28%)
-  const avgDriverPayPct = useMemo(() => {
-    const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
-    if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28
-  }, [dbDrivers])
   const dispatchDrivers = dbDrivers.length ? dbDrivers.map(d => ({
     name: d.full_name, status: d.status === 'Active' ? 'Available' : d.status || 'Available',
     location: d.location || '', hos: d.hos_remaining || '—', unit: d.unit_number || '',
@@ -63,6 +57,13 @@ export function SmartDispatch() {
   const [quickRoute, setQuickRoute]     = useState(null) // { miles, durationText, drivingDays }
   const [quickRouteLoading, setQuickRouteLoading] = useState(false)
   const [showMap, setShowMap]           = useState(false)
+
+  // Compute average driver pay rate from actual driver profiles (fallback: industry avg 28%)
+  const avgDriverPayPct = useMemo(() => {
+    const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
+    if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
+    return 0.28
+  }, [dbDrivers])
 
   // Quick mileage lookup when both origin + destination search fields are filled
   useEffect(() => {

@@ -342,6 +342,7 @@ export function AppProvider({ children }) {
     // Create profile row
     if (data.user) {
       const refCode = typeof localStorage !== 'undefined' ? localStorage.getItem('qivori_ref') : null
+      const trialEnds = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
         email,
@@ -349,6 +350,9 @@ export function AppProvider({ children }) {
         full_name: fullName,
         company_name: companyName,
         status: 'pending',
+        subscription_status: 'trialing',
+        subscription_plan: 'autonomous_fleet',
+        trial_ends_at: trialEnds,
         referred_by: refCode || null,
       })
       if (profileError) {}

@@ -1445,7 +1445,7 @@ function CarrierLayoutInner() {
   const { isTrialing, trialDaysLeft, isActive, isPaid } = useSubscription()
 
   // Trial expired = had a trial that ended and never paid
-  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing'
+  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('driver')

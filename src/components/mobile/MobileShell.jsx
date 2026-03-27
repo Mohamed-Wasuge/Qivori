@@ -30,7 +30,7 @@ const DRIVER_TABS = [
 export default function MobileShell() {
   const { logout, user, profile, demoMode, showToast, isDriver } = useApp()
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
-  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing'
+  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'
   const ctx = useCarrier() || {}
   const activeLoads = ctx.activeLoads || []
   const totalRevenue = ctx.totalRevenue || 0

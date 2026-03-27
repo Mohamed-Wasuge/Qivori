@@ -396,6 +396,44 @@ async function syncConnection(connection) {
     errors.push({ type: 'expenses_query', error: err.message })
   }
 
+  // Fetch driver payroll to sync as Contract Labor expenses
+  try {
+    const payrolls = await supabaseRequest(
+      `driver_payroll?owner_id=eq.${conn.user_id}&status=in.(approved,paid)&qb_synced=is.null&limit=50`
+    ).catch(() => [])
+
+    for (const pr of payrolls) {
+      try {
+        // Look up driver name
+        let driverName = 'Driver'
+        try {
+          const drivers = await supabaseRequest(`drivers?id=eq.${pr.driver_id}&select=name,full_name&limit=1`)
+          if (drivers[0]) driverName = drivers[0].name || drivers[0].full_name || 'Driver'
+        } catch {}
+
+        await syncExpense(conn, {
+          cat: 'Driver Pay',
+          category: 'Driver Pay',
+          amount: pr.net_pay || 0,
+          date: pr.period_end || new Date().toISOString().split('T')[0],
+          merchant: driverName,
+          description: `Settlement ${pr.period_start} to ${pr.period_end} — ${driverName} (${pr.loads_completed || 0} loads, ${pr.miles_driven || 0} mi)`,
+        })
+        await supabaseRequest(`driver_payroll?id=eq.${pr.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ qb_synced: new Date().toISOString() }),
+        }).catch(() => {})
+        synced++
+      } catch (err) {
+        failed++
+        errors.push({ type: 'payroll', id: pr.id, error: err.message })
+        if (err.message.startsWith('RATE_LIMITED')) break
+      }
+    }
+  } catch (err) {
+    errors.push({ type: 'payroll_query', error: err.message })
+  }
+
   // Fetch payments to sync
   try {
     const payments = await supabaseRequest(

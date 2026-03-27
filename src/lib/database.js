@@ -441,6 +441,16 @@ export async function updatePayroll(id, updates) {
   return data
 }
 
+// ─── PAYMENTS (for QB sync) ─────────────────────────────────
+export async function createPayment(record) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createPayment',
+    supabase.from('payments').insert({ ...record, user_id: userId, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
 // ─── DRIVER BANK INFO ───────────────────────────────────────
 export async function fetchBankInfo() {
   const data = await safeSelect('driver_bank_info', supabase.from('driver_bank_info').select('*'))

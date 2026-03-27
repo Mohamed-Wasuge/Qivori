@@ -682,7 +682,20 @@ export function CarrierProvider({ children }) {
 
     if (useDb && inv && inv._dbId && !String(inv._dbId).startsWith('mock') && !String(inv._dbId).startsWith('local')) {
       try {
-        await db.updateInvoice(inv._dbId, { status })
+        await db.updateInvoice(inv._dbId, { status, ...(status === 'Paid' ? { paid_at: new Date().toISOString() } : {}) })
+        // Create payment record for QB sync when marked Paid
+        if (status === 'Paid') {
+          db.createPayment({
+            invoice_id: inv._dbId,
+            amount: inv.factoring_net || inv.amount || 0,
+            broker: inv.broker || inv.customer || null,
+            customer: inv.broker || inv.customer || null,
+            reference: inv.invoice_number || inv.id,
+            date: new Date().toISOString().split('T')[0],
+            source: inv.factoring_company ? 'factoring' : 'broker',
+            factoring_company: inv.factoring_company || null,
+          }).catch(() => {})
+        }
         // Audit log: invoice payment status change
         db.createAuditLog({
           action: 'invoice_status_change',

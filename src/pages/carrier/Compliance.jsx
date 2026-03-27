@@ -783,13 +783,13 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const complianceScore = useMemo(() => {
     const basics = getBasicScores()
     const avgBasicPct = basics.reduce((s, b) => s + (b.score / b.threshold), 0) / basics.length
-    const hosViolationCount = eldStatus?.violations || 0
+    const hosViolationCount = eldStats?.violations || 0
     const hosScore = Math.max(0, 25 - hosViolationCount * 5)
     const dvirScore = defects === 0 ? 25 : Math.max(0, 25 - defects * 5)
     const csaScore = Math.round((1 - avgBasicPct) * 25)
     const clearScore = chOrders.length === 0 || chOrders.every(o => o.result === 'Clear' || o.result === 'Pending') ? 25 : 15
     return Math.min(100, hosScore + dvirScore + csaScore + clearScore)
-  }, [defects, chOrders, eldStatus])
+  }, [defects, chOrders, eldStats])
 
   const COMP_TABS = [
     { id:'overview', label:'Overview',       icon: Brain },

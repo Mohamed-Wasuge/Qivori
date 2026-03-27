@@ -142,54 +142,91 @@ const DRIVER_NAV = [
 
 // ── Drivers Hub ──
 function DriversHub() {
-  const [tab, setTab] = useState('profiles')
-  const { drivers, loads, activeLoads, fuelCostPerMile } = useCarrier()
+  const [tab, setTab] = useState('team')
+  const [complianceTab, setComplianceTab] = useState('dq-files')
+  const { drivers, loads, activeLoads } = useCarrier()
   const TABS = [
-    { id:'profiles', label:'Profiles' },{ id:'settlement', label:'Settlement' },{ id:'scorecards', label:'Scorecards' },{ id:'pay-reports', label:'Pay Reports' },{ id:'onboarding', label:'Onboarding' },
-    { id:'dq-files', label:'DQ Files' },{ id:'expiry-alerts', label:'Expiry Alerts' },{ id:'drug-alcohol', label:'Drug & Alcohol' },{ id:'incidents', label:'Incidents' },{ id:'payroll', label:'1099 / Payroll' },{ id:'driver-portal', label:'Driver Portal' },
+    { id:'team', label:'Team' },
+    { id:'payroll', label:'Payroll' },
+    { id:'compliance', label:'Compliance' },
+    { id:'performance', label:'Performance' },
+    { id:'onboarding', label:'Onboarding' },
   ]
-  // Q driver stats
+
+  const activeCount = drivers.filter(d => d.status === 'Active' || !d.status).length
+  const onRoadCount = drivers.filter(d => {
+    const name = d.full_name || d.name
+    return activeLoads.some(l => l.driver === name && ['In Transit','Loaded','En Route to Pickup'].includes(l.status))
+  }).length
   const idleCount = drivers.filter(d => {
     const name = d.full_name || d.name
     return !activeLoads.some(l => l.driver === name)
   }).length
-  const unassignedLoads = loads.filter(l => !l.driver && ['Rate Con Received','Booked'].includes(l.status)).length
+
+  const COMPLIANCE_TABS = [
+    { id:'dq-files', label:'DQ Files' },
+    { id:'expiry-alerts', label:'Expiry Alerts' },
+    { id:'drug-alcohol', label:'Drug & Alcohol' },
+    { id:'incidents', label:'Incidents' },
+  ]
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
-      {/* Q Driver Intelligence Header */}
-      <div style={{ flexShrink:0, padding:'10px 20px', background:'var(--surface)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:7, height:7, borderRadius:'50%', background:'var(--success)', boxShadow:'0 0 6px var(--success)', animation:'q-driver-pulse 2s ease-in-out infinite' }} />
-          <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, letterSpacing:2, color:'var(--text)' }}>Q <span style={{ color:'var(--accent)' }}>DRIVER INTELLIGENCE</span></span>
-          <span style={{ fontSize:9, color:'var(--muted)', fontFamily:"'JetBrains Mono',monospace", marginLeft:4 }}>{drivers.length} driver{drivers.length!==1?'s':''} tracked</span>
-        </div>
-        {(idleCount > 0 || unassignedLoads > 0) && (
-          <div style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 12px', background:'rgba(240,165,0,0.06)', borderRadius:8, border:'1px solid rgba(240,165,0,0.15)' }}>
-            <div style={{ width:4, height:4, borderRadius:'50%', background:'var(--accent)' }} />
-            <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)' }}>
-              {idleCount > 0 && `${idleCount} idle`}{idleCount > 0 && unassignedLoads > 0 && ' · '}{unassignedLoads > 0 && `${unassignedLoads} unassigned load${unassignedLoads!==1?'s':''}`}
-              {idleCount > 0 && unassignedLoads > 0 ? ' — assign now' : ''}
-            </span>
+      {/* Corporate HR header */}
+      <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Ic icon={Users} size={18} color="var(--accent)" />
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:700, letterSpacing:0.3 }}>Human Resources</div>
+              <div style={{ fontSize:11, color:'var(--muted)' }}>Team management, payroll & compliance</div>
+            </div>
           </div>
-        )}
+          <div style={{ display:'flex', gap:20 }}>
+            {[
+              { label:'Active', val: activeCount, color:'var(--success)' },
+              { label:'On Road', val: onRoadCount, color:'var(--accent)' },
+              { label:'Idle', val: idleCount, color: idleCount > 0 ? 'var(--warning,#f59e0b)' : 'var(--muted)' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign:'center', minWidth:50 }}>
+                <div style={{ fontSize:18, fontWeight:800, color: s.color, fontFamily:"'DM Sans',sans-serif" }}>{s.val}</div>
+                <div style={{ fontSize:9, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.8 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
       <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
-          {tab === 'profiles' && <DriverProfiles />}
-          {tab === 'settlement' && <DriverSettlement />}
-          {tab === 'scorecards' && <DriverScorecard />}
-          {tab === 'pay-reports' && <DriverPayReport />}
-          {tab === 'onboarding' && <DriverOnboarding />}
-          {tab === 'dq-files' && <DQFileManager />}
-          {tab === 'expiry-alerts' && <ExpiryAlerts />}
-          {tab === 'drug-alcohol' && <DrugAlcoholCompliance />}
-          {tab === 'incidents' && <IncidentTracker />}
+          {tab === 'team' && <DriverProfiles />}
           {tab === 'payroll' && <PayrollTracker />}
-          {tab === 'driver-portal' && <DriverPortal />}
+          {tab === 'compliance' && (
+            <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+              <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
+                {COMPLIANCE_TABS.map(ct => (
+                  <button key={ct.id} onClick={() => setComplianceTab(ct.id)} style={{
+                    padding:'10px 18px', fontSize:12, fontWeight: complianceTab === ct.id ? 700 : 500, cursor:'pointer', border:'none', background:'none',
+                    color: complianceTab === ct.id ? 'var(--accent)' : 'var(--muted)',
+                    borderBottom: complianceTab === ct.id ? '2px solid var(--accent)' : '2px solid transparent',
+                    transition:'all 0.15s',
+                  }}>{ct.label}</button>
+                ))}
+              </div>
+              <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+                {complianceTab === 'dq-files' && <DQFileManager />}
+                {complianceTab === 'expiry-alerts' && <ExpiryAlerts />}
+                {complianceTab === 'drug-alcohol' && <DrugAlcoholCompliance />}
+                {complianceTab === 'incidents' && <IncidentTracker />}
+              </div>
+            </div>
+          )}
+          {tab === 'performance' && <DriverScorecard />}
+          {tab === 'onboarding' && <DriverOnboarding />}
         </Suspense>
       </div>
-      <style>{`@keyframes q-driver-pulse { 0%,100%{opacity:1;box-shadow:0 0 4px var(--success)} 50%{opacity:0.4;box-shadow:0 0 10px var(--success)} }`}</style>
     </div>
   )
 }

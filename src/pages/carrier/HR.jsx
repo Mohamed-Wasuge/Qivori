@@ -1066,49 +1066,66 @@ export function PayrollTracker() {
         ))}
       </div>
 
-      {/* Per-driver YTD */}
-      {drivers.length === 0 ? (
-        <div style={{ padding:40, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet</div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {drivers.map(d => {
-            const name = d.full_name || d.name || 'Unknown'
-            const avatar = name.split(' ').map(w => w[0]).join('').slice(0,2)
-            const dYtd = ytd[d.id] || { gross:0, net:0, deductions:0, perDiem:0, fuel:0, loads:0, miles:0 }
-            return (
-              <div key={d.id} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'16px 20px' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                    <div style={{ width:40, height:40, borderRadius:'50%', background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800 }}>{avatar}</div>
-                    <div>
-                      <div style={{ fontSize:14, fontWeight:700 }}>{name}</div>
-                      <div style={{ fontSize:11, color:'var(--muted)' }}>{dYtd.loads} loads · {dYtd.miles.toLocaleString()} mi YTD</div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:26, color:'var(--accent)' }}>${dYtd.gross.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
-                    <div style={{ fontSize:10, color:'var(--muted)' }}>YTD gross earnings</div>
-                  </div>
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:8 }}>
-                  {[
-                    { label:'Net Pay', value:`$${dYtd.net.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--success)' },
-                    { label:'Deductions', value:`$${dYtd.deductions.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--danger)' },
-                    { label:'Per Diem', value:`$${dYtd.perDiem.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--accent2)' },
-                    { label:'Fuel Adv.', value:`$${dYtd.fuel.toLocaleString(undefined,{maximumFractionDigits:0})}`, color:'var(--accent)' },
-                    { label:'1099 Status', value: dYtd.gross >= 600 ? 'Required' : 'Under $600', color: dYtd.gross >= 600 ? 'var(--accent)' : 'var(--muted)' },
-                  ].map(s => (
-                    <div key={s.label} style={{ background:'var(--surface2)', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
-                      <div style={{ fontSize:9, color:'var(--muted)', marginBottom:2 }}>{s.label}</div>
-                      <div style={{ fontSize:13, fontWeight:700, color:s.color }}>{s.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+      {/* Per-driver YTD — compact table */}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, overflow:'hidden' }}>
+        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ width:32, height:32, borderRadius:8, background:'rgba(240,165,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <Ic icon={Users} size={16} color="var(--accent)" />
+          </div>
+          <div>
+            <div style={{ fontSize:14, fontWeight:700 }}>Driver Payroll Summary</div>
+            <div style={{ fontSize:11, color:'var(--muted)' }}>YTD earnings breakdown per driver</div>
+          </div>
         </div>
-      )}
+        {drivers.length === 0 ? (
+          <div style={{ padding:40, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet</div>
+        ) : (
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <thead>
+              <tr style={{ background:'var(--bg)' }}>
+                {['Driver', 'Loads', 'Miles', 'Gross Pay', 'Net Pay', 'Deductions', 'Per Diem', 'Fuel Adv.', '1099'].map(h => (
+                  <th key={h} style={{ padding:'10px 16px', fontSize:9, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1, borderBottom:'1px solid var(--border)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {drivers.map((d, i) => {
+                const name = d.full_name || d.name || 'Unknown'
+                const avatar = name.split(' ').map(w => w[0]).join('').slice(0,2)
+                const dYtd = ytd[d.id] || { gross:0, net:0, deductions:0, perDiem:0, fuel:0, loads:0, miles:0 }
+                const needs1099 = dYtd.gross >= 600
+                return (
+                  <tr key={d.id} style={{ borderBottom: i < drivers.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <td style={{ padding:'12px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <div style={{ width:32, height:32, borderRadius:'50%', background:'var(--accent)', color:'#000', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", flexShrink:0 }}>{avatar}</div>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700 }}>{name}</div>
+                          <div style={{ fontSize:10, color:'var(--muted)' }}>{d.pay_model === 'percent' ? `${d.pay_rate || 28}%` : d.pay_model === 'permile' ? `$${Number(d.pay_rate||0).toFixed(2)}/mi` : d.pay_model === 'flat' ? `$${d.pay_rate} flat` : '28%'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding:'12px 16px', fontSize:13, fontWeight:600 }}>{dYtd.loads}</td>
+                    <td style={{ padding:'12px 16px', fontSize:13 }}>{dYtd.miles.toLocaleString()}</td>
+                    <td style={{ padding:'12px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>${dYtd.gross.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+                    <td style={{ padding:'12px 16px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--success)' }}>${dYtd.net.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+                    <td style={{ padding:'12px 16px', fontSize:12, color:'var(--danger)' }}>{dYtd.deductions > 0 ? `-$${dYtd.deductions.toLocaleString(undefined,{maximumFractionDigits:0})}` : '$0'}</td>
+                    <td style={{ padding:'12px 16px', fontSize:12, color:'var(--accent2)' }}>${dYtd.perDiem.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+                    <td style={{ padding:'12px 16px', fontSize:12 }}>${dYtd.fuel.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+                    <td style={{ padding:'12px 16px' }}>
+                      <span style={{
+                        fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:20,
+                        background: needs1099 ? 'rgba(240,165,0,0.1)' : 'rgba(74,85,112,0.1)',
+                        color: needs1099 ? 'var(--accent)' : 'var(--muted)',
+                      }}>{needs1099 ? 'Required' : 'Under $600'}</span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       {/* Recent payroll records */}
       {payroll.length > 0 && (

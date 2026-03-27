@@ -164,7 +164,16 @@ function AppContent() {
       else if (hash === '#/privacy') { clear(); setLegalPage('privacy') }
       else if (hash === '#/loads') { clear(); setPublicLoadBoard(true) }
       else if (hash.startsWith('#/onboard')) { clear(); setDriverOnboarding(true) }
-      else if (hash.startsWith('#/track/')) { clear(); setTrackingToken(hash.slice(8)) }
+      else if (hash.startsWith('#/track')) {
+        clear()
+        // Support both #/track?token=xxx and legacy #/track/TOKEN
+        if (hash.includes('?token=')) {
+          const params = new URLSearchParams(hash.split('?')[1])
+          setTrackingToken(params.get('token') || '')
+        } else if (hash.startsWith('#/track/')) {
+          setTrackingToken(hash.slice(8))
+        }
+      }
       else if (hash.startsWith('#/c/')) { clear(); setCarrierSlug(hash.slice(4)) }
       else if (GUIDE_ROUTES[hash]) { clear(); setGuidePage(GUIDE_ROUTES[hash]) }
       else { clear() }

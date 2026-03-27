@@ -1130,23 +1130,44 @@ export function LoadDetailDrawer({ loadId, onClose }) {
     setInvoiceSending(false)
   }
 
-  // Generate and copy tracking link for brokers
-  const handleShareTracking = () => {
-    const ownerId = load.owner_id || user?.id || ''
+  // Generate and copy tracking link for brokers (uses signed token API)
+  const [shareLoading, setShareLoading] = useState(false)
+  const handleShareTracking = async () => {
     const dbId = load._dbId || load.id || ''
-    if (!ownerId || !dbId || String(dbId).startsWith('mock') || String(dbId).startsWith('local')) {
+    if (!dbId || String(dbId).startsWith('mock') || String(dbId).startsWith('local')) {
       showToast('', 'Tracking Link', 'Save this load to the database first to generate a tracking link')
       return
     }
-    const token = btoa(`${ownerId}:${dbId}`)
-    const origin = window.location.origin
-    const trackingUrl = `${origin}/#!/track/${token}`
-    navigator.clipboard.writeText(trackingUrl).then(() => {
-      showToast('success', 'Link Copied!', `Tracking link for ${load.loadId || load.load_number} copied to clipboard. Share with your broker.`)
-    }).catch(() => {
-      // Fallback: show the URL
-      window.prompt('Copy this tracking link:', trackingUrl)
-    })
+    setShareLoading(true)
+    try {
+      const res = await apiFetch('/api/tracking-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loadId: dbId }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        navigator.clipboard.writeText(data.url).then(() => {
+          showToast('success', 'Link Copied!', `Tracking link for ${load.loadId || load.load_number} copied to clipboard. Share with your broker.`)
+        }).catch(() => {
+          window.prompt('Copy this tracking link:', data.url)
+        })
+      } else {
+        showToast('', 'Error', data.error || 'Could not generate tracking link')
+      }
+    } catch {
+      // Fallback: generate legacy link locally
+      const ownerId = load.owner_id || user?.id || ''
+      const token = btoa(`${ownerId}:${dbId}`)
+      const originUrl = window.location.origin
+      const trackingUrl = `${originUrl}/#/track?token=${encodeURIComponent(token)}`
+      navigator.clipboard.writeText(trackingUrl).then(() => {
+        showToast('success', 'Link Copied!', `Tracking link for ${load.loadId || load.load_number} copied to clipboard.`)
+      }).catch(() => {
+        window.prompt('Copy this tracking link:', trackingUrl)
+      })
+    }
+    setShareLoading(false)
   }
 
   // Send invoice payment reminder email to broker
@@ -1251,8 +1272,8 @@ export function LoadDetailDrawer({ loadId, onClose }) {
               Delete Load
             </button>
             <button className="btn btn-ghost" style={{ fontSize:11, color:'#4d8ef0', border:'1px solid rgba(77,142,240,0.25)', background:'rgba(77,142,240,0.06)' }}
-              onClick={handleShareTracking}>
-              <Ic icon={Share2} size={11} /> Share Tracking
+              onClick={handleShareTracking} disabled={shareLoading}>
+              <Ic icon={Share2} size={11} /> {shareLoading ? 'Generating...' : 'Share Tracking'}
             </button>
             {linkedInvoice && (linkedInvoice.status === 'Unpaid' || linkedInvoice.status === 'Overdue') && (
               <button className="btn btn-ghost" style={{ fontSize:11, color:'#f97316', border:'1px solid rgba(249,115,22,0.25)', background:'rgba(249,115,22,0.06)' }}

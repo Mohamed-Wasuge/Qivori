@@ -55,6 +55,7 @@ const FactoringCashflow = lazyN(() => import('../pages/carrier/Finance'), 'Facto
 const CashFlowForecaster = lazyN(() => import('../pages/carrier/Finance'), 'CashFlowForecaster')
 const PLDashboard = lazyN(() => import('../pages/carrier/Finance'), 'PLDashboard')
 const ReceivablesAging = lazyN(() => import('../pages/carrier/Finance'), 'ReceivablesAging')
+const AccountsPayable = lazyN(() => import('../pages/carrier/Finance'), 'AccountsPayable')
 const CashRunway = lazyN(() => import('../pages/carrier/Finance'), 'CashRunway')
 const QuickBooksExport = lazyN(() => import('../pages/carrier/Finance'), 'QuickBooksExport')
 const AnalyticsDashboard = lazyN(() => import('../pages/carrier/Finance'), 'AnalyticsDashboard')
@@ -535,7 +536,7 @@ function FinancialsHub() {
   }, [overdueInvoices, margin, totalRevenue, unpaidTotal, paidInvoices, overdueTotal])
 
   const REPORTS_TABS = [
-    { id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables' },{ id:'cash-flow', label:'Cash Flow' },{ id:'quickbooks', label:'QuickBooks' },
+    { id:'pl', label:'P&L' },{ id:'profit-iq', label:'Profit IQ' },{ id:'receivables', label:'Receivables (AR)' },{ id:'payables', label:'Payables (AP)' },{ id:'cash-flow', label:'Cash Flow' },{ id:'quickbooks', label:'QuickBooks' },
   ]
 
   const fmtM = (n) => {
@@ -732,6 +733,7 @@ function FinancialsHub() {
                 {reportsTab === 'pl' && <PLDashboard />}
                 {reportsTab === 'profit-iq' && <ProfitIQTab />}
                 {reportsTab === 'receivables' && <ReceivablesAging />}
+                {reportsTab === 'payables' && <AccountsPayable />}
                 {reportsTab === 'cash-flow' && <CashFlowForecaster />}
                 {reportsTab === 'quickbooks' && <QuickBooksExport />}
               </div>

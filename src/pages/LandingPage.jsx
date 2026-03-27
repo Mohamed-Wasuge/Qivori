@@ -280,7 +280,7 @@ export default function LandingPage({ onGetStarted }) {
       if (window.grecaptcha) {
         try {
           recaptchaToken = await window.grecaptcha.execute(
-            window.__RECAPTCHA_SITE_KEY || '6LfI9owsAAAAAJqtaymyhddtjfYd7KZJG66uBLuG',
+            window.__RECAPTCHA_SITE_KEY || '6Lfx35ksAAAAAD2c8XGkgHraPTPXrSVP0v0bPFft',
             { action: 'demo_request' }
           )
         } catch {}

@@ -87,9 +87,39 @@ export default function DriverOnboarding() {
     setSaving(false)
   }, [token])
 
+  // Upload File objects to storage, return URLs
+  const uploadFiles = useCallback(async () => {
+    const fileFields = ['profilePhoto', 'cdlFrontPhoto', 'cdlBackPhoto', 'medicalCard', 'proofOfInsurance', 'w9Form']
+    const urls = {}
+    for (const key of fileFields) {
+      if (form[key] instanceof File) {
+        try {
+          const fd = new FormData()
+          fd.append('file', form[key])
+          fd.append('token', token)
+          fd.append('field', key)
+          const res = await fetch('/api/driver-onboarding-upload', { method: 'POST', body: fd })
+          const result = await res.json()
+          if (result.ok && result.url) {
+            urls[key + 'Url'] = result.url
+          }
+        } catch {}
+      }
+    }
+    return urls
+  }, [form, token])
+
   const handleNext = async () => {
     const stepId = STEPS[step].id
-    await saveStep(stepId, form)
+    let formData = { ...form }
+
+    // Upload files before saving document or final step
+    if (stepId === 'documents' || step === STEPS.length - 1) {
+      const fileUrls = await uploadFiles()
+      formData = { ...formData, ...fileUrls }
+    }
+
+    await saveStep(stepId, formData)
     if (step < STEPS.length - 1) setStep(step + 1)
     else setSubmitted(true)
   }
@@ -698,11 +728,8 @@ function DocumentUploadsStep({ form, updateForm }) {
   const handleFileChange = (key, e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      updateForm(key, { name: file.name, type: file.type, data: reader.result })
-    }
-    reader.readAsDataURL(file)
+    if (file.size > 4 * 1024 * 1024) { alert('File must be under 4MB'); return }
+    updateForm(key, file)
   }
 
   return (
@@ -733,8 +760,8 @@ function DocumentUploadsStep({ form, updateForm }) {
 
           {form[key] ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {form[key].type?.startsWith('image/') ? (
-                <img src={form[key].data} alt={label} style={{
+              {(form[key] instanceof File ? form[key].type : form[key].type || '')?.startsWith('image/') ? (
+                <img src={form[key] instanceof File ? URL.createObjectURL(form[key]) : form[key].data} alt={label} style={{
                   width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid #2a2a35',
                 }} />
               ) : (
@@ -745,7 +772,7 @@ function DocumentUploadsStep({ form, updateForm }) {
                   <FileText size={20} color="#8a8a9a" />
                 </div>
               )}
-              <span style={{ fontSize: 12, color: '#c8c8d0', wordBreak: 'break-all' }}>{form[key].name}</span>
+              <span style={{ fontSize: 12, color: '#c8c8d0', wordBreak: 'break-all' }}>{form[key] instanceof File ? form[key].name : form[key].name}</span>
               <Check size={16} color="#22c55e" style={{ marginLeft: 'auto', flexShrink: 0 }} />
             </div>
           ) : (

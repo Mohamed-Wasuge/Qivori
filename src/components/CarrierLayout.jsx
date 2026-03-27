@@ -397,14 +397,14 @@ function DriversHub() {
 // ── Fleet Hub ──
 function FleetHub() {
   const [tab, setTab] = useState('fleet')
-  const { loads, activeLoads, drivers, expenses, fuelCostPerMile, deliveredLoads } = useCarrier()
+  const { loads, activeLoads, drivers, vehicles, expenses, fuelCostPerMile, deliveredLoads } = useCarrier()
   const TABS = [{ id:'fleet', label:'Vehicles' },{ id:'map', label:'Live Map' },{ id:'fuel', label:'Fuel' },{ id:'manager', label:'Maintenance' }]
 
   const totalMiles = (deliveredLoads || []).reduce((s, l) => s + (Number(l.miles) || 0), 0)
   const onRoad = (activeLoads || []).filter(l => ['In Transit','Loaded','En Route to Pickup'].includes(l.status)).length
   const fuelExpenses = (expenses || []).filter(e => (e.category || '').toLowerCase().includes('fuel'))
   const totalFuel = fuelExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
-  const truckCount = Math.max((drivers || []).length, 1)
+  const truckCount = (vehicles || []).length
 
   const fleetSummary = useMemo(() => {
     return `HUB: Fleet\nTrucks: ${truckCount}\nOn road: ${onRoad}\nTotal miles driven: ${totalMiles.toLocaleString()}\nFuel spend: $${totalFuel.toLocaleString()}\nFuel cost/mile: $${fuelCostPerMile?.toFixed(2) || 'N/A'}\nActive loads: ${(activeLoads||[]).length}\nActive load routes: ${(activeLoads||[]).slice(0,10).map(l => `${l.origin}→${l.destination} (${l.driver||'unassigned'})`).join(', ') || 'None'}`

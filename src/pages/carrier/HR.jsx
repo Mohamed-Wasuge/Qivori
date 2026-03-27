@@ -66,7 +66,7 @@ export function DQFileManager() {
   const [dqFiles, setDqFiles] = useState([])
   const [loading, setLoading] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
-  const [newDoc, setNewDoc] = useState({ doc_type: 'cdl', file_name: '', expiry_date: '', issued_date: '', notes: '' })
+  const [newDoc, setNewDoc] = useState({ doc_type: 'cdl', file_name: '', expiry_date: '', issued_date: '', notes: '', file: null })
   const [saving, setSaving] = useState(false)
   const [filterStatus, setFilterStatus] = useState('all')
 
@@ -105,10 +105,20 @@ export function DQFileManager() {
     if (!newDoc.doc_type || !newDoc.file_name) { showToast('error', 'Error', 'Document type and name are required'); return }
     setSaving(true)
     try {
+      let fileUrl = null
+      let fileSize = null
+      if (newDoc.file) {
+        const { uploadFile } = await import('../../lib/storage')
+        const result = await uploadFile(newDoc.file, `dq-files/${selectedDriver}`)
+        fileUrl = result.url
+        fileSize = result.size
+      }
       const file = await db.createDQFile({
         driver_id: selectedDriver,
         doc_type: newDoc.doc_type,
         file_name: newDoc.file_name,
+        file_url: fileUrl,
+        file_size: fileSize,
         expiry_date: newDoc.expiry_date || null,
         issued_date: newDoc.issued_date || null,
         notes: newDoc.notes || null,
@@ -116,7 +126,7 @@ export function DQFileManager() {
       })
       setDqFiles(prev => [file, ...prev])
       showToast('success', 'Document Added', `${DQ_DOC_TYPES.find(t => t.id === newDoc.doc_type)?.label} uploaded`)
-      setNewDoc({ doc_type: 'cdl', file_name: '', expiry_date: '', issued_date: '', notes: '' })
+      setNewDoc({ doc_type: 'cdl', file_name: '', expiry_date: '', issued_date: '', notes: '', file: null })
       setShowUpload(false)
     } catch (err) {
       showToast('error', 'Error', err.message || 'Failed to save document')
@@ -168,6 +178,25 @@ export function DQFileManager() {
               <div>
                 <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Notes</label>
                 <textarea value={newDoc.notes} onChange={e => setNewDoc(p => ({ ...p, notes: e.target.value }))} placeholder="Optional notes..." rows={2} style={{ ...inp, resize:'vertical' }} />
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Upload File</label>
+                {newDoc.file ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:8 }}>
+                    <Check size={14} style={{ color:'var(--success)', flexShrink:0 }} />
+                    <span style={{ fontSize:12, color:'var(--text)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{newDoc.file.name}</span>
+                    <span style={{ fontSize:10, color:'var(--muted)' }}>{(newDoc.file.size / 1024).toFixed(0)} KB</span>
+                    <button onClick={() => setNewDoc(p => ({ ...p, file: null }))} style={{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:11, fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                  </div>
+                ) : (
+                  <label style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'14px 16px', borderRadius:8, border:'1px dashed var(--border)', background:'var(--surface2)', color:'var(--muted)', fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    <Upload size={14} /> Choose File (image or PDF)
+                    <input type="file" accept="image/*,.pdf" onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) setNewDoc(p => ({ ...p, file: f, file_name: p.file_name || f.name }))
+                    }} style={{ display:'none' }} />
+                  </label>
+                )}
               </div>
             </div>
             <div style={{ display:'flex', gap:10, marginTop:18 }}>
@@ -327,9 +356,36 @@ export function DQFileManager() {
                           </td>
                           <td style={{ padding:'12px 14px', fontSize:11, color:'var(--muted)', maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.notes || '—'}</td>
                           <td style={{ padding:'12px 14px' }}>
-                            <button onClick={() => handleDelete(f.id, f.file_name)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:4 }} title="Delete">
-                              <Trash2 size={13} />
-                            </button>
+                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                              {f.file_url && (
+                                <>
+                                  <button onClick={() => window.open(f.file_url, '_blank')} style={{ background:'none', border:'none', color:'var(--accent)', cursor:'pointer', padding:4 }} title="View">
+                                    <Eye size={13} />
+                                  </button>
+                                  <button onClick={() => {
+                                    const w = window.open('', '_blank')
+                                    if (w) {
+                                      const isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.file_url)
+                                      w.document.write(`<html><head><title>${f.file_name}</title><style>@media print{body{margin:0}img{max-width:100%;height:auto}}</style></head><body style="margin:20px;font-family:sans-serif">`)
+                                      w.document.write(`<h2>${DQ_DOC_TYPES.find(t=>t.id===f.doc_type)?.label || f.doc_type}</h2>`)
+                                      w.document.write(`<p><strong>Driver:</strong> ${driverName} | <strong>File:</strong> ${f.file_name}</p>`)
+                                      if (f.issued_date) w.document.write(`<p><strong>Issued:</strong> ${new Date(f.issued_date).toLocaleDateString()}</p>`)
+                                      if (f.expiry_date) w.document.write(`<p><strong>Expires:</strong> ${new Date(f.expiry_date).toLocaleDateString()}</p>`)
+                                      if (isImg) { w.document.write(`<img src="${f.file_url}" style="max-width:100%;margin-top:16px" />`) }
+                                      else { w.document.write(`<iframe src="${f.file_url}" style="width:100%;height:80vh;border:1px solid #ccc;margin-top:16px"></iframe>`) }
+                                      w.document.write('</body></html>')
+                                      w.document.close()
+                                      setTimeout(() => w.print(), 500)
+                                    }
+                                  }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:4 }} title="Print">
+                                    <Printer size={13} />
+                                  </button>
+                                </>
+                              )}
+                              <button onClick={() => handleDelete(f.id, f.file_name)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:4 }} title="Delete">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )

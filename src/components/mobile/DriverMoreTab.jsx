@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import {
@@ -35,6 +35,15 @@ export default function DriverMoreTab() {
   }, [drivers, user, profile])
 
   const [activeSection, setActiveSection] = useState(null)
+  const [dqFiles, setDqFiles] = useState([])
+
+  useEffect(() => {
+    if (myDriver?.id) {
+      import('../../lib/database').then(dbMod => {
+        dbMod.fetchDQFiles(myDriver.id).then(files => setDqFiles(files || []))
+      }).catch(() => {})
+    }
+  }, [myDriver?.id])
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
 
   // Stats
@@ -248,19 +257,25 @@ export default function DriverMoreTab() {
 
   // ── PACKETS / DOCUMENTS Section ──
   if (activeSection === 'packets') {
-    const d = myDriver || {}
-    const docs = [
-      { label: 'CDL — Front', field: 'cdl_front_url', icon: CreditCard },
-      { label: 'CDL — Back', field: 'cdl_back_url', icon: CreditCard },
-      { label: 'Medical Card', field: 'medical_card_url', icon: Heart },
-      { label: 'W-9 Form', field: 'w9_url', icon: FileText },
-      { label: 'Proof of Insurance', field: 'insurance_url', icon: Shield },
-      { label: 'MVR Authorization', field: 'mvr_auth_url', icon: FileText },
-      { label: 'Drug & Alcohol Consent', field: 'drug_consent_url', icon: Shield },
-      { label: 'Direct Deposit Form', field: 'deposit_form_url', icon: DollarSign },
-      { label: 'Profile Photo', field: 'photo_url', icon: Camera },
+    const docTypes = [
+      { label: 'CDL — Front', dqType: 'cdl', subLabel: 'front', icon: CreditCard },
+      { label: 'CDL — Back', dqType: 'cdl', subLabel: 'back', icon: CreditCard },
+      { label: 'Medical Card', dqType: 'medical_card', icon: Heart },
+      { label: 'W-9 Form', dqType: 'w9', icon: FileText },
+      { label: 'Proof of Insurance', dqType: 'insurance', icon: Shield },
+      { label: 'MVR Authorization', dqType: 'mvr', icon: FileText },
+      { label: 'Drug & Alcohol Consent', dqType: 'drug_pre_employment', icon: Shield },
+      { label: 'Direct Deposit Form', dqType: 'direct_deposit', icon: DollarSign },
+      { label: 'Profile Photo', dqType: 'application', icon: Camera },
     ]
-    const uploadedCount = docs.filter(doc => d[doc.field]).length
+    // Match each doc type to a DQ file record
+    const getMatchingFile = (doc) => {
+      const matches = dqFiles.filter(f => f.doc_type === doc.dqType)
+      if (doc.subLabel === 'front') return matches.find(f => /front/i.test(f.file_name)) || matches[0]
+      if (doc.subLabel === 'back') return matches.find(f => /back/i.test(f.file_name)) || matches[1]
+      return matches[0]
+    }
+    const uploadedCount = docTypes.filter(doc => getMatchingFile(doc)?.file_url).length
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <BackButton />
@@ -272,10 +287,10 @@ export default function DriverMoreTab() {
             </div>
             <div style={{
               padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700,
-              background: uploadedCount === docs.length ? 'rgba(0,212,170,0.12)' : 'rgba(245,158,11,0.12)',
-              color: uploadedCount === docs.length ? 'var(--success)' : '#f59e0b',
+              background: uploadedCount === docTypes.length ? 'rgba(0,212,170,0.12)' : 'rgba(245,158,11,0.12)',
+              color: uploadedCount === docTypes.length ? 'var(--success)' : '#f59e0b',
             }}>
-              {uploadedCount}/{docs.length} complete
+              {uploadedCount}/{docTypes.length} complete
             </div>
           </div>
 
@@ -283,14 +298,15 @@ export default function DriverMoreTab() {
           <div style={{ height: 6, background: 'var(--bg)', borderRadius: 3, marginBottom: 16, overflow: 'hidden' }}>
             <div style={{
               height: '100%', borderRadius: 3,
-              background: uploadedCount === docs.length ? 'var(--success)' : 'var(--accent)',
-              width: `${(uploadedCount / docs.length) * 100}%`,
+              background: uploadedCount === docTypes.length ? 'var(--success)' : 'var(--accent)',
+              width: `${(uploadedCount / docTypes.length) * 100}%`,
               transition: 'width 0.5s ease',
             }} />
           </div>
 
-          {docs.map((doc, i) => {
-            const hasFile = !!myDriver?.[doc.field]
+          {docTypes.map((doc, i) => {
+            const dqFile = getMatchingFile(doc)
+            const hasFile = !!dqFile?.file_url
             return (
               <div key={doc.label} style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '12px',
@@ -311,7 +327,7 @@ export default function DriverMoreTab() {
                   </div>
                 </div>
                 {hasFile ? (
-                  <button onClick={() => window.open(myDriver[doc.field], '_blank')}
+                  <button onClick={() => window.open(dqFile.file_url, '_blank')}
                     style={{ padding: '6px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans',sans-serif" }}>
                     View
                   </button>
@@ -322,7 +338,7 @@ export default function DriverMoreTab() {
             )
           })}
 
-          {uploadedCount < docs.length && (
+          {uploadedCount < docTypes.length && (
             <div style={{
               marginTop: 12, padding: '12px 14px',
               background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)',

@@ -195,6 +195,40 @@ export default async function handler(req) {
         }
       }
 
+      // Create DQ file records from uploaded documents
+      if (isComplete && inv.driver_id) {
+        const docMappings = [
+          { field: 'cdlFrontPhotoUrl', doc_type: 'cdl', file_name: 'CDL Front' },
+          { field: 'cdlBackPhotoUrl', doc_type: 'cdl', file_name: 'CDL Back' },
+          { field: 'medicalCardUrl', doc_type: 'medical_card', file_name: 'Medical Card' },
+          { field: 'proofOfInsuranceUrl', doc_type: 'insurance', file_name: 'Proof of Insurance' },
+          { field: 'w9FormUrl', doc_type: 'w9', file_name: 'W-9 Form' },
+          { field: 'profilePhotoUrl', doc_type: 'application', file_name: 'Profile Photo' },
+        ]
+        for (const mapping of docMappings) {
+          const url = mergedData[mapping.field]
+          if (url) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/driver_dq_files`, {
+                method: 'POST',
+                headers: { ...svc, 'Prefer': 'return=minimal' },
+                body: JSON.stringify({
+                  driver_id: inv.driver_id,
+                  owner_id: inv.invited_by,
+                  doc_type: mapping.doc_type,
+                  file_name: mapping.file_name,
+                  file_url: url,
+                  status: 'valid',
+                  issued_date: new Date().toISOString().split('T')[0],
+                  expiry_date: mapping.doc_type === 'cdl' ? (mergedData.cdlExpiry || null) :
+                               mapping.doc_type === 'medical_card' ? (mergedData.medicalExpiry || null) : null,
+                }),
+              })
+            } catch {}
+          }
+        }
+      }
+
       // If complete and no driver_id, create the driver record
       if (isComplete && !inv.driver_id) {
         const cleanFields = { ...driverFields }
@@ -224,6 +258,38 @@ export default async function handler(req) {
                 body: JSON.stringify({ driver_id: driverId }),
               }
             )
+
+            // Create DQ file records for the new driver
+            const docMappings = [
+              { field: 'cdlFrontPhotoUrl', doc_type: 'cdl', file_name: 'CDL Front' },
+              { field: 'cdlBackPhotoUrl', doc_type: 'cdl', file_name: 'CDL Back' },
+              { field: 'medicalCardUrl', doc_type: 'medical_card', file_name: 'Medical Card' },
+              { field: 'proofOfInsuranceUrl', doc_type: 'insurance', file_name: 'Proof of Insurance' },
+              { field: 'w9FormUrl', doc_type: 'w9', file_name: 'W-9 Form' },
+              { field: 'profilePhotoUrl', doc_type: 'application', file_name: 'Profile Photo' },
+            ]
+            for (const mapping of docMappings) {
+              const url = mergedData[mapping.field]
+              if (url) {
+                try {
+                  await fetch(`${supabaseUrl}/rest/v1/driver_dq_files`, {
+                    method: 'POST',
+                    headers: { ...svc, 'Prefer': 'return=minimal' },
+                    body: JSON.stringify({
+                      driver_id: driverId,
+                      owner_id: inv.invited_by,
+                      doc_type: mapping.doc_type,
+                      file_name: mapping.file_name,
+                      file_url: url,
+                      status: 'valid',
+                      issued_date: new Date().toISOString().split('T')[0],
+                      expiry_date: mapping.doc_type === 'cdl' ? (mergedData.cdlExpiry || null) :
+                                   mapping.doc_type === 'medical_card' ? (mergedData.medicalExpiry || null) : null,
+                    }),
+                  })
+                } catch {}
+              }
+            }
           }
         }
       }

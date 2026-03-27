@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { Ic, S, StatCard } from './shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff, Container, Snowflake, Layers } from 'lucide-react'
+import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff, Container, Snowflake, Layers, Plus, Upload, Printer, Download, Calendar, Clock } from 'lucide-react'
 import { uploadFile } from '../../lib/storage'
-import { createDocument } from '../../lib/database'
+import { createDocument, fetchVehicleDocuments, createVehicleDocument, deleteVehicleDocument } from '../../lib/database'
 // FleetMapGoogle is exported directly from FleetMapGoogle.jsx
 // Do NOT re-export it here to avoid circular chunk initialization issues
 
@@ -41,6 +41,122 @@ function expiryLabel(dateStr) {
 }
 
 const BLANK_TRUCK = { vin:'', year:'', make:'', model:'', color:'', plate:'', gvw:'', fuel:'Diesel', odometer:'', driver:'', regExpiry:'', insExpiry:'', dotInspection:'', unit_cost:'' }
+
+// ─── VEHICLE DOCUMENT TYPES ────────────────────────────────────────────
+const VEH_DOC_TYPES = [
+  { id: 'registration',         label: 'Registration',             required: true,  hasExpiry: true },
+  { id: 'insurance_certificate', label: 'Insurance Certificate',   required: true,  hasExpiry: true },
+  { id: 'dot_inspection',       label: 'DOT Inspection',           required: true,  hasExpiry: true },
+  { id: 'ifta_permit',          label: 'IFTA Permit / Decal',      required: false, hasExpiry: true },
+  { id: 'irp_cab_card',         label: 'IRP Cab Card',             required: false, hasExpiry: true },
+  { id: 'title',                label: 'Title',                    required: false, hasExpiry: false },
+  { id: 'lease_agreement',      label: 'Lease Agreement',          required: false, hasExpiry: true },
+  { id: 'fuel_permit',          label: 'Fuel Permit',              required: false, hasExpiry: true },
+  { id: 'oversize_permit',      label: 'Oversize/Overweight Permit', required: false, hasExpiry: true },
+  { id: 'hazmat_permit',        label: 'Hazmat Permit',            required: false, hasExpiry: true },
+  { id: 'eld_certificate',      label: 'ELD Certificate',          required: false, hasExpiry: false },
+  { id: 'apportioned_plate',    label: 'Apportioned Plate',        required: false, hasExpiry: true },
+  { id: 'emission_test',        label: 'Emission Test',            required: false, hasExpiry: true },
+  { id: 'safety_inspection',    label: 'Safety Inspection',        required: false, hasExpiry: true },
+  { id: 'warranty',             label: 'Warranty',                 required: false, hasExpiry: true },
+  { id: 'purchase_receipt',     label: 'Purchase Receipt',         required: false, hasExpiry: false },
+  { id: 'photos',               label: 'Vehicle Photos',           required: false, hasExpiry: false },
+  { id: 'other',                label: 'Other Document',           required: false, hasExpiry: false },
+]
+
+const VEH_DOC_STATUS_COLORS = {
+  valid:         { bg: 'rgba(34,197,94,0.1)',  color: 'var(--success)', label: 'Valid' },
+  expiring_soon: { bg: 'rgba(240,165,0,0.1)',  color: 'var(--accent)',  label: 'Expiring' },
+  expired:       { bg: 'rgba(239,68,68,0.1)',  color: 'var(--danger)',  label: 'Expired' },
+  pending:       { bg: 'rgba(77,142,240,0.1)', color: 'var(--accent3)', label: 'Pending' },
+}
+
+function getVehExpiryStatus(expiryDate) {
+  if (!expiryDate) return 'valid'
+  const days = Math.floor((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24))
+  if (days < 0) return 'expired'
+  if (days <= 30) return 'expiring_soon'
+  return 'valid'
+}
+
+// ─── FLEET MANAGER DOCUMENTS (reusable inline component) ─────────
+function FleetManagerDocs({ vehicleId, vehicleName, showToast }) {
+  const [docs, setDocs] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!vehicleId) return
+    setLoading(true)
+    fetchVehicleDocuments(vehicleId).then(d => { setDocs(d); setLoading(false) }).catch(() => setLoading(false))
+  }, [vehicleId])
+
+  const handleUpload = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      try {
+        showToast('', 'Uploading', file.name + '...')
+        const result = await uploadFile(file, 'vehicles/' + vehicleId)
+        const doc = await createVehicleDocument({
+          vehicle_id: vehicleId,
+          doc_type: 'other',
+          file_name: file.name,
+          file_url: result.url,
+          file_size: result.size,
+          status: 'valid',
+        })
+        setDocs(prev => [doc, ...prev])
+        showToast('success', 'Uploaded', file.name + ' attached')
+      } catch (err) {
+        showToast('error', 'Upload Failed', err.message || 'Could not upload file')
+      }
+    }
+    input.click()
+  }
+
+  return (
+    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+      <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontWeight:700, fontSize:13 }}><Paperclip size={14} style={{ verticalAlign:'middle', marginRight:6 }} />Documents</div>
+        <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={handleUpload}>+ Upload</button>
+      </div>
+      <div style={{ padding:12, display:'flex', flexDirection:'column', gap:8 }}>
+        {loading ? (
+          <div style={{ padding:12, textAlign:'center', color:'var(--muted)', fontSize:11 }}>Loading...</div>
+        ) : docs.length === 0 ? (
+          <div style={{ padding:16, textAlign:'center', color:'var(--muted)' }}>
+            <div style={{ fontSize:12, fontWeight:600 }}>No documents</div>
+            <div style={{ fontSize:10, marginTop:2 }}>Click Upload to add registration, insurance, inspection docs</div>
+          </div>
+        ) : docs.map(doc => {
+          const docType = VEH_DOC_TYPES.find(t => t.id === doc.doc_type)
+          const status = VEH_DOC_STATUS_COLORS[getVehExpiryStatus(doc.expiry_date)] || VEH_DOC_STATUS_COLORS.valid
+          return (
+            <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'var(--surface2)', borderRadius:8 }}>
+              <FileText size={14} color={status.color} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{docType?.label || doc.doc_type}</div>
+                <div style={{ fontSize:10, color:'var(--muted)' }}>{doc.file_name}{doc.expiry_date ? ` · Exp: ${new Date(doc.expiry_date).toLocaleDateString('en-US',{month:'short',year:'numeric'})}` : ''}</div>
+              </div>
+              {doc.expiry_date && <span style={{ fontSize:8, fontWeight:700, padding:'1px 5px', borderRadius:4, background:status.bg, color:status.color }}>{status.label}</span>}
+              {doc.file_url ? (
+                <button className="btn btn-ghost" style={{ fontSize:11, padding:'4px 8px' }} onClick={() => window.open(doc.file_url, '_blank')}>View</button>
+              ) : (
+                <span style={{ fontSize:10, color:'var(--muted)' }}>No file</span>
+              )}
+              <button onClick={async () => {
+                try { await deleteVehicleDocument(doc.id); setDocs(prev => prev.filter(d => d.id !== doc.id)); showToast('success','Deleted',doc.file_name) } catch(err) { showToast('error','Error',err.message) }
+              }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:2 }}><Trash2 size={11} /></button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 // ─── EQUIPMENT MANAGER CONSTANTS ──────────────────────────────────────────────
 const EQ_FIELDS_TRUCK = [
@@ -989,28 +1105,7 @@ export function FleetManager() {
                     </div>
                   </div>
 
-                  <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-                    <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <div style={{ fontWeight:700, fontSize:13 }}><Ic icon={Paperclip} /> Documents</div>
-                      <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'; input.onchange = async (e) => { const file = e.target.files?.[0]; if (!file) return; try { showToast('', 'Uploading', file.name + '...'); const result = await uploadFile(file, 'vehicles/' + (truck.id || 'unknown')); await createDocument({ name: file.name, file_url: result.url, file_path: result.path, doc_type: 'vehicle', vehicle_id: truck.id || null }); showToast('success', 'Uploaded', file.name + ' attached successfully') } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload file') } }; input.click() }}>+ Upload</button>
-                    </div>
-                    <div style={{ padding:12, display:'flex', flexDirection:'column', gap:8 }}>
-                      {[
-                        { name:'Registration Card.pdf',    type:'Registration', date:'Dec 2024' },
-                        { name:'Insurance Certificate.pdf',type:'Insurance',    date:'Jan 2025' },
-                        { name:'Last Inspection.pdf',      type:'DOT Inspection',date:'Dec 2024' },
-                      ].map(doc => (
-                        <div key={doc.name} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'var(--surface2)', borderRadius:8 }}>
-                          <span style={{ fontSize:16 }}><FileText size={16} /></span>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.name}</div>
-                            <div style={{ fontSize:10, color:'var(--muted)' }}>{doc.type} · {doc.date}</div>
-                          </div>
-                          <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { if (doc.url || doc.file_url) { window.open(doc.url || doc.file_url, '_blank') } else { showToast('', 'No File', doc.name + ' has no file attached — upload one first') } }}>View</button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <FleetManagerDocs vehicleId={truck.id} vehicleName={truck.unit} showToast={showToast} />
                 </div>
               </div>
             </>
@@ -1250,6 +1345,20 @@ export function EquipmentManager() {
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
 
+  // Vehicle documents state
+  const [vehDocs, setVehDocs] = useState([])
+  const [vehDocsLoading, setVehDocsLoading] = useState(false)
+  const [showDocUpload, setShowDocUpload] = useState(false)
+  const [newVehDoc, setNewVehDoc] = useState({ doc_type: 'registration', file_name: '', expiry_date: '', issued_date: '', notes: '', file: null })
+  const [docSaving, setDocSaving] = useState(false)
+
+  const selId = equipment.find(e => e.id === selected)?.id || equipment[0]?.id
+  useEffect(() => {
+    if (!selId) return
+    setVehDocsLoading(true)
+    fetchVehicleDocuments(selId).then(docs => { setVehDocs(docs); setVehDocsLoading(false) }).catch(() => setVehDocsLoading(false))
+  }, [selId])
+
   const filtered = tab === 'all' ? equipment : equipment.filter(e => e.type === tab)
   const sel = equipment.find(e => e.id === selected) || filtered[0]
   const truckCount = equipment.filter(e => e.type === 'truck').length
@@ -1356,7 +1465,7 @@ export function EquipmentManager() {
   }
 
   // Empty state
-  if (!equipment.length) {
+  if (!equipment.length && !showAdd) {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', padding:40 }}>
         <div style={{ textAlign:'center', maxWidth:360 }}>
@@ -1625,9 +1734,217 @@ export function EquipmentManager() {
                   ))}
                   <div style={{ width:1, height:28, background:'var(--border)', alignSelf:'center' }} />
                   <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={async () => { const nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7); const dateStr = nextWeek.toISOString().split('T')[0]; try { await editVehicle(sel.id, { notes: (sel.notes ? sel.notes + ' | ' : '') + 'Service scheduled ' + dateStr }); showToast('success', 'Service Scheduled', dateStr) } catch (err) { showToast('error', 'Error', err.message) } }}><Ic icon={Wrench} /> Schedule Service</button>
-                  <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx'; input.onchange = async (e) => { const file = e.target.files?.[0]; if (!file) return; try { showToast('', 'Uploading...', file.name); const result = await uploadFile(file, 'vehicles/' + (sel.id || 'unknown')); await createDocument({ name: file.name, file_url: result.url, file_path: result.path, doc_type: 'vehicle', vehicle_id: sel.id || null }); showToast('success', 'Uploaded', file.name) } catch (err) { showToast('error', 'Failed', err.message) } }; input.click() }}><Ic icon={FileText} /> Upload Doc</button>
                   {sel.type === 'truck' && <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const lat = sel.lat || sel.latitude; const lng = sel.lng || sel.longitude; if (lat && lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank') } else { showToast('', 'No GPS', 'Connect ELD for live tracking') } }}><Ic icon={MapPin} /> GPS</button>}
                   <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => { const fields = sel.type === 'truck' ? EQ_FIELDS_TRUCK : EQ_FIELDS_TRAILER; const header = fields.map(f => f.label).join(','); const row = fields.map(f => '"' + String(sel[f.key] || '').replace(/"/g, '""') + '"').join(','); const csv = header + '\n' + row; const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = (sel.unit || 'equipment') + '.csv'; a.click(); URL.revokeObjectURL(url); showToast('success', 'Exported', sel.unit) }}><Ic icon={FileText} /> Export</button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Vehicle Documents ── */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <Paperclip size={14} color="var(--accent)" />
+                  <span style={{ fontSize:13, fontWeight:700 }}>Documents</span>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6, background:'rgba(240,165,0,0.1)', color:'var(--accent)' }}>{vehDocs.length}</span>
+                </div>
+                <button className="btn btn-primary" style={{ fontSize:11, padding:'5px 12px' }} onClick={() => setShowDocUpload(true)}><Plus size={12} /> Add Document</button>
+              </div>
+
+              {(() => {
+                const requiredTypes = VEH_DOC_TYPES.filter(t => t.required)
+                const uploadedTypes = new Set(vehDocs.map(f => f.doc_type))
+                const missingRequired = requiredTypes.filter(t => !uploadedTypes.has(t.id))
+                const expiredDocs = vehDocs.filter(f => getVehExpiryStatus(f.expiry_date) === 'expired')
+                const expiringDocs = vehDocs.filter(f => getVehExpiryStatus(f.expiry_date) === 'expiring_soon')
+
+                return (
+                  <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+                    {/* Completion bar */}
+                    {missingRequired.length > 0 && (
+                      <div>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                          <span style={{ fontSize:10, color:'var(--muted)', fontWeight:600 }}>Required Docs</span>
+                          <span style={{ fontSize:10, fontWeight:700, color: missingRequired.length === 0 ? 'var(--success)' : 'var(--accent)' }}>{requiredTypes.length - missingRequired.length}/{requiredTypes.length}</span>
+                        </div>
+                        <div style={{ height:4, background:'var(--surface2)', borderRadius:2, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${((requiredTypes.length - missingRequired.length) / requiredTypes.length) * 100}%`, background: missingRequired.length === 0 ? 'var(--success)' : 'var(--accent)', borderRadius:2, transition:'width 0.3s' }} />
+                        </div>
+                        <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:6 }}>
+                          {missingRequired.map(t => (
+                            <span key={t.id} onClick={() => { setNewVehDoc(p => ({ ...p, doc_type: t.id })); setShowDocUpload(true) }}
+                              style={{ fontSize:9, fontWeight:600, padding:'2px 7px', borderRadius:5, background:'rgba(239,68,68,0.08)', color:'var(--danger)', border:'1px solid rgba(239,68,68,0.15)', cursor:'pointer' }}>
+                              Missing: {t.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Alerts for expiring/expired */}
+                    {(expiredDocs.length > 0 || expiringDocs.length > 0) && (
+                      <div style={{ display:'flex', gap:8 }}>
+                        {expiredDocs.length > 0 && (
+                          <div style={{ flex:1, padding:'6px 10px', borderRadius:8, background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)', display:'flex', alignItems:'center', gap:6 }}>
+                            <AlertTriangle size={12} color="var(--danger)" />
+                            <span style={{ fontSize:10, fontWeight:700, color:'var(--danger)' }}>{expiredDocs.length} expired</span>
+                          </div>
+                        )}
+                        {expiringDocs.length > 0 && (
+                          <div style={{ flex:1, padding:'6px 10px', borderRadius:8, background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.15)', display:'flex', alignItems:'center', gap:6 }}>
+                            <Clock size={12} color="var(--warning)" />
+                            <span style={{ fontSize:10, fontWeight:700, color:'var(--warning)' }}>{expiringDocs.length} expiring soon</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Document list */}
+                    {vehDocsLoading ? (
+                      <div style={{ padding:20, textAlign:'center', color:'var(--muted)', fontSize:12 }}>Loading documents...</div>
+                    ) : vehDocs.length === 0 ? (
+                      <div style={{ padding:20, textAlign:'center', color:'var(--muted)' }}>
+                        <FileText size={20} style={{ marginBottom:6, opacity:0.5 }} />
+                        <div style={{ fontSize:12, fontWeight:600 }}>No documents uploaded</div>
+                        <div style={{ fontSize:10, marginTop:2 }}>Add registration, insurance, inspection, and more</div>
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                        {vehDocs.map(doc => {
+                          const docType = VEH_DOC_TYPES.find(t => t.id === doc.doc_type)
+                          const status = VEH_DOC_STATUS_COLORS[getVehExpiryStatus(doc.expiry_date)] || VEH_DOC_STATUS_COLORS[doc.status] || VEH_DOC_STATUS_COLORS.valid
+                          return (
+                            <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:'var(--surface2)', borderRadius:8, border: getVehExpiryStatus(doc.expiry_date) === 'expired' ? '1px solid rgba(239,68,68,0.2)' : getVehExpiryStatus(doc.expiry_date) === 'expiring_soon' ? '1px solid rgba(245,158,11,0.2)' : '1px solid transparent' }}>
+                              <FileText size={14} color={status.color} style={{ flexShrink:0 }} />
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{docType?.label || doc.doc_type}</div>
+                                <div style={{ fontSize:10, color:'var(--muted)', display:'flex', alignItems:'center', gap:6 }}>
+                                  <span>{doc.file_name}</span>
+                                  {doc.expiry_date && <span>· Exp: {new Date(doc.expiry_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>}
+                                </div>
+                              </div>
+                              <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:5, background:status.bg, color:status.color, flexShrink:0 }}>{status.label}</span>
+                              {doc.file_url && (
+                                <>
+                                  <button onClick={() => window.open(doc.file_url, '_blank')} style={{ background:'none', border:'none', color:'var(--accent)', cursor:'pointer', padding:3 }} title="View"><Eye size={13} /></button>
+                                  <button onClick={() => {
+                                    const w = window.open('', '_blank')
+                                    if (w) {
+                                      const isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(doc.file_url)
+                                      w.document.write(`<html><head><title>${doc.file_name}</title><style>@media print{body{margin:0}img{max-width:100%;height:auto}}</style></head><body style="margin:20px;font-family:sans-serif">`)
+                                      w.document.write(`<h2>${docType?.label || doc.doc_type}</h2>`)
+                                      w.document.write(`<p><strong>Vehicle:</strong> ${sel.unit || sel.unit_number || '—'} | <strong>File:</strong> ${doc.file_name}</p>`)
+                                      if (doc.issued_date) w.document.write(`<p><strong>Issued:</strong> ${new Date(doc.issued_date).toLocaleDateString()}</p>`)
+                                      if (doc.expiry_date) w.document.write(`<p><strong>Expires:</strong> ${new Date(doc.expiry_date).toLocaleDateString()}</p>`)
+                                      if (isImg) { w.document.write(`<img src="${doc.file_url}" style="max-width:100%;margin-top:16px" />`) }
+                                      else { w.document.write(`<iframe src="${doc.file_url}" style="width:100%;height:80vh;border:1px solid #ccc;margin-top:16px"></iframe>`) }
+                                      w.document.write('</body></html>')
+                                      w.document.close()
+                                      setTimeout(() => w.print(), 500)
+                                    }
+                                  }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:3 }} title="Print"><Printer size={13} /></button>
+                                </>
+                              )}
+                              <button onClick={async () => {
+                                try { await deleteVehicleDocument(doc.id); setVehDocs(prev => prev.filter(d => d.id !== doc.id)); showToast('success', 'Deleted', doc.file_name + ' removed') } catch (err) { showToast('error', 'Error', err.message) }
+                              }} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:3 }} title="Delete"><Trash2 size={13} /></button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Upload Document Modal */}
+            {showDocUpload && (
+              <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+                onClick={e => { if (e.target === e.currentTarget) setShowDocUpload(false) }}>
+                <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:480, padding:24 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Add Vehicle Document</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>Upload document for {sel?.unit || sel?.unit_number || 'vehicle'}</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    <div>
+                      <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Document Type *</label>
+                      <select value={newVehDoc.doc_type} onChange={e => setNewVehDoc(p => ({ ...p, doc_type: e.target.value }))} style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }}>
+                        {VEH_DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}{t.required ? ' *' : ''}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>File Name / Description *</label>
+                      <input value={newVehDoc.file_name} onChange={e => setNewVehDoc(p => ({ ...p, file_name: e.target.value }))} placeholder="e.g. 2025 Registration Card" style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }} />
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                      <div>
+                        <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Issued Date</label>
+                        <input type="date" value={newVehDoc.issued_date} onChange={e => setNewVehDoc(p => ({ ...p, issued_date: e.target.value }))} style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Expiry Date</label>
+                        <input type="date" value={newVehDoc.expiry_date} onChange={e => setNewVehDoc(p => ({ ...p, expiry_date: e.target.value }))} style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }} />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Notes</label>
+                      <textarea value={newVehDoc.notes} onChange={e => setNewVehDoc(p => ({ ...p, notes: e.target.value }))} placeholder="Optional notes..." rows={2} style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', resize:'vertical' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Upload File</label>
+                      {newVehDoc.file ? (
+                        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:8 }}>
+                          <Check size={14} style={{ color:'var(--success)', flexShrink:0 }} />
+                          <span style={{ fontSize:12, color:'var(--text)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{newVehDoc.file.name}</span>
+                          <span style={{ fontSize:10, color:'var(--muted)' }}>{(newVehDoc.file.size / 1024).toFixed(0)} KB</span>
+                          <button onClick={() => setNewVehDoc(p => ({ ...p, file: null }))} style={{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:11, fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+                        </div>
+                      ) : (
+                        <label style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'14px 16px', borderRadius:8, border:'1px dashed var(--border)', background:'var(--surface2)', color:'var(--muted)', fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                          <Upload size={14} /> Choose File (image or PDF)
+                          <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={e => {
+                            const f = e.target.files?.[0]
+                            if (f) setNewVehDoc(p => ({ ...p, file: f, file_name: p.file_name || f.name }))
+                          }} style={{ display:'none' }} />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:10, marginTop:18 }}>
+                    <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} disabled={docSaving || !newVehDoc.file_name} onClick={async () => {
+                      if (!newVehDoc.doc_type || !newVehDoc.file_name) { showToast('error', 'Error', 'Document type and name are required'); return }
+                      setDocSaving(true)
+                      try {
+                        let fileUrl = null, fileSize = null
+                        if (newVehDoc.file) {
+                          const result = await uploadFile(newVehDoc.file, `vehicles/${sel.id}`)
+                          fileUrl = result.url
+                          fileSize = result.size
+                        }
+                        const doc = await createVehicleDocument({
+                          vehicle_id: sel.id,
+                          doc_type: newVehDoc.doc_type,
+                          file_name: newVehDoc.file_name,
+                          file_url: fileUrl,
+                          file_size: fileSize,
+                          expiry_date: newVehDoc.expiry_date || null,
+                          issued_date: newVehDoc.issued_date || null,
+                          notes: newVehDoc.notes || null,
+                          status: newVehDoc.expiry_date ? getVehExpiryStatus(newVehDoc.expiry_date) : 'valid',
+                        })
+                        setVehDocs(prev => [doc, ...prev])
+                        showToast('success', 'Document Added', `${VEH_DOC_TYPES.find(t => t.id === newVehDoc.doc_type)?.label} uploaded`)
+                        setNewVehDoc({ doc_type: 'registration', file_name: '', expiry_date: '', issued_date: '', notes: '', file: null })
+                        setShowDocUpload(false)
+                      } catch (err) {
+                        showToast('error', 'Error', err.message || 'Failed to save document')
+                      }
+                      setDocSaving(false)
+                    }}>
+                      {docSaving ? 'Saving...' : 'Add Document'}
+                    </button>
+                    <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setShowDocUpload(false)}>Cancel</button>
+                  </div>
                 </div>
               </div>
             )}

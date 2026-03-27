@@ -341,6 +341,38 @@ export async function deleteDQFile(id) {
   if (error) throw error
 }
 
+// ─── VEHICLE DOCUMENTS ─────────────────────────────────────
+export async function fetchVehicleDocuments(vehicleId) {
+  let query = supabase.from('vehicle_documents').select('*').order('created_at', { ascending: false }).limit(200)
+  if (vehicleId) query = query.eq('vehicle_id', vehicleId)
+  const data = await safeSelect('vehicle_documents', query)
+  return data || []
+}
+
+export async function createVehicleDocument(doc) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createVehicleDocument',
+    supabase.from('vehicle_documents').insert({ ...doc, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateVehicleDocument(id, updates) {
+  const { data, error } = await safeMutate('updateVehicleDocument',
+    supabase.from('vehicle_documents').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function deleteVehicleDocument(id) {
+  const { error } = await safeMutate('deleteVehicleDocument',
+    supabase.from('vehicle_documents').delete().eq('id', id)
+  )
+  if (error) throw error
+}
+
 // ─── DRUG & ALCOHOL TESTS ───────────────────────────────────
 export async function fetchDrugTests(driverId) {
   let query = supabase.from('driver_drug_tests').select('*').order('test_date', { ascending: false })

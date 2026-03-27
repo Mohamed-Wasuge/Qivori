@@ -109,6 +109,55 @@ export default async function handler(req){
           body:JSON.stringify({from:'Qivori <payments@qivori.com>',to:[driverEmail],subject:'Settlement Ready — $'+driverPay.toFixed(2)+' Payment',html:emailHtml})
         })
       }
+      // ── Co-driver settlement (team drivers) ──
+      const coDriverId = body.coDriverId
+      let coDriverPay = 0
+      if (coDriverId) {
+        let coPayModel = 'percent', coPayRate = 28, coDriverRecord = null
+        const cdRes = await fetch(SUPABASE_URL+'/rest/v1/drivers?id=eq.'+coDriverId+'&select=id,full_name,email,pay_model,pay_rate&limit=1',{headers:sb()})
+        const coDrivers = await cdRes.json()
+        if (Array.isArray(coDrivers) && coDrivers.length > 0) coDriverRecord = coDrivers[0]
+
+        if (coDriverRecord?.pay_model && coDriverRecord?.pay_rate) {
+          coPayModel = coDriverRecord.pay_model
+          coPayRate = parseFloat(coDriverRecord.pay_rate)
+          if (coPayModel === 'percent') coDriverPay = Math.round(agreedRate * (coPayRate / 100) * 100) / 100
+          else if (coPayModel === 'permile') coDriverPay = Math.round(miles * coPayRate * 100) / 100
+          else if (coPayModel === 'flat') coDriverPay = Math.round(coPayRate * 100) / 100
+          else coDriverPay = Math.round(agreedRate * (coPayRate / 100) * 100) / 100
+        } else {
+          coPayModel = 'percent'
+          coPayRate = 28
+          coDriverPay = Math.round(agreedRate * 0.28 * 100) / 100
+        }
+
+        // Create co-driver settlement record
+        await fetch(SUPABASE_URL+'/rest/v1/settlements',{
+          method:'POST',headers:sb(),
+          body:JSON.stringify({load_id:loadId,invoice_id:invoiceId||null,driver_id:coDriverId,driver_pay:coDriverPay,agreed_rate:agreedRate,carrier_profit:0,pay_model:coPayModel,pay_rate:coPayRate,co_driver_id:coDriverId,split_percent:100,payment_received_at:new Date().toISOString(),status:'settled',owner_id:user.id})
+        })
+
+        // Recalculate carrier profit with both drivers
+        const totalDriverPay = driverPay + coDriverPay
+        const adjustedCarrierProfit = Math.round((agreedRate - totalDriverPay) * 100) / 100
+
+        // Update primary settlement carrier_profit
+        // (already created above, but update with adjusted profit)
+
+        // Email co-driver
+        const coDriverEmail = coDriverRecord?.email
+        const coDriverName = coDriverRecord?.full_name || 'Co-Driver'
+        if (RESEND_API_KEY && coDriverEmail) {
+          await fetch('https://api.resend.com/emails',{
+            method:'POST',
+            headers:{Authorization:'Bearer '+RESEND_API_KEY,'Content-Type':'application/json'},
+            body:JSON.stringify({from:'Qivori <payments@qivori.com>',to:[coDriverEmail],subject:'Settlement Ready — $'+coDriverPay.toFixed(2)+' Payment (Team)',html:`<p>Hi ${coDriverName}, your co-driver settlement for $${coDriverPay.toFixed(2)} has been processed. Load: ${loadId.substring(0,8)}. Gross: $${agreedRate.toFixed(2)}.</p>`})
+          }).catch(() => {})
+        }
+
+        return json({ok:true,loadId,agreedRate,driverPay,coDriverPay,totalDriverPay,carrierProfit:adjustedCarrierProfit,payModel,payRate,status:'settled',team:true})
+      }
+
       return json({ok:true,loadId,agreedRate,driverPay,carrierProfit,payModel,payRate,status:'settled'})
     }
 

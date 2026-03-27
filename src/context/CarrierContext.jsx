@@ -59,6 +59,9 @@ function normalizeLoad(l) {
     driver_name: l.carrier_name || l.driver_name || l.driver || '',
     carrier_name: l.carrier_name || l.driver_name || l.driver || '',
     reference_number: l.reference_number || l.refNum || '',
+    // Team driver
+    co_driver_name: l.co_driver_name || '',
+    co_driver_id: l.co_driver_id || null,
     // Stops — normalize new fields
     stops: (l.load_stops || l.stops || []).map(s => ({
       ...s,
@@ -550,12 +553,12 @@ export function CarrierProvider({ children }) {
 
   // Assign a driver to a load (updates both driver field and status)
   // Runs compliance pre-check: blocks if CDL expired, medical card expired, or driver unavailable
-  const assignLoadToDriver = useCallback(async (loadId, driverName) => {
+  const assignLoadToDriver = useCallback(async (loadId, driverName, coDriverName) => {
     if (demoGuard('assign driver')) return
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.id === loadId)
     if (!load) return
 
-    // ── Compliance pre-check before dispatch ──
+    // ── Compliance pre-check for primary driver ──
     const driver = drivers.find(d => (d.full_name || d.name) === driverName)
     if (driver) {
       const cdl = checkCDL(driver)
@@ -566,7 +569,6 @@ export function CarrierProvider({ children }) {
         const reasons = blocks.map(b => b.label).join(', ')
         showToast?.('', 'Dispatch Blocked', `${driverName}: ${reasons}`)
         console.warn(`[Compliance] Dispatch blocked for ${driverName}:`, blocks)
-        // Log compliance block to audit trail + alert admin
         if (useDb && load.id) {
           db.createAuditLog({
             action: 'dispatch_compliance_blocked',
@@ -576,7 +578,6 @@ export function CarrierProvider({ children }) {
             new_value: { attempted_driver: driverName, blocked: true },
             metadata: { load_id: load.loadId || load.load_id, violations: blocks.map(b => b.label) },
           }).catch(() => {})
-          // Alert admin of compliance bypass attempt
           apiFetch('/api/admin-alert', {
             method: 'POST',
             body: JSON.stringify({
@@ -590,27 +591,49 @@ export function CarrierProvider({ children }) {
         }
         return
       }
-      // Log warnings but don't block
       const warns = [cdl, med, avail].filter(c => c.status === 'warn')
       if (warns.length > 0) {
         console.log(`[Compliance] Dispatch warnings for ${driverName}:`, warns.map(w => w.label))
       }
     }
 
-    // DB column is carrier_name, not driver or driver_name
-    const dbUpdates = { carrier_name: driverName, status: 'Assigned to Driver' }
-    const localUpdates = { driver: driverName, driver_name: driverName, carrier_name: driverName, status: 'Assigned to Driver' }
+    // ── Compliance pre-check for co-driver (team) ──
+    if (coDriverName) {
+      const coDriver = drivers.find(d => (d.full_name || d.name) === coDriverName)
+      if (coDriver) {
+        const cdl = checkCDL(coDriver)
+        const med = checkMedicalCard(coDriver)
+        const blocks = [cdl, med].filter(c => c.status === 'fail')
+        if (blocks.length > 0) {
+          const reasons = blocks.map(b => b.label).join(', ')
+          showToast?.('', 'Co-Driver Blocked', `${coDriverName}: ${reasons}`)
+          return
+        }
+      }
+    }
+
+    // Build DB + local updates (include co-driver if team)
+    const coDriver = coDriverName ? drivers.find(d => (d.full_name || d.name) === coDriverName) : null
+    const dbUpdates = {
+      carrier_name: driverName, status: 'Assigned to Driver',
+      ...(coDriverName ? { co_driver_name: coDriverName } : {}),
+      ...(coDriver?.id ? { co_driver_id: coDriver.id } : {}),
+    }
+    const localUpdates = {
+      driver: driverName, driver_name: driverName, carrier_name: driverName, status: 'Assigned to Driver',
+      ...(coDriverName ? { co_driver_name: coDriverName, co_driver_id: coDriver?.id || null } : {}),
+    }
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
       try {
         await db.updateLoad(load.id, dbUpdates)
-        console.log(`[Pilot] Driver assigned: ${driverName} → load ${loadId}`)
-        // Log assignment to audit trail
+        const teamLabel = coDriverName ? ` + ${coDriverName} (team)` : ''
+        console.log(`[Pilot] Driver assigned: ${driverName}${teamLabel} → load ${loadId}`)
         db.createAuditLog({
           action: 'driver_assigned',
           entity_type: 'load',
           entity_id: load.id,
           old_value: { driver: load.driver || load.driver_name || null, status: load.status },
-          new_value: { driver: driverName, status: 'Assigned to Driver' },
+          new_value: { driver: driverName, co_driver: coDriverName || null, status: 'Assigned to Driver' },
           metadata: { load_id: load.loadId || load.load_id, origin: load.origin, destination: load.dest || load.destination },
         }).catch(() => {})
       } catch (e) {

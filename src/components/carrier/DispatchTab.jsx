@@ -495,7 +495,7 @@ function ConsolidationPanel({ loads, consolidations, addConsolidation, editConso
 
 export function BookedLoads() {
   const { showToast } = useApp()
-  const { loads: bookedLoads, addLoad: ctxAddLoad, addLoadWithStops: ctxAddLoadWithStops, updateLoadStatus: ctxUpdateStatus, removeLoad, company, drivers: ctxDrivers, consolidations, addConsolidation, editConsolidation } = useCarrier()
+  const { loads: bookedLoads, addLoad: ctxAddLoad, addLoadWithStops: ctxAddLoadWithStops, updateLoadStatus: ctxUpdateStatus, assignLoadToDriver: ctxAssignDriver, removeLoad, company, drivers: ctxDrivers, consolidations, addConsolidation, editConsolidation } = useCarrier()
   const driverNames = (ctxDrivers || []).map(d => d.name || d.full_name || d.driver_name).filter(Boolean)
   const [loadDocs, setLoadDocs] = useState({
     1: [{ id: 1, name: 'EC-88421-ratecon.pdf', type: 'Rate Con', size: '124 KB', uploadedAt: 'Mar 8', dataUrl: null }],
@@ -737,9 +737,14 @@ export function BookedLoads() {
     else showToast('', 'Status Updated', newStatus)
   }
 
-  const assignDriver = (loadId, driver) => {
-    ctxUpdateStatus(loadId, 'Assigned to Driver')
-    showToast('', 'Driver Assigned', driver)
+  const assignDriver = (loadId, driver, coDriver) => {
+    if (ctxAssignDriver) {
+      ctxAssignDriver(loadId, driver, coDriver || undefined)
+    } else {
+      ctxUpdateStatus(loadId, 'Assigned to Driver')
+    }
+    const teamLabel = coDriver ? ` + ${coDriver} (team)` : ''
+    showToast('', 'Driver Assigned', driver + teamLabel)
   }
 
   const addLoad = () => {
@@ -1265,7 +1270,7 @@ export function BookedLoads() {
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                   {load.loadId} · {load.broker} · {load.miles.toLocaleString()} mi · {load.commodity}
-                  {load.driver ? <span> · <b style={{ color: 'var(--accent2)' }}>{load.driver}</b></span> : <span style={{ color: 'var(--warning)' }}> · No driver assigned</span>}
+                  {load.driver ? <span> · <b style={{ color: 'var(--accent2)' }}>{load.driver}</b>{load.co_driver_name ? <span style={{ color: 'var(--accent2)' }}> + {load.co_driver_name}</span> : ''}</span> : <span style={{ color: 'var(--warning)' }}> · No driver assigned</span>}
                 </div>
               </div>
               <div style={{ textAlign: 'right', marginRight: 8 }}>
@@ -1352,14 +1357,30 @@ export function BookedLoads() {
                   </div>
                 )}
 
-                {/* Assign driver */}
+                {/* Assign driver (supports team — primary + co-driver) */}
                 {!load.driver && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--warning)', fontWeight: 700, display:'inline-flex', alignItems:'center', gap:4 }}><Ic icon={AlertTriangle} size={12} color="var(--warning)" /> Assign a driver to dispatch this load:</span>
-                    {driverNames.length === 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>No drivers added yet</span>}
-                    {driverNames.map(d => (
-                      <button key={d} className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => assignDriver(load.loadId, d)}>{d}</button>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--warning)', fontWeight: 700, display:'inline-flex', alignItems:'center', gap:4 }}><Ic icon={AlertTriangle} size={12} color="var(--warning)" /> Assign driver:</span>
+                      {driverNames.length === 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>No drivers added yet</span>}
+                      {driverNames.map(d => (
+                        <button key={d} className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => assignDriver(load.loadId, d)}>{d}</button>
+                      ))}
+                    </div>
+                    {driverNames.length >= 2 && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingLeft: 4 }}>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Team dispatch:</span>
+                        {driverNames.map((d, i) => {
+                          // Pair each driver with every other driver
+                          return driverNames.slice(i + 1).map(d2 => (
+                            <button key={d+d2} className="btn btn-ghost" style={{ fontSize: 10, padding: '4px 8px', border: '1px solid var(--accent2)', borderRadius: 6 }}
+                              onClick={() => assignDriver(load.loadId, d, d2)}>
+                              {d.split(' ')[0]} + {d2.split(' ')[0]}
+                            </button>
+                          ))
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 

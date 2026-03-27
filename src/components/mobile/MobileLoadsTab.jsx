@@ -320,6 +320,7 @@ export default function MobileLoadsTab() {
                     {[
                       ['Broker', load.broker_name || load.broker || '—'],
                       ['Driver', load.driver_name || load.driver || '—'],
+                      ...(load.co_driver_name ? [['Co-Driver', load.co_driver_name]] : []),
                       ['Equipment', load.equipment || load.equipment_type || '—'],
                       ['Weight', load.weight ? `${load.weight} lbs` : '—'],
                       ['Pickup', load.pickup_date || '—'],

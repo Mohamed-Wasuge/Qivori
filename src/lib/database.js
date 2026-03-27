@@ -441,6 +441,14 @@ export async function updatePayroll(id, updates) {
   return data
 }
 
+// ─── STRIPE CONNECT ─────────────────────────────────────────
+export async function fetchStripeConnectAccount() {
+  const data = await safeSelect('stripe_connect_accounts',
+    supabase.from('stripe_connect_accounts').select('*').limit(1).maybeSingle()
+  )
+  return data
+}
+
 // ─── PAYMENTS (for QB sync) ─────────────────────────────────
 export async function createPayment(record) {
   const userId = await getUserId()

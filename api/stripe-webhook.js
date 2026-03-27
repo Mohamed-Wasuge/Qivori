@@ -290,6 +290,70 @@ export default async function handler(req) {
       }
 
       // ── TRIAL WILL END (Stripe fires 3 days before trial expires) ──
+      // ── CONNECT: account updated ──
+      case 'account.updated': {
+        const account = event.data.object
+        if (account.id) {
+          console.log(`[stripe-webhook] account.updated — ${account.id}, payouts: ${account.payouts_enabled}`)
+          await fetch(`${supabaseUrl}/rest/v1/stripe_connect_accounts?stripe_account_id=eq.${account.id}`, {
+            method: 'PATCH', headers: sbHeaders,
+            body: JSON.stringify({
+              charges_enabled: account.charges_enabled,
+              payouts_enabled: account.payouts_enabled,
+              details_submitted: account.details_submitted,
+              onboarding_complete: account.details_submitted && account.payouts_enabled,
+              business_name: account.business_profile?.name || null,
+              updated_at: new Date().toISOString(),
+            }),
+          }).catch(e => console.error('[stripe-webhook] Connect account update failed:', e))
+        }
+        break
+      }
+
+      // ── CONNECT: payout paid (driver payment arrived) ──
+      case 'payout.paid': {
+        const payout = event.data.object
+        const transferId = payout.metadata?.transfer_id || payout.id
+        console.log(`[stripe-webhook] payout.paid — ${transferId}`)
+        // Update any payroll record linked to this transfer
+        if (payout.metadata?.payroll_id) {
+          await fetch(`${supabaseUrl}/rest/v1/driver_payroll?id=eq.${payout.metadata.payroll_id}`, {
+            method: 'PATCH', headers: sbHeaders,
+            body: JSON.stringify({ payment_status: 'paid' }),
+          }).catch(() => {})
+        }
+        break
+      }
+
+      // ── CONNECT: payout failed ──
+      case 'payout.failed': {
+        const payout = event.data.object
+        console.log(`[stripe-webhook] payout.failed — ${payout.id}`)
+        if (payout.metadata?.payroll_id) {
+          await fetch(`${supabaseUrl}/rest/v1/driver_payroll?id=eq.${payout.metadata.payroll_id}`, {
+            method: 'PATCH', headers: sbHeaders,
+            body: JSON.stringify({
+              payment_status: 'failed',
+              payment_error: payout.failure_message || 'Payout failed',
+            }),
+          }).catch(() => {})
+        }
+        break
+      }
+
+      // ── CONNECT: transfer completed ──
+      case 'transfer.paid': {
+        const transfer = event.data.object
+        console.log(`[stripe-webhook] transfer.paid — ${transfer.id}`)
+        if (transfer.metadata?.payroll_id) {
+          await fetch(`${supabaseUrl}/rest/v1/driver_payroll?id=eq.${transfer.metadata.payroll_id}`, {
+            method: 'PATCH', headers: sbHeaders,
+            body: JSON.stringify({ payment_status: 'paid' }),
+          }).catch(() => {})
+        }
+        break
+      }
+
       case 'customer.subscription.trial_will_end': {
         const subscription = event.data.object
         const customerId = subscription.customer

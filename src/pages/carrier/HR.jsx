@@ -1018,6 +1018,14 @@ export function PayrollTracker() {
   const [bankInfo, setBankInfo] = useState({})
   // Recurring deductions config (Supabase-backed)
   const [recurringDeductions, setRecurringDeductions] = useState({})
+  // Stripe Connect state
+  const [connectStatus, setConnectStatus] = useState(null) // null | { connected, payouts_enabled, ... }
+  const [connectLoading, setConnectLoading] = useState(false)
+  const [payingDriverId, setPayingDriverId] = useState(null)
+
+  useEffect(() => {
+    apiFetch('/api/stripe-connect').then(data => setConnectStatus(data)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -1205,6 +1213,36 @@ export function PayrollTracker() {
     showToast('','Payroll Approved',`${runPayrollData.length} driver settlements created`)
   }
 
+  const connectBank = async () => {
+    setConnectLoading(true)
+    try {
+      const data = await apiFetch('/api/stripe-connect', { method: 'POST', body: JSON.stringify({ action: 'create-account' }) })
+      if (data.url) window.location.href = data.url
+    } catch (err) {
+      showToast('', 'Error', err.message || 'Failed to start bank connection')
+    }
+    setConnectLoading(false)
+  }
+
+  const payDriver = async (payrollId, speed = 'standard') => {
+    setPayingDriverId(payrollId)
+    try {
+      const data = await apiFetch('/api/pay-driver', {
+        method: 'POST',
+        body: JSON.stringify({ payrollId, paymentSpeed: speed }),
+      })
+      if (data.ok) {
+        showToast('', 'Payment Sent', `$${data.amount.toLocaleString()} → ${data.driver} (${data.estimated_arrival})`)
+        setPayroll(prev => prev.map(p => p.id === payrollId ? { ...p, status: 'paid', payment_status: 'in_transit', payment_method: speed === 'instant' ? 'ach_instant' : 'ach_standard' } : p))
+      } else {
+        showToast('', 'Payment Failed', data.error || 'Unknown error')
+      }
+    } catch (err) {
+      showToast('', 'Payment Failed', err.message || 'Could not process payment')
+    }
+    setPayingDriverId(null)
+  }
+
   const saveBankInfo = (driverId, info) => {
     const updated = { ...bankInfo, [driverId]: info }
     setBankInfo(updated)
@@ -1252,6 +1290,28 @@ export function PayrollTracker() {
           </button>
         </div>
       </div>
+
+      {/* Stripe Connect Banner */}
+      {connectStatus && !connectStatus.onboarding_complete && (
+        <div style={{ background: 'rgba(77,142,240,0.08)', border: '1px solid rgba(77,142,240,0.25)', borderRadius: 12, padding: '14px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <CreditCard size={24} color="var(--accent3)" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Connect Your Bank for One-Click Driver Payments</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Link your business bank account to pay drivers instantly via ACH. Free standard transfers, 1.5% for instant.</div>
+          </div>
+          <button onClick={connectBank} disabled={connectLoading}
+            style={{ padding: '10px 20px', fontSize: 13, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--accent3)', color: '#fff', opacity: connectLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+            {connectLoading ? 'Loading...' : 'Connect Bank →'}
+          </button>
+        </div>
+      )}
+      {connectStatus?.onboarding_complete && (
+        <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12, padding: '10px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+          <CheckCircle size={16} color="var(--success)" />
+          <span style={{ fontWeight: 600, color: 'var(--success)' }}>Bank Connected</span>
+          <span style={{ color: 'var(--muted)' }}>— One-click driver payments enabled via Stripe</span>
+        </div>
+      )}
 
       {/* Company-wide summary strip */}
       <div style={{ ...ps.panel, padding:'16px 20px', display:'flex', gap:32, flexWrap:'wrap', marginBottom:16 }}>
@@ -1398,7 +1458,16 @@ export function PayrollTracker() {
               </div>
               <div style={{ fontSize:18, fontWeight:700, marginBottom:4 }}>Payroll Approved</div>
               <div style={{ fontSize:13, color:'var(--muted)', marginBottom:20 }}>{runPayrollData.length} settlements created for {getDateRange().start.toLocaleDateString()} — {getDateRange().end.toLocaleDateString()}</div>
-              <div style={{ display:'flex', gap:10, justifyContent:'center' }}>
+              <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
+                {connectStatus?.onboarding_complete && (
+                  <button onClick={async () => {
+                    const approved = payroll.filter(p => p.status === 'approved')
+                    if (!approved.length) { showToast('','No Settlements','No approved settlements to pay'); return }
+                    for (const p of approved) { await payDriver(p.id, 'standard') }
+                  }} style={{ padding:'8px 20px', fontSize:12, fontWeight:700, background:'var(--success)', color:'#fff', border:'none', borderRadius:8, cursor:'pointer' }}>
+                    <Ic icon={DollarSign} size={13} /> Pay All Drivers (ACH)
+                  </button>
+                )}
                 <button onClick={() => { setRunStep('select'); setActiveTab('overview') }} className="btn btn-ghost" style={{ fontSize:12 }}>Back to Overview</button>
                 <button onClick={() => { setRunStep('select'); setRunPeriod('this-week') }} style={{ padding:'8px 20px', fontSize:12, fontWeight:600, background:'var(--accent)', color:'#000', border:'none', borderRadius:8, cursor:'pointer' }}>Run Another</button>
               </div>
@@ -1589,12 +1658,32 @@ export function PayrollTracker() {
                                   <span style={{ fontSize:10, fontWeight:700, padding:'3px 10px', borderRadius:20, background: sc.bg, color: sc.text, textTransform:'capitalize' }}>{p.status || 'pending'}</span>
                                 </td>
                                 <td style={{ padding:'12px 14px' }}>
-                                  {p.status === 'approved' && (
+                                  {p.status === 'approved' && connectStatus?.onboarding_complete && (
+                                    <div style={{ display:'flex', gap:4 }}>
+                                      <button onClick={() => payDriver(p.id, 'standard')} disabled={payingDriverId === p.id}
+                                        style={{ fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, background:'rgba(34,197,94,0.15)', color:'var(--success)', border:'none', cursor:'pointer' }}>
+                                        {payingDriverId === p.id ? '...' : 'Pay ACH'}
+                                      </button>
+                                      <button onClick={() => payDriver(p.id, 'instant')} disabled={payingDriverId === p.id}
+                                        style={{ fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, background:'rgba(240,165,0,0.15)', color:'var(--accent)', border:'none', cursor:'pointer' }}
+                                        title={`Instant: $${(Number(p.net_pay||0)*0.015).toFixed(2)} fee`}>
+                                        {payingDriverId === p.id ? '...' : '⚡ Instant'}
+                                      </button>
+                                    </div>
+                                  )}
+                                  {p.status === 'approved' && !connectStatus?.onboarding_complete && (
                                     <button onClick={async () => {
                                       await db.updatePayroll(p.id, { status: 'paid' })
                                       setPayroll(prev => prev.map(pp => pp.id === p.id ? { ...pp, status: 'paid' } : pp))
-                                      showToast('','Marked Paid',`Settlement marked as paid`)
+                                      showToast('','Marked Paid','Settlement marked as paid (manual)')
                                     }} style={{ fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, background:'rgba(34,197,94,0.1)', color:'var(--success)', border:'none', cursor:'pointer' }}>Mark Paid</button>
+                                  )}
+                                  {p.payment_status === 'in_transit' && <span style={{ fontSize:10, color:'var(--accent3)', fontWeight:600 }}>⏳ In Transit</span>}
+                                  {p.payment_status === 'paid' && <span style={{ fontSize:10, color:'var(--success)', fontWeight:600 }}>✓ Deposited</span>}
+                                  {p.payment_status === 'failed' && (
+                                    <button onClick={() => payDriver(p.id, 'standard')} style={{ fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:6, background:'rgba(239,68,68,0.15)', color:'var(--danger)', border:'none', cursor:'pointer' }}>
+                                      Retry
+                                    </button>
                                   )}
                                 </td>
                               </tr>

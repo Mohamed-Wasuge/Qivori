@@ -982,7 +982,11 @@ export function LoadDetailDrawer({ loadId, onClose }) {
             const invData = await invRes.json()
             if (invData.success) {
               updateLoadStatus(load.loadId || load.id, 'Invoiced')
-              showToast('', 'Invoice Auto-Created', `${invData.invoiceNumber} — $${(load.rate || load.gross || 0).toLocaleString()} ${invData.emailSent ? '— emailed to broker' : '— no broker email on file'}`)
+              const parts = [invData.invoiceNumber, `$${(load.rate || load.gross || 0).toLocaleString()}`]
+              if (invData.emailSent) parts.push('emailed to broker')
+              if (invData.factoringEmailed) parts.push(`factoring packet sent (${invData.docsAttached || 0} docs attached)`)
+              if (!invData.emailSent && !invData.factoringEmailed) parts.push('no broker/factoring email on file')
+              showToast('', 'Invoice Auto-Created', parts.join(' — '))
             }
           } catch {
             // Invoice API unavailable — user can still create manually

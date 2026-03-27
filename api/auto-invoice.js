@@ -213,22 +213,47 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
     }
   } catch { /* use defaults */ }
 
-  // ── 4. Send invoice email to broker + factoring company ──
+  // ── 4. Fetch all documents attached to this load (rate con, BOL, POD, etc.) ──
+  let loadDocs = []
+  try {
+    const docsRes = await fetch(
+      `${supabaseUrl}/rest/v1/documents?load_id=eq.${load.id}&select=id,name,file_url,doc_type,file_path&order=uploaded_at.asc`,
+      { headers }
+    )
+    if (docsRes.ok) loadDocs = await docsRes.json()
+  } catch { /* no docs — still send invoice */ }
+
+  // Download documents as base64 attachments for the email
+  const attachments = []
+  for (const doc of loadDocs.slice(0, 10)) { // max 10 attachments
+    if (!doc.file_url) continue
+    try {
+      const fileRes = await fetch(doc.file_url)
+      if (!fileRes.ok) continue
+      const buffer = await fileRes.arrayBuffer()
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      const ext = (doc.file_url.split('.').pop() || 'pdf').split('?')[0].toLowerCase()
+      const docLabel = (doc.doc_type || doc.name || 'document').replace(/_/g, ' ')
+      attachments.push({
+        filename: `${invoiceNumber}_${docLabel}.${ext}`,
+        content: base64,
+      })
+    } catch { /* skip failed downloads */ }
+  }
+
+  // ── 5. Send invoice email to broker ──
   let emailSent = false
   const factoringEmail = companyInfo.factoring_email || ''
-  const recipients = []
-  if (brokerEmail) recipients.push(brokerEmail)
-  if (factoringEmail && factoringEmail !== brokerEmail) recipients.push(factoringEmail)
 
-  if (resendKey && recipients.length > 0) {
+  const invoiceHtml = buildInvoiceEmailHtml({
+    invoiceNumber, invoiceDate: now, dueDate,
+    carrier: companyInfo, broker, brokerEmail,
+    origin, dest, miles, refNumber, driverName,
+    rate, route, lineItems: items, totalAmount,
+  })
+
+  if (resendKey && brokerEmail) {
     try {
-      const invoiceHtml = buildInvoiceEmailHtml({
-        invoiceNumber, invoiceDate: now, dueDate,
-        carrier: companyInfo, broker, brokerEmail,
-        origin, dest, miles, refNumber, driverName,
-        rate, route, lineItems: items, totalAmount,
-      })
-
       const emailRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -238,17 +263,50 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
         body: JSON.stringify({
           from: 'Qivori AI <hello@qivori.com>',
           reply_to: companyInfo.email || 'hello@qivori.com',
-          to: recipients,
+          to: [brokerEmail],
           subject: `Invoice ${invoiceNumber} — ${route} — $${(totalAmount || rate).toLocaleString()}`,
           html: invoiceHtml,
         }),
       })
-
       emailSent = emailRes.ok
     } catch { emailSent = false }
   }
 
-  return { invoiceId, invoiceNumber, emailSent, factoringEmailed: emailSent && !!factoringEmail }
+  // ── 6. Send factoring packet — invoice + all docs attached ──
+  let factoringEmailed = false
+  if (resendKey && factoringEmail) {
+    try {
+      const factoringSubject = `Factoring Packet — ${invoiceNumber} — ${broker} — ${route} — $${(totalAmount || rate).toLocaleString()}`
+      const factoringHtml = buildFactoringPacketHtml({
+        invoiceNumber, invoiceDate: now, dueDate,
+        carrier: companyInfo, broker, brokerEmail,
+        origin, dest, miles, refNumber, driverName,
+        rate, route, lineItems: items, totalAmount,
+        docCount: loadDocs.length,
+      })
+
+      const factoringPayload = {
+        from: 'Qivori AI <hello@qivori.com>',
+        reply_to: companyInfo.email || 'hello@qivori.com',
+        to: [factoringEmail],
+        subject: factoringSubject,
+        html: factoringHtml,
+      }
+      if (attachments.length > 0) factoringPayload.attachments = attachments
+
+      const factRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${resendKey}`,
+        },
+        body: JSON.stringify(factoringPayload),
+      })
+      factoringEmailed = factRes.ok
+    } catch { factoringEmailed = false }
+  }
+
+  return { invoiceId, invoiceNumber, emailSent, factoringEmailed, docsAttached: attachments.length }
 }
 
 /**
@@ -382,6 +440,125 @@ function buildInvoiceEmailHtml({ invoiceNumber, invoiceDate, dueDate, carrier, b
     </div>
   </div>
 
+</div>
+</body></html>`
+}
+
+function buildFactoringPacketHtml({ invoiceNumber, invoiceDate, dueDate, carrier, broker, brokerEmail, origin, dest, miles, refNumber, driverName, rate, route, lineItems, totalAmount, docCount }) {
+  const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const carrierName = carrier.name || 'Carrier'
+  const carrierMC = carrier.mc_number || carrier.mc || ''
+  const carrierDOT = carrier.dot_number || carrier.dot || ''
+  const carrierPhone = carrier.phone || ''
+  const carrierEmail = carrier.email || ''
+  const carrierAddr = carrier.address || ''
+  const accessorialTotal = (lineItems || []).reduce((s, li) => s + (parseFloat(li.amount) || 0), 0)
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f4f4f7;font-family:Arial,sans-serif">
+<div style="max-width:640px;margin:0 auto;padding:24px">
+
+  <!-- Header -->
+  <div style="background:#0a0a0e;border-radius:12px 12px 0 0;padding:24px 32px;text-align:center">
+    <div style="font-size:24px;font-weight:bold;color:#f0a500;letter-spacing:1px">FACTORING PACKET</div>
+    <div style="font-size:12px;color:#888;margin-top:4px">Submitted via Qivori AI</div>
+  </div>
+
+  <div style="background:#fff;border:1px solid #e2e2e8;border-top:none;border-radius:0 0 12px 12px;padding:32px">
+
+    <!-- Invoice Summary -->
+    <div style="background:#f8f9fa;border:1px solid #e2e2e8;border-radius:8px;padding:20px;margin-bottom:24px">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Invoice #</td>
+          <td style="padding:4px 0;font-size:14px;font-weight:bold;text-align:right">${invoiceNumber}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Invoice Date</td>
+          <td style="padding:4px 0;font-size:13px;text-align:right">${fmtDate(invoiceDate)}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Due Date</td>
+          <td style="padding:4px 0;font-size:13px;text-align:right">${fmtDate(dueDate)}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Total Amount</td>
+          <td style="padding:4px 0;font-size:20px;font-weight:bold;color:#0a0a0e;text-align:right">$${(totalAmount || rate || 0).toLocaleString()}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Carrier Info -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:bold;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Carrier (Seller)</div>
+      <div style="font-size:14px;font-weight:bold;color:#0a0a0e">${carrierName}</div>
+      ${carrierMC ? `<div style="font-size:12px;color:#666">MC# ${carrierMC}</div>` : ''}
+      ${carrierDOT ? `<div style="font-size:12px;color:#666">DOT# ${carrierDOT}</div>` : ''}
+      ${carrierAddr ? `<div style="font-size:12px;color:#666">${carrierAddr}</div>` : ''}
+      ${carrierPhone ? `<div style="font-size:12px;color:#666">${carrierPhone}</div>` : ''}
+      ${carrierEmail ? `<div style="font-size:12px;color:#666">${carrierEmail}</div>` : ''}
+    </div>
+
+    <!-- Broker / Debtor Info -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:bold;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Broker / Debtor</div>
+      <div style="font-size:14px;font-weight:bold;color:#0a0a0e">${broker}</div>
+      ${brokerEmail ? `<div style="font-size:12px;color:#666">${brokerEmail}</div>` : ''}
+    </div>
+
+    <!-- Load Details -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:bold;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Load Details</div>
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666;width:120px">Route</td>
+          <td style="padding:4px 0;font-size:13px;font-weight:600">${origin} → ${dest}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Miles</td>
+          <td style="padding:4px 0;font-size:13px">${miles ? miles.toLocaleString() : 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Reference #</td>
+          <td style="padding:4px 0;font-size:13px">${refNumber || 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Driver</td>
+          <td style="padding:4px 0;font-size:13px">${driverName || 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">Line Haul</td>
+          <td style="padding:4px 0;font-size:13px;font-weight:600">$${(rate || 0).toLocaleString()}</td>
+        </tr>
+        ${(lineItems || []).map(li => `<tr>
+          <td style="padding:4px 0;font-size:12px;color:#666">${li.description || 'Accessorial'}</td>
+          <td style="padding:4px 0;font-size:13px">$${(parseFloat(li.amount) || 0).toLocaleString()}</td>
+        </tr>`).join('')}
+        ${accessorialTotal > 0 ? `<tr style="border-top:1px solid #e2e2e8">
+          <td style="padding:8px 0 4px;font-size:12px;font-weight:bold">Total</td>
+          <td style="padding:8px 0 4px;font-size:15px;font-weight:bold">$${(totalAmount || 0).toLocaleString()}</td>
+        </tr>` : ''}
+      </table>
+    </div>
+
+    <!-- Attached Documents -->
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px">
+      <div style="font-size:12px;font-weight:bold;color:#166534;margin-bottom:4px">📎 ${docCount || 0} Supporting Document${docCount !== 1 ? 's' : ''} Attached</div>
+      <div style="font-size:11px;color:#15803d">Rate Confirmation, BOL, POD, and any receipts for this load are attached to this email.</div>
+    </div>
+
+    <!-- Notice of Assignment -->
+    <div style="border:2px solid #0a0a0e;border-radius:8px;padding:16px;margin-bottom:20px">
+      <div style="font-size:12px;font-weight:bold;color:#0a0a0e;margin-bottom:8px">NOTICE OF ASSIGNMENT</div>
+      <div style="font-size:11px;color:#444;line-height:1.6">
+        This invoice has been assigned to our factoring company. Please remit payment directly to the factoring company per the terms of our agreement. Do not pay the carrier directly for this invoice.
+      </div>
+    </div>
+
+    <div style="text-align:center;padding-top:16px;border-top:1px solid #e2e2e8">
+      <div style="font-size:10px;color:#999">Generated by Qivori AI — ${fmtDate(invoiceDate)}</div>
+    </div>
+  </div>
 </div>
 </body></html>`
 }

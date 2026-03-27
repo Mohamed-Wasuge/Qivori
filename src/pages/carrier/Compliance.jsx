@@ -1566,9 +1566,9 @@ export function AuditToday() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
-          <div style={{ background: stats.critCount > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)', border: `1px solid ${stats.critCount > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)'}`, borderRadius: 10, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: stats.critCount > 0 ? '#ef4444' : '#22c55e' }} />
-            <span style={{ color: stats.critCount > 0 ? '#fca5a5' : '#86efac' }}>{stats.critCount > 0 ? `${stats.critCount} Critical` : 'All Clear'}</span>
+          <div style={{ background: stats.critCount > 0 ? 'rgba(239,68,68,0.12)' : stats.warnCount > 0 ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.12)', border: `1px solid ${stats.critCount > 0 ? 'rgba(239,68,68,0.3)' : stats.warnCount > 0 ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.3)'}`, borderRadius: 10, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: stats.critCount > 0 ? '#ef4444' : stats.warnCount > 0 ? '#f59e0b' : '#22c55e' }} />
+            <span style={{ color: stats.critCount > 0 ? '#fca5a5' : stats.warnCount > 0 ? '#fcd34d' : '#86efac' }}>{stats.critCount > 0 ? `${stats.critCount} Critical` : stats.warnCount > 0 ? 'No Failures' : 'All Clear'}</span>
           </div>
           {stats.warnCount > 0 && (
             <div style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
@@ -1581,25 +1581,35 @@ export function AuditToday() {
 
       {/* Readiness Banner */}
       <div style={{
-        background: stats.critCount === 0
-          ? 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(34,197,94,0.02) 100%)'
-          : 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)',
-        border: `1px solid ${stats.critCount === 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+        background: stats.critCount > 0
+          ? 'linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.02) 100%)'
+          : stats.warnCount > 0
+          ? 'linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(245,158,11,0.02) 100%)'
+          : 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(34,197,94,0.02) 100%)',
+        border: `1px solid ${stats.critCount > 0 ? 'rgba(239,68,68,0.2)' : stats.warnCount > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(34,197,94,0.2)'}`,
         borderRadius: 14, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14,
       }}>
-        {stats.critCount === 0 ? (
-          <CheckCircle size={28} color="#22c55e" />
-        ) : (
+        {stats.critCount > 0 ? (
           <AlertTriangle size={28} color="#ef4444" />
+        ) : stats.warnCount > 0 ? (
+          <AlertTriangle size={28} color="#f59e0b" />
+        ) : (
+          <CheckCircle size={28} color="#22c55e" />
         )}
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans',sans-serif" }}>
-            {stats.critCount === 0 ? 'Audit Ready' : `${stats.critCount} Compliance Failure${stats.critCount !== 1 ? 's' : ''} — Not Audit Ready`}
+            {stats.critCount > 0
+              ? `${stats.critCount} Compliance Failure${stats.critCount !== 1 ? 's' : ''} — Not Audit Ready`
+              : stats.warnCount > 0
+              ? `Audit Ready — ${stats.warnCount} Warning${stats.warnCount !== 1 ? 's' : ''} to Review`
+              : 'Audit Ready — All Clear'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-            {stats.critCount === 0
-              ? 'All drivers and vehicles pass DOT/FMCSA compliance checks. You are clear for any roadside inspection or audit.'
-              : `${stats.driverFails} driver issue${stats.driverFails !== 1 ? 's' : ''}, ${stats.vehicleFails} vehicle issue${stats.vehicleFails !== 1 ? 's' : ''} must be resolved before operating. These will flag in a DOT audit or roadside inspection.`}
+            {stats.critCount > 0
+              ? `${stats.driverFails} driver issue${stats.driverFails !== 1 ? 's' : ''}, ${stats.vehicleFails} vehicle issue${stats.vehicleFails !== 1 ? 's' : ''} must be resolved before operating. These will flag in a DOT audit or roadside inspection.`
+              : stats.warnCount > 0
+              ? `No critical failures — you would pass a DOT audit. However, ${stats.warnCount} item${stats.warnCount !== 1 ? 's' : ''} need${stats.warnCount === 1 ? 's' : ''} attention to stay fully compliant.`
+              : 'All drivers and vehicles pass DOT/FMCSA compliance checks. You are clear for any roadside inspection or audit.'}
           </div>
         </div>
       </div>

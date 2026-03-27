@@ -961,13 +961,34 @@ export function LoadDetailDrawer({ loadId, onClose }) {
         })
         if (doc) setLoadDocs(prev => [doc, ...prev])
         showToast('success', 'Uploaded', `${docType} attached to ${load?.loadId || 'load'}`)
+
+        // POD uploaded on a Delivered load → auto-create & send invoice
+        const isPOD = docType.toLowerCase() === 'pod' || docType.toLowerCase() === 'proof of delivery'
+        const isDelivered = load?.status === 'Delivered'
+        const notYetInvoiced = load?.status !== 'Invoiced' && load?.status !== 'Paid'
+        if (isPOD && isDelivered && notYetInvoiced) {
+          try {
+            const invRes = await apiFetch('/api/auto-invoice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ loadId: load._dbId || load.id }),
+            })
+            const invData = await invRes.json()
+            if (invData.success) {
+              updateLoadStatus(load.loadId || load.id, 'Invoiced')
+              showToast('', 'Invoice Auto-Created', `${invData.invoiceNumber} — $${(load.rate || load.gross || 0).toLocaleString()} ${invData.emailSent ? '— emailed to broker' : ''}`)
+            }
+          } catch {
+            // Invoice API unavailable — user can still create manually
+          }
+        }
       } catch (err) {
         showToast('error', 'Upload Failed', err.message || 'Could not upload file')
       }
       setUploading(false)
     }
     input.click()
-  }, [load, showToast])
+  }, [load, showToast, updateLoadStatus])
 
   const handleDocDelete = useCallback(async (docId) => {
     if (!window.confirm('Delete this document?')) return

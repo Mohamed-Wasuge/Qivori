@@ -206,11 +206,14 @@ export function generateInvoicePDF(invoice) {
 }
 
 // ── Settlement PDF ─────────────────────────────────────────────────────────────
-export function generateSettlementPDF(driver, loads, period = 'Mar 1–15, 2026') {
+export function generateSettlementPDF(driver, loads, period = 'Mar 1–15, 2026', options = {}) {
+  const { payModel, payRate, deductions = [], totalDeductions = 0, netPay, driverPay } = options
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const gold = [240, 165, 0]
   const dark = [7, 9, 14]
   const gray = [120, 130, 150]
+  const green = [34, 197, 94]
+  const red = [239, 68, 68]
   const W = 612, PAD = 50
 
   doc.setFillColor(...dark)
@@ -218,82 +221,180 @@ export function generateSettlementPDF(driver, loads, period = 'Mar 1–15, 2026'
   doc.setFillColor(...gold)
   doc.rect(0, 0, W, 5, 'F')
 
-  // Header
+  // Header — company name or Qivori
+  const companyName = _cachedCompany?.name || _cachedCompany?.company_name || ''
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
-  doc.setTextColor(...gold)
-  doc.text('QI', PAD, 55)
-  const lw = doc.getTextWidth('QI')
-  doc.setTextColor(255, 255, 255)
-  doc.text('VORI', PAD + lw, 55)
+  if (companyName) {
+    doc.setFontSize(20)
+    doc.setTextColor(255, 255, 255)
+    doc.text(companyName, PAD, 55)
+    if (_cachedCompany?.mc || _cachedCompany?.dot) {
+      doc.setFontSize(8)
+      doc.setTextColor(...gray)
+      doc.text([_cachedCompany.mc ? `MC# ${_cachedCompany.mc}` : '', _cachedCompany.dot ? `DOT# ${_cachedCompany.dot}` : ''].filter(Boolean).join(' · '), PAD, 68)
+    }
+  } else {
+    doc.setFontSize(20)
+    doc.setTextColor(...gold)
+    doc.text('QI', PAD, 55)
+    const lw = doc.getTextWidth('QI')
+    doc.setTextColor(255, 255, 255)
+    doc.text('VORI', PAD + lw, 55)
+  }
   doc.setFontSize(22)
   doc.setTextColor(...gold)
-  doc.text('DRIVER SETTLEMENT', W - PAD, 55, { align: 'right' })
+  doc.text('SETTLEMENT', W - PAD, 55, { align: 'right' })
 
   doc.setDrawColor(...gold)
   doc.setLineWidth(0.5)
-  doc.line(PAD, 70, W - PAD, 70)
+  doc.line(PAD, 75, W - PAD, 75)
 
-  // Driver info
+  // Driver info + pay model
   doc.setFontSize(8)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(...gray)
-  doc.text('DRIVER', PAD, 90)
-  doc.setFontSize(13)
+  doc.text('DRIVER', PAD, 95)
+  doc.setFontSize(14)
   doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.text(driver, PAD, 106)
+  doc.text(driver, PAD, 112)
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...gray)
-  doc.text(`Settlement Period: ${period}`, PAD, 120)
+  doc.text(`Period: ${period}`, PAD, 126)
+  if (payModel) {
+    const payLabel = payModel === 'percent' ? `${payRate || 28}% of gross` : payModel === 'permile' ? `$${Number(payRate||0).toFixed(2)}/mile` : `$${payRate} per load`
+    doc.text(`Pay Model: ${payLabel}`, PAD, 140)
+  }
+
+  // Summary KPIs (right side)
+  const totalMiles = loads.reduce((s, l) => s + (Number(l.miles) || 0), 0)
+  const totalGross = loads.reduce((s, l) => s + (Number(l.gross) || 0), 0)
+  const meta = [
+    ['Loads', String(loads.length)],
+    ['Total Miles', totalMiles.toLocaleString()],
+    ['Gross Revenue', `$${totalGross.toLocaleString()}`],
+  ]
+  let mY = 95
+  meta.forEach(([label, val]) => {
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...gray)
+    doc.text(label.toUpperCase(), W - PAD - 100, mY)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(10)
+    doc.text(val, W - PAD, mY, { align: 'right' })
+    mY += 16
+  })
 
   // Loads table
-  let tY = 150
+  let tY = 155
   doc.setFillColor(20, 24, 34)
   doc.rect(PAD, tY, W - PAD*2, 26, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(...gray)
   doc.text('LOAD ID', PAD + 10, tY + 17)
-  doc.text('ROUTE', PAD + 80, tY + 17)
-  doc.text('MILES', PAD + 260, tY + 17)
+  doc.text('ROUTE', PAD + 90, tY + 17)
+  doc.text('MILES', PAD + 280, tY + 17)
   doc.text('GROSS', PAD + 340, tY + 17)
   doc.text('DRIVER PAY', W - PAD - 10, tY + 17, { align: 'right' })
 
   tY += 26
   let totalPay = 0
   loads.forEach((load, idx) => {
+    if (tY > 620) return // prevent overflow
     doc.setFillColor(idx % 2 === 0 ? 15 : 18, idx % 2 === 0 ? 18 : 22, idx % 2 === 0 ? 26 : 32)
-    doc.rect(PAD, tY, W - PAD*2, 30, 'F')
+    doc.rect(PAD, tY, W - PAD*2, 28, 'F')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...gold)
-    doc.text(String(load.id || ''), PAD + 10, tY + 19)
+    const loadId = String(load.id || '').replace(/→/g, 'to')
+    doc.text(loadId.slice(0, 12), PAD + 10, tY + 18)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(255, 255, 255)
-    doc.text(String(load.route || ''), PAD + 80, tY + 19)
+    const route = String(load.route || '').replace(/→/g, 'to')
+    doc.text(route.slice(0, 28), PAD + 90, tY + 18)
     doc.setTextColor(...gray)
-    doc.text(String(load.miles || ''), PAD + 260, tY + 19)
-    doc.text(`$${(load.gross || 0).toLocaleString()}`, PAD + 340, tY + 19)
+    doc.text(String(load.miles || 0), PAD + 280, tY + 18)
+    doc.text(`$${(load.gross || 0).toLocaleString()}`, PAD + 340, tY + 18)
     const pay = load.pay || Math.round((load.gross || 0) * 0.28)
     totalPay += pay
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(255, 255, 255)
-    doc.text(`$${pay.toLocaleString()}`, W - PAD - 10, tY + 19, { align: 'right' })
-    tY += 30
+    doc.text(`$${pay.toLocaleString()}`, W - PAD - 10, tY + 18, { align: 'right' })
+    tY += 28
   })
 
-  // Total
-  tY += 10
+  // Deductions section
+  if (deductions.length > 0) {
+    tY += 10
+    doc.setFillColor(20, 24, 34)
+    doc.rect(PAD, tY, W - PAD*2, 22, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...gray)
+    doc.text('DEDUCTIONS', PAD + 10, tY + 15)
+    doc.text('AMOUNT', W - PAD - 10, tY + 15, { align: 'right' })
+    tY += 22
+    deductions.forEach((d, idx) => {
+      doc.setFillColor(idx % 2 === 0 ? 15 : 18, idx % 2 === 0 ? 18 : 22, idx % 2 === 0 ? 26 : 32)
+      doc.rect(PAD, tY, W - PAD*2, 24, 'F')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(255, 255, 255)
+      doc.text(d.label || 'Deduction', PAD + 10, tY + 16)
+      doc.setTextColor(...red)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`-$${Number(d.amount || 0).toFixed(2)}`, W - PAD - 10, tY + 16, { align: 'right' })
+      tY += 24
+    })
+  }
+
+  // Totals section
+  tY += 12
+  const calcDriverPay = driverPay || totalPay
+  const calcNet = netPay != null ? netPay : calcDriverPay - totalDeductions
+
+  // Gross pay line
+  doc.setFillColor(20, 24, 34)
+  doc.rect(PAD, tY, W - PAD*2, 28, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(255, 255, 255)
+  doc.text('Gross Driver Pay', PAD + 10, tY + 18)
+  doc.setTextColor(...gold)
+  doc.text(`$${calcDriverPay.toLocaleString(undefined, {minimumFractionDigits:2})}`, W - PAD - 10, tY + 18, { align: 'right' })
+  tY += 28
+
+  if (totalDeductions > 0) {
+    doc.setFillColor(20, 24, 34)
+    doc.rect(PAD, tY, W - PAD*2, 28, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(255, 255, 255)
+    doc.text('Total Deductions', PAD + 10, tY + 18)
+    doc.setTextColor(...red)
+    doc.text(`-$${totalDeductions.toLocaleString(undefined, {minimumFractionDigits:2})}`, W - PAD - 10, tY + 18, { align: 'right' })
+    tY += 28
+  }
+
+  // Net pay box
+  tY += 4
   doc.setFillColor(...gold)
-  doc.rect(W - PAD - 180, tY, 180, 44, 'F')
+  doc.rect(W - PAD - 200, tY, 200, 48, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(...dark)
-  doc.text('TOTAL DRIVER PAY', W - PAD - 10, tY + 16, { align: 'right' })
-  doc.setFontSize(20)
-  doc.text(`$${totalPay.toLocaleString()}`, W - PAD - 10, tY + 37, { align: 'right' })
+  doc.text('NET PAY', W - PAD - 10, tY + 16, { align: 'right' })
+  doc.setFontSize(22)
+  doc.text(`$${calcNet.toLocaleString(undefined, {minimumFractionDigits:2})}`, W - PAD - 10, tY + 40, { align: 'right' })
+
+  // Payment method label (left of net box)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(...gray)
+  doc.text('Payment via Direct Deposit / ACH', PAD, tY + 30)
 
   // Footer
   doc.setDrawColor(...gold)
@@ -302,9 +403,10 @@ export function generateSettlementPDF(driver, loads, period = 'Mar 1–15, 2026'
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(...gray)
-  doc.text('Qivori AI TMS · Generated settlement sheet', W/2, 756, { align: 'center' })
+  doc.text(companyName ? `${companyName} · Powered by Qivori AI` : 'Qivori AI · qivori.com', W/2, 752, { align: 'center' })
+  doc.text(`Generated ${new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'})}`, W/2, 764, { align: 'center' })
 
-  doc.save(`Settlement-${driver.replace(/\s+/g, '-')}-${period.replace(/[·\s]/g, '-')}.pdf`)
+  doc.save(`Settlement-${driver.replace(/\s+/g, '-')}-${period.replace(/[·\s,]/g, '-')}.pdf`)
 }
 
 // ── IFTA PDF ───────────────────────────────────────────────────────────────────

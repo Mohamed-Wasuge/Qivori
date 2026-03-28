@@ -149,7 +149,7 @@ export default async function handler(req) {
 
   try {
     const body = await req.json();
-    const { loadId, userId, brokerPhone, loadData, batchLoads } = body;
+    const { loadId, userId, brokerPhone, loadData, batchLoads, phone, origin, destination, rate, miles, equipment, brokerName, driverName } = body;
 
     // — Handle batch calls from load-finder (service-to-service) —
     if (batchLoads && Array.isArray(batchLoads) && isAuthorized(req)) {
@@ -220,21 +220,32 @@ export default async function handler(req) {
     }
 
     // — Validate required data —
-    if (!brokerPhone && !loadData?.broker_phone) {
+    const callPhone = brokerPhone || phone || loadData?.broker_phone;
+    if (!callPhone) {
       return Response.json({ ok: false, error: 'Broker phone number required' }, {
         status: 400, headers: { 'Access-Control-Allow-Origin': '*' }
       });
     }
 
-    const phone = brokerPhone || loadData.broker_phone;
-    const origin = new URL(req.url).origin;
-    const callbackUrl = `${origin}/api/call-handler`;
+    const reqOrigin = new URL(req.url).origin;
+    const callbackUrl = `${reqOrigin}/api/call-handler`;
 
     // — Get load details if loadId provided —
     let load = loadData || {};
+    // Merge inline fields from frontend (QDispatchAI sends these directly)
+    if (origin) load.origin = origin;
+    if (destination) load.destination = destination;
+    if (rate) load.rate = rate;
+    if (miles) load.miles = miles;
+    if (equipment) load.equipment_type = equipment;
+    if (brokerName) load.broker_name = brokerName;
+    if (driverName) load.carrier_name = driverName;
     if (loadId && !loadData) {
-      const loads = await supabaseQuery('loads', `id=eq.${loadId}&limit=1`);
-      if (loads?.[0]) load = loads[0];
+      // Try by load_id field first, then UUID
+      let loads = await supabaseQuery('loads', `load_id=eq.${encodeURIComponent(loadId)}&limit=1`);
+      if (!loads?.length) loads = await supabaseQuery('loads', `load_number=eq.${encodeURIComponent(loadId)}&limit=1`);
+      if (!loads?.length) loads = await supabaseQuery('loads', `id=eq.${loadId}&limit=1`);
+      if (loads?.[0]) load = { ...load, ...loads[0] };
     }
 
     // — Get carrier info for the driver —
@@ -249,7 +260,7 @@ export default async function handler(req) {
     }
 
     // — Initiate the Twilio call —
-    const callResult = await initiateCall(phone, callbackUrl, load);
+    const callResult = await initiateCall(callPhone, callbackUrl, load);
 
     // — Log the call —
     const callLog = {

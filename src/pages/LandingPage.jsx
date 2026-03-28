@@ -822,40 +822,32 @@ export default function LandingPage({ onGetStarted }) {
           </FadeIn>
 
           <FadeIn delay={0.1}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-              {[
-                { label: 'TMS Pro', price: '$99', extra: '+ $49/truck', desc: 'Loads, fleet, compliance, invoicing — full TMS platform', color: '#4d8ef0', features: ['Load pipeline', 'Fleet management', 'Invoicing + factoring', 'IFTA tracking', 'Driver management'] },
-                { label: 'AI Dispatch', price: '$199', extra: '+ $79/truck', desc: 'Q scans boards, scores loads, negotiates rates — you approve', color: '#f0a500', popular: true, features: ['Everything in TMS Pro', 'AI load scoring', 'Rate negotiation scripts', 'Lane intelligence', 'Broker risk analysis'] },
-                { label: 'Autonomous Fleet', price: '3%', extra: 'per load', desc: 'Fully hands-free — Q books, dispatches, calls brokers, invoices', color: '#00d4aa', features: ['Everything in AI Dispatch', 'Auto-booking', 'AI broker phone calls', 'Auto-dispatch + check calls', 'Zero manual intervention'] },
-              ].map((p, i) => (
-                <div key={i} style={{
-                  background: p.popular ? 'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))' : 'var(--bg)',
-                  border: p.popular ? '2px solid rgba(240,165,0,0.3)' : '1px solid var(--border)',
-                  borderRadius: 16, padding: '24px 20px', textAlign: 'left', position: 'relative',
-                }}>
-                  {p.popular && <div style={{ position: 'absolute', top: -10, right: 16, fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 6, background: 'var(--accent)', color: '#000', letterSpacing: 1 }}>MOST POPULAR</div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))',
+              border: '2px solid rgba(240,165,0,0.3)', borderRadius: 20, padding: '40px 32px', marginBottom: 24,
+            }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--accent)', marginBottom: 6 }}>3 PLANS</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>Starting at</span>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: 'var(--accent)', lineHeight: 1 }}>$99</span>
+                <span style={{ fontSize: 14, color: 'var(--muted)' }}>/month</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
+                {[
+                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, compliance, invoicing', color: '#4d8ef0' },
+                  { label: 'AI Dispatch', desc: 'Q assists — scans boards, finds loads, you approve', color: '#f0a500' },
+                  { label: 'Autonomous Fleet', desc: 'Fully hands-free — Q books, dispatches, negotiates', color: '#00d4aa' },
+                ].map((p, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color }} />
-                        <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>{p.label}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, marginLeft: 16 }}>{p.desc}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: p.color, lineHeight: 1 }}>{p.price}</span>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.extra}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{p.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.desc}</div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', marginTop: 10, marginLeft: 16 }}>
-                    {p.features.map((f, fi) => (
-                      <div key={fi} style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ color: p.color, fontSize: 10 }}>&#10003;</span> {f}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </FadeIn>
 

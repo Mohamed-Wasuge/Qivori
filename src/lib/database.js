@@ -112,6 +112,11 @@ export async function updateLoadByLoadId(loadId, updates) {
 }
 
 export async function deleteLoad(id) {
+  // Delete child records first (foreign key constraints)
+  await safeMutate('deleteLoadStops', supabase.from('load_stops').delete().eq('load_id', id))
+  await safeMutate('deleteLoadEdiTxns', supabase.from('edi_transactions').delete().eq('load_id', id))
+  await safeMutate('deleteLoadEdiExc', supabase.from('edi_exceptions').delete().eq('load_id', id))
+  // Now delete the load
   const { error } = await safeMutate('deleteLoad',
     supabase.from('loads').delete().eq('id', id)
   )

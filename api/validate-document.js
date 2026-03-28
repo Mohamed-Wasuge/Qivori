@@ -1,0 +1,295 @@
+/**
+ * POST /api/validate-document
+ * AI-powered document validation using Claude Vision.
+ * Validates BOL, rate con, POD, lumper receipts against load data.
+ * Called before factoring submission and on document upload.
+ *
+ * Body: { load_id, doc_type, file_url } OR { load_id, validate_all: true }
+ */
+import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
+
+export const config = { runtime: 'edge' }
+
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
+
+function sbHeaders() {
+  return { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' }
+}
+
+export default async function handler(req) {
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+  if (req.method !== 'POST') return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
+
+  const { user, error: authErr } = await verifyAuth(req)
+  if (authErr) return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+  if (!SUPABASE_URL || !SERVICE_KEY || !ANTHROPIC_KEY) {
+    return Response.json({ error: 'Not configured' }, { status: 500, headers: corsHeaders(req) })
+  }
+
+  try {
+    const { load_id, doc_type, file_url, validate_all } = await req.json()
+    if (!load_id) return Response.json({ error: 'load_id required' }, { status: 400, headers: corsHeaders(req) })
+
+    // Fetch load
+    let load = null
+    for (const field of ['id', 'load_number', 'load_id']) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/loads?owner_id=eq.${user.id}&${field}=eq.${encodeURIComponent(load_id)}&select=*&limit=1`, { headers: sbHeaders() })
+      if (res.ok) { const rows = await res.json(); if (rows.length > 0) { load = rows[0]; break } }
+    }
+    if (!load) return Response.json({ error: 'Load not found' }, { status: 404, headers: corsHeaders(req) })
+
+    // Fetch invoice for this load
+    let invoice = null
+    if (load.id) {
+      const invRes = await fetch(`${SUPABASE_URL}/rest/v1/invoices?owner_id=eq.${user.id}&load_id=eq.${load.id}&select=*&limit=1`, { headers: sbHeaders() })
+      if (invRes.ok) { const invs = await invRes.json(); invoice = invs[0] || null }
+    }
+
+    // ── Validate All Mode: check completeness + validate each doc ──
+    if (validate_all) {
+      const docsRes = await fetch(`${SUPABASE_URL}/rest/v1/documents?load_id=eq.${load.id}&select=*&order=created_at.desc`, { headers: sbHeaders() })
+      const docs = docsRes.ok ? await docsRes.json() : []
+
+      const docTypes = docs.map(d => (d.doc_type || '').toLowerCase())
+      const results = {
+        complete: false,
+        missing: [],
+        validations: [],
+        ready_to_factor: false,
+      }
+
+      // Check required docs
+      const required = ['rate_con', 'bol', 'pod']
+      for (const req of required) {
+        if (!docTypes.some(t => t.includes(req.replace('_', '')))) {
+          results.missing.push(req.replace('_', ' ').toUpperCase())
+        }
+      }
+      results.complete = results.missing.length === 0
+
+      // Validate each document
+      for (const doc of docs) {
+        if (doc.file_url) {
+          const validation = await validateSingleDoc(doc.doc_type, doc.file_url, load, invoice)
+          results.validations.push({ doc_type: doc.doc_type, doc_name: doc.name, ...validation })
+        }
+      }
+
+      const allValid = results.validations.every(v => v.valid)
+      results.ready_to_factor = results.complete && allValid
+
+      return Response.json(results, { headers: corsHeaders(req) })
+    }
+
+    // ── Single Document Validation ──
+    if (!file_url || !doc_type) {
+      return Response.json({ error: 'doc_type and file_url required' }, { status: 400, headers: corsHeaders(req) })
+    }
+
+    const validation = await validateSingleDoc(doc_type, file_url, load, invoice)
+    return Response.json(validation, { headers: corsHeaders(req) })
+
+  } catch (err) {
+    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders(req) })
+  }
+}
+
+// ── Claude Vision Document Validation ────────────────────────────────────────
+
+async function validateSingleDoc(docType, fileUrl, load, invoice) {
+  const type = (docType || '').toLowerCase().replace(/[_\s-]/g, '')
+
+  const loadContext = `
+LOAD DATA:
+- Load Number: ${load.load_number || load.load_id || ''}
+- Origin: ${load.origin || ''}
+- Destination: ${load.destination || ''}
+- Broker: ${load.broker_name || ''}
+- Rate: $${load.rate || 0}
+- Weight: ${load.weight || 'unknown'} lbs
+- Equipment: ${load.equipment || 'Dry Van'}
+- Pickup Date: ${load.pickup_date || ''}
+- Delivery Date: ${load.delivery_date || ''}
+- Reference #: ${load.reference_number || ''}
+- PO #: ${load.po_number || ''}
+- Driver: ${load.driver_name || load.carrier_name || ''}
+- Shipper: ${load.shipper_name || ''}
+${invoice ? `- Invoice #: ${invoice.invoice_number || ''}
+- Invoice Amount: $${invoice.amount || 0}` : ''}`
+
+  let prompt = ''
+
+  switch (type) {
+    case 'ratecon':
+    case 'rateconfirmation':
+    case 'rate_con':
+      prompt = `You are a trucking document validator. Analyze this RATE CONFIRMATION document and compare it to the load data.
+
+${loadContext}
+
+CHECK THESE:
+1. Does the origin on the rate con match "${load.origin}"?
+2. Does the destination match "${load.destination}"?
+3. Does the rate/amount match $${load.rate}?
+4. Does the broker name match "${load.broker_name}"?
+5. Is there a reference/load number visible?
+6. Is the document a legitimate rate confirmation (not a different doc type)?
+
+Respond in JSON ONLY:
+{"valid": true/false, "confidence": 0-100, "issues": ["issue1", "issue2"], "extracted": {"origin": "...", "destination": "...", "rate": 0, "broker": "...", "reference": "..."}, "summary": "one line summary"}`
+      break
+
+    case 'bol':
+    case 'billoflading':
+    case 'bill_of_lading':
+      prompt = `You are a trucking document validator. Analyze this BILL OF LADING (BOL) and compare it to the load data.
+
+${loadContext}
+
+CHECK THESE:
+1. Does the shipper/origin match "${load.origin}" or "${load.shipper_name}"?
+2. Does the consignee/destination match "${load.destination}"?
+3. Is the weight consistent with ${load.weight || 'the load'}?
+4. Is there a BOL number or reference number?
+5. Is this actually a BOL (not a rate con or POD)?
+
+Respond in JSON ONLY:
+{"valid": true/false, "confidence": 0-100, "issues": ["issue1"], "extracted": {"shipper": "...", "consignee": "...", "weight": "...", "bol_number": "..."}, "summary": "one line summary"}`
+      break
+
+    case 'pod':
+    case 'proofofdelivery':
+    case 'proof_of_delivery':
+    case 'signedbol':
+    case 'signed_bol':
+      prompt = `You are a trucking document validator. Analyze this PROOF OF DELIVERY (POD) or SIGNED BOL.
+
+${loadContext}
+
+CHECK THESE:
+1. Is there a SIGNATURE present on this document? (This is critical)
+2. Is there a delivery date/time visible?
+3. Does the receiver/destination match "${load.destination}"?
+4. Is this document signed by someone at the delivery location?
+5. Is this actually a POD/signed BOL (not an unsigned BOL)?
+
+Respond in JSON ONLY:
+{"valid": true/false, "confidence": 0-100, "has_signature": true/false, "issues": ["issue1"], "extracted": {"signed_by": "...", "delivery_date": "...", "receiver": "..."}, "summary": "one line summary"}`
+      break
+
+    case 'lumper':
+    case 'lumperreceipt':
+    case 'lumper_receipt':
+      prompt = `You are a trucking document validator. Analyze this LUMPER RECEIPT.
+
+${loadContext}
+
+CHECK THESE:
+1. Is this a legitimate lumper receipt (warehouse unloading charge)?
+2. Does the location/facility match the delivery: "${load.destination}"?
+3. Is there an amount visible?
+4. Is there a date that's consistent with the delivery date: ${load.delivery_date || 'unknown'}?
+
+Respond in JSON ONLY:
+{"valid": true/false, "confidence": 0-100, "issues": ["issue1"], "extracted": {"amount": 0, "facility": "...", "date": "..."}, "summary": "one line summary"}`
+      break
+
+    case 'detention':
+    case 'detentionreceipt':
+      prompt = `You are a trucking document validator. Analyze this DETENTION RECEIPT or time log.
+
+${loadContext}
+
+CHECK THESE:
+1. Does the location match either "${load.origin}" (shipper) or "${load.destination}" (receiver)?
+2. Are the times/hours documented?
+3. Is there a rate per hour or total charge visible?
+
+Respond in JSON ONLY:
+{"valid": true/false, "confidence": 0-100, "issues": ["issue1"], "extracted": {"hours": 0, "charge": 0, "location": "..."}, "summary": "one line summary"}`
+      break
+
+    default:
+      prompt = `You are a trucking document validator. Identify what type of document this is and whether it appears legitimate.
+
+${loadContext}
+
+What type of trucking document is this? (rate con, BOL, POD, lumper receipt, scale ticket, fuel receipt, or other?)
+Does it appear to be related to this load?
+
+Respond in JSON ONLY:
+{"valid": true/false, "confidence": 0-100, "detected_type": "...", "issues": ["issue1"], "summary": "one line summary"}`
+  }
+
+  try {
+    // Determine if file is image or PDF
+    const isImage = /\.(jpg|jpeg|png|gif|webp|heic)/i.test(fileUrl)
+    const isPdf = /\.pdf/i.test(fileUrl)
+
+    let content = []
+    if (isImage) {
+      content = [
+        { type: 'image', source: { type: 'url', url: fileUrl } },
+        { type: 'text', text: prompt },
+      ]
+    } else if (isPdf) {
+      content = [
+        { type: 'document', source: { type: 'url', url: fileUrl } },
+        { type: 'text', text: prompt },
+      ]
+    } else {
+      // Try as image anyway
+      content = [
+        { type: 'image', source: { type: 'url', url: fileUrl } },
+        { type: 'text', text: prompt },
+      ]
+    }
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content }],
+      }),
+    })
+
+    if (!res.ok) {
+      // Fallback: assume valid but low confidence
+      return { valid: true, confidence: 30, issues: ['Could not analyze document — AI unavailable'], summary: 'Document uploaded but not validated' }
+    }
+
+    const data = await res.json()
+    const text = data.content?.[0]?.text || ''
+
+    // Parse JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        const result = JSON.parse(jsonMatch[0])
+        return {
+          valid: result.valid ?? true,
+          confidence: result.confidence ?? 50,
+          has_signature: result.has_signature ?? null,
+          detected_type: result.detected_type ?? null,
+          issues: result.issues || [],
+          extracted: result.extracted || {},
+          summary: result.summary || 'Document analyzed',
+        }
+      } catch {}
+    }
+
+    return { valid: true, confidence: 40, issues: ['Could not parse AI response'], summary: text.slice(0, 200) }
+
+  } catch (err) {
+    return { valid: true, confidence: 20, issues: [`Validation error: ${err.message}`], summary: 'Document uploaded but validation failed' }
+  }
+}

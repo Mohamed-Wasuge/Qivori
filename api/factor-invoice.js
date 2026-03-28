@@ -92,12 +92,23 @@ export default async function handler(req) {
 
     // Fetch documents for this load (BOL, rate con, POD, lumper receipts, detention)
     let documents = []
+    let docValidation = null
     if (invoice.load_id) {
       const docsRes = await fetch(
         `${supabaseUrl}/rest/v1/documents?load_id=eq.${invoice.load_id}&select=name,file_url,doc_type&order=created_at.desc`,
         { headers: dbHeaders }
       )
       if (docsRes.ok) documents = await docsRes.json()
+
+      // AI document validation before factoring
+      try {
+        const validateRes = await fetch(new URL('/api/validate-document', req.url).href, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': req.headers.get('authorization') },
+          body: JSON.stringify({ load_id: invoice.load_id, validate_all: true }),
+        })
+        if (validateRes.ok) docValidation = await validateRes.json()
+      } catch {} // non-blocking — still submit even if validation fails
     }
 
     // Fetch carrier company info
@@ -275,6 +286,15 @@ export default async function handler(req) {
       }
     )
 
+    // Build validation warnings for the response
+    const validationWarnings = []
+    if (docValidation) {
+      if (docValidation.missing?.length > 0) validationWarnings.push(`Missing documents: ${docValidation.missing.join(', ')}`)
+      for (const v of (docValidation.validations || [])) {
+        if (!v.valid) validationWarnings.push(`${(v.doc_type || '').toUpperCase()}: ${v.summary || v.issues?.join(', ')}`)
+      }
+    }
+
     return Response.json({
       success: true,
       invoiceNumber: invoice.invoice_number || invoice.id,
@@ -284,6 +304,14 @@ export default async function handler(req) {
       factoringCompany,
       emailSent,
       sentTo: factorEmail ? factoringCompany : 'your email (factor email not on file)',
+      paymentTerms: paymentTerms || 'standard',
+      documents_attached: documents.length,
+      validation: docValidation ? {
+        complete: docValidation.complete,
+        ready_to_factor: docValidation.ready_to_factor,
+        missing: docValidation.missing || [],
+        warnings: validationWarnings,
+      } : null,
     }, { headers: corsHeaders(req) })
 
   } catch (err) {

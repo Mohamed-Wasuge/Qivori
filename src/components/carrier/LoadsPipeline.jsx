@@ -932,7 +932,35 @@ export function LoadDetailDrawer({ loadId, onClose }) {
   const [docsLoading, setDocsLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [reminderSending, setReminderSending] = useState(false)
+  const [drawerDispatchDec, setDrawerDispatchDec] = useState(null)
   const load = loads.find(l => (l.loadId || l.id) === loadId)
+
+  // Fetch backend dispatch decision for this load
+  useEffect(() => {
+    if (!load?.id || String(load.id).startsWith('local') || String(load.id).startsWith('mock')) return
+    setDrawerDispatchDec(null)
+    apiFetch(`/api/dispatch-evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        load_id: load.loadId || load.id,
+        load: {
+          gross: load.gross || load.gross_pay || 0,
+          miles: load.miles,
+          weight: load.weight,
+          origin: load.origin,
+          dest: load.dest || load.destination,
+          equipment: load.equipment,
+          broker: load.broker,
+          pickup_date: load.pickup_date,
+          delivery_date: load.delivery_date,
+        },
+        driver_type: 'owner_operator',
+      }),
+    }).then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.decision) setDrawerDispatchDec(data)
+    }).catch(() => {})
+  }, [load?.id])
 
   // Fetch documents for this load
   useEffect(() => {
@@ -1362,8 +1390,8 @@ export function LoadDetailDrawer({ loadId, onClose }) {
 
           {/* ═══ Q DECISION PANEL ═══════════════════════════════════ */}
           {(() => {
-            // Frontend eval only (LoadDetailDrawer is outside LoadsPipeline scope)
-            const backendDec = null
+            // Frontend eval + fetch backend decision from dispatch_decisions table
+            const backendDec = drawerDispatchDec
             const frontendQr = qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads })
             const qr = backendDec ? {
               ...frontendQr,

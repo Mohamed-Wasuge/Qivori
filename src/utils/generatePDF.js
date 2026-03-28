@@ -134,6 +134,23 @@ export function generateInvoicePDF(invoice) {
   doc.setTextColor(...gray)
   doc.text('Freight Broker', PAD, 150)
 
+  // Factoring company (if set)
+  const factorName = _cachedCompany?.factoring_company || invoice.factoringCompany || ''
+  if (factorName && factorName !== "I don't use factoring") {
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...lgray)
+    doc.text('REMIT PAYMENT TO', PAD, 170)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...black)
+    doc.setFontSize(11)
+    doc.text(factorName, PAD, 184)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...gray)
+    doc.text(_cachedCompany?.factoring_email || '', PAD, 196)
+  }
+
   // Invoice meta (right side)
   const meta = [
     ['Invoice Date', invoice.date || '—'],

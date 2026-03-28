@@ -82,6 +82,18 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_lane_intel',
+    description: 'Get lane rate intelligence, trends, and predictions. Use when driver asks about a specific lane rate, trend, market conditions, or "how\'s that lane paying" between two states.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        origin_state: { type: 'string', description: '2-letter origin state code (e.g. "TX")' },
+        dest_state: { type: 'string', description: '2-letter destination state code (e.g. "GA")' },
+      },
+      required: ['origin_state', 'dest_state'],
+    },
+  },
+  {
     name: 'web_search',
     description: 'Search the web for anything Q cannot answer from other tools. Use for regulations, trucking news, FMCSA rules, route info, etc.',
     input_schema: {
@@ -108,6 +120,7 @@ HOW TO RESPOND:
 - Driver has a breakdown → call find_roadside_service immediately
 - Driver asks about a load → call get_load_status immediately
 - Driver asks for loads → call find_loads immediately
+- Driver asks about lane rates, trends, "how's that lane" → call get_lane_intel immediately
 - Anything else → call web_search
 - NEVER say "I don't have that info" — search instead
 - NEVER give directions in text — provide map links
@@ -305,6 +318,8 @@ async function executeToolCall(toolName, input, user, req) {
       return await getLoadStatusInline(user.id, input.load_id, SUPABASE_URL, SERVICE_KEY)
     case 'find_loads':
       return await findLoadsInline(user.id, input.origin, input.destination, input.equipment_type, SUPABASE_URL, SERVICE_KEY)
+    case 'get_lane_intel':
+      return await getLaneIntelInline(user.id, input.origin_state, input.dest_state, SUPABASE_URL, SERVICE_KEY)
     case 'web_search':
       return await webSearchInline(input.query)
     default:
@@ -461,6 +476,37 @@ async function webSearchInline(query) {
     }
   } catch {}
   return { type: 'web_results', results: [{ title: `Search: ${query}`, snippet: 'Tap to search', url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`, source: 'Web' }] }
+}
+
+async function getLaneIntelInline(ownerId, originState, destState, sbUrl, sKey) {
+  if (!sbUrl || !sKey) return { error: 'Not configured' }
+  const h = { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json' }
+  const os = (originState || '').toUpperCase(), ds = (destState || '').toUpperCase()
+
+  // Fetch prediction
+  const predRes = await fetch(`${sbUrl}/rest/v1/lane_predictions?owner_id=eq.${ownerId}&origin_state=eq.${os}&dest_state=eq.${ds}&limit=1`, { headers: h })
+  const pred = predRes.ok ? (await predRes.json())?.[0] : null
+
+  // Fetch last 8 weeks
+  const histRes = await fetch(`${sbUrl}/rest/v1/lane_history?owner_id=eq.${ownerId}&origin_state=eq.${os}&dest_state=eq.${ds}&order=week_start.desc&limit=8&select=week_start,avg_rpm,load_count,avg_gross,avg_miles`, { headers: h })
+  const history = histRes.ok ? await histRes.json() : []
+
+  if (!pred && history.length === 0) {
+    return { type: 'lane_intel', lane: `${os} → ${ds}`, error: 'No data for this lane yet. Run more loads to build history.' }
+  }
+
+  return {
+    type: 'lane_intel',
+    lane: `${os} → ${ds}`,
+    current_rpm: pred ? parseFloat(pred.predicted_rpm) : parseFloat(history[0]?.avg_rpm || 0),
+    trend: pred?.trend || 'stable',
+    trend_pct: pred ? parseFloat(pred.trend_pct) : 0,
+    confidence: pred?.confidence || 0,
+    week_count: history.length,
+    total_loads: history.reduce((s, w) => s + (w.load_count || 0), 0),
+    history: history.map(w => ({ week: w.week_start, rpm: parseFloat(w.avg_rpm), loads: w.load_count, gross: parseFloat(w.avg_gross) })),
+    season_note: pred?.season_multiplier > 1.08 ? 'Peak season — rates elevated' : pred?.season_multiplier < 0.92 ? 'Slow season — rates soft' : 'Normal season',
+  }
 }
 
 function haversine(lat1, lon1, lat2, lon2) {

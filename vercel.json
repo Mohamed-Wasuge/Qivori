@@ -55,6 +55,7 @@
     { "path": "/api/doc-expiry-alerts", "schedule": "0 8 * * *" },
     { "path": "/api/driver-alerts", "schedule": "0 9 * * *" },
     { "path": "/api/driver-weekly", "schedule": "0 10 * * 0" },
-    { "path": "/api/contract-expiry-alerts", "schedule": "0 8 * * 1" }
+    { "path": "/api/contract-expiry-alerts", "schedule": "0 8 * * 1" },
+    { "path": "/api/lane-history-cron", "schedule": "0 2 * * 1" }
   ]
 }

@@ -324,20 +324,33 @@ function round2(n) {
 
 async function fetchLaneAvgRate(ownerId, originCity, destCity) {
   if (!originCity || !destCity || !SUPABASE_URL || !SERVICE_KEY) return 0
+
+  // Try lane_predictions first (pre-computed by cron, fast)
+  const originState = extractState(originCity)
+  const destState = extractState(destCity)
+  if (originState && destState) {
+    try {
+      const predRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/lane_predictions?owner_id=eq.${ownerId}&origin_state=eq.${originState}&dest_state=eq.${destState}&select=predicted_rpm,trend,trend_pct,confidence&limit=1`,
+        { headers: sbHeaders() }
+      )
+      if (predRes.ok) {
+        const rows = await predRes.json()
+        if (rows?.[0]?.predicted_rpm > 0) return parseFloat(rows[0].predicted_rpm)
+      }
+    } catch {}
+  }
+
+  // Fallback: on-the-fly calculation from recent loads
   try {
-    // Query historical loads on this lane
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/loads?owner_id=eq.${ownerId}&select=gross,miles&limit=50`,
+      `${SUPABASE_URL}/rest/v1/loads?owner_id=eq.${ownerId}&select=rate,miles&limit=50`,
       { headers: sbHeaders() }
     )
     if (!res.ok) return 0
     const loads = await res.json()
     if (!loads || loads.length === 0) return 0
-
-    // Calculate average RPM from all historical loads as baseline
-    const rates = loads
-      .filter(l => l.gross > 0 && l.miles > 0)
-      .map(l => l.gross / l.miles)
+    const rates = loads.filter(l => l.rate > 0 && l.miles > 0).map(l => l.rate / l.miles)
     if (rates.length === 0) return 0
     return rates.reduce((s, r) => s + r, 0) / rates.length
   } catch { return 0 }

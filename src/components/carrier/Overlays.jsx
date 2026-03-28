@@ -283,6 +283,55 @@ function LoadStatusCard({ data }) {
   )
 }
 
+function LaneIntelCard({ data }) {
+  if (!data || data.error) return data?.error ? <div style={{ ...cardBase, padding: 12, fontSize: 11, color: 'var(--muted)' }}>{data.error}</div> : null
+  const trendColor = data.trend === 'rising' ? 'var(--success)' : data.trend === 'falling' ? 'var(--danger)' : 'var(--muted)'
+  const trendArrow = data.trend === 'rising' ? '+' : data.trend === 'falling' ? '' : ''
+  const maxRpm = data.history?.length ? Math.max(...data.history.map(w => w.rpm)) : 1
+  const minRpm = data.history?.length ? Math.min(...data.history.map(w => w.rpm)) : 0
+  const range = maxRpm - minRpm || 1
+
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'rgba(240,165,0,0.04)' }}>
+        <Ic icon={BarChart2} size={11} /> Lane Intelligence — {data.lane}
+      </div>
+      <div style={{ padding: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Predicted RPM</div>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)' }}>${data.current_rpm?.toFixed(2)}</div>
+          </div>
+          <div style={{ padding: '4px 10px', borderRadius: 6, background: trendColor + '15', border: '1px solid ' + trendColor + '30' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: trendColor }}>{trendArrow}{data.trend_pct?.toFixed(1)}%</div>
+            <div style={{ fontSize: 9, color: trendColor, textTransform: 'uppercase', fontWeight: 700 }}>{data.trend}</div>
+          </div>
+          <div style={{ textAlign: 'right', flex: 1 }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Confidence</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{data.confidence}%</div>
+            <div style={{ width: 50, height: 3, background: 'var(--border)', borderRadius: 2, marginTop: 3 }}>
+              <div style={{ width: `${data.confidence}%`, height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
+            </div>
+          </div>
+        </div>
+        {/* Mini sparkline */}
+        {data.history?.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 32, marginBottom: 8 }}>
+            {[...data.history].reverse().map((w, i) => {
+              const h = Math.max(4, ((w.rpm - minRpm) / range) * 28)
+              return <div key={i} style={{ flex: 1, height: h, background: trendColor + '60', borderRadius: 2, position: 'relative' }} title={`${w.week}: $${w.rpm}/mi (${w.loads} loads)`} />
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)' }}>
+          <span>{data.total_loads || 0} loads · {data.week_count || 0} weeks</span>
+          <span>{data.season_note}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Render tool result cards
 function ToolCards({ toolResults }) {
   if (!toolResults?.length) return null
@@ -296,6 +345,7 @@ function ToolCards({ toolResults }) {
     if (r.type === 'load_results') return <LoadCard key={i} data={r} />
     if (r.type === 'load_status') return <LoadStatusCard key={i} data={r} />
     if (r.type === 'web_results') return <WebResultCard key={i} data={r} />
+    if (r.type === 'lane_intel') return <LaneIntelCard key={i} data={r} />
     return null
   })
 }

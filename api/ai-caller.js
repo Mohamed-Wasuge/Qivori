@@ -184,17 +184,39 @@ export default async function handler(req) {
       return Response.json({ ok: true, batch: true, results }, { headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 
+    // — Auth: verify user JWT or service-to-service key —
+    let authedUserId = userId
+    if (!authedUserId) {
+      // Try verifying Supabase JWT from Authorization header
+      const authHeader = req.headers.get('authorization')
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1]
+        try {
+          const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+          const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+          })
+          if (verifyRes.ok) {
+            const user = await verifyRes.json()
+            if (user?.id) authedUserId = user.id
+          }
+        } catch {}
+      }
+    }
+
+    if (!authedUserId && !isAuthorized(req)) {
+      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401, headers: { 'Access-Control-Allow-Origin': '*' } })
+    }
+
     // — Plan gating for user-initiated calls —
-    if (userId) {
-      const access = await checkPlanAccess(userId);
+    if (authedUserId) {
+      const access = await checkPlanAccess(authedUserId);
       if (!access.allowed) {
         return Response.json({ ok: false, error: access.reason, planRequired: 'autonomous_fleet' }, {
           status: 403,
           headers: { 'Access-Control-Allow-Origin': '*' }
         });
       }
-    } else if (!isAuthorized(req)) {
-      return new Response('Unauthorized', { status: 401 });
     }
 
     // — Validate required data —

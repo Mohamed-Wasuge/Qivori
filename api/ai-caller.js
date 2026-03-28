@@ -184,17 +184,17 @@ export default async function handler(req) {
       return Response.json({ ok: true, batch: true, results }, { headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 
-    // — Auth: verify user JWT or service-to-service key —
+    // — Auth: verify user JWT (same as all other endpoints) or service key —
     let authedUserId = userId
     if (!authedUserId) {
-      // Try verifying Supabase JWT from Authorization header
       const authHeader = req.headers.get('authorization')
       if (authHeader?.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1]
         try {
-          const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
-          const verifyRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-            headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+          const sbUrl = supabaseUrl || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+          const sbKey = supabaseKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+          const verifyRes = await fetch(`${sbUrl}/auth/v1/user`, {
+            headers: { 'apikey': sbKey, 'Authorization': `Bearer ${token}` }
           })
           if (verifyRes.ok) {
             const user = await verifyRes.json()

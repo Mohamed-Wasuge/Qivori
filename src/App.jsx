@@ -157,6 +157,20 @@ function AppContent() {
     '#/guides/trucking-expenses': 'trucking-expenses',
   }
 
+  // Handle query params for email links (email clients strip # fragments)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const qView = params.get('view')
+    const qToken = params.get('token')
+    if (qView === 'onboard' && qToken) {
+      window.location.hash = `#/onboard?token=${qToken}`
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash)
+    } else if (qView === 'invite' && qToken) {
+      window.location.hash = `#/onboard?token=${qToken}`
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash)
+    }
+  }, [])
+
   // Handle hash-based routing for legal pages, public load board, guides, and 404
   useEffect(() => {
     const handleHash = () => {

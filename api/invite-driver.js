@@ -131,8 +131,8 @@ export default async function handler(req) {
     // Send invitation email via Resend
     if (resendKey) {
       const inviteUrl = inviteRole === 'driver'
-        ? `https://qivori.com/#/onboard?token=${token}`
-        : `https://qivori.com/?invite=${token}`
+        ? `https://qivori.com/?view=onboard&token=${token}`
+        : `https://qivori.com/?view=invite&token=${token}`
       const roleName = inviteRole.charAt(0).toUpperCase() + inviteRole.slice(1)
 
       const html = `

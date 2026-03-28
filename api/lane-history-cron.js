@@ -90,9 +90,9 @@ export default async function handler(req) {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
-  // Auth: cron secret or POST with secret
+  // Auth: require cron secret
   const auth = req.headers.get('authorization') || ''
-  if (auth !== `Bearer ${CRON_SECRET}` && !CRON_SECRET) {
+  if (!CRON_SECRET || auth !== `Bearer ${CRON_SECRET}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 

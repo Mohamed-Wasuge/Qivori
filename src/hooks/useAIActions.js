@@ -265,6 +265,27 @@ export function useAIActions(onNavigate) {
           return 'Weather data unavailable right now.'
         }
 
+        case 'pre_trip': {
+          // Navigate to compliance DVIR tab for pre-trip inspection
+          if (onTabChange) onTabChange('compliance')
+          return 'Pre-trip inspection opened. Complete your FMCSA DVIR before dispatch — all 32 items. No shortcuts.'
+        }
+
+        case 'pickup_countdown': {
+          // Calculate time until next pickup
+          const activeLoad = loads?.find(l => ['Dispatched', 'Assigned to Driver'].includes(l.status))
+          if (!activeLoad) return 'No dispatched loads. Book a load first.'
+          const pickupDate = activeLoad.pickup_date
+          if (!pickupDate) return `Load ${activeLoad.loadId || activeLoad.load_number}: no pickup time set. Contact broker.`
+          const pickupTime = new Date(pickupDate + (activeLoad.pickup_time ? 'T' + activeLoad.pickup_time : 'T08:00:00'))
+          const now = new Date()
+          const diff = pickupTime - now
+          if (diff <= 0) return `Pickup time passed for ${activeLoad.loadId}. You should be at ${activeLoad.origin} already. Check in.`
+          const hours = Math.floor(diff / 3600000)
+          const mins = Math.floor((diff % 3600000) / 60000)
+          return `${hours}h ${mins}m until pickup at ${activeLoad.origin}. Load ${activeLoad.loadId || activeLoad.load_number}.${hours <= 2 ? ' Start pre-trip now.' : ''}`
+        }
+
         case 'hos_check': {
           const hosStart = localStorage.getItem('qivori_hos_drive_start')
           const hosDriven = parseFloat(localStorage.getItem('qivori_hos_driven') || '0')

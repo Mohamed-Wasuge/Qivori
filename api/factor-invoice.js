@@ -62,7 +62,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { invoiceId, factoringCompany, factoringRate } = await req.json()
+    const { invoiceId, factoringCompany, factoringRate, paymentTerms } = await req.json()
 
     if (!invoiceId) {
       return Response.json({ error: 'invoiceId required' }, { status: 400, headers: corsHeaders(req) })
@@ -88,6 +88,16 @@ export default async function handler(req) {
       )
       const loads = await loadRes.json()
       load = loads?.[0]
+    }
+
+    // Fetch documents for this load (BOL, rate con, POD, lumper receipts, detention)
+    let documents = []
+    if (invoice.load_id) {
+      const docsRes = await fetch(
+        `${supabaseUrl}/rest/v1/documents?load_id=eq.${invoice.load_id}&select=name,file_url,doc_type&order=created_at.desc`,
+        { headers: dbHeaders }
+      )
+      if (docsRes.ok) documents = await docsRes.json()
     }
 
     // Fetch carrier company info
@@ -147,10 +157,29 @@ export default async function handler(req) {
           </table>
         </div>
 
+        <h2 style="color:#f0a500;font-size:16px;margin-bottom:10px;">PAYMENT TERMS</h2>
+        <div style="background:#1a1d27;border-radius:10px;padding:15px;margin-bottom:20px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:6px 0;color:#888;">Requested</td><td style="color:#fff;font-weight:bold;">${paymentTerms === 'same_day' ? 'SAME DAY PAY' : paymentTerms === 'next_day' ? 'NEXT BUSINESS DAY' : 'STANDARD (per agreement)'}</td></tr>
+          </table>
+        </div>
+
+        ${documents.length > 0 ? `
+        <h2 style="color:#f0a500;font-size:16px;margin-bottom:10px;">SUPPORTING DOCUMENTS</h2>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+          ${documents.map(doc => `
+            <tr>
+              <td style="padding:8px 0;color:#888;width:140px;">${(doc.doc_type || doc.name || '').replace(/_/g, ' ').toUpperCase()}</td>
+              <td><a href="${doc.file_url}" style="color:#f0a500;text-decoration:none;font-weight:bold;">${doc.name || 'View Document'}</a></td>
+            </tr>
+          `).join('')}
+        </table>
+        ` : `
         <p style="color:#888;font-size:12px;margin-top:20px;">
           Supporting documents (Rate Confirmation, BOL, POD) are available in the carrier's Qivori TMS portal.
           Please contact ${user.email} for any additional documentation.
         </p>
+        `}
 
         <div style="border-top:1px solid #333;margin-top:20px;padding-top:15px;text-align:center;">
           <p style="color:#666;font-size:11px;">Submitted via Qivori AI TMS · qivori.com</p>

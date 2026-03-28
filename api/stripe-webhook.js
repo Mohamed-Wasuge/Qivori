@@ -75,6 +75,34 @@ export default async function handler(req) {
         const customerId = session.customer
         console.log(`[stripe-webhook] checkout.session.completed — email: ${customerEmail}, sub: ${subscriptionId}, customer: ${customerId}`)
 
+        // Handle EDI setup fee payment
+        if (session.metadata?.type === 'edi_setup' && session.payment_status === 'paid') {
+          const userId = session.metadata.user_id
+          if (userId) {
+            // Update request to pending (payment confirmed, awaiting admin approval)
+            await fetch(`${supabaseUrl}/rest/v1/edi_access_requests?carrier_id=eq.${userId}`, {
+              method: 'PATCH',
+              headers: { 'apikey': supabaseServiceKey, 'Authorization': `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'pending', stripe_session_id: session.id }),
+            })
+            // Notify admin
+            const resendKey = process.env.RESEND_API_KEY
+            if (resendKey) {
+              await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  from: 'Qivori <hello@qivori.com>',
+                  to: [process.env.ADMIN_EMAIL || 'mwasuge@qivori.com'],
+                  subject: `EDI Setup Fee PAID — ${customerEmail} — Ready for approval`,
+                  html: `<h2>EDI Setup Fee Received</h2><p><strong>${customerEmail}</strong> paid the $500 EDI setup fee.</p><p>Log in to admin dashboard to approve and generate their EDI credentials.</p>`,
+                }),
+              }).catch(() => {})
+            }
+          }
+          break
+        }
+
         if (customerEmail && subscriptionId) {
           const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
             headers: { 'Authorization': `Bearer ${stripeKey}` },

@@ -10,8 +10,81 @@ import {
   Shield, Briefcase, Settings, Layers, Eye, Download, Send, Check, CreditCard,
   Calendar, TrendingUp, TrendingDown, Lightbulb, Fuel, Route, Navigation,
   Paperclip, Dumbbell, AlertCircle, Brain, Sparkles, CircleDot,
-  CheckSquare, Square, X
+  CheckSquare, Square, X, Upload
 } from 'lucide-react'
+
+// ── Payment Uploader (AI reads check stubs / ACH receipts) ────────────────
+function PaymentUploader({ inv, onComplete }) {
+  const [uploading, setUploading] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const handleUpload = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.jpg,.jpeg,.png,.heic'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      setUploading(true)
+      setResult(null)
+      try {
+        // Upload to Supabase Storage
+        const { uploadFile } = await import('../../lib/storage')
+        const uploaded = await uploadFile(file, `payments/${inv._dbId || inv.id}`)
+
+        // Send to AI for processing
+        const res = await apiFetch('/api/process-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_url: uploaded.url, invoice_id: inv._dbId || inv.id }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setResult(data)
+          if (onComplete) onComplete(data)
+        } else {
+          setResult({ error: 'Could not process payment' })
+        }
+      } catch (err) {
+        setResult({ error: err.message || 'Upload failed' })
+      }
+      setUploading(false)
+    }
+    input.click()
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button className="btn btn-ghost" disabled={uploading}
+        style={{ fontSize: 12, padding: '8px 16px', color: '#8b5cf6', borderColor: 'rgba(139,92,246,0.3)' }}
+        onClick={handleUpload}>
+        <Ic icon={Upload} size={13} /> {uploading ? 'AI Processing...' : 'Upload Payment Confirmation'}
+      </button>
+      {result && !result.error && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 8, fontSize: 11,
+          background: result.short_pay?.detected ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)',
+          border: `1px solid ${result.short_pay?.detected ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)'}`,
+          color: result.short_pay?.detected ? 'var(--danger)' : 'var(--success)',
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>
+            {result.short_pay?.detected ? 'SHORT PAY DETECTED' : 'PAYMENT CONFIRMED'}
+          </div>
+          <div style={{ color: 'var(--text)' }}>{result.message}</div>
+          {result.short_pay?.detected && (
+            <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)' }}>
+              Invoiced: ${result.short_pay.invoiced?.toLocaleString()} | Received: ${result.short_pay.received?.toLocaleString()} | Short: ${result.short_pay.short?.toLocaleString()}
+              {result.short_pay.reason && ` | Reason: ${result.short_pay.reason}`}
+            </div>
+          )}
+        </div>
+      )}
+      {result?.error && (
+        <div style={{ fontSize: 11, color: 'var(--danger)', padding: '6px 0' }}>{result.error}</div>
+      )}
+    </div>
+  )
+}
 
 // ── Factor Panel (payment terms selector) ─────────────────────────────────
 function FactorPanel({ inv, factorCompany, factorRate, net, onSubmit }) {
@@ -1075,6 +1148,18 @@ export function InvoicesHub() {
                   onClick={() => generateInvoicePDF({ id: inv.invoice_number || inv.id, loadId: inv.loadId || inv.load_number, broker: inv.broker, route: inv.route, amount: inv.amount, date: inv.date, dueDate: inv.dueDate, driver: inv.driver, status: inv.status })}>
                   <Ic icon={Download} size={13} /> Download PDF
                 </button>
+                {(inv.status === 'Unpaid' || inv.status === 'Factored') && (
+                  <PaymentUploader inv={inv} onComplete={(result) => {
+                    if (result.short_pay?.detected) {
+                      updateInvoiceStatus(inv.id || inv.invoice_number, 'Disputed')
+                      showToast('', 'Short Pay Detected', `Received $${result.payment.amount.toLocaleString()} of $${inv.amount.toLocaleString()} — short $${result.short_pay.short.toLocaleString()}`)
+                    } else if (result.invoice?.status === 'Paid') {
+                      updateInvoiceStatus(inv.id || inv.invoice_number, 'Paid')
+                      showToast('', 'Payment Confirmed', `$${result.payment.amount.toLocaleString()} from ${result.payment.payer}`)
+                    }
+                    setSelectedInv(null)
+                  }} />
+                )}
                 {inv.status === 'Unpaid' && (
                   <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 16px', color:'var(--success)', borderColor:'rgba(34,197,94,0.3)' }}
                     onClick={() => { updateInvoiceStatus(inv.id || inv.invoice_number, 'Paid'); showToast('', 'Marked as Paid', inv.invoice_number || inv.id); setSelectedInv(null) }}>

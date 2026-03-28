@@ -571,3 +571,251 @@ export function generateIFTAPDF(quarter, stateData, totalMiles, totalFuel, netOw
 
   doc.save(`IFTA-${quarter.replace(/\s/g,'-')}-Qivori.pdf`)
 }
+
+// ── 1099-NEC PDF ──────────────────────────────────────────────────────────────
+export function generate1099NECPDF(driverInfo, taxYear, compensation) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const W = 612, H = 792, PAD = 40
+  const black = [0, 0, 0]
+  const darkGray = [60, 60, 60]
+  const lightGray = [200, 200, 200]
+  const blue = [0, 0, 180]
+  const red = [200, 0, 0]
+
+  // White background
+  doc.setFillColor(255, 255, 255)
+  doc.rect(0, 0, W, H, 'F')
+
+  // Top red bar
+  doc.setFillColor(...red)
+  doc.rect(0, 0, W, 4, 'F')
+
+  // Title section
+  let y = 35
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...red)
+  doc.text('CORRECTED (if checked)', PAD + 140, y)
+  doc.setDrawColor(...black)
+  doc.rect(PAD + 120, y - 9, 10, 10)
+
+  doc.setFontSize(8)
+  doc.setTextColor(...darkGray)
+  doc.text(`Tax Year ${taxYear}`, W - PAD, y, { align: 'right' })
+
+  y += 18
+  doc.setFontSize(18)
+  doc.setTextColor(...red)
+  doc.text('1099-NEC', W / 2, y, { align: 'center' })
+
+  y += 16
+  doc.setFontSize(10)
+  doc.setTextColor(...black)
+  doc.text('Nonemployee Compensation', W / 2, y, { align: 'center' })
+
+  y += 8
+  doc.setDrawColor(...black)
+  doc.setLineWidth(1.5)
+  doc.line(PAD, y, W - PAD, y)
+
+  // Two-column layout
+  const colW = (W - PAD * 2 - 20) / 2
+  const leftX = PAD
+  const rightX = PAD + colW + 20
+
+  // ── PAYER section (left top) ──
+  y += 14
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...blue)
+  doc.text("PAYER'S name, street address, city or town, state or province,", leftX, y)
+  y += 9
+  doc.text('country, ZIP or foreign postal code, and telephone no.', leftX, y)
+
+  y += 14
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...black)
+  const payerName = _cachedCompany?.name || _cachedCompany?.company_name || 'Your Company Name'
+  doc.text(payerName, leftX, y)
+  y += 12
+  doc.setFontSize(8)
+  const payerAddr = _cachedCompany?.address || ''
+  if (payerAddr) { doc.text(payerAddr, leftX, y); y += 10 }
+  const payerCity = [_cachedCompany?.city, _cachedCompany?.state, _cachedCompany?.zip].filter(Boolean).join(', ')
+  if (payerCity) { doc.text(payerCity, leftX, y); y += 10 }
+  const payerPhone = _cachedCompany?.phone || ''
+  if (payerPhone) { doc.text('Tel: ' + payerPhone, leftX, y); y += 10 }
+
+  // ── PAYER'S TIN (right top) ──
+  let rY = 80
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...blue)
+  doc.text("PAYER'S TIN", rightX, rY)
+  rY += 14
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...black)
+  const payerEin = _cachedCompany?.ein || _cachedCompany?.tax_id || '___-_______'
+  doc.text(payerEin, rightX, rY)
+
+  // ── RECIPIENT'S TIN ──
+  rY += 22
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...blue)
+  doc.text("RECIPIENT'S TIN", rightX, rY)
+  rY += 14
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...black)
+  doc.text(driverInfo.ssn || '***-**-' + (driverInfo.tax_id_last4 || '****'), rightX, rY)
+
+  // Divider
+  y = Math.max(y, rY) + 16
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.5)
+  doc.line(PAD, y, W - PAD, y)
+
+  // ── RECIPIENT section ──
+  y += 14
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...blue)
+  doc.text("RECIPIENT'S name", leftX, y)
+
+  y += 14
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  doc.setTextColor(...black)
+  doc.text(driverInfo.name || 'Driver Name', leftX, y)
+  y += 14
+  doc.setFontSize(8)
+  if (driverInfo.address) { doc.text(driverInfo.address, leftX, y); y += 10 }
+  if (driverInfo.city || driverInfo.state || driverInfo.zip) {
+    doc.text([driverInfo.city, driverInfo.state, driverInfo.zip].filter(Boolean).join(', '), leftX, y)
+    y += 10
+  }
+
+  // ── Account number ──
+  y += 8
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...blue)
+  doc.text('Account number (see instructions)', leftX, y)
+  y += 12
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...black)
+  doc.text(driverInfo.account || '', leftX, y)
+
+  // Divider
+  y += 16
+  doc.setDrawColor(...lightGray)
+  doc.line(PAD, y, W - PAD, y)
+
+  // ── BOXES ──
+  y += 6
+  const boxW = (W - PAD * 2 - 30) / 3
+  const boxes = [
+    { num: '1', label: 'Nonemployee compensation', value: '$' + Number(compensation).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+    { num: '2', label: 'Payer made direct sales totaling\n$5,000 or more (checkbox)', value: '' },
+    { num: '4', label: 'Federal income tax withheld', value: '$0.00' },
+  ]
+
+  boxes.forEach((box, i) => {
+    const bx = PAD + i * (boxW + 15)
+    doc.setDrawColor(...lightGray)
+    doc.setLineWidth(1)
+    doc.roundedRect(bx, y, boxW, 65, 4, 4)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...blue)
+    doc.text(`Box ${box.num}`, bx + 8, y + 12)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...darkGray)
+    const lines = box.label.split('\n')
+    lines.forEach((l, li) => doc.text(l, bx + 8, y + 22 + li * 8))
+
+    if (box.value) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.setTextColor(...black)
+      doc.text(box.value, bx + boxW / 2, y + 50, { align: 'center' })
+    }
+  })
+
+  y += 80
+
+  // Box 5-7 row
+  const boxes2 = [
+    { num: '5', label: 'State tax withheld', value: '$0.00' },
+    { num: '6', label: "State/Payer's state no.", value: _cachedCompany?.state || '' },
+    { num: '7', label: 'State income', value: '$' + Number(compensation).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+  ]
+
+  boxes2.forEach((box, i) => {
+    const bx = PAD + i * (boxW + 15)
+    doc.setDrawColor(...lightGray)
+    doc.setLineWidth(1)
+    doc.roundedRect(bx, y, boxW, 55, 4, 4)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...blue)
+    doc.text(`Box ${box.num}`, bx + 8, y + 12)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...darkGray)
+    doc.text(box.label, bx + 8, y + 22)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(...black)
+    doc.text(box.value, bx + boxW / 2, y + 42, { align: 'center' })
+  })
+
+  y += 70
+
+  // Summary section
+  doc.setDrawColor(...lightGray)
+  doc.setLineWidth(0.5)
+  doc.line(PAD, y, W - PAD, y)
+  y += 20
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...black)
+  doc.text('Form 1099-NEC', PAD, y)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`(Rev. January ${taxYear})`, PAD + 80, y)
+  doc.text('Department of the Treasury — Internal Revenue Service', W - PAD, y, { align: 'right' })
+
+  y += 18
+  doc.setFontSize(8)
+  doc.setTextColor(...darkGray)
+  doc.text(`This is Copy B — For Recipient's Records.`, PAD, y)
+  y += 12
+  doc.text('This information is being furnished to the Internal Revenue Service.', PAD, y)
+  y += 12
+  doc.text('If you are required to file a return, a negligence penalty or other sanction may be imposed on you', PAD, y)
+  y += 10
+  doc.text('if this income is taxable and the IRS determines that it has not been reported.', PAD, y)
+
+  // Footer
+  doc.setDrawColor(...red)
+  doc.setLineWidth(2)
+  doc.line(0, H - 4, W, H - 4)
+
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(7)
+  doc.setTextColor(150, 150, 150)
+  doc.text('Generated by Qivori AI TMS — For informational purposes. Verify with your tax professional before filing.', W / 2, H - 14, { align: 'center' })
+
+  doc.save(`1099-NEC-${(driverInfo.name || 'Driver').replace(/\s+/g, '-')}-${taxYear}.pdf`)
+}

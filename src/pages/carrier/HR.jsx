@@ -11,7 +11,7 @@ import {
   Siren, Award, Truck, Star, TrendingUp, Package, BarChart2, UserPlus, Printer
 } from 'lucide-react'
 import * as db from '../../lib/database'
-import { generateSettlementPDF } from '../../utils/generatePDF'
+import { generateSettlementPDF, generate1099NECPDF } from '../../utils/generatePDF'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FMCSA DQ FILE TYPES
@@ -1078,6 +1078,13 @@ export function PayrollTracker() {
   const [connectStatus, setConnectStatus] = useState(null) // null | { connected, payouts_enabled, ... }
   const [connectLoading, setConnectLoading] = useState(false)
   const [payingDriverId, setPayingDriverId] = useState(null)
+  // Escrow, fuel cards, advances state
+  const [escrowTxns, setEscrowTxns] = useState([])
+  const [fuelCardTxns, setFuelCardTxns] = useState([])
+  const [advances, setAdvances] = useState([])
+  const [showFuelForm, setShowFuelForm] = useState(false)
+  const [showAdvanceForm, setShowAdvanceForm] = useState(false)
+  const [showEscrowRelease, setShowEscrowRelease] = useState(false)
 
   useEffect(() => {
     apiFetch('/api/stripe-connect').then(r => r.json()).then(data => setConnectStatus(data)).catch(() => {})
@@ -1088,7 +1095,13 @@ export function PayrollTracker() {
       db.fetchPayroll(),
       db.fetchBankInfo(),
       db.fetchRecurringDeductions(),
-    ]).then(([p, banks, deducts]) => {
+      db.fetchEscrowTransactions(),
+      db.fetchFuelCardTransactions(),
+      db.fetchAdvances(),
+    ]).then(([p, banks, deducts, esc, fuel, adv]) => {
+      setEscrowTxns(esc || [])
+      setFuelCardTxns(fuel || [])
+      setAdvances(adv || [])
       setPayroll(p)
       // Convert bank info array to map by driver_id
       const bankMap = {}
@@ -1143,6 +1156,44 @@ export function PayrollTracker() {
   const selPayroll = payroll.filter(p => p.driver_id === selectedDriverId)
   const selNeeds1099 = selYtd.gross >= 600
 
+  // Computed: escrow balance per driver
+  const escrowBalances = useMemo(() => {
+    const map = {}
+    escrowTxns.forEach(t => {
+      if (!map[t.driver_id]) map[t.driver_id] = 0
+      map[t.driver_id] += t.type === 'hold' ? Number(t.amount) : -Number(t.amount)
+    })
+    return map
+  }, [escrowTxns])
+
+  // Computed: pending fuel card amount per driver
+  const fuelPending = useMemo(() => {
+    const map = {}
+    fuelCardTxns.forEach(f => {
+      if (!f.deducted_in_payroll_id) {
+        if (!map[f.driver_id]) map[f.driver_id] = { total: 0, ids: [], items: [] }
+        map[f.driver_id].total += Number(f.amount)
+        map[f.driver_id].ids.push(f.id)
+        map[f.driver_id].items.push(f)
+      }
+    })
+    return map
+  }, [fuelCardTxns])
+
+  // Computed: outstanding advances per driver
+  const advancePending = useMemo(() => {
+    const map = {}
+    advances.forEach(a => {
+      if (a.type === 'advance' && !a.deducted_in_payroll_id) {
+        if (!map[a.driver_id]) map[a.driver_id] = { total: 0, ids: [], items: [] }
+        map[a.driver_id].total += Number(a.amount)
+        map[a.driver_id].ids.push(a.id)
+        map[a.driver_id].items.push(a)
+      }
+    })
+    return map
+  }, [advances])
+
   // Run Payroll: compute date range
   const getDateRange = useCallback(() => {
     const now = new Date()
@@ -1193,13 +1244,19 @@ export function PayrollTracker() {
       const totalRecurring = recurring.reduce((s, r) => s + (Number(r.amount) || 0), 0)
       const manual = runDeductions.filter(rd => rd.driverId === d.id)
       const totalManual = manual.reduce((s, r) => s + (Number(r.amount) || 0), 0)
-      const netPay = driverPay - totalRecurring - totalManual
+      const fuel = fuelPending[d.id] || { total: 0, ids: [], items: [] }
+      const adv = advancePending[d.id] || { total: 0, ids: [], items: [] }
+      const totalAllDeductions = totalRecurring + totalManual + fuel.total + adv.total
+      const netPay = driverPay - totalAllDeductions
       return {
         driver: d, name, loads: driverLoads, totalMiles, totalGross, driverPay,
-        deductions: totalRecurring + totalManual, recurringDeductions: recurring, manualDeductions: manual, netPay,
+        deductions: totalAllDeductions, recurringDeductions: recurring, manualDeductions: manual,
+        fuelDeductions: fuel.total, fuelIds: fuel.ids, fuelItems: fuel.items,
+        advanceDeductions: adv.total, advanceIds: adv.ids, advanceItems: adv.items,
+        netPay,
       }
     }).filter(d => d.loads.length > 0)
-  }, [drivers, loads, getDateRange, runDeductions, recurringDeductions])
+  }, [drivers, loads, getDateRange, runDeductions, recurringDeductions, fuelPending, advancePending])
 
   const exportCSV = () => {
     const rows = [['Driver','Gross Pay','Net Pay','Deductions','Per Diem','Fuel Advance','Loads','Miles','1099 Required']]
@@ -1248,7 +1305,7 @@ export function PayrollTracker() {
     const { start, end } = getDateRange()
     for (const d of runPayrollData) {
       try {
-        await db.createPayroll({
+        const newPayroll = await db.createPayroll({
           driver_id: d.driver.id,
           period_start: start.toISOString().slice(0,10),
           period_end: end.toISOString().slice(0,10),
@@ -1256,15 +1313,33 @@ export function PayrollTracker() {
           deductions: d.deductions,
           net_pay: d.netPay,
           per_diem: 0,
-          fuel_advance: 0,
+          fuel_advance: d.fuelDeductions || 0,
           loads_completed: d.loads.length,
           miles_driven: d.totalMiles,
           status: 'approved',
         })
+        // Mark fuel card transactions as deducted
+        if (d.fuelIds?.length) await db.markFuelCardDeducted(d.fuelIds, newPayroll.id).catch(() => {})
+        // Mark advances as deducted
+        if (d.advanceIds?.length) await db.markAdvancesDeducted(d.advanceIds, newPayroll.id).catch(() => {})
+        // Create escrow hold if driver has an Escrow recurring deduction
+        const escrowDed = (d.recurringDeductions || []).find(r => r.label?.toLowerCase().includes('escrow') || r.label?.toLowerCase().includes('reserve'))
+        if (escrowDed && Number(escrowDed.amount) > 0) {
+          await db.createEscrowTransaction({ driver_id: d.driver.id, type: 'hold', amount: Number(escrowDed.amount), description: `Payroll hold — ${start.toISOString().slice(0,10)} to ${end.toISOString().slice(0,10)}`, payroll_id: newPayroll.id }).catch(() => {})
+        }
       } catch { /* skip */ }
     }
-    const refreshed = await db.fetchPayroll().catch(() => [])
-    setPayroll(refreshed)
+    // Refresh all data
+    const [refreshedPayroll, refreshedEscrow, refreshedFuel, refreshedAdv] = await Promise.all([
+      db.fetchPayroll().catch(() => []),
+      db.fetchEscrowTransactions().catch(() => []),
+      db.fetchFuelCardTransactions().catch(() => []),
+      db.fetchAdvances().catch(() => []),
+    ])
+    setPayroll(refreshedPayroll)
+    setEscrowTxns(refreshedEscrow)
+    setFuelCardTxns(refreshedFuel)
+    setAdvances(refreshedAdv)
     setRunStep('confirmed')
     showToast('','Payroll Approved',`${runPayrollData.length} driver settlements created`)
   }
@@ -1639,7 +1714,7 @@ export function PayrollTracker() {
 
                 {/* Tabs */}
                 <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border)' }}>
-                  {[{id:'overview',label:'Overview'},{id:'settlements',label:'Settlements'},{id:'bank',label:'Bank & Payment'},{id:'deductions',label:'Deductions'},{id:'1099',label:'1099'}].map(t => (
+                  {[{id:'overview',label:'Overview'},{id:'settlements',label:'Settlements'},{id:'bank',label:'Bank & Payment'},{id:'deductions',label:'Deductions'},{id:'escrow',label:'Escrow'},{id:'fuel-card',label:'Fuel Card'},{id:'advances',label:'Advances'},{id:'1099',label:'1099'}].map(t => (
                     <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
                       padding:'10px 16px', fontSize:12, fontWeight: activeTab === t.id ? 700 : 500, cursor:'pointer', border:'none', background:'none',
                       color: activeTab === t.id ? 'var(--accent)' : 'var(--muted)',
@@ -1651,11 +1726,14 @@ export function PayrollTracker() {
 
                 {activeTab === 'overview' && (
                   <>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:12 }}>
                       {[
                         { label:'YTD Gross', val: fmtMoney(selYtd.gross), sub:`${selYtd.loads} loads · ${selYtd.miles.toLocaleString()} mi`, color:'var(--accent)' },
                         { label:'YTD Net', val: fmtMoney(selYtd.net), sub:'After deductions', color:'var(--success)' },
                         { label:'YTD Deductions', val: fmtMoney(selYtd.deductions), sub:`Per diem: ${fmtMoney(selYtd.perDiem)}`, color:'var(--danger)' },
+                        { label:'Escrow Balance', val: fmtMoney(escrowBalances[selectedDriverId] || 0), sub:'Reserve fund held', color:'var(--accent3)' },
+                        { label:'Fuel Card Pending', val: fmtMoney(fuelPending[selectedDriverId]?.total || 0), sub:`${fuelPending[selectedDriverId]?.items?.length || 0} transactions`, color:'var(--accent4)' },
+                        { label:'Advances Owed', val: fmtMoney(advancePending[selectedDriverId]?.total || 0), sub:`${advancePending[selectedDriverId]?.items?.length || 0} outstanding`, color:'var(--warning)' },
                       ].map(c => (
                         <div key={c.label} style={{ ...ps.panel, padding:'16px 20px' }}>
                           <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:6 }}>{c.label}</div>
@@ -1893,6 +1971,228 @@ export function PayrollTracker() {
                   </div>
                 )}
 
+                {/* ── ESCROW TAB ── */}
+                {activeTab === 'escrow' && (() => {
+                  const selEscrow = escrowTxns.filter(t => t.driver_id === selectedDriverId)
+                  const balance = escrowBalances[selectedDriverId] || 0
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                      <div style={{ ...ps.panel, padding:'20px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div>
+                          <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Escrow Balance</div>
+                          <div style={{ fontSize:28, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", color: balance > 0 ? 'var(--accent3)' : 'var(--muted)' }}>{fmtMoney(balance)}</div>
+                          <div style={{ fontSize:11, color:'var(--muted)' }}>Reserve fund held for {selectedDriver?.full_name || selectedDriver?.name}</div>
+                        </div>
+                        <button className="btn btn-primary" style={{ fontSize:12, padding:'8px 16px' }} onClick={() => setShowEscrowRelease(true)}>Release Funds</button>
+                      </div>
+                      {showEscrowRelease && (
+                        <div style={{ ...ps.panel, padding:'16px 20px' }}>
+                          <div style={{ fontSize:13, fontWeight:700, marginBottom:10 }}>Release Escrow Funds</div>
+                          <form onSubmit={async e => {
+                            e.preventDefault()
+                            const fd = new FormData(e.target)
+                            const amt = Number(fd.get('amount'))
+                            if (!amt || amt <= 0) { showToast('error','Error','Enter a valid amount'); return }
+                            if (amt > balance) { showToast('error','Error','Cannot release more than balance'); return }
+                            try {
+                              const txn = await db.createEscrowTransaction({ driver_id: selectedDriverId, type: 'release', amount: amt, description: fd.get('description') || 'Manual release' })
+                              setEscrowTxns(prev => [txn, ...prev])
+                              setShowEscrowRelease(false)
+                              showToast('success','Released',`${fmtMoney(amt)} released from escrow`)
+                              e.target.reset()
+                            } catch (err) { showToast('error','Error',err.message) }
+                          }} style={{ display:'flex', gap:10, alignItems:'flex-end' }}>
+                            <div style={{ flex:1 }}>
+                              <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Amount</label>
+                              <input name="amount" type="number" step="0.01" max={balance} placeholder="0.00" className="form-input" style={{ width:'100%' }} required />
+                            </div>
+                            <div style={{ flex:2 }}>
+                              <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Reason</label>
+                              <input name="description" placeholder="e.g. Maintenance reimbursement" className="form-input" style={{ width:'100%' }} />
+                            </div>
+                            <button type="submit" className="btn btn-primary" style={{ fontSize:12, padding:'8px 14px' }}>Release</button>
+                            <button type="button" className="btn btn-ghost" style={{ fontSize:12, padding:'8px 14px' }} onClick={() => setShowEscrowRelease(false)}>Cancel</button>
+                          </form>
+                        </div>
+                      )}
+                      <div style={ps.panel}>
+                        <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}>Transaction History</div>
+                        {selEscrow.length === 0 ? (
+                          <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No escrow transactions yet. Add an "Escrow" recurring deduction to auto-hold funds each payroll.</div>
+                        ) : (
+                          <div style={{ overflowX:'auto' }}>
+                            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                              <thead><tr style={{ borderBottom:'1px solid var(--border)' }}>
+                                <th style={ps.th}>Date</th><th style={ps.th}>Type</th><th style={ps.th}>Amount</th><th style={ps.th}>Description</th>
+                              </tr></thead>
+                              <tbody>{selEscrow.map(t => (
+                                <tr key={t.id} style={{ borderBottom:'1px solid var(--border)' }}>
+                                  <td style={ps.td}>{new Date(t.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+                                  <td style={ps.td}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:5, background: t.type==='hold' ? 'rgba(77,142,240,0.1)' : 'rgba(34,197,94,0.1)', color: t.type==='hold' ? 'var(--accent3)' : 'var(--success)' }}>{t.type === 'hold' ? 'Hold' : 'Release'}</span></td>
+                                  <td style={{ ...ps.td, fontWeight:700, color: t.type==='hold' ? 'var(--accent3)' : 'var(--success)' }}>{t.type==='hold' ? '+' : '-'}{fmtMoney(t.amount)}</td>
+                                  <td style={{ ...ps.td, color:'var(--muted)' }}>{t.description || '—'}</td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* ── FUEL CARD TAB ── */}
+                {activeTab === 'fuel-card' && (() => {
+                  const selFuel = fuelCardTxns.filter(f => f.driver_id === selectedDriverId)
+                  const pending = fuelPending[selectedDriverId]?.total || 0
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                      <div style={{ ...ps.panel, padding:'20px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div>
+                          <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Pending Fuel Deductions</div>
+                          <div style={{ fontSize:28, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", color: pending > 0 ? 'var(--danger)' : 'var(--success)' }}>{fmtMoney(pending)}</div>
+                          <div style={{ fontSize:11, color:'var(--muted)' }}>Will be deducted from next settlement</div>
+                        </div>
+                        <button className="btn btn-primary" style={{ fontSize:12, padding:'8px 16px' }} onClick={() => setShowFuelForm(true)}>+ Add Purchase</button>
+                      </div>
+                      {showFuelForm && (
+                        <div style={{ ...ps.panel, padding:'16px 20px' }}>
+                          <div style={{ fontSize:13, fontWeight:700, marginBottom:10 }}>Log Fuel Card Purchase</div>
+                          <form onSubmit={async e => {
+                            e.preventDefault()
+                            const fd = new FormData(e.target)
+                            const amt = Number(fd.get('amount'))
+                            if (!amt) { showToast('error','Error','Enter an amount'); return }
+                            try {
+                              const txn = await db.createFuelCardTransaction({
+                                driver_id: selectedDriverId, transaction_date: fd.get('date') || new Date().toISOString().slice(0,10),
+                                station: fd.get('station'), gallons: Number(fd.get('gallons')) || null, amount: amt,
+                                city: fd.get('city'), state: fd.get('state'), notes: fd.get('notes'),
+                              })
+                              setFuelCardTxns(prev => [txn, ...prev])
+                              setShowFuelForm(false)
+                              showToast('success','Added',`${fmtMoney(amt)} fuel purchase logged`)
+                              e.target.reset()
+                            } catch (err) { showToast('error','Error',err.message) }
+                          }} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                            <div><label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Date *</label><input name="date" type="date" defaultValue={new Date().toISOString().slice(0,10)} className="form-input" style={{ width:'100%' }} required /></div>
+                            <div><label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Station</label><input name="station" placeholder="e.g. Pilot, Love's" className="form-input" style={{ width:'100%' }} /></div>
+                            <div><label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Amount *</label><input name="amount" type="number" step="0.01" placeholder="0.00" className="form-input" style={{ width:'100%' }} required /></div>
+                            <div><label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Gallons</label><input name="gallons" type="number" step="0.001" placeholder="0.000" className="form-input" style={{ width:'100%' }} /></div>
+                            <div><label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>City</label><input name="city" placeholder="City" className="form-input" style={{ width:'100%' }} /></div>
+                            <div><label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>State</label><input name="state" placeholder="ST" maxLength={2} className="form-input" style={{ width:'100%' }} /></div>
+                            <div style={{ gridColumn:'span 3', display:'flex', gap:10 }}>
+                              <button type="submit" className="btn btn-primary" style={{ fontSize:12, padding:'8px 14px' }}>Save</button>
+                              <button type="button" className="btn btn-ghost" style={{ fontSize:12, padding:'8px 14px' }} onClick={() => setShowFuelForm(false)}>Cancel</button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+                      <div style={ps.panel}>
+                        <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}>Fuel Card History</div>
+                        {selFuel.length === 0 ? (
+                          <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No fuel card transactions. Click "Add Purchase" to log fuel card purchases for auto-deduction.</div>
+                        ) : (
+                          <div style={{ overflowX:'auto' }}>
+                            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                              <thead><tr style={{ borderBottom:'1px solid var(--border)' }}>
+                                <th style={ps.th}>Date</th><th style={ps.th}>Station</th><th style={ps.th}>Gallons</th><th style={ps.th}>Amount</th><th style={ps.th}>Status</th>
+                              </tr></thead>
+                              <tbody>{selFuel.map(f => (
+                                <tr key={f.id} style={{ borderBottom:'1px solid var(--border)' }}>
+                                  <td style={ps.td}>{new Date(f.transaction_date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
+                                  <td style={ps.td}>{f.station || '—'}{f.city ? `, ${f.city}` : ''}{f.state ? ` ${f.state}` : ''}</td>
+                                  <td style={ps.td}>{f.gallons ? Number(f.gallons).toFixed(1) : '—'}</td>
+                                  <td style={{ ...ps.td, fontWeight:700 }}>{fmtMoney(f.amount)}</td>
+                                  <td style={ps.td}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:5, background: f.deducted_in_payroll_id ? 'rgba(34,197,94,0.1)' : 'rgba(240,165,0,0.1)', color: f.deducted_in_payroll_id ? 'var(--success)' : 'var(--accent)' }}>{f.deducted_in_payroll_id ? 'Deducted' : 'Pending'}</span></td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* ── ADVANCES TAB ── */}
+                {activeTab === 'advances' && (() => {
+                  const selAdv = advances.filter(a => a.driver_id === selectedDriverId)
+                  const outstanding = advancePending[selectedDriverId]?.total || 0
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                      <div style={{ ...ps.panel, padding:'20px 24px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                        <div>
+                          <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Outstanding Advances</div>
+                          <div style={{ fontSize:28, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", color: outstanding > 0 ? 'var(--danger)' : 'var(--success)' }}>{fmtMoney(outstanding)}</div>
+                          <div style={{ fontSize:11, color:'var(--muted)' }}>Will be deducted from next settlement</div>
+                        </div>
+                        <button className="btn btn-primary" style={{ fontSize:12, padding:'8px 16px' }} onClick={() => setShowAdvanceForm(true)}>+ Give Advance</button>
+                      </div>
+                      {showAdvanceForm && (
+                        <div style={{ ...ps.panel, padding:'16px 20px' }}>
+                          <div style={{ fontSize:13, fontWeight:700, marginBottom:10 }}>Record Cash Advance</div>
+                          <form onSubmit={async e => {
+                            e.preventDefault()
+                            const fd = new FormData(e.target)
+                            const amt = Number(fd.get('amount'))
+                            if (!amt) { showToast('error','Error','Enter an amount'); return }
+                            try {
+                              const adv = await db.createAdvance({
+                                driver_id: selectedDriverId, amount: amt, type: 'advance',
+                                description: fd.get('description') || 'Cash advance',
+                                advance_date: fd.get('date') || new Date().toISOString().slice(0,10),
+                              })
+                              setAdvances(prev => [adv, ...prev])
+                              setShowAdvanceForm(false)
+                              showToast('success','Advance Recorded',`${fmtMoney(amt)} advance to ${selectedDriver?.full_name || selectedDriver?.name}`)
+                              e.target.reset()
+                            } catch (err) { showToast('error','Error',err.message) }
+                          }} style={{ display:'flex', gap:10, alignItems:'flex-end' }}>
+                            <div style={{ flex:1 }}>
+                              <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Amount *</label>
+                              <input name="amount" type="number" step="0.01" placeholder="0.00" className="form-input" style={{ width:'100%' }} required />
+                            </div>
+                            <div style={{ flex:1 }}>
+                              <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Date</label>
+                              <input name="date" type="date" defaultValue={new Date().toISOString().slice(0,10)} className="form-input" style={{ width:'100%' }} />
+                            </div>
+                            <div style={{ flex:2 }}>
+                              <label style={{ fontSize:10, color:'var(--muted)', display:'block', marginBottom:3 }}>Description</label>
+                              <input name="description" placeholder="e.g. Per diem advance, emergency funds" className="form-input" style={{ width:'100%' }} />
+                            </div>
+                            <button type="submit" className="btn btn-primary" style={{ fontSize:12, padding:'8px 14px' }}>Save</button>
+                            <button type="button" className="btn btn-ghost" style={{ fontSize:12, padding:'8px 14px' }} onClick={() => setShowAdvanceForm(false)}>Cancel</button>
+                          </form>
+                        </div>
+                      )}
+                      <div style={ps.panel}>
+                        <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13 }}>Advance History</div>
+                        {selAdv.length === 0 ? (
+                          <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:12 }}>No advances recorded. Click "Give Advance" to log cash advances that will be auto-deducted from settlements.</div>
+                        ) : (
+                          <div style={{ overflowX:'auto' }}>
+                            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                              <thead><tr style={{ borderBottom:'1px solid var(--border)' }}>
+                                <th style={ps.th}>Date</th><th style={ps.th}>Description</th><th style={ps.th}>Amount</th><th style={ps.th}>Type</th><th style={ps.th}>Status</th>
+                              </tr></thead>
+                              <tbody>{selAdv.map(a => (
+                                <tr key={a.id} style={{ borderBottom:'1px solid var(--border)' }}>
+                                  <td style={ps.td}>{new Date(a.advance_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+                                  <td style={ps.td}>{a.description || '—'}</td>
+                                  <td style={{ ...ps.td, fontWeight:700, color: a.type==='advance' ? 'var(--danger)' : 'var(--success)' }}>{a.type==='advance' ? '-' : '+'}{fmtMoney(a.amount)}</td>
+                                  <td style={ps.td}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:5, background: a.type==='advance' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: a.type==='advance' ? 'var(--danger)' : 'var(--success)' }}>{a.type === 'advance' ? 'Advance' : 'Repayment'}</span></td>
+                                  <td style={ps.td}><span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:5, background: a.deducted_in_payroll_id ? 'rgba(34,197,94,0.1)' : 'rgba(240,165,0,0.1)', color: a.deducted_in_payroll_id ? 'var(--success)' : 'var(--accent)' }}>{a.deducted_in_payroll_id ? 'Deducted' : 'Pending'}</span></td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {activeTab === '1099' && (
                   <div style={{ ...ps.panel, padding:'24px' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
@@ -1929,6 +2229,18 @@ export function PayrollTracker() {
                         : `${selectedDriver.full_name || selectedDriver.name} has earned ${fmtMoney(selYtd.gross)} YTD. A 1099-NEC is only required if total compensation reaches $600 or more.`
                       }
                     </div>
+                    {selNeeds1099 && (
+                      <button className="btn btn-primary" style={{ marginTop:16, padding:'10px 20px', fontSize:13 }} onClick={() => {
+                        generate1099NECPDF(
+                          { name: selectedDriver.full_name || selectedDriver.name, address: selectedDriver.address || '', tax_id_last4: selectedDriver.tax_id_last4 || '' },
+                          new Date().getFullYear(),
+                          selYtd.gross,
+                        )
+                        showToast('','Downloaded',`1099-NEC PDF for ${selectedDriver.full_name || selectedDriver.name}`)
+                      }}>
+                        <Ic icon={Download} size={14} /> Download 1099-NEC PDF
+                      </button>
+                    )}
                   </div>
                 )}
               </>

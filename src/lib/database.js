@@ -563,6 +563,73 @@ export async function setRecurringDeductions(driverId, deductions) {
   return data || []
 }
 
+// ─── ESCROW / RESERVE FUND ────────────────────────────────────
+export async function fetchEscrowTransactions(driverId) {
+  let query = supabase.from('driver_escrow').select('*').order('created_at', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_escrow', query)
+  return data || []
+}
+
+export async function createEscrowTransaction(record) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createEscrowTransaction',
+    supabase.from('driver_escrow').insert({ ...record, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+// ─── FUEL CARD TRANSACTIONS ──────────────────────────────────
+export async function fetchFuelCardTransactions(driverId) {
+  let query = supabase.from('driver_fuel_cards').select('*').order('transaction_date', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_fuel_cards', query)
+  return data || []
+}
+
+export async function createFuelCardTransaction(record) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createFuelCardTransaction',
+    supabase.from('driver_fuel_cards').insert({ ...record, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function markFuelCardDeducted(ids, payrollId) {
+  if (!ids.length) return
+  const { error } = await safeMutate('markFuelCardDeducted',
+    supabase.from('driver_fuel_cards').update({ deducted_in_payroll_id: payrollId }).in('id', ids)
+  )
+  if (error) throw error
+}
+
+// ─── DRIVER ADVANCES / DRAWS ─────────────────────────────────
+export async function fetchAdvances(driverId) {
+  let query = supabase.from('driver_advances').select('*').order('advance_date', { ascending: false })
+  if (driverId) query = query.eq('driver_id', driverId)
+  const data = await safeSelect('driver_advances', query)
+  return data || []
+}
+
+export async function createAdvance(record) {
+  const userId = await getUserId()
+  const { data, error } = await safeMutate('createAdvance',
+    supabase.from('driver_advances').insert({ ...record, owner_id: userId }).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function markAdvancesDeducted(ids, payrollId) {
+  if (!ids.length) return
+  const { error } = await safeMutate('markAdvancesDeducted',
+    supabase.from('driver_advances').update({ deducted_in_payroll_id: payrollId }).in('id', ids)
+  )
+  if (error) throw error
+}
+
 // ─── HIRING CANDIDATES ─────────────────────────────────────
 export async function fetchHiringCandidates() {
   const data = await safeSelect('hiring_candidates',

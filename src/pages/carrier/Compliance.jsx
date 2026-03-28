@@ -1891,7 +1891,7 @@ export function AuditToday() {
           { label: 'DVIR', value: failures.some(f => f.icon === 'dvir') ? 'FAIL' : 'PASS', fail: failures.some(f => f.icon === 'dvir') },
           { label: 'Insurance', value: failures.some(f => f.icon === 'insurance') ? 'FAIL' : 'PASS', fail: failures.some(f => f.icon === 'insurance') },
           { label: 'Annual Inspection', value: failures.some(f => f.icon === 'inspection') ? 'FAIL' : 'PASS', fail: failures.some(f => f.icon === 'inspection') },
-          { label: 'Vehicle Status', value: failures.some(f => f.icon === 'oos') ? 'FAIL' : 'PASS', fail: failures.some(f => f.icon === 'oos') },
+          { label: 'Vehicle Status', value: failures.some(f => f.category === 'vehicle') ? 'FAIL' : 'PASS', fail: failures.some(f => f.category === 'vehicle') },
         ].map(s => (
           <div key={s.label} style={{
             background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,

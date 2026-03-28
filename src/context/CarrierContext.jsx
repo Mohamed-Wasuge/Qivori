@@ -182,7 +182,8 @@ export function CarrierProvider({ children }) {
   const [consolidations, setConsolidations] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
   const [aiFees, setAiFees] = useState([])
-  const [fuelCostPerMile, setFuelCostPerMile] = useState(0.22) // default, updated from EIA
+  const [fuelCostPerMile, setFuelCostPerMile] = useState(0.55) // default ~$3.85/gal at 7 MPG, updated from EIA
+  const [carrierMpg, setCarrierMpg] = useState(null) // carrier's truck MPG (null = use 7.0 default)
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
   const initRef = useRef(false)
@@ -258,6 +259,11 @@ export function CarrierProvider({ children }) {
           setInvoiceCompany(nc)
         }
         setUseDb(true)
+        // Fetch carrier MPG setting if available
+        try {
+          const { data: settings } = await supabase.from('carrier_settings').select('truck_mpg').limit(1).single()
+          if (settings?.truck_mpg) setCarrierMpg(parseFloat(settings.truck_mpg))
+        } catch {} // no settings yet = use default
       } catch (e) {
         console.error('[CarrierContext] Init failed:', e.message || e)
         setLoads([])
@@ -335,8 +341,9 @@ export function CarrierProvider({ children }) {
         const usAvg = prices.find(p => p.region === 'US AVG')
         const price = usAvg ? usAvg.price : prices[0].price
         if (price && price > 0) {
-          // Convert $/gallon to $/mile (avg truck: 6.5 MPG)
-          setFuelCostPerMile(+(price / 6.5).toFixed(3))
+          // Convert $/gallon to $/mile (default 7.0 MPG, carrier can override in settings)
+          const mpg = carrierMpg || 7.0
+          setFuelCostPerMile(+(price / mpg).toFixed(3))
         }
       }
     }).catch(() => {}) // keep default $0.22/mi on failure
@@ -1060,7 +1067,7 @@ export function CarrierProvider({ children }) {
       allLoads: loads, allInvoices: invoices, allExpenses: expenses,
       drivers, vehicles, company, checkCalls, qMemories, consolidations, aiFees,
       deliveredLoads, activeLoads, unpaidInvoices,
-      totalRevenue, totalExpenses, brokerStats, fuelCostPerMile,
+      totalRevenue, totalExpenses, brokerStats, fuelCostPerMile, carrierMpg,
       updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense, editExpense, removeExpense, removeInvoice,
       addDriver, editDriver, removeDriver,

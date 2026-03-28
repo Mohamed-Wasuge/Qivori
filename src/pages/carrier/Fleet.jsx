@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { Truck, User, MapPin, Package, Radio, MessageCircle, AlertTriangle, Fuel, BarChart2, Bot, Check, PencilIcon, Wrench, Trash2, Siren, FileText, Paperclip, DollarSign, TrendingUp, TrendingDown, Zap, Save, Route, Shield, Scale, Eye, EyeOff, Container, Snowflake, Layers, Plus, Upload, Printer, Download, Calendar, Clock } from 'lucide-react'
 import { uploadFile } from '../../lib/storage'
+import { apiFetch } from '../../lib/api'
 import { createDocument, fetchVehicleDocuments, createVehicleDocument, deleteVehicleDocument } from '../../lib/database'
 // FleetMapGoogle is exported directly from FleetMapGoogle.jsx
 // Do NOT re-export it here to avoid circular chunk initialization issues
@@ -1351,6 +1352,83 @@ export function EquipmentManager() {
   const [showDocUpload, setShowDocUpload] = useState(false)
   const [newVehDoc, setNewVehDoc] = useState({ doc_type: 'registration', file_name: '', expiry_date: '', issued_date: '', notes: '', file: null })
   const [docSaving, setDocSaving] = useState(false)
+  const [docValidation, setDocValidation] = useState(null) // { status: 'checking'|'match'|'mismatch'|'warning'|'error', message, detected, aiData }
+
+  // AI document validation — runs after file is selected
+  const validateDocument = useCallback(async (file, selectedDocType) => {
+    if (!file || file.size > 5 * 1024 * 1024) return // skip files > 5MB
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
+    const isPdf = /\.pdf$/i.test(file.name)
+    if (!isImage && !isPdf) return // skip doc/docx — can't parse those
+
+    setDocValidation({ status: 'checking', message: 'AI is verifying this document...' })
+    try {
+      // Convert file to base64
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const mediaType = isPdf ? 'application/pdf' : file.type || 'image/jpeg'
+      const res = await apiFetch('/api/parse-document', {
+        method: 'POST',
+        body: JSON.stringify({ file: base64, mediaType, documentType: 'vehicle_doc' }),
+      })
+
+      if (!res.success || !res.data) {
+        setDocValidation({ status: 'warning', message: 'Could not verify document — upload at your own discretion' })
+        return
+      }
+
+      const ai = res.data
+      const detected = ai.detected_document_type || 'unknown'
+
+      // Check if it's even a vehicle document
+      if (ai.is_vehicle_document === false) {
+        setDocValidation({
+          status: 'mismatch',
+          message: `This does not appear to be a vehicle document. AI detected: ${ai.key_details || 'non-vehicle document'}. Are you sure you want to upload this as ${VEH_DOC_TYPES.find(t => t.id === selectedDocType)?.label}?`,
+          detected,
+          aiData: ai,
+        })
+        return
+      }
+
+      // Check if detected type matches selected type
+      if (detected !== 'unknown' && detected !== 'other' && detected !== selectedDocType) {
+        const detectedLabel = VEH_DOC_TYPES.find(t => t.id === detected)?.label || detected
+        const selectedLabel = VEH_DOC_TYPES.find(t => t.id === selectedDocType)?.label || selectedDocType
+        setDocValidation({
+          status: 'mismatch',
+          message: `AI detected this as "${detectedLabel}" but you selected "${selectedLabel}". Please verify the document type is correct.`,
+          detected,
+          aiData: ai,
+          suggestedType: detected,
+        })
+        return
+      }
+
+      // Auto-fill expiry date if AI found one
+      const expiryFromAI = ai.dates?.expiration_date
+      const issuedFromAI = ai.dates?.issued_date
+      setDocValidation({
+        status: 'match',
+        message: `AI verified: this is a ${VEH_DOC_TYPES.find(t => t.id === selectedDocType)?.label || selectedDocType}`,
+        detected,
+        aiData: ai,
+        autoExpiry: expiryFromAI || null,
+        autoIssued: issuedFromAI || null,
+      })
+
+      // Auto-fill dates if empty
+      if (expiryFromAI) setNewVehDoc(p => ({ ...p, expiry_date: p.expiry_date || expiryFromAI }))
+      if (issuedFromAI) setNewVehDoc(p => ({ ...p, issued_date: p.issued_date || issuedFromAI }))
+    } catch {
+      setDocValidation({ status: 'warning', message: 'Could not verify document — upload at your own discretion' })
+    }
+  }, [])
 
   const selId = equipment.find(e => e.id === selected)?.id || equipment[0]?.id
   useEffect(() => {
@@ -1864,7 +1942,7 @@ export function EquipmentManager() {
                   <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                     <div>
                       <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Document Type *</label>
-                      <select value={newVehDoc.doc_type} onChange={e => setNewVehDoc(p => ({ ...p, doc_type: e.target.value }))} style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }}>
+                      <select value={newVehDoc.doc_type} onChange={e => { setNewVehDoc(p => ({ ...p, doc_type: e.target.value })); if (newVehDoc.file) { setDocValidation(null); validateDocument(newVehDoc.file, e.target.value) } }} style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box' }}>
                         {VEH_DOC_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}{t.required ? ' *' : ''}</option>)}
                       </select>
                     </div>
@@ -1900,12 +1978,44 @@ export function EquipmentManager() {
                           <Upload size={14} /> Choose File (image or PDF)
                           <input type="file" accept="image/*,.pdf,.doc,.docx" onChange={e => {
                             const f = e.target.files?.[0]
-                            if (f) setNewVehDoc(p => ({ ...p, file: f, file_name: p.file_name || f.name }))
+                            if (f) {
+                              setNewVehDoc(p => ({ ...p, file: f, file_name: p.file_name || f.name }))
+                              setDocValidation(null)
+                              validateDocument(f, newVehDoc.doc_type)
+                            }
                           }} style={{ display:'none' }} />
                         </label>
                       )}
                     </div>
                   </div>
+                  {/* AI Validation Result */}
+                  {docValidation && (
+                    <div style={{
+                      marginTop: 10, padding: '10px 14px', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'flex-start', gap: 8,
+                      background: docValidation.status === 'match' ? 'rgba(34,197,94,0.08)' : docValidation.status === 'mismatch' ? 'rgba(239,68,68,0.08)' : docValidation.status === 'checking' ? 'rgba(77,142,240,0.08)' : 'rgba(240,165,0,0.08)',
+                      border: `1px solid ${docValidation.status === 'match' ? 'rgba(34,197,94,0.25)' : docValidation.status === 'mismatch' ? 'rgba(239,68,68,0.25)' : docValidation.status === 'checking' ? 'rgba(77,142,240,0.25)' : 'rgba(240,165,0,0.25)'}`,
+                    }}>
+                      {docValidation.status === 'checking' && <Bot size={14} style={{ color:'var(--accent3)', flexShrink:0, marginTop:1, animation:'spin 1s linear infinite' }} />}
+                      {docValidation.status === 'match' && <Check size={14} style={{ color:'var(--success)', flexShrink:0, marginTop:1 }} />}
+                      {docValidation.status === 'mismatch' && <AlertTriangle size={14} style={{ color:'var(--danger)', flexShrink:0, marginTop:1 }} />}
+                      {docValidation.status === 'warning' && <AlertTriangle size={14} style={{ color:'var(--accent)', flexShrink:0, marginTop:1 }} />}
+                      <div style={{ flex:1 }}>
+                        <div style={{ color: docValidation.status === 'match' ? 'var(--success)' : docValidation.status === 'mismatch' ? 'var(--danger)' : docValidation.status === 'checking' ? 'var(--accent3)' : 'var(--accent)', fontWeight:600 }}>
+                          {docValidation.message}
+                        </div>
+                        {docValidation.suggestedType && (
+                          <button onClick={() => { setNewVehDoc(p => ({ ...p, doc_type: docValidation.suggestedType })); setDocValidation(prev => ({ ...prev, status:'match', message:`Document type updated to ${VEH_DOC_TYPES.find(t => t.id === docValidation.suggestedType)?.label}`, suggestedType:null })) }}
+                            style={{ marginTop:6, fontSize:11, padding:'4px 10px', borderRadius:6, background:'var(--accent)', color:'#000', border:'none', cursor:'pointer', fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>
+                            Use Suggested Type
+                          </button>
+                        )}
+                        {docValidation.aiData?.vehicle_info?.vin && (
+                          <div style={{ marginTop:4, fontSize:10, color:'var(--muted)' }}>VIN: {docValidation.aiData.vehicle_info.vin}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display:'flex', gap:10, marginTop:18 }}>
                     <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} disabled={docSaving || !newVehDoc.file_name} onClick={async () => {
                       if (!newVehDoc.doc_type || !newVehDoc.file_name) { showToast('error', 'Error', 'Document type and name are required'); return }
@@ -1931,6 +2041,7 @@ export function EquipmentManager() {
                         setVehDocs(prev => [doc, ...prev])
                         showToast('success', 'Document Added', `${VEH_DOC_TYPES.find(t => t.id === newVehDoc.doc_type)?.label} uploaded`)
                         setNewVehDoc({ doc_type: 'registration', file_name: '', expiry_date: '', issued_date: '', notes: '', file: null })
+                        setDocValidation(null)
                         setShowDocUpload(false)
                       } catch (err) {
                         showToast('error', 'Error', err.message || 'Failed to save document')

@@ -185,9 +185,86 @@ const DOCUMENT_SCHEMAS = {
 - certificate_holder: who the certificate is issued to
 - additional_insured: array of additional insured parties`,
   },
+
+  registration: {
+    label: 'Vehicle Registration',
+    schema: `{
+  "type": "registration",
+  "vehicle_type": "",
+  "year": 0,
+  "make": "",
+  "model": "",
+  "vin": "",
+  "license_plate": "",
+  "plate_state": "",
+  "owner_name": "",
+  "registration_date": "YYYY-MM-DD",
+  "expiration_date": "YYYY-MM-DD",
+  "weight_class": "",
+  "fuel_type": "",
+  "color": "",
+  "title_number": "",
+  "confidence": {}
+}`,
+    rules: `- vehicle_type: Truck, Trailer, Tractor, Semi, etc.
+- vin: the Vehicle Identification Number (17 characters)
+- license_plate: the plate number
+- plate_state: 2-letter state code
+- owner_name: registered owner name
+- registration_date and expiration_date in YYYY-MM-DD format
+- weight_class: GVWR class if shown`,
+  },
+
+  dot_inspection: {
+    label: 'DOT Inspection Report',
+    schema: `{
+  "type": "dot_inspection",
+  "inspection_date": "YYYY-MM-DD",
+  "expiration_date": "YYYY-MM-DD",
+  "inspector_name": "",
+  "inspection_number": "",
+  "vehicle_unit": "",
+  "vin": "",
+  "license_plate": "",
+  "carrier_name": "",
+  "usdot_number": "",
+  "inspection_level": "",
+  "result": "",
+  "violations": [],
+  "out_of_service": false,
+  "location": "",
+  "confidence": {}
+}`,
+    rules: `- inspection_level: Level I, II, III, IV, or V
+- result: Pass, Fail, or Conditional
+- violations: array of violation descriptions
+- out_of_service: true if vehicle was placed out of service
+- expiration_date: typically 1 year from inspection_date`,
+  },
+
+  vehicle_doc: {
+    label: 'Vehicle Document (Auto-detect)',
+    schema: `{
+  "type": "",
+  "detected_document_type": "",
+  "is_vehicle_document": true,
+  "vehicle_info": { "year": 0, "make": "", "model": "", "vin": "", "unit_number": "", "license_plate": "" },
+  "dates": { "issued_date": "YYYY-MM-DD", "expiration_date": "YYYY-MM-DD" },
+  "issuer": "",
+  "policy_or_permit_number": "",
+  "key_details": "",
+  "confidence": {}
+}`,
+    rules: `- detected_document_type: one of registration, insurance_certificate, dot_inspection, ifta_permit, irp_cab_card, title, lease_agreement, fuel_permit, oversize_permit, hazmat_permit, eld_certificate, safety_inspection, emission_test, warranty, purchase_receipt, or other
+- is_vehicle_document: false if this does NOT appear to be a vehicle/truck/trailer document (e.g. a W2 tax form, personal document, unrelated paperwork)
+- If is_vehicle_document is false, set detected_document_type to "not_vehicle_document" and describe what it actually is in key_details
+- vehicle_info: extract any vehicle details visible
+- dates: extract issued/effective date and expiration date if present
+- issuer: who issued this document (state DMV, insurance company, FMCSA, etc.)`,
+  },
 }
 
-const VALID_DOC_TYPES = ['rate_con', 'bol', 'pod', 'fuel_receipt', 'scale_ticket', 'insurance', 'auto']
+const VALID_DOC_TYPES = ['rate_con', 'bol', 'pod', 'fuel_receipt', 'scale_ticket', 'insurance', 'registration', 'dot_inspection', 'vehicle_doc', 'auto']
 
 // ── Build the prompt for Claude Vision ──────────────────────────────
 
@@ -200,7 +277,7 @@ function buildPrompt(docType) {
 
     return `You are an expert freight/trucking document parser with OCR capabilities. Analyze this document and:
 
-1. IDENTIFY the document type (one of: rate_con, bol, pod, fuel_receipt, scale_ticket, insurance)
+1. IDENTIFY the document type (one of: rate_con, bol, pod, fuel_receipt, scale_ticket, insurance, registration, dot_inspection, vehicle_doc)
 2. EXTRACT all relevant data fields
 3. Return structured JSON matching the schema for that document type
 

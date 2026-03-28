@@ -558,6 +558,10 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const [hosLogs, setHosLogs] = useState([])
   const [eldVehicles, setEldVehicles] = useState([])
 
+  // Fleet documents state
+  const [allVehDocs, setAllVehDocs] = useState([])
+  const [vehDocsLoaded, setVehDocsLoaded] = useState(false)
+
   // Load DVIR history, ELD connections, and HOS logs on mount
   useEffect(() => {
     db.fetchDVIRs().then(d => setDvirHistory(d)).catch(() => {})
@@ -565,6 +569,15 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
     db.fetchHOSLogs().then(h => setHosLogs(h)).catch(() => {})
     db.fetchELDVehicles().then(v => setEldVehicles(v)).catch(() => {})
   }, [])
+
+  // Load vehicle documents when fleet_docs tab is opened
+  useEffect(() => {
+    if (compTab !== 'fleet_docs' || vehDocsLoaded) return
+    const vehicles = ctxVehicles || []
+    if (vehicles.length === 0) { setVehDocsLoaded(true); return }
+    Promise.all(vehicles.map(v => db.fetchVehicleDocuments(v.id).then(docs => docs.map(d => ({ ...d, _vehicle: v }))).catch(() => [])))
+      .then(results => { setAllVehDocs(results.flat()); setVehDocsLoaded(true) })
+  }, [compTab, ctxVehicles, vehDocsLoaded])
 
   // Compute ELD stats from real data
   const eldStats = useMemo(() => {
@@ -797,6 +810,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
     { id:'dvir',     label:'DVIR',            icon: FileCheck },
     { id:'csa',      label:'CSA Scores',      icon: Shield },
     { id:'clearinghouse', label:'Clearinghouse', icon: Search },
+    { id:'fleet_docs',    label:'Fleet Docs',    icon: Truck },
   ]
 
   return (
@@ -1449,6 +1463,146 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             </div>
           </>
         )}
+
+        {/* ── FLEET DOCUMENTS ── */}
+        {compTab === 'fleet_docs' && (() => {
+          const vehicles = ctxVehicles || []
+          const REQUIRED_TYPES = ['registration', 'insurance_certificate', 'dot_inspection']
+          const DOC_TYPE_LABELS = { registration: 'Registration', insurance_certificate: 'Insurance Certificate', dot_inspection: 'DOT Inspection', ifta_permit: 'IFTA Permit', irp_cab_card: 'IRP Cab Card', title: 'Title', lease_agreement: 'Lease Agreement', fuel_permit: 'Fuel Permit', oversize_permit: 'Oversize Permit', hazmat_permit: 'Hazmat Permit', eld_certificate: 'ELD Certificate', apportioned_plate: 'Apportioned Plate', emission_test: 'Emission Test', safety_inspection: 'Safety Inspection', warranty: 'Warranty', purchase_receipt: 'Purchase Receipt', photos: 'Vehicle Photos', other: 'Other' }
+
+          const expiredDocs = allVehDocs.filter(d => {
+            if (!d.expiry_date) return false
+            return new Date(d.expiry_date) < new Date()
+          })
+          const expiringDocs = allVehDocs.filter(d => {
+            if (!d.expiry_date) return false
+            const days = Math.floor((new Date(d.expiry_date) - new Date()) / 86400000)
+            return days >= 0 && days <= 30
+          })
+
+          // Per-vehicle compliance summary
+          const vehicleSummary = vehicles.map(v => {
+            const docs = allVehDocs.filter(d => d.vehicle_id === v.id)
+            const uploadedTypes = new Set(docs.map(d => d.doc_type))
+            const missingRequired = REQUIRED_TYPES.filter(t => !uploadedTypes.has(t))
+            const expired = docs.filter(d => d.expiry_date && new Date(d.expiry_date) < new Date())
+            const expiring = docs.filter(d => {
+              if (!d.expiry_date) return false
+              const days = Math.floor((new Date(d.expiry_date) - new Date()) / 86400000)
+              return days >= 0 && days <= 30
+            })
+            const score = REQUIRED_TYPES.length > 0 ? Math.round(((REQUIRED_TYPES.length - missingRequired.length) / REQUIRED_TYPES.length) * 100) : 100
+            return { vehicle: v, docs, missingRequired, expired, expiring, score }
+          })
+
+          const overallScore = vehicleSummary.length > 0 ? Math.round(vehicleSummary.reduce((s, v) => s + v.score, 0) / vehicleSummary.length) : 100
+
+          return (
+            <>
+              {/* KPI Cards */}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:12 }}>
+                <div className="panel" style={{ padding:16, textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Vehicles</div>
+                  <div className="stat-value" style={{ color:'var(--text)' }}>{vehicles.length}</div>
+                </div>
+                <div className="panel" style={{ padding:16, textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Documents</div>
+                  <div className="stat-value" style={{ color:'var(--accent)' }}>{allVehDocs.length}</div>
+                </div>
+                <div className="panel" style={{ padding:16, textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Expired</div>
+                  <div className="stat-value" style={{ color: expiredDocs.length > 0 ? 'var(--danger)' : 'var(--success)' }}>{expiredDocs.length}</div>
+                </div>
+                <div className="panel" style={{ padding:16, textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Expiring Soon</div>
+                  <div className="stat-value" style={{ color: expiringDocs.length > 0 ? 'var(--accent)' : 'var(--success)' }}>{expiringDocs.length}</div>
+                </div>
+                <div className="panel" style={{ padding:16, textAlign:'center' }}>
+                  <div style={{ fontSize:10, color:'var(--muted)', textTransform:'uppercase', fontWeight:600, letterSpacing:1 }}>Compliance</div>
+                  <div className="stat-value" style={{ color: overallScore === 100 ? 'var(--success)' : overallScore >= 67 ? 'var(--accent)' : 'var(--danger)' }}>{overallScore}%</div>
+                </div>
+              </div>
+
+              {/* Alerts */}
+              {(expiredDocs.length > 0 || expiringDocs.length > 0) && (
+                <div className="panel" style={{ padding:16, display:'flex', flexDirection:'column', gap:8 }}>
+                  <div style={{ fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:6 }}><AlertTriangle size={14} color="var(--danger)" /> Document Alerts</div>
+                  {expiredDocs.map(d => (
+                    <div key={d.id} style={{ padding:'8px 12px', background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:8, fontSize:12, display:'flex', alignItems:'center', gap:8 }}>
+                      <Siren size={12} color="var(--danger)" />
+                      <span style={{ fontWeight:600, color:'var(--danger)' }}>EXPIRED</span>
+                      <span style={{ color:'var(--text)' }}>{d._vehicle?.unit_number || d._vehicle?.unit || 'Vehicle'} — {DOC_TYPE_LABELS[d.doc_type] || d.doc_type}</span>
+                      <span style={{ color:'var(--muted)', marginLeft:'auto', fontSize:10 }}>Expired {new Date(d.expiry_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
+                    </div>
+                  ))}
+                  {expiringDocs.map(d => {
+                    const days = Math.floor((new Date(d.expiry_date) - new Date()) / 86400000)
+                    return (
+                      <div key={d.id} style={{ padding:'8px 12px', background:'rgba(240,165,0,0.06)', border:'1px solid rgba(240,165,0,0.15)', borderRadius:8, fontSize:12, display:'flex', alignItems:'center', gap:8 }}>
+                        <Clock size={12} color="var(--accent)" />
+                        <span style={{ fontWeight:600, color:'var(--accent)' }}>EXPIRING</span>
+                        <span style={{ color:'var(--text)' }}>{d._vehicle?.unit_number || d._vehicle?.unit || 'Vehicle'} — {DOC_TYPE_LABELS[d.doc_type] || d.doc_type}</span>
+                        <span style={{ color:'var(--muted)', marginLeft:'auto', fontSize:10 }}>{days} days left</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Per-Vehicle Compliance Table */}
+              <div className="panel" style={{ overflow:'hidden' }}>
+                <div style={{ padding:'14px 16px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:14 }}>Fleet Document Compliance</div>
+                {!vehDocsLoaded ? (
+                  <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>Loading vehicle documents...</div>
+                ) : vehicles.length === 0 ? (
+                  <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No vehicles in fleet — add vehicles in Fleet Manager first</div>
+                ) : (
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                      <thead>
+                        <tr style={{ borderBottom:'1px solid var(--border)' }}>
+                          <th style={{ padding:'10px 12px', textAlign:'left', color:'var(--muted)', fontWeight:600, fontSize:10, textTransform:'uppercase', letterSpacing:1 }}>Unit</th>
+                          <th style={{ padding:'10px 12px', textAlign:'left', color:'var(--muted)', fontWeight:600, fontSize:10, textTransform:'uppercase', letterSpacing:1 }}>Type</th>
+                          {REQUIRED_TYPES.map(t => (
+                            <th key={t} style={{ padding:'10px 12px', textAlign:'center', color:'var(--muted)', fontWeight:600, fontSize:10, textTransform:'uppercase', letterSpacing:1 }}>{DOC_TYPE_LABELS[t]?.replace(' Certificate','')}</th>
+                          ))}
+                          <th style={{ padding:'10px 12px', textAlign:'center', color:'var(--muted)', fontWeight:600, fontSize:10, textTransform:'uppercase', letterSpacing:1 }}>Total Docs</th>
+                          <th style={{ padding:'10px 12px', textAlign:'center', color:'var(--muted)', fontWeight:600, fontSize:10, textTransform:'uppercase', letterSpacing:1 }}>Score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vehicleSummary.map(vs => (
+                          <tr key={vs.vehicle.id} style={{ borderBottom:'1px solid var(--border)' }}>
+                            <td style={{ padding:'10px 12px', fontWeight:600 }}>{vs.vehicle.unit_number || vs.vehicle.unit || '—'}</td>
+                            <td style={{ padding:'10px 12px', color:'var(--muted)' }}>{vs.vehicle.type || vs.vehicle.vehicle_type || '—'}</td>
+                            {REQUIRED_TYPES.map(t => {
+                              const doc = vs.docs.find(d => d.doc_type === t)
+                              if (!doc) return <td key={t} style={{ padding:'10px 12px', textAlign:'center' }}><span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:5, background:'rgba(239,68,68,0.1)', color:'var(--danger)' }}>Missing</span></td>
+                              const isExpired = doc.expiry_date && new Date(doc.expiry_date) < new Date()
+                              const daysLeft = doc.expiry_date ? Math.floor((new Date(doc.expiry_date) - new Date()) / 86400000) : null
+                              const isExpiring = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30
+                              return (
+                                <td key={t} style={{ padding:'10px 12px', textAlign:'center' }}>
+                                  <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:5, background: isExpired ? 'rgba(239,68,68,0.1)' : isExpiring ? 'rgba(240,165,0,0.1)' : 'rgba(34,197,94,0.1)', color: isExpired ? 'var(--danger)' : isExpiring ? 'var(--accent)' : 'var(--success)' }}>
+                                    {isExpired ? 'Expired' : isExpiring ? `${daysLeft}d` : 'Valid'}
+                                  </span>
+                                </td>
+                              )
+                            })}
+                            <td style={{ padding:'10px 12px', textAlign:'center', fontWeight:600 }}>{vs.docs.length}</td>
+                            <td style={{ padding:'10px 12px', textAlign:'center' }}>
+                              <span style={{ fontSize:11, fontWeight:700, color: vs.score === 100 ? 'var(--success)' : vs.score >= 67 ? 'var(--accent)' : 'var(--danger)' }}>{vs.score}%</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )
+        })()}
       </div>
     </div>
   )

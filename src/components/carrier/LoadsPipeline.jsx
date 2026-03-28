@@ -1362,8 +1362,8 @@ export function LoadDetailDrawer({ loadId, onClose }) {
 
           {/* ═══ Q DECISION PANEL ═══════════════════════════════════ */}
           {(() => {
-            // Use backend dispatch decision when available, fall back to frontend eval
-            const backendDec = dispatchDecisions[load.loadId || load.id]
+            // Frontend eval only (LoadDetailDrawer is outside LoadsPipeline scope)
+            const backendDec = null
             const frontendQr = qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads: allLoads || loads })
             const qr = backendDec ? {
               ...frontendQr,

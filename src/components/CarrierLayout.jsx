@@ -68,6 +68,9 @@ const SMSSettings = lazyN(() => import('../pages/carrier/Settings'), 'SMSSetting
 const InvoicingSettings = lazyN(() => import('../pages/carrier/Settings'), 'InvoicingSettings')
 const TeamManagement = lazyN(() => import('../pages/carrier/Settings'), 'TeamManagement')
 
+// EDI
+const EDIDashboard = lazyN(() => import('../pages/carrier/EDIDashboard'), 'EDIDashboard')
+
 // HR
 const DQFileManager = lazyN(() => import('../pages/carrier/HR'), 'DQFileManager')
 const ExpiryAlerts = lazyN(() => import('../pages/carrier/HR'), 'ExpiryAlerts')
@@ -132,6 +135,7 @@ const NAV = [
   { id:'financials',   icon: DollarSign,   label:'Money',          i18nKey:'nav.financials'   },
   { id:'compliance',   icon: Shield,       label:'Safety & Compliance', i18nKey:'nav.compliance'   },
   { id:'_divider' },
+  { id:'edi',          icon: Radio,        label:'EDI Hub' },
   { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
@@ -1434,6 +1438,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'financials':  return <FinancialsHub />
     case 'compliance':  return <ComplianceHub />
     case 'settings':    return <SettingsTab />
+    case 'edi':          return <EDIDashboard />
     case 'ai-dashboard': return <AIDispatchDashboard />
     case 'analytics':   return <AnalyticsDashboard />
     case 'load-board':  return <AILoadBoard />

@@ -434,6 +434,17 @@ export function CarrierProvider({ children }) {
             },
           }),
         }).catch(() => {})
+        // EDI 214 — auto-send status update if load came from EDI
+        const ediStatuses = ['Dispatched', 'At Pickup', 'In Transit', 'At Delivery', 'Delivered']
+        if (ediStatuses.includes(newStatus) && (load.load_source === 'edi_204' || load.source === 'edi_204')) {
+          apiFetch('/api/edi/send-214', {
+            method: 'POST',
+            body: JSON.stringify({
+              load_id: load.id,
+              status_event: newStatus,
+            }),
+          }).catch(() => {})
+        }
       } catch (e) {
         console.error('DB operation failed:', e)
       }

@@ -4,6 +4,134 @@ import { sanitizeString } from './_lib/sanitize.js'
 
 export const config = { runtime: 'edge' }
 
+// ── Tool Definitions for Claude ──────────────────────────────────────────────
+
+const TOOLS = [
+  {
+    name: 'find_truck_stop',
+    description: 'Find real truck stops, fuel stations, and rest areas near a location. Returns names, addresses, phone numbers, and distance.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lat: { type: 'number', description: 'Latitude' },
+        lng: { type: 'number', description: 'Longitude' },
+        radius_miles: { type: 'number', description: 'Search radius in miles (default 25)' },
+      },
+      required: ['lat', 'lng'],
+    },
+  },
+  {
+    name: 'find_roadside_service',
+    description: 'Find roadside service providers for breakdowns. Returns provider names and tap-to-call phone numbers.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lat: { type: 'number', description: 'Latitude' },
+        lng: { type: 'number', description: 'Longitude' },
+        issue_type: { type: 'string', enum: ['tire', 'towing', 'fuel', 'mechanical'], description: 'Type of roadside issue' },
+      },
+      required: ['lat', 'lng', 'issue_type'],
+    },
+  },
+  {
+    name: 'get_fuel_prices',
+    description: 'Get current diesel fuel prices near a location. Returns regional averages and nearby station estimates.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lat: { type: 'number', description: 'Latitude' },
+        lng: { type: 'number', description: 'Longitude' },
+      },
+      required: ['lat', 'lng'],
+    },
+  },
+  {
+    name: 'check_weather',
+    description: 'Get current weather conditions and 3-day forecast. Includes driver safety alerts for wind, ice, snow, fog, storms.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lat: { type: 'number', description: 'Latitude' },
+        lng: { type: 'number', description: 'Longitude' },
+        location: { type: 'string', description: 'Location name (e.g. "Dallas, TX")' },
+      },
+      required: ['lat', 'lng'],
+    },
+  },
+  {
+    name: 'get_load_status',
+    description: 'Get the current status of a load from Supabase. Returns status, route, broker contact, and next action.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        load_id: { type: 'string', description: 'Load number or load ID (e.g. QV-5001)' },
+      },
+      required: ['load_id'],
+    },
+  },
+  {
+    name: 'find_loads',
+    description: 'Search for available loads by origin, destination, and equipment type.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        origin: { type: 'string', description: 'Origin city/state (e.g. "Dallas, TX")' },
+        destination: { type: 'string', description: 'Destination city/state (e.g. "Atlanta, GA")' },
+        equipment_type: { type: 'string', description: 'Equipment type (Dry Van, Reefer, Flatbed)' },
+      },
+    },
+  },
+  {
+    name: 'web_search',
+    description: 'Search the web for anything Q cannot answer from other tools. Use for regulations, trucking news, FMCSA rules, route info, etc.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+      },
+      required: ['query'],
+    },
+  },
+]
+
+// ── System Prompt ────────────────────────────────────────────────────────────
+
+function buildSystemPrompt(context, language) {
+  return `You are Q, an AI dispatcher for Qivori. You are fast, brief, and action-oriented. Max 2 sentences per response. Never say you will do something — just do it. Always call a tool and return real data when relevant. Never guess or make up information.
+
+PERSONALITY: Sharp veteran dispatcher. 15 years in freight. Direct, minimal, no corporate speak. No emojis. Use contractions. Sound human.
+
+HOW TO RESPOND:
+- Driver asks about truck stops → call find_truck_stop immediately
+- Driver asks about fuel → call get_fuel_prices immediately
+- Driver asks about weather → call check_weather immediately
+- Driver has a breakdown → call find_roadside_service immediately
+- Driver asks about a load → call get_load_status immediately
+- Driver asks for loads → call find_loads immediately
+- Anything else → call web_search
+- NEVER say "I don't have that info" — search instead
+- NEVER give directions in text — provide map links
+- After calling a tool, summarize the result in 1-2 sentences max. The cards show the data.
+
+CARRIER DATA:
+${context || 'No carrier data loaded.'}
+
+EXISTING ACTIONS: You can also include these action blocks in your text response for the frontend to execute:
+\`\`\`action
+{"type":"ACTION_TYPE",...params}
+\`\`\`
+
+Available actions: check_call, add_expense, mark_invoice_paid, update_load_status, book_load, navigate, search_nearby, open_maps, send_invoice, weather_check, find_parking, hos_check, start_hos, stop_driving, reset_hos, rate_check, trip_pnl, broker_risk, weekly_target, upload_doc, snap_ratecon, start_detention, check_detention, stop_detention
+
+FUEL EXPENSES: When driver logs fuel, ALWAYS include gallons, price_per_gallon, state for IFTA.
+STATUS UPDATES: "delivered" → update_load_status + auto-invoice + ask about next load.
+SAFETY: Driver mentions tired → find parking + remind HOS. NEVER encourage driving fatigued.
+
+${language && language !== 'en' ? `Respond in ${language}. Keep industry terms (BOL, HOS, ELD, IFTA, RPM) in English.` : ''}`
+}
+
+// ── Main Handler ─────────────────────────────────────────────────────────────
+
 export default async function handler(req) {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -11,7 +139,6 @@ export default async function handler(req) {
     return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
 
-  // Require authenticated user
   const { user, error: authError } = await verifyAuth(req)
   if (authError) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
@@ -19,7 +146,6 @@ export default async function handler(req) {
   const subErr = await requireActiveSubscription(req, user)
   if (subErr) return subErr
 
-  // Rate limit: 30 requests per 60 seconds per user (Supabase-backed)
   const { limited, resetSeconds } = await checkRateLimit(user.id, 'chat', 30, 60)
   if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
 
@@ -31,272 +157,113 @@ export default async function handler(req) {
   try {
     let body
     try { body = await req.json() } catch {
-      return Response.json({ error: 'Request body must be valid JSON' }, { status: 400, headers: corsHeaders(req) })
+      return Response.json({ error: 'Invalid JSON' }, { status: 400, headers: corsHeaders(req) })
     }
-    const { messages: rawMessages, context: rawContext, loadBoard: rawLoadBoard, language: rawLanguage } = body
+
+    const { messages: rawMessages, context: rawContext, language: rawLanguage } = body
     const context = sanitizeString(rawContext, 10000)
-    const loadBoard = sanitizeString(rawLoadBoard, 10000)
     const language = sanitizeString(rawLanguage, 10)
     const messages = (rawMessages || []).map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: sanitizeString(m.content, 5000),
     }))
 
-    const systemPrompt = `You are Q — the AI engine inside Qivori, the most powerful freight-dispatch intelligence platform in trucking.
+    const systemPrompt = buildSystemPrompt(context, language)
 
-You ARE the driver's TMS. They're on their phone, on the road, often hands-free. Every command they give you — booking loads, logging expenses, marking delivered, sending invoices — you execute it IMMEDIATELY with real data. No fake responses. No "I'll help you with that." Just DO it.
+    // ── Call Claude with tools ──
+    let claudeResponse = await callClaude(apiKey, systemPrompt, messages)
+    if (!claudeResponse) {
+      return Response.json({ error: 'AI unavailable' }, { status: 502, headers: corsHeaders(req) })
+    }
 
-You think like a dispatcher, then speak like one. Confident, direct, experienced, calm under pressure, operationally sharp. You help owner-operators and small fleets move trucks, protect rate, reduce deadhead, and make smart decisions fast.
+    // ── Process tool calls ──
+    const toolResults = []
+    let textReply = ''
+    let iterations = 0
+    const maxIterations = 3
 
-NEVER sound robotic, corporate, generic, or desperate. No "I hope you are doing well", no "kindly", no "please consider", no "based on the information provided". Use real dispatcher language — short, direct, actionable.
+    while (iterations < maxIterations) {
+      iterations++
+      const content = claudeResponse.content || []
 
-PERSONALITY: You're Q. Sharp, minimal, efficient. You sound like a veteran dispatcher who's been in freight 15 years and has seen everything. You call drivers by first name (their name is in CARRIER DATA — NEVER ask for it). You get straight to the point. You celebrate wins — "Solid rate." You commiserate — "That lane's been trash all week."
+      // Collect text blocks
+      for (const block of content) {
+        if (block.type === 'text') {
+          textReply += block.text
+        }
+      }
 
-CRITICAL: The driver's name is ALWAYS in the CARRIER DATA section below. NEVER ask "what's your name" or "who is this" — you already know them. When they say "hey" or any greeting, respond naturally like you already know them: "Hey [first name], what do you need?" Jump straight into being useful.
+      // Check for tool use
+      const toolUseBlocks = content.filter(b => b.type === 'tool_use')
+      if (toolUseBlocks.length === 0 || claudeResponse.stop_reason !== 'tool_use') {
+        break // No more tools to call
+      }
 
-You are NOT an AI assistant. You never say "I'm an AI", "As an AI", "I don't have feelings", or anything that breaks character. You're Q — the driver's dispatch engine. Period. If someone asks if you're real, say "I'm your dispatch engine, that's all that matters. What do you need?"
+      // Execute all tool calls
+      const toolResultMessages = []
+      for (const toolCall of toolUseBlocks) {
+        const result = await executeToolCall(toolCall.name, toolCall.input, user, req)
+        toolResults.push({ tool: toolCall.name, input: toolCall.input, result })
+        toolResultMessages.push({
+          type: 'tool_result',
+          tool_use_id: toolCall.id,
+          content: JSON.stringify(result),
+        })
+      }
 
-HOW Q TALKS:
-- "Got it. Booked." (not "I have successfully booked your load")
-- "That's light. Counter at $2,800 — lane supports it." (not "Based on my analysis, I recommend...")
-- "Nice. $3.12/mi on that lane? You crushed it." (not "That is an excellent rate")
-- "Fuel logged. 52 gal in TX — your IFTA's gonna thank you." (not "I have recorded your fuel expense")
-- "Two hours left on your clock. Start looking for a spot." (not "You have approximately 2 hours remaining")
-- "Invoice sent to the broker. Chase 'em in 30 days if they ghost." (not "The invoice has been sent successfully")
-- Use contractions: you're, don't, can't, won't, that's, here's
-- Use real talk: "solid", "light", "crushed it", "fire", "trash", "ghost", "chase"
-- Short sentences. Sentence fragments are fine. No bullet points unless listing loads.
-- NEVER use corporate language, markdown headers, or numbered lists for normal conversation
-- NEVER use emojis. No emoji characters at all. Keep it clean and professional — text only.
-- Use **bold** sparingly — only for key numbers like rates and load IDs
+      // Continue conversation with tool results
+      const continuedMessages = [
+        ...messages,
+        { role: 'assistant', content },
+        { role: 'user', content: toolResultMessages },
+      ]
 
-When they say "delivered" — you update the status, auto-generate the invoice, and ask about the next load. One word from the driver, multiple actions from you.
+      textReply = '' // Reset — Claude will give a new summary
+      claudeResponse = await callClaude(apiKey, systemPrompt, continuedMessages)
+      if (!claudeResponse) break
+    }
 
-CARRIER DATA:
-${context || 'No carrier data loaded yet.'}
+    // Extract final text
+    if (claudeResponse?.content) {
+      const finalText = claudeResponse.content
+        .filter(b => b.type === 'text')
+        .map(b => b.text)
+        .join('')
+      if (finalText) textReply = finalText
+    }
 
-AVAILABLE LOADS:
-${loadBoard || 'No load board data available.'}
+    return Response.json({
+      reply: textReply || 'No response.',
+      tool_results: toolResults,
+    }, { headers: corsHeaders(req) })
 
-DISPATCH THINKING — before every response, silently evaluate:
-- Where is the truck now? When will it be empty?
-- Is the destination market strong or weak for reload?
-- Is the rate strong enough for the lane and timing?
-- What's the deadhead risk? Same-day reload realistic?
-- What's the best next move operationally?
-- Think one move ahead — not just the current load.
+  } catch (err) {
+    return Response.json({ error: 'Something went wrong' }, { status: 500, headers: corsHeaders(req) })
+  }
+}
 
-MARKET INTELLIGENCE:
-- Dry van spot: $2.20-$2.80/mi | Reefer: $2.60-$3.20/mi | Flatbed: $2.80-$3.40/mi
-- Operating cost: $1.55-$1.85/mi (fuel, insurance, maintenance, tires, truck payment)
-- Diesel: ~$3.80/gal | Factoring: 2-5% | Days to pay: Net 30-45 (brokers), Net 15-21 (factoring)
-- Driver pay: 25-30% of gross | Deadhead: avg 15% of loaded miles
-- IFTA deadlines: Q1 (Apr 30), Q2 (Jul 31), Q3 (Oct 31), Q4 (Jan 31)
+// ── Claude API Call ──────────────────────────────────────────────────────────
 
-SEASONAL:
-Jan-Feb: slow, rates dip | Mar-Apr: produce starts, reefer up | May-Jun: flatbed peaks
-Jul-Aug: peak volume | Sep-Oct: best rates (pre-holiday) | Nov-Dec: surge then drop after Dec 15
+async function callClaude(apiKey, systemPrompt, messages) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+      tools: TOOLS,
+    }),
+  })
 
-RATE NEGOTIATION:
-When a driver asks about a rate, think in this structure:
-1. Is the rate above or below market for the lane?
-2. What's the ideal ask, target, and floor?
-3. What's the reload situation at delivery?
-4. Take / Counter / Walk recommendation
-
-Use rate_check action for detailed analysis:
-\`\`\`action
-{"type":"rate_check","origin":"...","destination":"...","miles":0,"rate":0,"equipment":"Dry Van|Reefer|Flatbed|Stepdeck"}
-\`\`\`
-
-If rate is below market, give them a counter-offer script they can text the broker. Use language like:
-- "That's light for the lane. I'd push for $X."
-- "Rate needs help. Counter at $X — that market supports it."
-- "Pickup works, rate doesn't. Tell them you need $X to move on it."
-
-DRIVER COMMUNICATION — sound like a real person on a dispatch radio:
-- "Delivering tomorrow at 10. Already working your reload."
-- "Empty after this? Hold position, I'll find something."
-- "Appointment's tight. Hit me if you're running late."
-- "Broker's being cheap on this one. Want me to counter?"
-- "That's 674 miles for $1,980? Nah. You're worth more than $2.94."
-- 2-3 sentences max. No essays. Driver's got one eye on the road.
-- If the math is important, show the number. Skip the explanation.
-- When in doubt, shorter is better.
-
-BROKER SCRIPTS (give the driver exact words to text/say):
-- "What's your best on it? I've got a truck delivering nearby."
-- "That's light for the lane. We'd need $X to make it work."
-- "Truck's empty tomorrow morning in [city]. Can reload same day if rate's right."
-- "Come up to $X and we'll lock it in right now."
-- "Appreciate it but we'd need more in it. Let me know if it opens up."
-Give these as ready-to-copy text the driver can literally paste to the broker.
-
-TOLL AWARENESS:
-When evaluating routes, factor in toll costs:
-- NJ Turnpike: $40-80 (full length, truck)
-- PA Turnpike: $50-110 (full length)
-- Ohio Turnpike (I-80/90): $30-50
-- Indiana Toll Road: $20-40
-- IL Tollway (I-88/I-294): $15-35
-- FL Turnpike: $20-45
-- NY Thruway: $25-60
-- Kansas Turnpike: $15-25
-If a load runs through a toll corridor and driver logged no toll expense, ask: "Did you take the free route? That lane usually runs $X in tolls."
-Compare: toll route (faster, fewer miles) vs free route (more miles, more fuel, more time). Calculate the real cost difference.
-
-BACKHAUL & RELOAD THINKING:
-The best load isn't always the highest rate. Consider:
-- Shorter deadhead vs higher rate with 200mi deadhead
-- Faster reload vs sitting 2 days waiting
-- Better next market positioning
-- Lower dwell risk
-- Stronger weekly outcome
-
-Always end dispatch advice with:
-- Recommended action (book/counter/hold/reposition)
-- Key risk to watch
-
-CAPABILITIES — when the user wants an action, include:
-\`\`\`action
-{"type": "ACTION_TYPE", ...params}
-\`\`\`
-
-Available actions (use these — they execute REAL operations on the driver's account):
-- {"type":"check_call","load_id":"...","location":"...","status":"On Time|Delayed|At Pickup|At Delivery|Loaded|Empty","notes":"..."}
-- {"type":"add_expense","category":"Fuel|Tolls|Repairs|Insurance|Meals|Parking|Permits|Tires|DEF|Lumper|Scale|Other","amount":0,"merchant":"...","notes":"...","gallons":null,"price_per_gallon":null,"state":"XX"}
-  → For FUEL expenses: ALWAYS include gallons, price_per_gallon, and state (2-letter code). This auto-feeds the IFTA calculator. "$85 fuel 52 gallons Texas" → gallons:52, state:"TX", amount:85
-- {"type":"mark_invoice_paid","invoice_id":"..."}
-- {"type":"navigate","to":"loads|invoices|check-call|add-expense|home"}
-- {"type":"call_broker","phone":"..."}
-- {"type":"get_gps"}
-- {"type":"upload_doc","doc_type":"bol|signed_bol|rate_con|pod|lumper_receipt|scale_ticket|fuel_receipt|other","load_id":"...","prompt":"..."}
-- {"type":"update_load_status","load_id":"...","status":"Booked|Dispatched|At Pickup|Loaded|In Transit|At Delivery|Delivered|Invoiced|Paid"}
-- {"type":"book_load","load_id":"...","origin":"...","destination":"...","miles":0,"rate":0,"gross":0,"broker":"...","equipment":"...","pickup":"...","delivery":"...","weight":"...","commodity":"...","refNum":"..."}
-- {"type":"snap_ratecon"}
-- {"type":"search_nearby","query":"truck stop|rest area|gas station|repair shop|walmart|restaurant","radius":25}
-- {"type":"check_weigh_station","state":"XX","highway":"I-XX","radius":50}
-- {"type":"open_maps","query":"...","lat":0,"lng":0}
-- {"type":"send_invoice","to":"broker@email.com","invoiceNumber":"INV-001","loadNumber":"...","route":"Origin → Dest","amount":0,"dueDate":"Net 30","brokerName":"..."}
-- {"type":"load_stops","load_id":"..."}
-  → Show all stops for a multi-stop load in order. Displays pickup and delivery sequence, contacts, dates, and status.
-- {"type":"next_stop"}
-- {"type":"hos_check"}
-- {"type":"start_hos"}
-- {"type":"reset_hos"}
-- {"type":"weather_check","lat":0,"lng":0,"location":"City, ST"}
-  → Gets real weather at coordinates or load location. Shows current conditions, 3-day forecast, and driver safety warnings (ice, wind, storms).
-- {"type":"find_parking","lat":0,"lng":0,"radius":25}
-  → Finds truck parking, truck stops, and rest areas within radius (miles). Uses Overpass API for real data. Opens Google Maps.
-- {"type":"stop_driving"}
-  → Stop the drive clock. Logs session hours.
-- {"type":"rate_check","origin":"...","destination":"...","miles":0,"rate":0,"equipment":"Dry Van|Reefer|Flatbed|Stepdeck"}
-- {"type":"rate_analysis","origin":"City, ST","destination":"City, ST","miles":700,"rate":2500,"equipment":"Dry Van","weight":"42000"}
-- {"type":"start_detention","location_type":"shipper|receiver|warehouse","free_time_hours":2,"load_id":"..."}
-- {"type":"check_detention"}
-- {"type":"stop_detention"}
-- {"type":"fuel_route","origin":"City, ST","destination":"City, ST"}
-  → Finds cheapest fuel stops along the route with loyalty program info
-- {"type":"trip_pnl","load_id":"..."}
-  → Per-trip P&L: revenue - fuel - tolls - food = net profit. Defaults to most recent delivered load
-- {"type":"reload_chain","destination":"Memphis, TN"}
-  → After delivery, find top 3 reload options from the destination city. Shows RPM comparison to driver's avg.
-- {"type":"rate_trend","origin":"Dallas","destination":"Atlanta"}
-  → Analyze rate trends on a lane: historical avg vs current board rates. Detects if rates are rising or falling.
-- {"type":"find_backhaul","destination":"Atlanta, GA"}
-  → Find backhaul loads from delivery city. Eliminates deadhead by pre-booking return loads.
-- {"type":"smart_reposition"}
-  → Compare nearby markets to find higher-rate cities worth repositioning to. Factors in deadhead cost.
-- {"type":"broker_risk","broker":"XPO Logistics"}
-  → Check broker risk: slow payer, payment risk, unreliable, or trusted. Based on driver's actual invoice data.
-- {"type":"weekly_target","target":5000}
-  → Check weekly revenue vs target. Shows progress, loads needed, daily pace. Can set target: "set my weekly target to 6000"
-
-DETENTION: "start detention" / "I'm waiting at the shipper" → start_detention. "How long have I been here" → check_detention. "I'm leaving" / "stop detention" → stop_detention. $75/hr after 2hr free time.
-
-FUEL ROUTE: "find fuel Chicago to Dallas" / "cheapest fuel on my route" → fuel_route. Finds real truck stops along the corridor with loyalty discount programs.
-
-TRIP P&L: "how much did I make on that trip" / "trip profit" / "per load breakdown" → trip_pnl. Shows gross, expenses, net, margin, RPM.
-
-RELOAD CHAIN: "reloads from Memphis" / "what's next after delivery" / "reload options" → reload_chain. Finds top 3 loads from delivery city, compares RPM to driver avg.
-
-RATE TREND: "rate trend Dallas to Atlanta" / "how's that lane paying" / "lane analysis" → rate_trend. Compares driver's historical RPM to current board rates.
-
-BACKHAUL: "find backhaul from Atlanta" / "loads going back" / "backhaul options" → find_backhaul. Pre-delivery backhaul search to eliminate deadhead.
-
-REPOSITIONING: "should I reposition" / "where are rates best" / "best market nearby" → smart_reposition. Compares rate levels in nearby cities.
-
-BROKER RISK: "is this broker good" / "broker risk check" / "do they pay on time" → broker_risk. Checks payment history and reliability.
-
-WEEKLY TARGET: "how am I doing this week" / "weekly target" / "set target to 6000" → weekly_target. Tracks weekly revenue vs goal.
-
-WEIGH STATIONS: ANY mention of weigh stations, scales, chicken coops → ALWAYS use check_weigh_station. NEVER search_nearby.
-
-PARKING: "find parking" / "where can I park" / "truck parking" / "rest area" / "need to stop" → find_parking. Uses real data from Overpass API. If driver mentions being tired, find parking AND remind them about HOS.
-
-HOS TRACKING: "start driving" / "rolling" / "wheels turning" → start_hos. "stop driving" / "parked" / "shut down" → stop_driving. "how many hours" / "HOS check" / "clock" → hos_check. "10 hour break" / "restart" → reset_hos. "34 hour restart" → reset_hos with cycle:true. ALWAYS track HOS — this is legally required.
-
-WEATHER: "weather" / "storm" / "ice" / "snow" / "rain" / "wind" → weather_check with coordinates from active load. Give driver actionable safety advice, not just numbers.
-
-TRIP P&L: "how much did I make" / "trip profit" / "what was my net" → trip_pnl. Shows real numbers from their data.
-
-BROKER RISK: "is this broker good" / "broker check" / "do they pay" → broker_risk. Check their actual invoice/payment history.
-
-WEEKLY TARGET: "how am I doing this week" / "weekly target" / "set target" → weekly_target. Track revenue vs goal.
-
-FINDING PLACES: Truck stop, fuel, rest area, restaurant → IMMEDIATELY trigger search_nearby. Don't ask location — GPS auto-detects.
-
-LOAD BOARD: When driver asks for loads → search available loads, present top 3-5 with origin→dest, rate, $/mi, broker, AI score, dates. If they say "book it" → book_load immediately.
-
-LOAD LIFECYCLE:
-1. At Pickup → check_call "At Pickup" + ask for BOL photo
-2. Loaded → check_call "Loaded" + update to "In Transit"
-3. At Delivery → check_call "At Delivery"
-4. Delivered → check_call "Delivered" + update status + ask for signed BOL & rate con + offer to invoice
-
-INVOICING: When delivered + docs uploaded → "Ready to invoice. Want me to send it to [broker]?"
-
-HOS: App tracks 11-hour clock locally. If HOS ≤2hrs, suggest rest areas.
-
-SAFETY: Driver mentions tired/exhausted → find rest areas, remind HOS, NEVER encourage driving fatigued.
-
-LTL & PARTIAL LOADS:
-- Qivori supports FTL (Full Truckload), LTL (Less Than Truckload), and Partial loads.
-- When driver mentions pallets, freight class, partial load, LTL, consolidation → use the LTL fields.
-- FREIGHT CLASSES: NMFC classes 50-500. Lower = denser, cheaper. Class 50 = floor-loaded dense. Class 500 = low-density high-value.
-- Standard 53' trailer: 26 pallets (48"x40"), 44,000 lbs max payload.
-- Help drivers understand freight classifications, calculate pallet capacity, and decide whether to consolidate partial loads.
-- When booking LTL/Partial: always include freight_class, pallet_count, dimensions, handling_unit, stackable in the book_load action.
-- Consolidation = grouping multiple LTL/Partial loads onto one truck. Target 80%+ capacity utilization.
-
-RULES:
-- Keep responses SHORT — drivers are on the road, often hands-free
-- Dollar amounts and numbers, not paragraphs
-- "fuel $85 at Loves" → create expense immediately with IFTA fields
-- "fuel 52 gallons $3.89 Texas" → add_expense with gallons:52, price_per_gallon:3.89, state:"TX", amount:202.28
-- "check in" → get_gps then check_call
-- "delivered" → update_load_status to Delivered (auto-generates invoice) + ask about next load
-- "mark paid" or "got paid" → mark_invoice_paid on the most recent unpaid invoice
-- "book it" → book_load with the load being discussed
-- ONE clarifying question max if info is missing — guess intelligently from context
-- Be proactive: flag unpaid invoices >30 days, high expenses, low utilization
-- Think like a business advisor AND a dispatcher
-- When the driver asks about profitability, use their actual data
-- Messages with "[Previous conversation context]" are from prior sessions — use naturally
-- You are Q. Introduce yourself as Q. "Hey [name]." Not "Qivori AI." Keep it minimal.
-- CHAIN ACTIONS: One driver command can trigger multiple actions. "Delivered" → update_load_status + check_call + "Want me to invoice the broker?"
-- FUEL + IFTA: When driver logs fuel, ALWAYS ask for gallons and state if not provided. This feeds their IFTA quarterly tax return automatically.
-- AFTER DELIVERY: Always suggest next load, invoice the broker, and check if they need rest (HOS)
-- MEMORY: If "Q MEMORY" data is present in the carrier data, USE IT. These are things you've learned about the driver from past conversations — their preferences, habits, personal details, and alerts. Reference them naturally like a dispatcher who knows their driver. "You like that lane", "Last time you ran for that broker...", "Since you're based out of Memphis..."
-${language && language !== 'en' ? `
-
-LANGUAGE: Respond in ${
-  { es: 'Spanish', fr: 'French', pt: 'Portuguese', so: 'Somali', am: 'Amharic', ar: 'Arabic', hi: 'Hindi', zh: 'Chinese', ru: 'Russian', ko: 'Korean', vi: 'Vietnamese' }[language] || language
-}. Natural conversational tone for trucking pros. Keep industry terms (BOL, rate con, HOS, ELD, IFTA, DAT, RPM) in English. Numbers and dollar amounts in standard format.` : ''}`
-
-    const claudeMessages = messages
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+  if (!res.ok) {
+    // Fallback model
+    const res2 = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -304,45 +271,200 @@ LANGUAGE: Respond in ${
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2048,
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
         system: systemPrompt,
-        messages: claudeMessages,
+        messages,
+        tools: TOOLS,
       }),
     })
+    if (res2.ok) return await res2.json()
+    return null
+  }
 
-    if (!res.ok) {
-      const err = await res.text()
-      // Claude API error — try fallback model
-      if (res.status === 404 || err.includes('model')) {
-        const res2 = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 2048,
-            system: systemPrompt,
-            messages: claudeMessages,
-          }),
-        })
-        if (res2.ok) {
-          const data2 = await res2.json()
-          return Response.json({ reply: data2.content?.[0]?.text || 'No response.' }, { headers: corsHeaders(req) })
+  return await res.json()
+}
+
+// ── Tool Execution (calls /api/q-tools internally) ───────────────────────────
+
+async function executeToolCall(toolName, input, user, req) {
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+  const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  // Execute tools inline (same edge runtime, no extra HTTP call)
+  switch (toolName) {
+    case 'find_truck_stop':
+      return await findTruckStopInline(input.lat, input.lng, input.radius_miles)
+    case 'find_roadside_service':
+      return findRoadsideServiceInline(input.lat, input.lng, input.issue_type)
+    case 'get_fuel_prices':
+      return await getFuelPricesInline(input.lat, input.lng)
+    case 'check_weather':
+      return await checkWeatherInline(input.lat, input.lng, input.location)
+    case 'get_load_status':
+      return await getLoadStatusInline(user.id, input.load_id, SUPABASE_URL, SERVICE_KEY)
+    case 'find_loads':
+      return await findLoadsInline(user.id, input.origin, input.destination, input.equipment_type, SUPABASE_URL, SERVICE_KEY)
+    case 'web_search':
+      return await webSearchInline(input.query)
+    default:
+      return { error: `Unknown tool: ${toolName}` }
+  }
+}
+
+// ── Inline Tool Implementations ──────────────────────────────────────────────
+
+async function findTruckStopInline(lat, lng, radiusMiles) {
+  const radiusM = Math.round((radiusMiles || 25) * 1609.34)
+  const query = `[out:json][timeout:10];(node["amenity"="fuel"]["hgv"="yes"](around:${radiusM},${lat},${lng});node["amenity"="fuel"]["name"~"Pilot|Flying J|Love|TA |Petro|Buckys|Sapp Bros",i](around:${radiusM},${lat},${lng}););out body;`
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(query)}`,
+    })
+    if (!res.ok) throw new Error()
+    const data = await res.json()
+    const stops = (data.elements || []).slice(0, 8).map(el => {
+      const t = el.tags || {}
+      return {
+        type: 'truck_stop', name: t.name || t.brand || 'Truck Stop',
+        address: [t['addr:street'], t['addr:city'], t['addr:state']].filter(Boolean).join(', ') || `${el.lat.toFixed(3)}, ${el.lon.toFixed(3)}`,
+        phone: t.phone || t['contact:phone'] || null,
+        miles_away: Math.round(haversine(lat, lng, el.lat, el.lon) * 10) / 10,
+        lat: el.lat, lng: el.lon,
+      }
+    }).sort((a, b) => a.miles_away - b.miles_away).slice(0, 5)
+    return { stops, count: stops.length }
+  } catch {
+    return { stops: [], fallback_url: `https://www.google.com/maps/search/truck+stop/@${lat},${lng},12z` }
+  }
+}
+
+function findRoadsideServiceInline(lat, lng, issueType) {
+  const services = {
+    tire: [
+      { name: "Love's Tire Care", phone: '1-800-388-0983', desc: '24/7 tire service' },
+      { name: 'Goodyear Fleet HQ', phone: '1-866-574-5529', desc: '24/7 commercial tire' },
+      { name: 'Michelin ONCall', phone: '1-800-847-3911', desc: '24/7 emergency tire' },
+    ],
+    towing: [
+      { name: 'FleetNet America', phone: '1-800-438-8961', desc: '24/7 breakdown & towing' },
+      { name: 'Truck Down', phone: '1-866-871-4273', desc: 'Commercial towing' },
+    ],
+    fuel: [
+      { name: 'FleetNet America', phone: '1-800-438-8961', desc: 'Mobile fueling' },
+      { name: "Love's Roadside", phone: '1-800-388-0983', desc: 'Fuel delivery + jump' },
+    ],
+    mechanical: [
+      { name: 'FleetNet America', phone: '1-800-438-8961', desc: '24/7 mobile repair' },
+      { name: 'Rush Truck Centers', phone: '1-866-965-7874', desc: 'Heavy repair' },
+      { name: 'Penske Roadside', phone: '1-800-526-0798', desc: '24/7 roadside' },
+    ],
+  }
+  const providers = services[(issueType || 'mechanical').toLowerCase()] || services.mechanical
+  return { issue_type: issueType, providers: providers.map(p => ({ ...p, type: 'roadside_service', call_url: `tel:${p.phone.replace(/[^0-9+]/g, '')}` })) }
+}
+
+async function getFuelPricesInline(lat, lng) {
+  const EIA_KEY = process.env.EIA_API_KEY
+  if (!EIA_KEY) return { prices: [], maps_url: `https://www.google.com/maps/search/diesel+fuel/@${lat},${lng},12z` }
+  try {
+    const region = lng < -100 ? (lat > 42 ? 'R40' : 'R50') : lng < -85 ? (lat > 40 ? 'R20' : 'R30') : (lat > 40 ? 'R1Y' : 'R1Z')
+    const regionName = { R40: 'Rocky Mountain', R50: 'West Coast', R20: 'Midwest', R30: 'Gulf Coast', R1Y: 'East Coast', R1Z: 'Southeast' }[region]
+    const res = await fetch(`https://api.eia.gov/v2/petroleum/pri/gnd/data/?api_key=${EIA_KEY}&frequency=weekly&data[0]=value&facets[product][]=EPD2D&facets[duoarea][]=${region}&sort[0][column]=period&sort[0][direction]=desc&length=1`)
+    if (res.ok) {
+      const data = await res.json()
+      const price = parseFloat(data?.response?.data?.[0]?.value)
+      if (price) {
+        return {
+          type: 'fuel_prices', region: regionName, diesel_avg: price.toFixed(2),
+          prices: [
+            { station: `${regionName} Avg`, price: `$${price.toFixed(2)}` },
+            { station: 'Pilot/Flying J', price: `$${(price - 0.05).toFixed(2)}`, note: 'Loyalty ~5¢ off' },
+            { station: "Love's", price: `$${(price - 0.03).toFixed(2)}`, note: 'Loyalty ~3¢ off' },
+          ],
+          maps_url: `https://www.google.com/maps/search/diesel+fuel/@${lat},${lng},12z`,
         }
       }
-      return Response.json({ error: 'AI temporarily unavailable. Please try again.' }, { status: 502, headers: corsHeaders(req) })
     }
+  } catch {}
+  return { prices: [], maps_url: `https://www.google.com/maps/search/diesel+fuel/@${lat},${lng},12z` }
+}
 
+async function checkWeatherInline(lat, lng, location) {
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,wind_speed_10m,wind_gusts_10m,weather_code,precipitation&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&forecast_days=3&timezone=auto`)
+    if (!res.ok) throw new Error()
     const data = await res.json()
-    const reply = data.content?.[0]?.text || 'No response from AI.'
+    const cur = data.current || {}
+    const codes = { 0:'Clear',1:'Clear',2:'Partly cloudy',3:'Overcast',45:'Foggy',48:'Freezing fog',51:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',71:'Snow',73:'Snow',75:'Heavy snow',80:'Showers',95:'Thunderstorm',96:'T-storm w/hail' }
+    const alerts = []
+    if (cur.wind_speed_10m > 40) alerts.push('HIGH WIND — watch high-profile loads')
+    if ([66,67].includes(cur.weather_code)) alerts.push('FREEZING RAIN — bridges hazardous')
+    if ([71,73,75].includes(cur.weather_code)) alerts.push('SNOW — reduce speed')
+    if ([95,96,99].includes(cur.weather_code)) alerts.push('THUNDERSTORM — seek shelter')
+    const daily = data.daily || {}
+    return {
+      type: 'weather', location: location || `${lat.toFixed(1)}, ${lng.toFixed(1)}`,
+      current: { temp: Math.round(cur.temperature_2m), condition: codes[cur.weather_code] || 'Unknown', wind: Math.round(cur.wind_speed_10m), precip: cur.precipitation || 0 },
+      alerts,
+      forecast: (daily.time || []).map((d, i) => ({ date: d, high: daily.temperature_2m_max?.[i], low: daily.temperature_2m_min?.[i], condition: codes[daily.weather_code?.[i]] || '—' })),
+    }
+  } catch { return { type: 'weather', error: 'Weather unavailable' } }
+}
 
-    return Response.json({ reply }, { headers: corsHeaders(req) })
-  } catch (err) {
-    // Chat handler error
-    return Response.json({ error: 'Something went wrong' }, { status: 500, headers: corsHeaders(req) })
+async function getLoadStatusInline(ownerId, loadId, sbUrl, sKey) {
+  if (!sbUrl || !sKey) return { error: 'Not configured' }
+  const h = { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json' }
+  for (const f of ['load_number', 'load_id', 'id']) {
+    const res = await fetch(`${sbUrl}/rest/v1/loads?owner_id=eq.${ownerId}&${f}=eq.${encodeURIComponent(loadId)}&select=*&limit=1`, { headers: h })
+    if (res.ok) {
+      const rows = await res.json()
+      if (rows.length > 0) {
+        const l = rows[0]
+        return { type: 'load_status', load_number: l.load_number, status: l.status, origin: l.origin, destination: l.destination, rate: parseFloat(l.rate) || 0, broker: l.broker_name, broker_phone: l.broker_phone, driver: l.carrier_name, equipment: l.equipment }
+      }
+    }
   }
+  return { error: 'Load not found' }
+}
+
+async function findLoadsInline(ownerId, origin, dest, equip, sbUrl, sKey) {
+  if (!sbUrl || !sKey) return { loads: [], count: 0 }
+  const h = { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json' }
+  const res = await fetch(`${sbUrl}/rest/v1/loads?status=eq.Rate Con Received&select=*&order=created_at.desc&limit=20`, { headers: h })
+  if (!res.ok) return { loads: [], count: 0 }
+  const rows = await res.json()
+  const loads = rows.filter(l => {
+    const mo = !origin || (l.origin || '').toLowerCase().includes(origin.toLowerCase())
+    const md = !dest || (l.destination || '').toLowerCase().includes(dest.toLowerCase())
+    const me = !equip || (l.equipment || '').toLowerCase().includes(equip.toLowerCase())
+    return mo && md && me
+  }).slice(0, 5).map(l => ({
+    type: 'load_card', load_number: l.load_number, origin: l.origin, destination: l.destination,
+    rate: parseFloat(l.rate) || 0, miles: l.miles, broker: l.broker_name, equipment: l.equipment,
+  }))
+  return { type: 'load_results', loads, count: loads.length }
+}
+
+async function webSearchInline(query) {
+  try {
+    const res = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`)
+    if (res.ok) {
+      const data = await res.json()
+      const results = []
+      if (data.AbstractText) results.push({ title: data.Heading || query, snippet: data.AbstractText.slice(0, 300), url: data.AbstractURL, source: data.AbstractSource })
+      for (const t of (data.RelatedTopics || []).slice(0, 2)) {
+        if (t.Text) results.push({ title: t.Text?.slice(0, 80), snippet: t.Text?.slice(0, 200), url: t.FirstURL, source: 'Web' })
+      }
+      if (results.length > 0) return { type: 'web_results', results }
+    }
+  } catch {}
+  return { type: 'web_results', results: [{ title: `Search: ${query}`, snippet: 'Tap to search', url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`, source: 'Web' }] }
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3959, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
 }

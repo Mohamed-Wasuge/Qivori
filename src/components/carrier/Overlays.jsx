@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  Search, Package, Receipt, DollarSign, User, Building2, Zap, FileText, Fuel, Truck, BarChart2, CheckCircle
+  Search, Package, Receipt, DollarSign, User, Building2, Zap, FileText, Fuel, Truck, BarChart2, CheckCircle,
+  Phone, MapPin, CloudSun, AlertTriangle, ExternalLink, Navigation, Droplets, Wind, X,
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
@@ -58,17 +59,14 @@ export function SearchModal({ open, onClose, onTabChange }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 80, background: 'rgba(0,0,0,0.7)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ width: 560, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.7)' }}>
-        {/* Search input */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
           <Ic icon={Search} size={16} />
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)}
-            placeholder="Search loads, invoices, expenses, drivers, brokers…"
+            placeholder="Search loads, invoices, expenses, drivers, brokers..."
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 14, fontFamily: "'DM Sans',sans-serif" }} />
-          {q && <button onClick={() => setQ('')} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>}
+          {q && <button onClick={() => setQ('')} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>X</button>}
           <span style={{ fontSize: 10, color: 'var(--muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px' }}>ESC</span>
         </div>
-
-        {/* Results */}
         {q.trim().length >= 2 && (
           <div style={{ maxHeight: 420, overflowY: 'auto' }}>
             {results.length === 0
@@ -89,8 +87,6 @@ export function SearchModal({ open, onClose, onTabChange }) {
             }
           </div>
         )}
-
-        {/* Shortcuts hint */}
         {q.trim().length < 2 && (
           <div style={{ padding: '16px 18px', display: 'flex', gap: 16 }}>
             {[[Package,'Loads'],[Receipt,'Invoices'],[DollarSign,'Expenses'],[User,'Drivers'],[Building2,'Brokers']].map(([icon, label]) => (
@@ -106,14 +102,213 @@ export function SearchModal({ open, onClose, onTabChange }) {
   )
 }
 
+// ── TOOL RESULT CARD COMPONENTS ──────────────────────────────────────────────
+
+const cardBase = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }
+const cardRow = { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }
+
+function TruckStopCard({ data }) {
+  if (!data?.stops?.length && !data?.fallback_url) return null
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'rgba(240,165,0,0.04)' }}>
+        <Ic icon={Fuel} size={11} /> Truck Stops Nearby
+      </div>
+      {(data.stops || []).map((s, i) => (
+        <a key={i} href={`https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer" style={{ ...cardRow, textDecoration: 'none', color: 'inherit' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Ic icon={MapPin} size={14} color="var(--accent)" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>{s.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{s.address}</div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{s.miles_away} mi</div>
+            {s.phone && <a href={`tel:${s.phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 10, color: 'var(--success)' }}><Ic icon={Phone} size={9} /> Call</a>}
+          </div>
+        </a>
+      ))}
+      {data.fallback_url && (
+        <a href={data.fallback_url} target="_blank" rel="noopener noreferrer" style={{ ...cardRow, justifyContent: 'center', fontSize: 11, color: 'var(--accent)', textDecoration: 'none' }}>
+          <Ic icon={ExternalLink} size={11} /> Open in Google Maps
+        </a>
+      )}
+    </div>
+  )
+}
+
+function RoadsideCard({ data }) {
+  if (!data?.providers?.length) return null
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'rgba(239,68,68,0.04)' }}>
+        <Ic icon={Phone} size={11} /> Roadside Service — {data.issue_type}
+      </div>
+      {data.providers.map((p, i) => (
+        <div key={i} style={cardRow}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>{p.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc || p.description}</div>
+          </div>
+          <a href={p.call_url || `tel:${p.phone?.replace(/[^0-9+]/g, '')}`} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: 'var(--success)', borderRadius: 8, color: '#fff', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>
+            <Ic icon={Phone} size={12} color="#fff" /> {p.phone}
+          </a>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function FuelCard({ data }) {
+  if (!data?.prices?.length && !data?.maps_url) return null
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--warning)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'rgba(245,158,11,0.04)' }}>
+        <Ic icon={Droplets} size={11} /> Diesel Prices — {data.region || 'Your Area'}
+      </div>
+      {(data.prices || []).map((p, i) => (
+        <div key={i} style={{ ...cardRow, cursor: 'default' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>{p.station}</div>
+            {p.note && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.note}</div>}
+          </div>
+          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: 'var(--warning)' }}>{p.price}</div>
+        </div>
+      ))}
+      {data.maps_url && (
+        <a href={data.maps_url} target="_blank" rel="noopener noreferrer" style={{ ...cardRow, justifyContent: 'center', fontSize: 11, color: 'var(--accent)', textDecoration: 'none', borderBottom: 'none' }}>
+          <Ic icon={Navigation} size={11} /> Find diesel near me
+        </a>
+      )}
+    </div>
+  )
+}
+
+function WeatherCard({ data }) {
+  if (!data?.current || data.error) return null
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'rgba(59,130,246,0.04)' }}>
+        <Ic icon={CloudSun} size={11} /> Weather — {data.location}
+      </div>
+      <div style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--text)' }}>{data.current.temp}°F</div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700 }}>{data.current.condition}</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)' }}><Ic icon={Wind} size={9} /> {data.current.wind} mph wind</div>
+        </div>
+      </div>
+      {data.alerts?.length > 0 && data.alerts.map((a, i) => (
+        <div key={i} style={{ margin: '0 12px 8px', padding: '6px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, fontSize: 11, fontWeight: 700, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Ic icon={AlertTriangle} size={12} /> {a}
+        </div>
+      ))}
+      {data.forecast?.length > 0 && (
+        <div style={{ display: 'flex', borderTop: '1px solid var(--border)' }}>
+          {data.forecast.map((f, i) => (
+            <div key={i} style={{ flex: 1, padding: '8px 10px', textAlign: 'center', borderRight: i < data.forecast.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              <div style={{ fontSize: 9, color: 'var(--muted)' }}>{f.date?.slice(5)}</div>
+              <div style={{ fontSize: 11, fontWeight: 700 }}>{f.high}° / {f.low}°</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)' }}>{f.condition}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LoadCard({ data }) {
+  if (!data?.loads?.length) return null
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--accent2)', textTransform: 'uppercase', borderBottom: '1px solid var(--border)', background: 'rgba(0,212,170,0.04)' }}>
+        <Ic icon={Package} size={11} /> Available Loads ({data.count})
+      </div>
+      {data.loads.map((l, i) => (
+        <div key={i} style={{ ...cardRow, cursor: 'default' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>{l.origin} <span style={{ color: 'var(--muted)' }}> → </span> {l.destination}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{l.broker || '—'} · {l.equipment} · {l.load_number}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--success)' }}>${(l.rate || 0).toLocaleString()}</div>
+            {l.miles && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{l.miles} mi · ${l.rpm || '—'}/mi</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function WebResultCard({ data }) {
+  if (!data?.results?.length) return null
+  return (
+    <div style={cardBase}>
+      {data.results.map((r, i) => (
+        <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" style={{ ...cardRow, textDecoration: 'none', color: 'inherit' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#3b82f6' }}>{r.title}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{r.snippet}</div>
+            <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{r.source}</div>
+          </div>
+          <Ic icon={ExternalLink} size={12} color="var(--muted)" />
+        </a>
+      ))}
+    </div>
+  )
+}
+
+function LoadStatusCard({ data }) {
+  if (!data || data.error) return null
+  const statusColor = { 'Delivered': 'var(--success)', 'In Transit': '#3b82f6', 'Dispatched': 'var(--accent)', 'Cancelled': 'var(--danger)' }
+  return (
+    <div style={cardBase}>
+      <div style={{ padding: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>{data.load_number}</div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: (statusColor[data.status] || 'var(--muted)') + '15', color: statusColor[data.status] || 'var(--muted)' }}>{data.status}</span>
+        </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>{data.origin} → {data.destination}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>${(data.rate || 0).toLocaleString()} · {data.equipment} · {data.broker || '—'}</div>
+        {data.next_action && <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 6, fontWeight: 600 }}>Next: {data.next_action}</div>}
+        {data.broker_phone && (
+          <a href={`tel:${data.broker_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, padding: '5px 10px', background: 'var(--success)', borderRadius: 6, color: '#fff', fontSize: 10, fontWeight: 700, textDecoration: 'none' }}>
+            <Ic icon={Phone} size={10} color="#fff" /> Call Broker
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Render tool result cards
+function ToolCards({ toolResults }) {
+  if (!toolResults?.length) return null
+  return toolResults.map((tr, i) => {
+    const r = tr.result
+    if (!r) return null
+    if (r.stops || r.fallback_url) return <TruckStopCard key={i} data={r} />
+    if (r.providers) return <RoadsideCard key={i} data={r} />
+    if (r.type === 'fuel_prices') return <FuelCard key={i} data={r} />
+    if (r.type === 'weather') return <WeatherCard key={i} data={r} />
+    if (r.type === 'load_results') return <LoadCard key={i} data={r} />
+    if (r.type === 'load_status') return <LoadStatusCard key={i} data={r} />
+    if (r.type === 'web_results') return <WebResultCard key={i} data={r} />
+    return null
+  })
+}
+
 // ── AI CHATBOX ─────────────────────────────────────────────────────────────────
+
 export const SUGGESTED_QUESTIONS = [
-  'Is $2.50/mi good for a dry van right now?',
-  'What\'s my profit margin this month?',
-  'Which of my invoices are overdue?',
-  'What should I charge per mile right now?',
-  'How much am I saving vs a human dispatcher?',
-  'When is my IFTA filing due?',
+  'Find truck stops near me',
+  'What\'s the weather on my route?',
+  'What\'s diesel running right now?',
+  'I have a flat tire',
+  'What\'s my profit this month?',
+  'Find loads from Dallas to Atlanta',
 ]
 
 export function AIChatbox({ onTabChange }) {
@@ -127,45 +322,69 @@ export function AIChatbox({ onTabChange }) {
   const { processReply } = useAIActions(onTabChange)
 
   const buildContext = () => {
-    const activeLoads  = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
-    const unpaid       = invoices.filter(i => i.status === 'Unpaid')
-    const netProfit    = totalRevenue - totalExpenses
+    const activeLoads = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
+    const unpaid = invoices.filter(i => i.status === 'Unpaid')
     return [
-      `CARRIER ACCOUNT SNAPSHOT (as of today):`,
-      `- Revenue MTD: $${totalRevenue.toLocaleString()}`,
-      `- Expenses MTD: $${totalExpenses.toLocaleString()}`,
-      `- Net Profit MTD: $${netProfit.toLocaleString()}`,
-      `- Active loads: ${activeLoads.length} (${activeLoads.map(l => `${l.loadId} ${l.origin?.split(',')[0]}→${l.dest?.split(',')[0]} $${l.gross}`).join(', ')})`,
-      `- Unpaid invoices: ${unpaid.length} totaling $${unpaid.reduce((s,i)=>s+(i.amount||0),0).toLocaleString()}`,
-      `- Recent expenses: ${expenses.slice(0,3).map(e=>`${e.cat} $${e.amount} ${e.merchant||''}`).join(', ')}`,
+      `CARRIER SNAPSHOT:`,
+      `Revenue MTD: $${totalRevenue.toLocaleString()} | Expenses: $${totalExpenses.toLocaleString()} | Net: $${(totalRevenue - totalExpenses).toLocaleString()}`,
+      `Active loads: ${activeLoads.length} (${activeLoads.map(l => `${l.loadId} ${l.origin?.split(',')[0]}->${l.dest?.split(',')[0]} $${l.gross}`).join(', ')})`,
+      `Unpaid invoices: ${unpaid.length} ($${unpaid.reduce((s,i)=>s+(i.amount||0),0).toLocaleString()})`,
     ].join('\n')
   }
+
+  // Get user location for tool calls
+  const getLocation = () => new Promise(resolve => {
+    if (!navigator.geolocation) return resolve(null)
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 300000 }
+    )
+  })
 
   const send = async (text) => {
     const userText = text || input.trim()
     if (!userText) return
+
+    // Get location if user asks about nearby things
+    const needsLocation = /near|truck stop|fuel|diesel|gas|weather|flat tire|breakdown|tow|parking|rest area/i.test(userText)
+    let locationContext = ''
+    if (needsLocation) {
+      const loc = await getLocation()
+      if (loc) locationContext = ` [Driver location: ${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}]`
+    }
+
+    const enrichedText = userText + locationContext
     const newMessages = [...messages, { role: 'user', content: userText }]
     setMessages(newMessages)
     setInput('')
     setLoading(true)
+
     try {
+      const apiMessages = newMessages.map(m => ({ role: m.role, content: m.role === 'user' && m === newMessages[newMessages.length - 1] ? enrichedText : m.content }))
       const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, context: buildContext(), language: currentLang }),
+        body: JSON.stringify({ messages: apiMessages, context: buildContext(), language: currentLang }),
       })
-      if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(`API ${res.status}: ${errText.slice(0, 200)}`)
-      }
+      if (!res.ok) throw new Error(`API ${res.status}`)
       const data = await res.json()
-      const rawReply = data.reply || data.error || 'No response.'
+
+      const rawReply = data.reply || 'No response.'
+      const toolResults = data.tool_results || []
+
+      // Process existing action blocks in reply text
       const { displayText, actions, results } = await processReply(rawReply)
-      // Show AI response + action confirmations
-      const actionSummary = results.length > 0 ? '\n\n' + results.map(r => '✓ ' + r).join('\n') : ''
-      setMessages(m => [...m, { role: 'assistant', content: displayText + actionSummary, hasActions: actions.length > 0 }])
+      const actionSummary = results.length > 0 ? '\n\n' + results.map(r => 'Done: ' + r).join('\n') : ''
+
+      setMessages(m => [...m, {
+        role: 'assistant',
+        content: displayText + actionSummary,
+        toolResults,
+        hasActions: actions.length > 0,
+      }])
     } catch (err) {
-      setMessages(m => [...m, { role: 'assistant', content: 'Connection error: ' + (err.message || 'Check your internet connection.') }])
+      setMessages(m => [...m, { role: 'assistant', content: 'Connection issue. Check your signal and try again.' }])
     } finally {
       setLoading(false)
     }
@@ -173,33 +392,33 @@ export function AIChatbox({ onTabChange }) {
 
   return (
     <>
-      {/* Chat toggle button */}
+      {/* Toggle */}
       <button onClick={() => setOpen(o => !o)}
         style={{ position: 'fixed', bottom: 24, right: 24, width: 52, height: 52, borderRadius: '50%', background: open ? 'var(--surface2)' : 'var(--accent)', border: '2px solid ' + (open ? 'var(--border)' : 'var(--accent)'), boxShadow: '0 4px 20px rgba(240,165,0,0.4)', cursor: 'pointer', fontSize: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900, transition: 'all 0.2s' }}>
-        {open ? '✕' : <Ic icon={Zap} size={22} color="#000" />}
+        {open ? <Ic icon={X} size={20} color="var(--muted)" /> : <Ic icon={Zap} size={22} color="#000" />}
       </button>
 
-      {/* Chat panel */}
+      {/* Chat Panel */}
       {open && (
-        <div style={{ position: 'fixed', bottom: 88, right: 24, width: 360, height: 520, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', zIndex: 900, overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', bottom: 88, right: 24, width: 380, height: 560, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 16px 48px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', zIndex: 900, overflow: 'hidden' }}>
           {/* Header */}
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(0,212,170,0.05))', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(240,165,0,0.15)', border: '1px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic icon={Zap} size={16} color="var(--accent)" /></div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Qivori AI</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Ask me anything about your business</div>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'linear-gradient(135deg,rgba(240,165,0,0.08),rgba(0,212,170,0.05))', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(240,165,0,0.15)', border: '1px solid rgba(240,165,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Ic icon={Zap} size={14} color="var(--accent)" /></div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Q</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)' }}>AI Dispatch Engine</div>
             </div>
-            <div style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)' }} />
           </div>
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
             {messages.length === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '8px 0' }}>Try asking:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: '6px 0' }}>Try asking:</div>
                 {SUGGESTED_QUESTIONS.map(q => (
                   <button key={q} onClick={() => send(q)}
-                    style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'border-color 0.15s' }}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', fontSize: 12, color: 'var(--text)', cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans',sans-serif", transition: 'border-color 0.15s' }}
                     onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'}
                     onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                     {q}
@@ -207,29 +426,46 @@ export function AIChatbox({ onTabChange }) {
                 ))}
               </div>
             )}
+
             {messages.map((m, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={{
-                  maxWidth: '85%', padding: '10px 13px', borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  background: m.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
-                  color: m.role === 'user' ? '#000' : 'var(--text)',
-                  fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
-                  border: m.hasActions ? '1px solid rgba(34,197,94,0.3)' : 'none',
-                }}>
-                  {m.content}
-                </div>
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 6 }}>
+                {/* Text bubble */}
+                {m.content && (
+                  <div style={{
+                    maxWidth: '88%', padding: '9px 12px',
+                    borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                    background: m.role === 'user' ? 'var(--accent)' : 'var(--surface)',
+                    color: m.role === 'user' ? '#000' : 'var(--text)',
+                    fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
+                    border: m.role === 'user' ? 'none' : '1px solid var(--border)',
+                  }}>
+                    {m.content}
+                  </div>
+                )}
+                {/* Tool result cards */}
+                {m.toolResults && m.toolResults.length > 0 && (
+                  <div style={{ maxWidth: '95%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <ToolCards toolResults={m.toolResults} />
+                  </div>
+                )}
                 {m.hasActions && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, padding: '0 4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 4px' }}>
                     <Ic icon={CheckCircle} size={10} color="var(--success)" />
                     <span style={{ fontSize: 9, color: 'var(--success)', fontWeight: 600 }}>Action executed</span>
                   </div>
                 )}
               </div>
             ))}
+
             {loading && (
-              <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                <div style={{ background: 'var(--surface2)', borderRadius: '12px 12px 12px 4px', padding: '10px 14px', fontSize: 18, letterSpacing: 4 }}>
-                  <span style={{ animation: 'pulse 1s infinite' }}>···</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px 12px 12px 4px', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qDot 1.2s ease-in-out infinite' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qDot 1.2s ease-in-out 0.2s infinite' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qDot 1.2s ease-in-out 0.4s infinite' }} />
+                  </div>
+                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>Q is thinking...</span>
                 </div>
               </div>
             )}
@@ -237,11 +473,11 @@ export function AIChatbox({ onTabChange }) {
           </div>
 
           {/* Input */}
-          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+          <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, background: 'var(--surface)' }}>
             <input
               value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-              placeholder="Ask Q..."
+              placeholder="Ask Q anything..."
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', color: 'var(--text)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: 'none' }}
             />
             <button onClick={() => send()} disabled={loading || !input.trim()}
@@ -251,6 +487,17 @@ export function AIChatbox({ onTabChange }) {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes qDot {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.2; }
+        }
+      `}</style>
     </>
   )
 }
@@ -271,7 +518,6 @@ export function QuickActions({ onTabChange }) {
 
   return (
     <div style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 900, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-      {/* Action items */}
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
           {actions.map((a, i) => (
@@ -283,21 +529,14 @@ export function QuickActions({ onTabChange }) {
           ))}
         </div>
       )}
-
-      {/* Toggle button */}
       <button onClick={() => setOpen(o => !o)}
         style={{ width: 52, height: 52, borderRadius: '50%', background: open ? 'var(--surface2)' : 'var(--surface)', border: `2px solid ${open ? 'var(--border)' : 'rgba(240,165,0,0.4)'}`, boxShadow: '0 4px 16px rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: open ? 20 : 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: open ? 'var(--muted)' : 'var(--accent)', transition: 'all 0.2s', transform: open ? 'rotate(45deg)' : 'none' }}>
-        {open ? '✕' : <Ic icon={Zap} size={22} color="var(--accent)" />}
+        {open ? <Ic icon={X} size={20} color="var(--muted)" /> : <Ic icon={Zap} size={22} color="var(--accent)" />}
       </button>
-
       <style>{`
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(10px); }
           to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.2; }
         }
       `}</style>
     </div>

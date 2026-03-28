@@ -58,10 +58,26 @@ export function OnboardingWizard({ onComplete }) {
   const handleSaveStep = async (nextStep) => {
     setSaving(true)
     try {
-      if (step === 2 && (form.companyName || form.mc || form.dot)) await updateCompany({ name: form.companyName, mc_number: form.mc, dot_number: form.dot, phone: form.phone, address: form.address }).catch(() => {})
-      else if (step === 3 && (form.truckMake || form.truckYear || form.truckUnit)) await addVehicle({ type: form.truckType, year: form.truckYear, make: form.truckMake, model: form.truckModel, vin: form.truckVin, license_plate: form.truckPlate, unit_number: form.truckUnit, status: 'Active' }).catch(() => {})
-      else if (step === 4) { const name = form.imTheDriver ? (profile?.full_name || firstName) : form.driverName; const phone = form.imTheDriver ? (profile?.phone || form.driverPhone) : form.driverPhone; if (name) await addDriver({ name, phone, license_number: form.driverCDL, medical_card_expiry: form.driverMedExpiry || null, status: 'Active' }).catch(() => {}) }
-    } catch (e) { /* non-critical: step save error */ }
+      if (step === 2 && (form.companyName || form.mc || form.dot)) {
+        await updateCompany({ name: form.companyName, mc_number: form.mc, dot_number: form.dot, phone: form.phone, address: form.address })
+        showToast('', 'Company Saved', form.companyName || 'Company info saved')
+      }
+      else if (step === 3 && (form.truckMake || form.truckYear || form.truckUnit)) {
+        await addVehicle({ type: form.truckType, year: form.truckYear, make: form.truckMake, model: form.truckModel, vin: form.truckVin, license_plate: form.truckPlate, unit_number: form.truckUnit, status: 'Active' })
+        showToast('', 'Truck Added', `${form.truckYear} ${form.truckMake} ${form.truckModel}`.trim() || 'Vehicle registered')
+      }
+      else if (step === 4) {
+        const name = form.imTheDriver ? (profile?.full_name || firstName) : form.driverName
+        const phone = form.imTheDriver ? (profile?.phone || form.driverPhone) : form.driverPhone
+        if (name) {
+          await addDriver({ name, phone, license_number: form.driverCDL, medical_card_expiry: form.driverMedExpiry || null, status: 'Active' })
+          showToast('', 'Driver Added', name)
+        }
+      }
+    } catch (e) {
+      console.error('Onboarding step save failed:', e)
+      showToast('', 'Save Error', 'Data may not have saved — you can update later in settings')
+    }
     setSaving(false)
     if (nextStep > TOTAL_STEPS) { await markOnboardingComplete(); showToast('', 'Welcome!', 'Your account is ready to roll'); onComplete() }
     else setStep(nextStep)

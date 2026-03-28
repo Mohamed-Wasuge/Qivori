@@ -488,6 +488,18 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   .hide-mobile { display: none !important; }
 }
 
+/* Mobile touch optimization */
+@media (max-width: 768px) {
+  * { -webkit-tap-highlight-color: transparent; }
+  button, a, [role="button"] { touch-action: manipulation; }
+  input, select, textarea { font-size: 16px !important; } /* Prevent iOS zoom on focus */
+}
+
+/* Ultra-small screens */
+@media (max-width: 380px) {
+  .stats-grid.cols6, .stats-grid.cols4, .stats-grid.cols3 { grid-template-columns: 1fr; }
+}
+
 /* ── PERMANENT GLOBAL LAYOUT FIX ───────────────────────────────────
    .carrier-main is the ONE scroll root for every carrier page.
    Parent is a ROW flex (sidebar | content), so height:100% stretches

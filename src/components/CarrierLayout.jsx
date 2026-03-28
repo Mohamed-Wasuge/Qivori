@@ -364,7 +364,16 @@ function DriversHub() {
               <div style={{ padding:'16px 20px 0' }}>
                 <QInsightsFeed hub="drivers" summary={driversSummary} onNavigate={(target) => { if (target) setTab(target === 'audit' ? 'compliance' : target) }} />
               </div>
-              <DriverProfiles />
+              {drivers.length === 0 ? (
+                <div style={{ padding:'40px 20px', textAlign:'center' }}>
+                  <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={Users} size={24} color="var(--accent)" /></div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>ADD YOUR FIRST DRIVER</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', maxWidth:320, margin:'0 auto', lineHeight:1.6 }}>Q needs drivers to automate dispatch, compliance checks, and payroll. Add a driver to get started.</div>
+                  <button className="btn btn-primary" style={{ marginTop:16, fontSize:12, padding:'10px 24px' }} onClick={() => setTab('onboarding')}>
+                    <Ic icon={Plus} size={14} /> Add Driver
+                  </button>
+                </div>
+              ) : <DriverProfiles />}
             </div>
           )}
           {tab === 'payroll' && <PayrollTracker />}
@@ -451,7 +460,13 @@ function FleetHub() {
               <div style={{ padding:'16px 20px 0' }}>
                 <QInsightsFeed hub="fleet" summary={fleetSummary} onNavigate={(target) => { if (target) setTab(target) }} />
               </div>
-              <EquipmentManager />
+              {(vehicles || []).length === 0 ? (
+                <div style={{ padding:'40px 20px', textAlign:'center' }}>
+                  <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={Truck} size={24} color="var(--accent)" /></div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>ADD YOUR FIRST VEHICLE</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', maxWidth:320, margin:'0 auto', lineHeight:1.6 }}>Register your truck to enable fleet tracking, fuel optimization, DVIR inspections, and maintenance scheduling.</div>
+                </div>
+              ) : <EquipmentManager />}
             </div>
           )}
           {tab === 'map' && <FleetMap />}
@@ -590,6 +605,14 @@ function FinancialsHub() {
             <div style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
               {/* Q Intelligence */}
               <QInsightsFeed hub="financials" summary={financialsSummary} onNavigate={(target) => { if (target) setTab(target) }} />
+              {/* Empty state for new carriers */}
+              {totalRevenue === 0 && invoices.length === 0 && expenses.length === 0 && (
+                <div style={{ padding:'30px 20px', textAlign:'center', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                  <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={DollarSign} size={24} color="var(--accent)" /></div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>NO FINANCIAL DATA YET</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', maxWidth:340, margin:'0 auto', lineHeight:1.6 }}>Book your first load and deliver it to see revenue, invoices, and profitability here. Q will track every dollar automatically.</div>
+                </div>
+              )}
               {/* Alerts */}
               {alerts.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -848,6 +871,14 @@ function ComplianceHub() {
             <div style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
               {/* Q Intelligence */}
               {compData.loaded && <QInsightsFeed hub="compliance" summary={complianceSummary} onNavigate={(target) => { if (target) setTab(target) }} />}
+              {/* Empty state */}
+              {drivers.length === 0 && (vehicles || []).length === 0 && (
+                <div style={{ padding:'30px 20px', textAlign:'center', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                  <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={Shield} size={24} color="var(--accent)" /></div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>COMPLIANCE STARTS HERE</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', maxWidth:340, margin:'0 auto', lineHeight:1.6 }}>Add drivers and vehicles to activate DOT compliance monitoring, DVIR tracking, clearinghouse checks, and expiry alerts.</div>
+                </div>
+              )}
               {/* Alerts */}
               {compData.loaded && (() => {
                 const alerts = []

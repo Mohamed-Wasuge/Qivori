@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 /**
  * Authenticated fetch wrapper — automatically adds the Supabase session token
  * to API requests as an Authorization header.
- * Handles 401 (expired session) by signing out and redirecting to login.
+ * On 401: verifies if the session is actually expired before signing out.
  */
 export async function apiFetch(url, options = {}) {
   const { data: { session } } = await supabase.auth.getSession()
@@ -19,12 +19,14 @@ export async function apiFetch(url, options = {}) {
 
   const res = await fetch(url, { ...options, headers })
 
-  // Session expired — sign out and redirect
+  // Only sign out if 401 AND session is actually gone (not just an endpoint auth issue)
   if (res.status === 401 && token) {
-    await supabase.auth.signOut()
-    window.location.hash = '#/login'
-    window.location.reload()
-    throw new Error('Session expired. Please log in again.')
+    const { data: { session: currentSession } } = await supabase.auth.getSession()
+    if (!currentSession) {
+      window.location.hash = '#/login'
+      window.location.reload()
+      throw new Error('Session expired. Please log in again.')
+    }
   }
 
   return res

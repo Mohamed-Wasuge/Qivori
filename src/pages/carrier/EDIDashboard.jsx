@@ -96,7 +96,7 @@ function IncomingTenders() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await apiFetch('/api/edi/transactions?type=204&direction=inbound&limit=100')
+      const res = await (await apiFetch('/api/edi/transactions?type=204&direction=inbound&limit=100')).json()
       setTransactions(res.transactions || [])
     } catch {
       // Fallback: fetch directly from Supabase via context
@@ -114,10 +114,11 @@ function IncomingTenders() {
 
   const handleManualDecision = async (txn, decision) => {
     try {
-      const res = await apiFetch('/api/edi/send-990', {
+      const res = await (await apiFetch('/api/edi/send-990', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ load_id: txn.load_id, decision, transaction_id: txn.id }),
-      })
+      })).json()
       if (res.success) {
         showToast(`990 ${decision} sent for ${txn.load_number || txn.id}`)
         fetchData()
@@ -310,7 +311,7 @@ function AllTransactions() {
     (async () => {
       setLoading(true)
       try {
-        const res = await apiFetch('/api/edi/transactions?limit=200')
+        const res = await (await apiFetch('/api/edi/transactions?limit=200')).json()
         setTransactions(res.transactions || [])
       } catch { setTransactions([]) }
       setLoading(false)
@@ -387,7 +388,7 @@ function ExceptionsQueue() {
   const fetchExceptions = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await apiFetch('/api/edi/exceptions')
+      const res = await (await apiFetch('/api/edi/exceptions')).json()
       setExceptions(res.exceptions || [])
     } catch { setExceptions([]) }
     setLoading(false)
@@ -399,6 +400,7 @@ function ExceptionsQueue() {
     try {
       await apiFetch('/api/edi/exceptions', {
         method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'resolved' }),
       })
       showToast('Exception resolved')
@@ -472,7 +474,7 @@ function TradingPartners() {
   const fetchPartners = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await apiFetch('/api/edi/partners')
+      const res = await (await apiFetch('/api/edi/partners')).json()
       setPartners(res.partners || [])
     } catch { setPartners([]) }
     setLoading(false)
@@ -485,6 +487,7 @@ function TradingPartners() {
     try {
       await apiFetch('/api/edi/partners', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
       showToast('Partner added')
@@ -619,10 +622,12 @@ IEA*1*000000001~`
       else if (mode === 'raw') body = { raw_edi: rawEdi }
       else body = { load: apiLoad }
 
-      const res = await apiFetch('/api/edi/receive-204', {
+      const rawRes = await apiFetch('/api/edi/receive-204', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
+      const res = await rawRes.json()
       setResult(res)
       if (res.success) showToast(`204 processed: ${res.decision?.toUpperCase()} (${res.confidence}%)`)
       else showToast(`Error: ${res.errors?.join(', ') || res.error}`, 'error')

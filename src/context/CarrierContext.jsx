@@ -32,7 +32,9 @@ function normalizeLoad(l) {
       return t ? `${mon} · ${t}` : mon
     } catch { return d }
   }
-  const grossVal = Number(l.rate) || Number(l.gross_pay) || Number(l.gross) || 0
+  // Preserve original DB rate (gross $) — avoid re-normalizing RPM back as gross
+  const dbRate = Number(l._dbRate) || Number(l.rate) || 0
+  const grossVal = (dbRate > 100 ? dbRate : 0) || Number(l.gross_pay) || Number(l.gross) || 0
   const milesVal = Number(l.miles) || 0
   const rpm = milesVal > 0 ? +(grossVal / milesVal).toFixed(2) : 0
   return {
@@ -41,7 +43,8 @@ function normalizeLoad(l) {
     loadId: l.load_id || l.load_number || l.loadId || '',
     dest: l.destination || l.dest || '',
     gross: grossVal,
-    rate: rpm || Number(l.rate_per_mile) || Number(l.rate) || 0,
+    _dbRate: dbRate || grossVal,  // preserve original DB rate across re-normalizations
+    rate: rpm || Number(l.rate_per_mile) || 0,
     driver: l.carrier_name || l.driver_name || l.driver || '',
     broker: l.broker_name || l.broker || '',
     refNum: l.reference_number || l.refNum || '',

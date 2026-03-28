@@ -13,6 +13,48 @@ import {
   CheckSquare, Square, X
 } from 'lucide-react'
 
+// ── Factor Panel (payment terms selector) ─────────────────────────────────
+function FactorPanel({ inv, factorCompany, factorRate, net, onSubmit }) {
+  const [payTerms, setPayTerms] = useState('same_day')
+  const [submitting, setSubmitting] = useState(false)
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'12px 0', borderTop:'1px solid var(--border)', marginTop:8 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:'#8b5cf6', textTransform:'uppercase', letterSpacing:0.5 }}>Factor this invoice</div>
+      <div style={{ display:'flex', gap:6 }}>
+        {[
+          { id:'same_day', label:'Same Day Pay', desc:'Funds today' },
+          { id:'next_day', label:'Next Day', desc:'Next business day' },
+          { id:'standard', label:'Standard', desc:'Per agreement' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setPayTerms(t.id)}
+            style={{
+              flex:1, padding:'8px 6px', borderRadius:8, cursor:'pointer', textAlign:'center',
+              border: payTerms === t.id ? '2px solid #8b5cf6' : '1px solid var(--border)',
+              background: payTerms === t.id ? 'rgba(139,92,246,0.1)' : 'var(--surface2)',
+              color: payTerms === t.id ? '#8b5cf6' : 'var(--muted)',
+              fontFamily: "'DM Sans',sans-serif",
+            }}>
+            <div style={{ fontSize:11, fontWeight:700 }}>{t.label}</div>
+            <div style={{ fontSize:9, opacity:0.7 }}>{t.desc}</div>
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize:10, color:'var(--muted)' }}>
+        Sends invoice + all docs (BOL, rate con, POD, receipts) to {factorCompany}
+      </div>
+      <button className="btn btn-ghost" disabled={submitting}
+        style={{ fontSize:12, padding:'10px 16px', color:'#8b5cf6', borderColor:'rgba(139,92,246,0.3)', fontWeight:700 }}
+        onClick={async () => {
+          setSubmitting(true)
+          await onSubmit(payTerms)
+          setSubmitting(false)
+        }}>
+        <Ic icon={Zap} size={13} /> {submitting ? 'Submitting...' : `Factor — $${net.toLocaleString()} (${factorRate}% fee)`}
+      </button>
+    </div>
+  )
+}
+
 // ─── ACCOUNTING HELPERS ───────────────────────────────────────────────────────
 const ACCT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -1046,24 +1088,22 @@ export function InvoicesHub() {
                   </button>
                 )}
                 {inv.status === 'Unpaid' && factorCompany && factorCompany !== "I don't use factoring" && (
-                  <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 16px', color:'#8b5cf6', borderColor:'rgba(139,92,246,0.3)' }}
-                    onClick={async () => {
+                  <FactorPanel inv={inv} factorCompany={factorCompany} factorRate={factorRate} net={net}
+                    onSubmit={async (payTerms) => {
                       try {
                         await apiFetch('/api/factor-invoice', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: factorCompany, factoringRate: factorRate }),
+                          body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: factorCompany, factoringRate: factorRate, paymentTerms: payTerms }),
                         })
                         updateInvoiceStatus(inv.id || inv.invoice_number, 'Factored')
-                        showToast('', 'Invoice Factored!', `${inv.invoice_number || inv.id} → ${factorCompany} · $${net.toLocaleString()} depositing in 24hrs`)
+                        showToast('', 'Invoice Factored!', `${inv.invoice_number || inv.id} → ${factorCompany} · ${payTerms === 'same_day' ? 'Same day pay' : payTerms === 'next_day' ? 'Next day' : 'Standard'} · $${net.toLocaleString()}`)
                       } catch {
                         updateInvoiceStatus(inv.id || inv.invoice_number, 'Factored')
                         showToast('', 'Invoice Factored', `Marked locally — email may not have sent`)
                       }
                       setSelectedInv(null)
-                    }}>
-                    <Ic icon={Zap} size={13} /> Factor — ${net.toLocaleString()} ({factorRate}% fee)
-                  </button>
+                    }} />
                 )}
               </div>
             </div>

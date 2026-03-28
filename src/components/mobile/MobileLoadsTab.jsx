@@ -188,7 +188,6 @@ export default function MobileLoadsTab() {
       pickup_date: newLoad.pickup,
       delivery_date: newLoad.delivery,
       reference_number: newLoad.refNum,
-      commodity: newLoad.commodity,
       shipper_name: newLoad.shipper,
       consignee_name: newLoad.consignee,
       status: 'Booked',

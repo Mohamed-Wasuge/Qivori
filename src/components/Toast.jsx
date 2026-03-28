@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 export default function Toast() {
   const { toast } = useApp()
   return (
-    <div className={'toast' + (toast.show ? ' show' : '')} id="toast">
+    <div className={'toast' + (toast.show ? ' show' : '')} id="toast" role="alert" aria-live="polite" aria-atomic="true">
       <div className="toast-icon">{toast.icon}</div>
       <div>
         <div className="toast-title">{toast.title}</div>

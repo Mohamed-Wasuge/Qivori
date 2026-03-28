@@ -1068,7 +1068,12 @@ export function LoadDetailDrawer({ loadId, onClose }) {
     return () => clearInterval(interval)
   }, [detentionRunning, detentionStart])
 
-  if (!load) return null
+  if (!load) return (
+    <div style={{ position:'fixed', top:0, right:0, width:480, height:'100vh', background:'var(--surface)', borderLeft:'1px solid var(--border)', zIndex:999, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12 }}>
+      <div style={{ fontSize:14, fontWeight:700, color:'var(--muted)' }}>Load not found</div>
+      <button onClick={onClose} className="btn btn-ghost" style={{ fontSize:12 }}>Close</button>
+    </div>
+  )
 
   const detentionHours = detentionElapsed / 3600
   const FREE_TIME_HOURS = 2

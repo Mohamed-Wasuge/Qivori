@@ -54,7 +54,8 @@ async function supabaseUpsert(table, data, onConflict = 'id') {
 
 function isAuthorized(req) {
   const auth = req.headers.get('authorization')?.replace('Bearer ', '');
-  return auth === process.env.CRON_SECRET || auth === SUPABASE_KEY;
+  if (!auth) return false;
+  return (process.env.CRON_SECRET && auth === process.env.CRON_SECRET) || (SUPABASE_KEY && auth === SUPABASE_KEY);
 }
 
 async function authenticateUser(req) {

@@ -15,7 +15,8 @@ const CRON_SECRET = process.env.CRON_SECRET;
 
 function isAuthorized(req) {
   const auth = req.headers.get('authorization');
-  return auth === `Bearer ${CRON_SECRET}` || auth === `Bearer ${SUPABASE_KEY}`;
+  if (!auth) return false;
+  return (CRON_SECRET && auth === `Bearer ${CRON_SECRET}`) || (SUPABASE_KEY && auth === `Bearer ${SUPABASE_KEY}`);
 }
 
 async function supabaseRequest(path, options = {}) {

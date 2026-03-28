@@ -350,9 +350,11 @@ export function CarrierProvider({ children }) {
         const newLoad = await db.createLoad(load)
         const normalized = normalizeLoad(newLoad)
         setLoads(ls => [normalized, ...ls])
+        showToast?.('', 'Load Created', `${normalized.loadId || normalized.load_number || 'New load'} added`)
         return normalized
       } catch (e) {
         console.error('DB operation failed:', e)
+        showToast?.('', 'Error', 'Failed to create load')
       }
     }
     // Fallback: local-only
@@ -389,12 +391,12 @@ export function CarrierProvider({ children }) {
     const load = loads.find(l => l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)
     if (!load) return
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
-      try { await db.deleteLoad(load.id) } catch (e) { console.error('DB operation failed:', e) }
+      try { await db.deleteLoad(load.id) } catch (e) { console.error('DB operation failed:', e); showToast?.('', 'Error', 'Failed to delete load'); return }
     }
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
-    // Also remove any linked invoices
     setInvoices(invs => invs.filter(i => i.loadId !== loadId && i.load_number !== loadId))
-  }, [loads, useDb, demoGuard])
+    showToast?.('', 'Load Deleted', `${load.loadId || load.load_number || loadId} removed`)
+  }, [loads, useDb, demoGuard, showToast])
 
   const updateLoadStatus = useCallback(async (loadId, newStatus) => {
     if (demoGuard('update load status')) return
@@ -404,7 +406,7 @@ export function CarrierProvider({ children }) {
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
       try {
         await db.updateLoad(load.id, { status: newStatus })
-        console.log(`[Pilot] Status change: ${load.loadId || load.load_id} — ${load.status} → ${newStatus}`)
+        showToast?.('', 'Status Updated', `${load.loadId || load.load_id || ''} → ${newStatus}`)
         // Log to audit trail for pilot tracking (fire-and-forget)
         db.createAuditLog({
           action: 'load_status_change',
@@ -447,6 +449,7 @@ export function CarrierProvider({ children }) {
         }
       } catch (e) {
         console.error('DB operation failed:', e)
+        showToast?.('', 'Error', 'Failed to update load status')
       }
     }
 
@@ -457,6 +460,12 @@ export function CarrierProvider({ children }) {
 
       // Auto-create invoice on delivery
       if (newStatus === 'Delivered' && l.status !== 'Delivered' && l.status !== 'Invoiced') {
+        const grossAmount = l.gross || l.gross_pay || l.rate || 0
+        if (grossAmount <= 0) {
+          console.warn('[Invoice] Skipped auto-invoice — no rate/gross on load', l.loadId || l.id)
+          return updated
+        }
+
         const today = new Date()
         const due = new Date(today)
         due.setDate(due.getDate() + 30)
@@ -468,7 +477,7 @@ export function CarrierProvider({ children }) {
           load_number: l.loadId || l.load_number,
           broker: l.broker,
           route: originShort + ' → ' + destShort,
-          amount: l.gross || l.gross_pay || 0,
+          amount: grossAmount,
           invoice_date: today.toISOString().split('T')[0],
           due_date: due.toISOString().split('T')[0],
           status: 'Unpaid',

@@ -30,7 +30,8 @@ const DEFAULT_RULES = {
 
 function isAuthorized(req) {
   const auth = req.headers.get('authorization')?.replace('Bearer ', '');
-  return auth === process.env.CRON_SECRET || auth === supabaseKey;
+  if (!auth) return false;
+  return (process.env.CRON_SECRET && auth === process.env.CRON_SECRET) || (supabaseKey && auth === supabaseKey);
 }
 
 // — Supabase helpers —

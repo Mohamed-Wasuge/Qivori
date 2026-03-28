@@ -15,6 +15,7 @@
  * Body: { raw_edi: string, partner_id?: string } OR { load: object } (API mode)
  */
 import { handleCors, corsHeaders, verifyAuth } from '../_lib/auth.js'
+import { checkRateLimit, rateLimitResponse } from '../_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -379,6 +380,10 @@ export default async function handler(req) {
 
   const { user, error: authErr } = await verifyAuth(req)
   if (authErr) return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+
+  const { limited, resetSeconds } = await checkRateLimit(user.id, 'edi-204', 20, 60)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
+
   if (!SUPABASE_URL || !SERVICE_KEY) return Response.json({ error: 'Not configured' }, { status: 500, headers: corsHeaders(req) })
 
   try {

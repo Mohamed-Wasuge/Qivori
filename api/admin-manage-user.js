@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
@@ -23,6 +24,8 @@ export default async function handler(req) {
 
   const authErr = await requireAuth(req)
   if (authErr) return authErr
+  const { limited, resetSeconds } = await checkRateLimit(req._user.id, 'admin-manage', 10, 60)
+  if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
   const adminUser = req._user
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {

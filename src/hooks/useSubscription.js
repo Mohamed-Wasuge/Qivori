@@ -66,12 +66,16 @@ export function useSubscription() {
     }
 
     const isPaid = isActive && !isTrialing
-    const tier = PLAN_TIERS[plan] ?? 2  // default to full access
-    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.autonomous_fleet
+    const tier = PLAN_TIERS[plan] ?? 0  // unknown plan defaults to basic (tier 0), not full access
+    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.tms_pro
 
     // Feature access check
     const canAccess = (feature) => {
-      if (demoMode) return true
+      if (demoMode) {
+        // Demo mode: allow basic + AI dispatch features, block autonomous-only
+        const requiredTier = FEATURE_GATES[feature]
+        return requiredTier === undefined || requiredTier <= 1
+      }
       if (!isActive) return false
       const requiredTier = FEATURE_GATES[feature]
       if (requiredTier === undefined) return true // unknown feature = allowed

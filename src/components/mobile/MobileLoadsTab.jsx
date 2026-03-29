@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
@@ -10,6 +10,76 @@ import { Ic, haptic, fmt$, statusColor } from './shared'
 import { apiFetch } from '../../lib/api'
 import { uploadFile } from '../../lib/storage'
 import * as db from '../../lib/database'
+
+// ── Detention Timer ───────────────────────────────────────────────────────
+function DetentionTimer({ loadId, locationType }) {
+  const [running, setRunning] = useState(() => !!localStorage.getItem(`detention_${loadId}`))
+  const [elapsed, setElapsed] = useState(0)
+
+  // Auto-start on mount
+  useEffect(() => {
+    if (!localStorage.getItem(`detention_${loadId}`)) {
+      localStorage.setItem(`detention_${loadId}`, String(Date.now()))
+      setRunning(true)
+    }
+  }, [loadId])
+
+  // Tick every second
+  useEffect(() => {
+    const saved = localStorage.getItem(`detention_${loadId}`)
+    if (!saved) return
+    const start = parseInt(saved)
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000))
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => clearInterval(t)
+  }, [running, loadId])
+
+  const hours = Math.floor(elapsed / 3600)
+  const mins = Math.floor((elapsed % 3600) / 60)
+  const secs = elapsed % 60
+  const FREE_HOURS = 2
+  const RATE = 75
+  const totalHours = elapsed / 3600
+  const billable = Math.max(0, totalHours - FREE_HOURS)
+  const charge = Math.round(billable * RATE)
+
+  const stopDetention = () => {
+    localStorage.removeItem(`detention_${loadId}`)
+    setRunning(false)
+  }
+
+  return (
+    <div style={{ margin: '0 14px 10px', padding: '12px 14px', borderRadius: 10, background: billable > 0 ? 'rgba(239,68,68,0.06)' : 'rgba(240,165,0,0.06)', border: `1px solid ${billable > 0 ? 'rgba(239,68,68,0.2)' : 'rgba(240,165,0,0.2)'}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Clock size={14} color={billable > 0 ? 'var(--danger)' : 'var(--accent)'} />
+          <span style={{ fontSize: 11, fontWeight: 800, color: billable > 0 ? 'var(--danger)' : 'var(--accent)', letterSpacing: 0.5 }}>
+            DETENTION — {locationType === 'shipper' ? 'SHIPPER' : 'RECEIVER'}
+          </span>
+        </div>
+        {running && (
+          <button onClick={stopDetention} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', fontSize: 9, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+            Stop
+          </button>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: billable > 0 ? 'var(--danger)' : 'var(--text)', letterSpacing: 1 }}>
+          {String(hours).padStart(2, '0')}:{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+        </span>
+        {billable > 0 && (
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: 'var(--danger)' }}>
+            ${charge}
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+        {billable > 0 ? `${FREE_HOURS}hr free time exceeded · $${RATE}/hr · ${billable.toFixed(1)}hr billable` : `${FREE_HOURS}hr free time · $${RATE}/hr after`}
+      </div>
+    </div>
+  )
+}
 
 const STATUS_FILTERS = ['All', 'Booked', 'Dispatched', 'In Transit', 'Delivered', 'Invoiced', 'Paid']
 const STATUS_FLOW = ['Rate Con Received', 'Booked', 'Dispatched', 'En Route to Pickup', 'At Pickup', 'Loaded', 'In Transit', 'At Delivery', 'Delivered', 'Invoiced', 'Paid']
@@ -654,11 +724,16 @@ export default function MobileLoadsTab() {
                     )
                   })()}
 
+                  {/* Detention Timer */}
+                  {(load.status === 'At Delivery' || load.status === 'At Pickup') && (
+                    <DetentionTimer loadId={load.id} locationType={load.status === 'At Pickup' ? 'shipper' : 'receiver'} />
+                  )}
+
                   {/* Documents */}
                   <div style={{ padding: '0 14px 10px' }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 6 }}>DOCUMENTS</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {['Rate Con', 'BOL', 'Signed BOL', 'POD'].map(docType => {
+                      {['Rate Con', 'BOL', 'Signed BOL', 'POD', 'Lumper Receipt', 'Scale Ticket', 'Detention Receipt', 'Fuel Receipt'].map(docType => {
                         const docKey = docType.toLowerCase().replace(/\s/g, '_')
                         const docs = loadDocs[load.id] || []
                         const hasDoc = docs.find(d => d.doc_type === docType) || load.documents?.[docKey] || load[docKey + '_url']

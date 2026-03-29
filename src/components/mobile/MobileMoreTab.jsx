@@ -1,9 +1,53 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown } from 'lucide-react'
+import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { Ic, haptic } from './shared'
+import { apiFetch } from '../../lib/api'
 import MobileIFTATab from './MobileIFTATab'
+
+// Recent DVIR history for mobile
+function MobileDVIRHistory() {
+  const [dvirs, setDvirs] = useState([])
+  useEffect(() => {
+    (async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase.from('dvir_inspections').select('id,status,vehicle_name,driver_name,defects,submitted_at').order('submitted_at', { ascending: false }).limit(5)
+        if (data) setDvirs(data)
+      } catch {}
+    })()
+  }, [])
+
+  if (dvirs.length === 0) return (
+    <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, textAlign: 'center' }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8, fontFamily: "'Bebas Neue',sans-serif" }}>RECENT INSPECTIONS</div>
+      <div style={{ fontSize: 11, color: 'var(--muted)' }}>No DVIRs yet. Complete a pre-trip to see history here.</div>
+    </div>
+  )
+
+  return (
+    <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10, fontFamily: "'Bebas Neue',sans-serif" }}>RECENT INSPECTIONS</div>
+      {dvirs.map(d => {
+        const passed = d.status === 'safe' || d.status === 'defects_minor'
+        const defectCount = (d.defects || []).length
+        return (
+          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+            <Ic icon={passed ? CheckCircle : XCircle} size={16} color={passed ? 'var(--success)' : 'var(--danger)'} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{d.vehicle_name || 'Vehicle'}</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)' }}>{d.driver_name} · {new Date(d.submitted_at).toLocaleDateString()}</div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: passed ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: passed ? 'var(--success)' : 'var(--danger)' }}>
+              {passed ? 'PASS' : `${defectCount} DEFECT${defectCount !== 1 ? 'S' : ''}`}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 const MENU_ITEMS = [
   { id: 'ifta', label: 'IFTA Report', sub: 'Fuel tax calculator', icon: Fuel, color: '#8b5cf6' },
@@ -123,8 +167,64 @@ export default function MobileMoreTab() {
               <div style={{ fontSize: 13, color: 'var(--muted)' }}>No driver profile found. Add a driver to view compliance info.</div>
             </div>
           )}
-          <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 10, textAlign: 'center' }}>
-            <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Full compliance management available on desktop</span>
+          {/* HOS Status */}
+          <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10, fontFamily: "'Bebas Neue',sans-serif" }}>HOS STATUS</div>
+            {(() => {
+              const hosStart = localStorage.getItem('qivori_hos_drive_start')
+              const hosDriven = parseFloat(localStorage.getItem('qivori_hos_driven') || '0')
+              let currentDriving = hosDriven
+              if (hosStart) currentDriving += (Date.now() - parseInt(hosStart)) / 3600000
+              const remaining = Math.max(0, 11 - currentDriving)
+              const pct = Math.min(100, (currentDriving / 11) * 100)
+              return (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>Drive time</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: remaining < 2 ? 'var(--danger)' : 'var(--success)' }}>{remaining.toFixed(1)}h remaining</span>
+                  </div>
+                  <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: remaining < 2 ? 'var(--danger)' : remaining < 4 ? 'var(--warning)' : 'var(--success)', borderRadius: 3, transition: 'width 0.5s' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", color: 'var(--text)' }}>{currentDriving.toFixed(1)}h</div>
+                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>Driven</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", color: remaining < 2 ? 'var(--danger)' : 'var(--success)' }}>{remaining.toFixed(1)}h</div>
+                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>Remaining</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", color: 'var(--text)' }}>14h</div>
+                      <div style={{ fontSize: 9, color: 'var(--muted)' }}>On-Duty Window</div>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+
+          {/* Recent DVIRs */}
+          <MobileDVIRHistory />
+
+          {/* Quick Actions */}
+          <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+            <button onClick={() => { haptic(); setActiveSection(null); /* navigate to home for pre-trip */ }}
+              style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ fontSize: 18, marginBottom: 4 }}><Shield size={18} color="var(--accent)" /></div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>Pre-Trip</div>
+            </button>
+            <button onClick={() => { haptic(); /* TODO: document upload */ }}
+              style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ fontSize: 18, marginBottom: 4 }}><Upload size={18} color="var(--accent)" /></div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>Upload Doc</div>
+            </button>
+            <button onClick={() => { haptic(); setActiveSection('ifta') }}
+              style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ fontSize: 18, marginBottom: 4 }}><FileText size={18} color="var(--accent)" /></div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>IFTA</div>
+            </button>
           </div>
         </div>
       </div>

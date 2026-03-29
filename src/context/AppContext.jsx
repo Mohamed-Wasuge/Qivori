@@ -31,6 +31,7 @@ export const ROLES = {
       { id: 'admin-email', icon: Mail, label: 'Email' },
       { id: 'analytics', icon: BarChart2, label: 'Analytics' },
       { id: 'intelligence', icon: TrendingUp, label: 'Intelligence' },
+      { id: 'edi-admin', icon: Radio, label: 'EDI Requests' },
       { id: 'ai-agent', icon: Bot, label: 'AI Agent', badge: 'LIVE', badgeClass: 'green' },
       { id: 'activity', icon: Shield, label: 'Security' },
       { id: 'settings', icon: Settings, label: 'Settings' },

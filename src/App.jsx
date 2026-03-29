@@ -54,6 +54,7 @@ const DemoRequests = lazyNamed(() => import('./pages/AdminPages'), 'DemoRequests
 const AdminEmail = lazyNamed(() => import('./pages/AdminPages'), 'AdminEmail')
 const UserManagement = lazyNamed(() => import('./pages/AdminPages'), 'UserManagement')
 const PlatformIntelligence = lazyNamed(() => import('./pages/AdminPages'), 'PlatformIntelligence')
+const EDIAccessManager = lazyNamed(() => import('./pages/AdminPages'), 'EDIAccessManager')
 
 // BrokerPages group (heavy â now lazy-loaded as a chunk)
 const BrokerDashboard = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerDashboard')
@@ -90,6 +91,7 @@ const PAGES = {
   'admin-email': AdminEmail,
   analytics: Analytics,
   intelligence: PlatformIntelligence,
+  'edi-admin': EDIAccessManager,
   activity: ActivityLog,
   'ai-agent': MasterAgent,
   'users': UserManagement,

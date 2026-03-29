@@ -7,7 +7,7 @@ import {
   ArrowRight, AlertTriangle, Check, CheckCircle, Clock, DollarSign,
   FileText, Filter, Inbox, Package, RefreshCw, Send, Shield, Truck,
   X, XCircle, Zap, ChevronDown, ChevronRight, Eye, RotateCw,
-  Activity, AlertCircle, Bot, Search, Plus, Upload,
+  Activity, AlertCircle, Bot, Search, Plus, Upload, Key, Copy, ExternalLink,
 } from 'lucide-react'
 
 // ── EDI Dashboard Hub ────────────────────────────────────────────────────────
@@ -24,6 +24,9 @@ export function EDIDashboard() {
 
   return (
     <div style={S.page}>
+      {/* EDI Access Status */}
+      <EDIAccessBanner />
+
       {/* Tab Bar */}
       <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4 }}>
         {tabs.map(t => (
@@ -764,6 +767,131 @@ function Input({ label, value, onChange, placeholder, type = 'text' }) {
       {label && <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>}
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12 }} />
+    </div>
+  )
+}
+
+// ── EDI Access Banner (request, pending, or show credentials) ────────────
+
+function EDIAccessBanner() {
+  const { showToast } = useApp()
+  const [status, setStatus] = useState(null) // null=loading, 'none', 'pending', 'approved', 'denied'
+  const [credentials, setCredentials] = useState(null)
+  const [requesting, setRequesting] = useState(false)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await (await apiFetch('/api/edi/request-access')).json()
+        if (res.credentials) {
+          setCredentials(res.credentials)
+          setStatus('approved')
+        } else if (res.request) {
+          setStatus(res.request.status)
+        } else {
+          setStatus('none')
+        }
+      } catch { setStatus('none') }
+    })()
+  }, [])
+
+  const handleRequest = async () => {
+    setRequesting(true)
+    try {
+      const res = await (await apiFetch('/api/edi/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })).json()
+      if (res.url) {
+        window.location.href = res.url // Redirect to Stripe
+      } else if (res.error) {
+        showToast(res.error, 'error')
+        if (res.error.includes('already')) setStatus('pending')
+      }
+    } catch (e) {
+      showToast('Failed to start checkout', 'error')
+    }
+    setRequesting(false)
+  }
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => showToast('', 'Copied', text.slice(0, 30) + '...'))
+  }
+
+  if (status === null) return null
+
+  // Approved — show credentials
+  if (status === 'approved' && credentials) {
+    return (
+      <div style={{ background: 'var(--surface)', border: '1px solid rgba(52,176,104,0.3)', borderRadius: 12, padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <Ic icon={Key} size={16} color="var(--success)" />
+          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--success)' }}>EDI ACCESS ACTIVE</span>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>Give these credentials to your broker to start receiving load tenders electronically.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { label: 'Endpoint', value: credentials.endpoint_url || 'https://qivori.com/api/edi/receive-204' },
+            { label: 'API Key', value: credentials.api_key },
+            { label: 'ISA ID', value: credentials.isa_id },
+            { label: 'GS ID', value: credentials.gs_id },
+          ].map(c => (
+            <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', width: 70, flexShrink: 0, textTransform: 'uppercase' }}>{c.label}</span>
+              <span style={{ flex: 1, fontSize: 12, fontFamily: 'monospace', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.value}</span>
+              <button onClick={() => copyToClipboard(c.value)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: 4 }}>
+                <Ic icon={Copy} size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Pending
+  if (status === 'pending') {
+    return (
+      <div style={{ background: 'var(--surface)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Ic icon={Clock} size={20} color="var(--accent)" />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>EDI Access Pending</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Your request is being reviewed. You'll receive an email with your credentials once approved.</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Denied
+  if (status === 'denied') {
+    return (
+      <div style={{ background: 'var(--surface)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Ic icon={XCircle} size={20} color="var(--danger)" />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)' }}>EDI Access Denied</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Contact support at hello@qivori.com for more information.</div>
+        </div>
+      </div>
+    )
+  }
+
+  // No request — show CTA
+  return (
+    <div style={{ background: 'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(139,92,246,0.04))', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 12, padding: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>Unlock EDI Integration</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 400, lineHeight: 1.6 }}>
+            Receive load tenders electronically from brokers like CH Robinson, Echo, TQL.
+            One-time setup fee — no monthly EDI charges, no per-document fees.
+          </div>
+        </div>
+        <button onClick={handleRequest} disabled={requesting} className="btn btn-primary"
+          style={{ fontSize: 13, padding: '12px 24px', fontWeight: 700, flexShrink: 0 }}>
+          {requesting ? 'Loading...' : 'Request EDI Access — $1,500'}
+        </button>
+      </div>
     </div>
   )
 }

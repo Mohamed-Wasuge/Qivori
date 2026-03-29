@@ -1062,6 +1062,7 @@ export function SettingsTab() {
     payDefault: ctxCompany?.default_pay_rate || '28%',
     fastpayEnabled: ctxCompany?.fastpay_enabled !== false,
     autoInvoice: ctxCompany?.auto_invoice !== false,
+    autoFactor: ctxCompany?.auto_factor_on_delivery || false,
   })
   const [fuelCard, setFuelCard] = useState(ctxCompany?.fuel_card_provider || '')
   const [tollTransponder, setTollTransponder] = useState(ctxCompany?.toll_transponder || '')
@@ -1431,6 +1432,7 @@ export function SettingsTab() {
               {[
                 { key:'fastpayEnabled', label:'FastPay Enabled', sub:'Allow drivers to request same-day pay advances' },
                 { key:'autoInvoice',    label:'Auto-Generate Invoices', sub:'Automatically create invoice when load is delivered' },
+                { key:'autoFactor',     label:'Auto-Factor on Delivery', sub:'Automatically submit invoice to factoring company when load is delivered — same day pay' },
               ].map(opt => (
                 <div key={opt.key} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', background:'var(--surface2)', borderRadius:10 }}>
                   <div>
@@ -1450,6 +1452,7 @@ export function SettingsTab() {
                 default_pay_rate: billing.payDefault,
                 fastpay_enabled: billing.fastpayEnabled,
                 auto_invoice: billing.autoInvoice,
+                auto_factor_on_delivery: billing.autoFactor,
               })
               showToast('','Saved','Billing settings updated')
             }}>Save Changes</button>

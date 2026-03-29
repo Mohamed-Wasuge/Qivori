@@ -514,8 +514,22 @@ export function CarrierProvider({ children }) {
               // Auto-advance load to Invoiced after invoice is created
               db.updateLoad(dbLoadId, { status: 'Invoiced' }).then(() => {
                 setLoads(ls => ls.map(ld => ld.id === dbLoadId ? normalizeLoad({ ...ld, status: 'Invoiced' }) : ld))
-                console.log(`[Pilot] Load auto-advanced to Invoiced: ${l.loadId || l.load_number}`)
-              }).catch(err => console.error('[Pilot] Failed to advance load to Invoiced:', err))
+              }).catch(() => {})
+              // Auto-factor if enabled
+              if (company?.auto_factor_on_delivery && company?.factoring_company && company.factoring_company !== "I don't use factoring" && dbInv?.id) {
+                apiFetch('/api/factor-invoice', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    invoiceId: dbInv.id,
+                    factoringCompany: company.factoring_company,
+                    factoringRate: parseFloat(company.factoring_rate) || 2.5,
+                    paymentTerms: 'same_day',
+                  }),
+                }).then(() => {
+                  showToast?.('', 'Auto-Factored', `${dbInv.invoice_number} → ${company.factoring_company} · Same day pay`)
+                }).catch(() => {})
+              }
             } catch (err) {
               console.error(`[Pilot] Invoice creation failed (attempt ${attempt}):`, err)
               if (attempt < 2) {

@@ -220,7 +220,7 @@ function AppContent() {
         {/* Driver Onboarding (public, no auth required) */}
         {driverOnboarding && !legalPage && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 10, overflow: 'auto' }}>
-            <DriverOnboarding />
+            <DriverOnboarding token={(() => { const h = window.location.hash; const m = h.match(/token=([^&]+)/); return m ? m[1] : null })()} />
           </div>
         )}
 

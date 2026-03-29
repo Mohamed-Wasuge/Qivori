@@ -378,10 +378,27 @@ export default async function handler(req) {
   if (corsResponse) return corsResponse
   if (req.method !== 'POST') return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
 
+  // Auth: user JWT (from Qivori UI) OR partner API key (from broker system)
+  let userId = null
   const { user, error: authErr } = await verifyAuth(req)
-  if (authErr) return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+  if (user) {
+    userId = user.id
+  } else {
+    // Try partner API key auth
+    const apiKey = req.headers.get('x-api-key') || req.headers.get('x-edi-key')
+    if (apiKey && SUPABASE_URL && SERVICE_KEY) {
+      try {
+        const credRes = await fetch(`${SUPABASE_URL}/rest/v1/edi_credentials?api_key=eq.${encodeURIComponent(apiKey)}&status=eq.active&select=carrier_id&limit=1`, { headers: sbHeaders() })
+        if (credRes.ok) {
+          const creds = await credRes.json()
+          if (creds?.[0]?.carrier_id) userId = creds[0].carrier_id
+        }
+      } catch {}
+    }
+    if (!userId) return Response.json({ error: 'Unauthorized — provide user token or X-API-Key header' }, { status: 401, headers: corsHeaders(req) })
+  }
 
-  const { limited, resetSeconds } = await checkRateLimit(user.id, 'edi-204', 20, 60)
+  const { limited, resetSeconds } = await checkRateLimit(userId, 'edi-204', 20, 60)
   if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
 
   if (!SUPABASE_URL || !SERVICE_KEY) return Response.json({ error: 'Not configured' }, { status: 500, headers: corsHeaders(req) })
@@ -401,7 +418,7 @@ export default async function handler(req) {
       const { segments, envelope: env, errors: parseErrors } = parseX12Segments(raw_edi)
       if (parseErrors.length > 0 && !env) {
         // Store exception
-        await storeException(user.id, partner_id, null, 'parse_error', 'critical', 'EDI Parse Failed', parseErrors.join('; '), raw_edi)
+        await storeException(userId, partner_id, null, 'parse_error', 'critical', 'EDI Parse Failed', parseErrors.join('; '), raw_edi)
         return Response.json({ success: false, errors: parseErrors }, { status: 400, headers: corsHeaders(req) })
       }
       envelope = env
@@ -461,23 +478,23 @@ export default async function handler(req) {
     if (!canonical.miles || canonical.miles <= 0) warnings.push('Miles not specified — route calculation needed')
 
     if (errors.length > 0) {
-      await storeException(user.id, partner_id, null, 'validation_error', 'error', 'Validation Failed', errors.join('; '), raw_edi || JSON.stringify(apiLoad))
+      await storeException(userId, partner_id, null, 'validation_error', 'error', 'Validation Failed', errors.join('; '), raw_edi || JSON.stringify(apiLoad))
       // Still store the transaction as error
-      await storeTransaction(user.id, '204', 'inbound', partner_id, envelope, raw_edi, parsed, canonical, 'error', null, errors.join('; '))
+      await storeTransaction(userId, '204', 'inbound', partner_id, envelope, raw_edi, parsed, canonical, 'error', null, errors.join('; '))
       return Response.json({ success: false, errors, warnings, canonical }, { status: 400, headers: corsHeaders(req) })
     }
 
     // ── STEP 3: Duplicate check ──
     if (envelope?.isa_control_number && envelope?.st_control_number) {
       const dupRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/edi_transactions?owner_id=eq.${user.id}&isa_control_number=eq.${envelope.isa_control_number}&st_control_number=eq.${envelope.st_control_number}&transaction_type=eq.204&status=not.in.(error,duplicate)&select=id&limit=1`,
+        `${SUPABASE_URL}/rest/v1/edi_transactions?owner_id=eq.${userId}&isa_control_number=eq.${envelope.isa_control_number}&st_control_number=eq.${envelope.st_control_number}&transaction_type=eq.204&status=not.in.(error,duplicate)&select=id&limit=1`,
         { headers: sbHeaders() }
       )
       if (dupRes.ok) {
         const dups = await dupRes.json()
         if (dups.length > 0) {
-          await storeTransaction(user.id, '204', 'inbound', partner_id, envelope, raw_edi, parsed, canonical, 'duplicate', null, 'Duplicate tender detected')
-          await storeException(user.id, partner_id, null, 'duplicate', 'warning', 'Duplicate 204 Tender', `ISA ${envelope.isa_control_number} / ST ${envelope.st_control_number} already processed`)
+          await storeTransaction(userId, '204', 'inbound', partner_id, envelope, raw_edi, parsed, canonical, 'duplicate', null, 'Duplicate tender detected')
+          await storeException(userId, partner_id, null, 'duplicate', 'warning', 'Duplicate 204 Tender', `ISA ${envelope.isa_control_number} / ST ${envelope.st_control_number} already processed`)
           return Response.json({ success: false, error: 'Duplicate tender', existing_transaction: dups[0].id }, { status: 409, headers: corsHeaders(req) })
         }
       }
@@ -487,7 +504,7 @@ export default async function handler(req) {
     let carrierSettings = {}
     try {
       const settingsRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/carrier_settings?owner_id=eq.${user.id}&select=*&limit=1`,
+        `${SUPABASE_URL}/rest/v1/carrier_settings?owner_id=eq.${userId}&select=*&limit=1`,
         { headers: sbHeaders() }
       )
       if (settingsRes.ok) {
@@ -520,7 +537,7 @@ export default async function handler(req) {
     let partnerConfig = null
     if (partner_id) {
       try {
-        const pRes = await fetch(`${SUPABASE_URL}/rest/v1/trading_partners?id=eq.${partner_id}&owner_id=eq.${user.id}&select=*&limit=1`, { headers: sbHeaders() })
+        const pRes = await fetch(`${SUPABASE_URL}/rest/v1/trading_partners?id=eq.${partner_id}&owner_id=eq.${userId}&select=*&limit=1`, { headers: sbHeaders() })
         if (pRes.ok) {
           const rows = await pRes.json()
           if (rows.length > 0) {
@@ -549,7 +566,7 @@ export default async function handler(req) {
                        aiResult.decision === 'reject' ? 'Cancelled' : 'Rate Con Received'
 
     const loadData = {
-      owner_id: user.id,
+      owner_id: userId,
       load_id: canonical.load_id,
       origin: canonical.origin,
       origin_address: canonical.origin_address || null,
@@ -575,7 +592,6 @@ export default async function handler(req) {
       broker_phone: canonical.broker_phone || null,
       broker_email: canonical.broker_email || null,
       shipper_name: canonical.shipper_name || null,
-      consignee_name: canonical.shipper_name || null,
       reference_number: canonical.reference_number,
       po_number: canonical.po_number,
       special_instructions: canonical.special_instructions,
@@ -624,7 +640,7 @@ export default async function handler(req) {
 
     // ── STEP 8: Store EDI transaction ──
     const txnId = await storeTransaction(
-      user.id, '204', 'inbound', partner_id, envelope, raw_edi,
+      userId, '204', 'inbound', partner_id, envelope, raw_edi,
       parsed, canonical, 'processed', load?.id,
       null, aiResult.decision, aiResult.confidence, aiResult.reasons, aiResult.metrics
     )
@@ -641,7 +657,7 @@ export default async function handler(req) {
 
         // Store outbound 990
         await storeTransaction(
-          user.id, '990', 'outbound', partner_id, null, response990,
+          userId, '990', 'outbound', partner_id, null, response990,
           { decision: aiResult.decision }, canonical, 'processed', load?.id,
           null, null, null, null, null, txnId
         )
@@ -660,13 +676,13 @@ export default async function handler(req) {
             timeline.push({ step: 'send_990', time: ts(), detail: `990 sent to partner: ${sendRes.ok ? 'success' : 'failed'}` })
           } catch (e) {
             timeline.push({ step: 'send_990_error', time: ts(), detail: `990 send failed: ${e.message}` })
-            await storeException(user.id, partner_id, load?.id, 'transmission_failure', 'error', '990 Send Failed', e.message)
+            await storeException(userId, partner_id, load?.id, 'transmission_failure', 'error', '990 Send Failed', e.message)
           }
         }
       }
     } else {
       // Negotiate — flag for human review
-      await storeException(user.id, partner_id, load?.id, 'ai_review', 'info', 'Negotiation Required',
+      await storeException(userId, partner_id, load?.id, 'ai_review', 'info', 'Negotiation Required',
         `AI recommends negotiating: ${aiResult.reasons.join('; ')}`)
     }
 
@@ -675,7 +691,7 @@ export default async function handler(req) {
     if (aiResult.decision === 'accept' && load) {
       timeline.push({ step: 'find_driver', time: ts(), detail: 'Finding available driver...' })
 
-      const driver = await findBestDriver(user.id, canonical.equipment)
+      const driver = await findBestDriver(userId, canonical.equipment)
       if (driver) {
         // Assign driver to load
         const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/loads?id=eq.${load.id}`, {

@@ -159,8 +159,9 @@ export default async function handler(req) {
     return Response.json(scoreData, { headers: corsHeaders(req) })
   }
 
-  // POST — batch recalculate (cron or admin)
-  if (req.method === 'POST') {
+  // POST or cron GET — batch recalculate all carriers
+  const isCronRequest = req.headers.get('authorization')?.startsWith('Bearer ') && !req.headers.get('authorization')?.startsWith('Bearer eyJ')
+  if (req.method === 'POST' || isCronRequest) {
     const auth = req.headers.get('authorization') || ''
     const cronSecret = process.env.CRON_SECRET
     if (!cronSecret || auth !== `Bearer ${cronSecret}`) {

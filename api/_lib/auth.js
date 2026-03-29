@@ -160,10 +160,10 @@ export async function requireActiveSubscription(req, user) {
       return null
     }
 
-    // Check subscription status
-    const allowedStatuses = ['active', 'trial', 'owner', 'founder']
-    if (allowedStatuses.includes(profile.status)) {
-      return null
+    // Check subscription status — allow trial, trialing, active, and new users
+    const allowedStatuses = ['active', 'trial', 'trialing', 'owner', 'founder', 'pending']
+    if (!profile.status || allowedStatuses.includes(profile.status)) {
+      return null // null status = new user, always allow
     }
 
     return Response.json(

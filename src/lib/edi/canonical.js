@@ -231,7 +231,7 @@ export function toSupabaseLoad(canonical, ownerId) {
     broker_phone:           canonical.broker_phone,
     broker_email:           canonical.broker_email,
     shipper_name:           canonical.shipper_name,
-    consignee_name:         canonical.shipper_name,
+    // consignee_name not in production schema — use shipper_name only
     reference_number:       canonical.reference_number || canonical.reference_numbers?.bol,
     po_number:              canonical.po_number || canonical.reference_numbers?.po,
     special_instructions:   canonical.special_instructions,

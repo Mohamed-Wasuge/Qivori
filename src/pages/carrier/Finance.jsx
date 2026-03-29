@@ -86,10 +86,119 @@ function PaymentUploader({ inv, onComplete }) {
   )
 }
 
-// ── Factor Panel (payment terms selector) ─────────────────────────────────
+// ── Factor Panel (payment terms selector + auto-PDF) ──────────────────────
 function FactorPanel({ inv, factorCompany, factorRate, net, onSubmit }) {
   const [payTerms, setPayTerms] = useState('same_day')
   const [submitting, setSubmitting] = useState(false)
+  const [status, setStatus] = useState('')
+
+  const generateAndUploadPDF = async () => {
+    try {
+      setStatus('Generating invoice PDF...')
+      // Generate PDF client-side
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+      const W = 612, P = 50
+      const navy = [26, 54, 93], blk = [17, 24, 39], gry = [107, 114, 128], bdr = [229, 231, 235], wht = [255, 255, 255]
+
+      // White background + accent bar
+      doc.setFillColor(255, 255, 255); doc.rect(0, 0, W, 792, 'F')
+      doc.setFillColor(...navy); doc.rect(0, 0, W, 4, 'F')
+
+      // Company name
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...blk)
+      doc.text(inv.companyName || 'Qivori Transport', P, 40)
+      doc.setFontSize(9); doc.setTextColor(...gry)
+      doc.text([inv.companyMC || '', inv.companyDOT || ''].filter(Boolean).join('  |  '), P, 54)
+      doc.text([inv.companyAddress || '', inv.companyPhone || '', inv.companyEmail || ''].filter(Boolean).join('  |  '), P, 66)
+
+      // INVOICE title
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...navy)
+      doc.text('INVOICE', W - P, 40, { align: 'right' })
+      doc.setFontSize(10); doc.setTextColor(...gry)
+      doc.text(inv.invoice_number || inv.id || '', W - P, 56, { align: 'right' })
+
+      doc.setDrawColor(...bdr); doc.line(P, 80, W - P, 80)
+
+      // Bill To
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...gry); doc.text('BILL TO', P, 100)
+      doc.setFontSize(14); doc.setTextColor(...blk); doc.text(inv.broker || '—', P, 118)
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...gry); doc.text('Freight Broker', P, 132)
+
+      // Remit To (factoring)
+      if (factorCompany) {
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...gry); doc.text('REMIT PAYMENT TO', P, 152)
+        doc.setFontSize(11); doc.setTextColor(...blk); doc.text(factorCompany, P, 166)
+      }
+
+      // Meta
+      const meta = [['Invoice Date', inv.date || '—'], ['Due Date', inv.dueDate || '—'], ['Load', inv.loadId || inv.load_number || '—'], ['Route', (inv.route || '').replace(/→/g, 'to')], ['Driver', inv.driver || '—']]
+      let mY = 100
+      meta.forEach(([l, v]) => {
+        doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...gry); doc.text(l.toUpperCase(), W - P - 130, mY)
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(...blk); doc.setFontSize(9); doc.text(String(v), W - P, mY, { align: 'right' }); mY += 16
+      })
+
+      // Line items header
+      const tY = 200
+      doc.setFillColor(248, 250, 252); doc.rect(P, tY, W - P * 2, 28, 'F')
+      doc.setDrawColor(...bdr); doc.line(P, tY + 28, W - P, tY + 28)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...gry)
+      doc.text('DESCRIPTION', P + 12, tY + 18); doc.text('AMOUNT', W - P - 12, tY + 18, { align: 'right' })
+
+      // Line item
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...blk)
+      doc.text('Freight services — ' + ((inv.route || '').replace(/→/g, 'to')), P + 12, tY + 50)
+      doc.setFontSize(9); doc.setTextColor(...gry)
+      doc.text('Load ' + (inv.loadId || inv.load_number || '') + ' · ' + (inv.broker || ''), P + 12, tY + 64)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...navy)
+      doc.text('$' + (inv.amount || 0).toLocaleString(), W - P - 12, tY + 55, { align: 'right' })
+      doc.setDrawColor(...bdr); doc.line(P, tY + 76, W - P, tY + 76)
+
+      // Factoring breakdown
+      const fY = tY + 96
+      doc.setFillColor(255, 250, 235); doc.roundedRect(P, fY, W - P * 2, 72, 4, 4, 'F')
+      doc.setDrawColor(240, 165, 0); doc.roundedRect(P, fY, W - P * 2, 72, 4, 4, 'S')
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...gry)
+      doc.text('Invoice Amount', P + 14, fY + 20)
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...blk)
+      doc.text('$' + (inv.amount || 0).toLocaleString(), W - P - 14, fY + 20, { align: 'right' })
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...gry)
+      doc.text('Factoring Fee (' + factorRate + '%)', P + 14, fY + 38)
+      doc.setTextColor(220, 38, 38)
+      doc.text('-$' + Math.round((inv.amount || 0) * factorRate / 100).toLocaleString(), W - P - 14, fY + 38, { align: 'right' })
+      doc.setDrawColor(240, 165, 0); doc.line(P + 14, fY + 48, W - P - 14, fY + 48)
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(240, 165, 0)
+      doc.text('ADVANCE AMOUNT', P + 14, fY + 65)
+      doc.text('$' + net.toLocaleString(), W - P - 14, fY + 65, { align: 'right' })
+
+      // Payment terms
+      const pY = fY + 90
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...navy)
+      doc.text('PAYMENT TERMS', P, pY)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...blk)
+      const termsText = payTerms === 'same_day' ? 'SAME DAY PAY' : payTerms === 'next_day' ? 'NEXT BUSINESS DAY' : 'STANDARD (per agreement)'
+      doc.text(termsText, P, pY + 16)
+
+      // Footer
+      doc.setDrawColor(...bdr); doc.line(P, 720, W - P, 720)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...gry)
+      doc.text('Generated by Qivori AI TMS  |  qivori.com', W / 2, 740, { align: 'center' })
+
+      // Convert to blob and upload
+      setStatus('Uploading PDF...')
+      const pdfBlob = doc.output('blob')
+      const fileName = (inv.invoice_number || inv.id || 'invoice') + '-factoring.pdf'
+
+      const { uploadFile } = await import('../../lib/storage')
+      const uploaded = await uploadFile(new File([pdfBlob], fileName, { type: 'application/pdf' }), 'invoices/' + (inv._dbId || inv.id))
+      return uploaded.url
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+      return null
+    }
+  }
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'12px 0', borderTop:'1px solid var(--border)', marginTop:8 }}>
       <div style={{ fontSize:11, fontWeight:700, color:'#8b5cf6', textTransform:'uppercase', letterSpacing:0.5 }}>Factor this invoice</div>
@@ -113,16 +222,20 @@ function FactorPanel({ inv, factorCompany, factorRate, net, onSubmit }) {
         ))}
       </div>
       <div style={{ fontSize:10, color:'var(--muted)' }}>
-        Sends invoice + all docs (BOL, rate con, POD, receipts) to {factorCompany}
+        Generates professional PDF invoice + attaches all docs (BOL, rate con, POD) and sends to {factorCompany}
       </div>
+      {status && <div style={{ fontSize:10, color:'#8b5cf6' }}>{status}</div>}
       <button className="btn btn-ghost" disabled={submitting}
         style={{ fontSize:12, padding:'10px 16px', color:'#8b5cf6', borderColor:'rgba(139,92,246,0.3)', fontWeight:700 }}
         onClick={async () => {
           setSubmitting(true)
-          await onSubmit(payTerms)
+          const pdfUrl = await generateAndUploadPDF()
+          setStatus(pdfUrl ? 'Sending to factoring company...' : 'Sending without PDF...')
+          await onSubmit(payTerms, pdfUrl)
+          setStatus('')
           setSubmitting(false)
         }}>
-        <Ic icon={Zap} size={13} /> {submitting ? 'Submitting...' : `Factor — $${net.toLocaleString()} (${factorRate}% fee)`}
+        <Ic icon={Zap} size={13} /> {submitting ? status || 'Processing...' : `Factor — $${net.toLocaleString()} (${factorRate}% fee)`}
       </button>
     </div>
   )
@@ -1174,12 +1287,12 @@ export function InvoicesHub() {
                 )}
                 {inv.status === 'Unpaid' && factorCompany && factorCompany !== "I don't use factoring" && (
                   <FactorPanel inv={inv} factorCompany={factorCompany} factorRate={factorRate} net={net}
-                    onSubmit={async (payTerms) => {
+                    onSubmit={async (payTerms, pdfUrl) => {
                       try {
                         await apiFetch('/api/factor-invoice', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: factorCompany, factoringRate: factorRate, paymentTerms: payTerms }),
+                          body: JSON.stringify({ invoiceId: inv._dbId || inv.id, factoringCompany: factorCompany, factoringRate: factorRate, paymentTerms: payTerms, invoicePdfUrl: pdfUrl }),
                         })
                         updateInvoiceStatus(inv.id || inv.invoice_number, 'Factored')
                         showToast('', 'Invoice Factored!', `${inv.invoice_number || inv.id} → ${factorCompany} · ${payTerms === 'same_day' ? 'Same day pay' : payTerms === 'next_day' ? 'Next day' : 'Standard'} · $${net.toLocaleString()}`)

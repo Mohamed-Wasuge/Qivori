@@ -62,7 +62,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { invoiceId, factoringCompany, factoringRate, paymentTerms } = await req.json()
+    const { invoiceId, factoringCompany, factoringRate, paymentTerms, invoicePdfUrl } = await req.json()
 
     if (!invoiceId) {
       return Response.json({ error: 'invoiceId required' }, { status: 400, headers: corsHeaders(req) })
@@ -174,6 +174,13 @@ export default async function handler(req) {
             <tr><td style="padding:6px 0;color:#888;">Requested</td><td style="color:#fff;font-weight:bold;">${paymentTerms === 'same_day' ? 'SAME DAY PAY' : paymentTerms === 'next_day' ? 'NEXT BUSINESS DAY' : 'STANDARD (per agreement)'}</td></tr>
           </table>
         </div>
+
+        ${invoicePdfUrl ? `
+        <h2 style="color:#f0a500;font-size:16px;margin-bottom:10px;">INVOICE PDF</h2>
+        <div style="background:#1a1d27;border-radius:10px;padding:15px;margin-bottom:20px;text-align:center;">
+          <a href="${invoicePdfUrl}" style="display:inline-block;background:#f0a500;color:#000;font-weight:700;font-size:14px;padding:12px 32px;border-radius:8px;text-decoration:none;">Download Invoice PDF</a>
+        </div>
+        ` : ''}
 
         ${documents.length > 0 ? `
         <h2 style="color:#f0a500;font-size:16px;margin-bottom:10px;">SUPPORTING DOCUMENTS</h2>

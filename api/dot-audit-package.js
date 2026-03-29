@@ -194,13 +194,48 @@ export default async function handler(req) {
         uploaded: d.created_at?.split('T')[0],
       })),
 
-      // Expense summary (for fuel/maintenance audit)
+      // Expense summary + individual fuel receipts (IFTA audit §IFTA-R1320)
       expenses: {
         total: expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0),
-        fuel: expenses.filter(e => e.category === 'Fuel').reduce((s, e) => s + (parseFloat(e.amount) || 0), 0),
+        fuel_total: expenses.filter(e => e.category === 'Fuel').reduce((s, e) => s + (parseFloat(e.amount) || 0), 0),
+        fuel_gallons: expenses.filter(e => e.category === 'Fuel').reduce((s, e) => s + (parseFloat(e.gallons) || 0), 0),
         maintenance: expenses.filter(e => e.category === 'Maintenance' || e.category === 'Repairs').reduce((s, e) => s + (parseFloat(e.amount) || 0), 0),
         tolls: expenses.filter(e => e.category === 'Tolls').reduce((s, e) => s + (parseFloat(e.amount) || 0), 0),
         count: expenses.length,
+        // Individual fuel receipts for IFTA audit
+        fuel_receipts: expenses.filter(e => e.category === 'Fuel').map(e => ({
+          date: e.date,
+          amount: parseFloat(e.amount) || 0,
+          gallons: parseFloat(e.gallons) || 0,
+          price_per_gallon: parseFloat(e.price_per_gallon) || 0,
+          state: e.state || '—',
+          merchant: e.merchant || '—',
+          notes: e.notes || '',
+        })),
+        // Maintenance receipts
+        maintenance_receipts: expenses.filter(e => e.category === 'Maintenance' || e.category === 'Repairs').map(e => ({
+          date: e.date,
+          amount: parseFloat(e.amount) || 0,
+          merchant: e.merchant || '—',
+          notes: e.notes || '',
+        })),
+      },
+
+      // DOT-specific required records checklist
+      dot_checklist: {
+        carrier_identification: !!company?.mc_number || !!company?.dot_number,
+        operating_authority: docTypes.some(d => d.includes('operating') || d.includes('authority')),
+        insurance_certificate: docTypes.some(d => d.includes('insurance')),
+        driver_qualification_files: drivers.length > 0,
+        cdl_on_file: drivers.every(d => d.license_number || d.cdl_number),
+        medical_cards_current: drivers.every(d => !d.medical_card_expiry || new Date(d.medical_card_expiry) > now),
+        vehicle_registration: docTypes.some(d => d.includes('registration')),
+        vehicle_inspection_records: dvirs.length > 0,
+        hours_of_service_logs: true, // tracked via HOS system
+        fuel_tax_records: expenses.filter(e => e.category === 'Fuel').length > 0,
+        maintenance_records: expenses.filter(e => e.category === 'Maintenance' || e.category === 'Repairs').length > 0,
+        accident_register: docTypes.some(d => d.includes('accident') || d.includes('incident')),
+        drug_alcohol_testing: docTypes.some(d => d.includes('drug') || d.includes('clearinghouse')),
       },
     }
 

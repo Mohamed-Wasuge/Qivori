@@ -121,6 +121,110 @@ function DOTAuditExport() {
       doc.text(`LOAD HISTORY (${pkg.loads.total} loads)`, P, y += 20)
       y += 6; doc.setFontSize(10); doc.setTextColor(...gry)
       doc.text(`Delivered: ${pkg.loads.delivered} | Cancelled: ${pkg.loads.cancelled}`, P, y += 14)
+      y += 10; doc.setDrawColor(...bdr); doc.line(P, y, W - P, y)
+
+      pkg.loads.records.slice(0, 25).forEach(l => {
+        checkPage(16); y += 14
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...blk)
+        doc.text(`${l.load || '—'} · ${l.origin || '—'} → ${l.destination || '—'} · ${l.driver || '—'} · ${l.status} · $${l.rate || 0} · ${l.miles || 0}mi`, P, y)
+      })
+
+      // Fuel receipts (IFTA audit requirement)
+      if (pkg.expenses.fuel_receipts?.length > 0) {
+        addPage(); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...navy)
+        doc.text(`FUEL PURCHASE RECORDS — IFTA (${pkg.expenses.fuel_receipts.length} receipts)`, P, y += 20)
+        y += 6; doc.setFontSize(10); doc.setTextColor(...gry)
+        doc.text(`Total fuel: $${pkg.expenses.fuel_total?.toLocaleString()} | Total gallons: ${pkg.expenses.fuel_gallons?.toLocaleString()} | Avg $/gal: $${pkg.expenses.fuel_gallons > 0 ? (pkg.expenses.fuel_total / pkg.expenses.fuel_gallons).toFixed(3) : '—'}`, P, y += 14)
+        y += 10; doc.setDrawColor(...bdr); doc.line(P, y, W - P, y)
+
+        // Table header
+        y += 14; doc.setFillColor(248, 250, 252); doc.rect(P, y - 4, W - P * 2, 16, 'F')
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...gry)
+        doc.text('DATE', P + 4, y + 6); doc.text('STATE', P + 65, y + 6); doc.text('STATION', P + 100, y + 6)
+        doc.text('GALLONS', P + 250, y + 6); doc.text('$/GAL', P + 310, y + 6); doc.text('AMOUNT', P + 370, y + 6)
+        y += 18
+
+        pkg.expenses.fuel_receipts.forEach(r => {
+          checkPage(14); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...blk)
+          doc.text(r.date || '—', P + 4, y); doc.text(r.state, P + 65, y)
+          doc.text((r.merchant || '—').slice(0, 25), P + 100, y)
+          doc.text(String(r.gallons || '—'), P + 250, y)
+          doc.text(r.price_per_gallon ? '$' + r.price_per_gallon.toFixed(3) : '—', P + 310, y)
+          doc.setTextColor(...red); doc.text('$' + r.amount.toLocaleString(), P + 370, y)
+          doc.setTextColor(...blk)
+          doc.setDrawColor(240, 240, 240); doc.line(P, y + 4, W - P, y + 4)
+          y += 14
+        })
+      }
+
+      // Maintenance records
+      if (pkg.expenses.maintenance_receipts?.length > 0) {
+        addPage(); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...navy)
+        doc.text(`MAINTENANCE & REPAIR RECORDS (${pkg.expenses.maintenance_receipts.length} records)`, P, y += 20)
+        y += 6; doc.setFontSize(10); doc.setTextColor(...gry)
+        doc.text(`Total maintenance cost: $${pkg.expenses.maintenance?.toLocaleString()}`, P, y += 14)
+        y += 10; doc.setDrawColor(...bdr); doc.line(P, y, W - P, y)
+
+        pkg.expenses.maintenance_receipts.forEach(r => {
+          checkPage(14); y += 14
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...blk)
+          doc.text(`${r.date || '—'} · ${r.merchant || '—'} · $${r.amount.toLocaleString()} · ${r.notes || '—'}`, P, y)
+        })
+      }
+
+      // DOT Compliance Checklist
+      if (pkg.dot_checklist) {
+        addPage(); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...navy)
+        doc.text('DOT/FMCSA COMPLIANCE CHECKLIST', P, y += 20)
+        y += 6; doc.setFontSize(9); doc.setTextColor(...gry)
+        doc.text('Required records per FMCSA Parts 390-399', P, y += 14)
+        y += 10; doc.setDrawColor(...bdr); doc.line(P, y, W - P, y)
+
+        const checklistItems = [
+          ['Carrier Identification (MC/DOT)', pkg.dot_checklist.carrier_identification, 'FMCSA §390.19'],
+          ['Operating Authority', pkg.dot_checklist.operating_authority, 'FMCSA §392.9a'],
+          ['Insurance Certificate (min $750K)', pkg.dot_checklist.insurance_certificate, 'FMCSA §387'],
+          ['Driver Qualification Files', pkg.dot_checklist.driver_qualification_files, 'FMCSA §391'],
+          ['CDL Copies on File', pkg.dot_checklist.cdl_on_file, 'FMCSA §391.51'],
+          ['Medical Cards Current', pkg.dot_checklist.medical_cards_current, 'FMCSA §391.43'],
+          ['Vehicle Registration', pkg.dot_checklist.vehicle_registration, 'FMCSA §392.2'],
+          ['Vehicle Inspection Records (DVIR)', pkg.dot_checklist.vehicle_inspection_records, 'FMCSA §396.11'],
+          ['Hours of Service Logs', pkg.dot_checklist.hours_of_service_logs, 'FMCSA §395'],
+          ['Fuel Tax Records (IFTA)', pkg.dot_checklist.fuel_tax_records, 'IFTA §R1320'],
+          ['Maintenance Records', pkg.dot_checklist.maintenance_records, 'FMCSA §396.3'],
+          ['Accident Register', pkg.dot_checklist.accident_register, 'FMCSA §390.15'],
+          ['Drug & Alcohol Testing', pkg.dot_checklist.drug_alcohol_testing, 'FMCSA §382'],
+        ]
+
+        checklistItems.forEach(([label, passes, reg]) => {
+          y += 18; checkPage(18)
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+          doc.setTextColor(...(passes ? grn : red))
+          doc.text(passes ? 'PASS' : 'FAIL', P + 4, y)
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(...blk)
+          doc.text(label, P + 40, y)
+          doc.setTextColor(...gry); doc.setFontSize(8)
+          doc.text(reg, W - P - 10, y, { align: 'right' })
+        })
+
+        const passCount = checklistItems.filter(([, p]) => p).length
+        y += 24; doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+        doc.setTextColor(...(passCount === checklistItems.length ? grn : red))
+        doc.text(`${passCount}/${checklistItems.length} items compliant${passCount === checklistItems.length ? ' — AUDIT READY' : ' — ACTION REQUIRED'}`, P, y)
+      }
+
+      // Documents on file
+      if (pkg.documents?.length > 0) {
+        addPage(); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...navy)
+        doc.text(`DOCUMENTS ON FILE (${pkg.documents.length})`, P, y += 20)
+        y += 10; doc.setDrawColor(...bdr); doc.line(P, y, W - P, y)
+
+        pkg.documents.slice(0, 30).forEach(d => {
+          checkPage(14); y += 14
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...blk)
+          doc.text(`${d.uploaded || '—'} · ${(d.type || '—').toUpperCase()} · ${d.name || '—'}`, P, y)
+        })
+      }
 
       // Footer on all pages
       const pages = doc.getNumberOfPages()

@@ -100,7 +100,7 @@ export default async function handler(req) {
         mc_number: company?.mc_number || null,
         dot_number: company?.dot_number || null,
         status: 'pending',
-        setup_fee: 500,
+        setup_fee: 1500,
         created_at: new Date().toISOString(),
       }
 
@@ -120,7 +120,7 @@ export default async function handler(req) {
             html: `<h2>New EDI Access Request</h2>
               <p><strong>${requestData.carrier_name}</strong> is requesting EDI access.</p>
               <p>Email: ${requestData.carrier_email}<br>Phone: ${requestData.carrier_phone || '—'}<br>MC: ${requestData.mc_number || '—'}<br>DOT: ${requestData.dot_number || '—'}</p>
-              <p>Setup fee: <strong>$500</strong></p>
+              <p>Setup fee: <strong>$1,500</strong></p>
               <p>Log in to your admin dashboard to approve or deny.</p>`,
           }),
         }).catch(() => {})

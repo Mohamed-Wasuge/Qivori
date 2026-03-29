@@ -45,8 +45,8 @@ export default async function handler(req) {
     params.append('cancel_url', `${origin}/?edi_setup=cancel`)
     params.append('line_items[0][price_data][currency]', 'usd')
     params.append('line_items[0][price_data][product_data][name]', 'Qivori EDI Setup — Enterprise Freight Integration')
-    params.append('line_items[0][price_data][product_data][description]', 'One-time setup fee for EDI 204/990/214/210 integration. Includes API key generation, ISA/GS qualifier assignment, and partner configuration support.')
-    params.append('line_items[0][price_data][unit_amount]', '50000') // $500.00
+    params.append('line_items[0][price_data][product_data][description]', 'One-time setup fee for EDI 204/990/214/210 integration. Includes API key generation, ISA/GS qualifier assignment, partner configuration, and unlimited EDI transactions — no monthly fees, no per-document charges.')
+    params.append('line_items[0][price_data][unit_amount]', '150000') // $1,500.00
     params.append('line_items[0][quantity]', '1')
     params.append('customer_email', user.email)
     params.append('metadata[user_id]', user.id)
@@ -82,7 +82,7 @@ export default async function handler(req) {
           mc_number: company?.mc_number || null,
           dot_number: company?.dot_number || null,
           status: 'pending',
-          setup_fee: 500,
+          setup_fee: 1500,
           stripe_session_id: session.id,
         }),
       })

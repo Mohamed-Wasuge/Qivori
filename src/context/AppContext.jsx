@@ -30,6 +30,7 @@ export const ROLES = {
       { id: 'demo-requests', icon: Monitor, label: 'Demo Requests' },
       { id: 'admin-email', icon: Mail, label: 'Email' },
       { id: 'analytics', icon: BarChart2, label: 'Analytics' },
+      { id: 'intelligence', icon: TrendingUp, label: 'Intelligence' },
       { id: 'ai-agent', icon: Bot, label: 'AI Agent', badge: 'LIVE', badgeClass: 'green' },
       { id: 'activity', icon: Shield, label: 'Security' },
       { id: 'settings', icon: Settings, label: 'Settings' },

@@ -53,6 +53,7 @@ const RevenueDashboard = lazyNamed(() => import('./pages/AdminPages'), 'RevenueD
 const DemoRequests = lazyNamed(() => import('./pages/AdminPages'), 'DemoRequests')
 const AdminEmail = lazyNamed(() => import('./pages/AdminPages'), 'AdminEmail')
 const UserManagement = lazyNamed(() => import('./pages/AdminPages'), 'UserManagement')
+const PlatformIntelligence = lazyNamed(() => import('./pages/AdminPages'), 'PlatformIntelligence')
 
 // BrokerPages group (heavy â now lazy-loaded as a chunk)
 const BrokerDashboard = lazyNamed(() => import('./pages/BrokerPages'), 'BrokerDashboard')
@@ -88,6 +89,7 @@ const PAGES = {
   'demo-requests': DemoRequests,
   'admin-email': AdminEmail,
   analytics: Analytics,
+  intelligence: PlatformIntelligence,
   activity: ActivityLog,
   'ai-agent': MasterAgent,
   'users': UserManagement,

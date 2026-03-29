@@ -604,7 +604,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
       {/* ── PRE-TRIP INSPECTION OVERLAY ── */}
       {showPreTrip && preTripItems && (
         <div style={{
-          position:'fixed', inset:0, zIndex:9999, background:'var(--bg)',
+          position:'fixed', top:0, left:0, right:0, bottom:60, zIndex:999, background:'var(--bg)',
           display:'flex', flexDirection:'column', overflowY:'auto',
         }}>
           <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
@@ -612,7 +612,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
               <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)' }}>PRE-TRIP INSPECTION</div>
               <div style={{ fontSize:10, color:'var(--muted)' }}>FMCSA §396.11 — Tap each item: Pass or Defect</div>
             </div>
-            <button onClick={() => setShowPreTrip(false)} style={{ background:'none', border:'none', color:'var(--muted)', fontSize:18, cursor:'pointer' }}>X</button>
+            <button onClick={() => setShowPreTrip(false)} style={{ width:36, height:36, borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', fontSize:16, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>X</button>
           </div>
 
           <div style={{ flex:1, overflowY:'auto', padding:'12px 16px' }}>

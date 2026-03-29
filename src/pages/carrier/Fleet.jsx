@@ -9,6 +9,136 @@ import { createDocument, fetchVehicleDocuments, createVehicleDocument, deleteVeh
 // FleetMapGoogle is exported directly from FleetMapGoogle.jsx
 // Do NOT re-export it here to avoid circular chunk initialization issues
 
+// ── Service History with date filters ─────────────────────────────────────
+function ServiceHistory({ truck, truckLogs, showAddService, setShowAddService }) {
+  const [dateFilter, setDateFilter] = useState('all') // all, 30d, 90d, 6mo, 1yr, custom
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+
+  const filteredLogs = useMemo(() => {
+    let logs = [...truckLogs]
+    const now = new Date()
+
+    // Date filter
+    if (dateFilter !== 'all' && dateFilter !== 'custom') {
+      const days = { '30d': 30, '90d': 90, '6mo': 180, '1yr': 365 }[dateFilter] || 0
+      if (days > 0) {
+        const cutoff = new Date(now.getTime() - days * 86400000)
+        logs = logs.filter(l => {
+          const d = new Date(l.date || l.created_at)
+          return d >= cutoff
+        })
+      }
+    } else if (dateFilter === 'custom' && customFrom) {
+      const from = new Date(customFrom)
+      const to = customTo ? new Date(customTo) : now
+      logs = logs.filter(l => {
+        const d = new Date(l.date || l.created_at)
+        return d >= from && d <= to
+      })
+    }
+
+    // Type filter
+    if (typeFilter !== 'all') {
+      logs = logs.filter(l => l.type === typeFilter)
+    }
+
+    return logs
+  }, [truckLogs, dateFilter, customFrom, customTo, typeFilter])
+
+  const totalFilteredCost = filteredLogs.reduce((s, l) => s + (parseFloat(l.cost) || 0), 0)
+  const serviceTypes = [...new Set(truckLogs.map(l => l.type).filter(Boolean))]
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 13 }}><Ic icon={Wrench} /> Service History — {truck.unit}</div>
+        <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={() => setShowAddService(s => !s)}>
+          {showAddService ? 'Cancel' : '+ Log Service'}
+        </button>
+      </div>
+
+      {/* Date + Type Filters */}
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Ic icon={Calendar} size={12} color="var(--muted)" />
+        {[
+          { id: 'all', label: 'All Time' },
+          { id: '30d', label: '30 Days' },
+          { id: '90d', label: '90 Days' },
+          { id: '6mo', label: '6 Months' },
+          { id: '1yr', label: '1 Year' },
+          { id: 'custom', label: 'Custom' },
+        ].map(f => (
+          <button key={f.id} onClick={() => setDateFilter(f.id)}
+            style={{
+              padding: '4px 10px', borderRadius: 6, fontSize: 10, fontWeight: 700, cursor: 'pointer',
+              border: dateFilter === f.id ? '1px solid var(--accent)' : '1px solid var(--border)',
+              background: dateFilter === f.id ? 'rgba(240,165,0,0.1)' : 'transparent',
+              color: dateFilter === f.id ? 'var(--accent)' : 'var(--muted)',
+              fontFamily: "'DM Sans',sans-serif",
+            }}>
+            {f.label}
+          </button>
+        ))}
+
+        {dateFilter === 'custom' && (
+          <>
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11 }} />
+            <span style={{ color: 'var(--muted)', fontSize: 10 }}>to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11 }} />
+          </>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        {serviceTypes.length > 0 && (
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, fontFamily: "'DM Sans',sans-serif" }}>
+            <option value="all">All Types</option>
+            {serviceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+
+        <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+          {filteredLogs.length} records · <span style={{ color: 'var(--danger)', fontWeight: 700 }}>${totalFilteredCost.toLocaleString()}</span> total
+        </div>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+          <thead><tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+            {['Date', 'Mileage', 'Service Type', 'Cost', 'Shop', 'Next Due', 'Notes'].map(h => (
+              <th key={h} style={{ padding: '9px 14px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'left', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {filteredLogs.map((log, i) => (
+              <tr key={log.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted)' }}>{log.date}</td>
+                <td style={{ padding: '11px 14px', fontSize: 12, fontFamily: 'monospace' }}>{(log.mileage || 0).toLocaleString()}</td>
+                <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 600 }}>{log.type}</td>
+                <td style={{ padding: '11px 14px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--danger)' }}>${(log.cost || 0).toLocaleString()}</td>
+                <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted)' }}>{log.shop}</td>
+                <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--accent2)', fontWeight: 600 }}>{log.nextDue}</td>
+                <td style={{ padding: '11px 14px', fontSize: 11, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.notes}</td>
+              </tr>
+            ))}
+            {filteredLogs.length === 0 && (
+              <tr><td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                {truckLogs.length === 0 ? 'No service records yet — log the first service above' : 'No records match this date range'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── FLEET MAP CONSTANTS ──────────────────────────────────────────────────────
 const CITIES = {
   'Atlanta, GA':   { x: 62, y: 66 }, 'Chicago, IL':   { x: 57, y: 42 },
@@ -1165,36 +1295,8 @@ export function FleetManager() {
                 </div>
               )}
 
-              {/* Service history */}
-              <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-                <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
-                  <div style={{ fontWeight:700, fontSize:13 }}><Ic icon={Wrench} /> Service History — {truck.unit}</div>
-                  <button className="btn btn-primary" style={{ fontSize:11 }} onClick={() => setShowAddService(s => !s)}>{showAddService ? '✕ Cancel' : '+ Log Service'}</button>
-                </div>
-                <div style={{ overflowX:'auto' }}><table style={{ width:'100%', borderCollapse:'collapse', minWidth:700 }}>
-                  <thead><tr style={{ background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
-                    {['Date','Mileage','Service Type','Cost','Shop','Next Due','Notes'].map(h => (
-                      <th key={h} style={{ padding:'9px 14px', fontSize:10, fontWeight:700, color:'var(--muted)', textAlign:'left', textTransform:'uppercase', letterSpacing:1 }}>{h}</th>
-                    ))}
-                  </tr></thead>
-                  <tbody>
-                    {truckLogs.map((log, i) => (
-                      <tr key={log.id} style={{ borderBottom:'1px solid var(--border)', background: i%2===0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                        <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>{log.date}</td>
-                        <td style={{ padding:'11px 14px', fontSize:12, fontFamily:'monospace' }}>{log.mileage.toLocaleString()}</td>
-                        <td style={{ padding:'11px 14px', fontSize:13, fontWeight:600 }}>{log.type}</td>
-                        <td style={{ padding:'11px 14px', fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:'var(--danger)' }}>${log.cost.toLocaleString()}</td>
-                        <td style={{ padding:'11px 14px', fontSize:12, color:'var(--muted)' }}>{log.shop}</td>
-                        <td style={{ padding:'11px 14px', fontSize:11, color: log.nextDue?.includes('warning') ? 'var(--warning)' : 'var(--accent2)', fontWeight:600 }}>{log.nextDue}</td>
-                        <td style={{ padding:'11px 14px', fontSize:11, color:'var(--muted)', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{log.notes}</td>
-                      </tr>
-                    ))}
-                    {truckLogs.length === 0 && (
-                      <tr><td colSpan={7} style={{ padding:32, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No service records yet — log the first service above</td></tr>
-                    )}
-                  </tbody>
-                </table></div>
-              </div>
+              {/* Service history with date filters */}
+              <ServiceHistory truck={truck} truckLogs={truckLogs} showAddService={showAddService} setShowAddService={setShowAddService} />
             </>
           )}
 

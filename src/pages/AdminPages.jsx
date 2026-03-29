@@ -2383,6 +2383,113 @@ export function RevenueDashboard() {
 /* ═══════════════════════════════════════════════════════════════════════════
    PLATFORM INTELLIGENCE — carrier performance, market heatmap, trends
    ═══════════════════════════════════════════════════════════════════════════ */
+function PlatformInsights({ loads, carriers, leaderboard, hotLanes, weeklyTrend }) {
+  const insights = []
+  const now = new Date()
+  const ic = { critical: { bg: '#fef2f2', border: '#fecaca', color: '#dc2626', icon: AlertTriangle }, warning: { bg: '#fffbeb', border: '#fde68a', color: '#d97706', icon: AlertTriangle }, success: { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', icon: TrendingUp }, info: { bg: '#eff6ff', border: '#bfdbfe', color: '#2563eb', icon: Activity } }
+
+  // 1. Churning carriers — signed up but no loads in 14+ days
+  carriers.forEach(c => {
+    const carrierLoads = loads.filter(l => l.owner_id === c.id)
+    const daysSinceSignup = Math.floor((now - new Date(c.created_at)) / 86400000)
+    if (carrierLoads.length === 0 && daysSinceSignup >= 3 && daysSinceSignup <= 30) {
+      insights.push({ type: 'critical', title: `${c.company_name || c.full_name || c.email} signed up ${daysSinceSignup}d ago — zero loads`, action: 'Call them. They need onboarding help or they\'ll churn.', carrier: c.email })
+    }
+  })
+
+  // 2. Inactive carriers — had loads but stopped
+  leaderboard.forEach(c => {
+    const carrierLoads = loads.filter(l => l.owner_id === c.id)
+    const lastLoad = carrierLoads.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+    if (lastLoad) {
+      const daysSince = Math.floor((now - new Date(lastLoad.created_at)) / 86400000)
+      if (daysSince >= 14) {
+        insights.push({ type: 'warning', title: `${c.name} hasn't moved a load in ${daysSince} days`, action: 'At risk of churning. Reach out — ask if they need help or found another platform.' })
+      }
+    }
+  })
+
+  // 3. Unpaid invoices aging
+  const oldUnpaid = loads.filter(l => l.status === 'Invoiced' && l.created_at).filter(l => {
+    const days = Math.floor((now - new Date(l.created_at)) / 86400000)
+    return days > 30
+  })
+  if (oldUnpaid.length > 0) {
+    insights.push({ type: 'warning', title: `${oldUnpaid.length} load(s) invoiced over 30 days ago — still unpaid`, action: 'Carriers may need factoring help. Promote QuickPay/Same Day Pay.' })
+  }
+
+  // 4. Top performer
+  if (leaderboard.length > 0 && leaderboard[0].loads >= 3) {
+    const top = leaderboard[0]
+    insights.push({ type: 'success', title: `Top carrier: ${top.name} — $${top.gross.toLocaleString()} revenue, ${top.loads} loads, ${top.onTime}% on-time`, action: 'Feature them in marketing. Ask for a testimonial.' })
+  }
+
+  // 5. Hot lane detection
+  if (hotLanes.length > 0) {
+    const hottest = hotLanes[0]
+    insights.push({ type: 'info', title: `Hottest lane: ${hottest.origin} → ${hottest.dest} — ${hottest.count} loads, $${Math.round(hottest.gross).toLocaleString()} gross`, action: 'Tell your carriers about this lane. High demand = higher rates.' })
+  }
+
+  // 6. Growth trend
+  if (weeklyTrend.length >= 2) {
+    const latest = weeklyTrend[weeklyTrend.length - 1]
+    const prev = weeklyTrend[weeklyTrend.length - 2]
+    const pctChange = prev.loads > 0 ? Math.round((latest.loads - prev.loads) / prev.loads * 100) : 0
+    if (pctChange > 10) {
+      insights.push({ type: 'success', title: `Load volume up ${pctChange}% week-over-week (${prev.loads} → ${latest.loads})`, action: 'Growth accelerating. Keep pushing carrier acquisition.' })
+    } else if (pctChange < -20) {
+      insights.push({ type: 'critical', title: `Load volume down ${Math.abs(pctChange)}% week-over-week (${prev.loads} → ${latest.loads})`, action: 'Volume dropping. Check if carriers are active. Run outreach.' })
+    }
+  }
+
+  // 7. Onboarded but no truck/driver
+  carriers.forEach(c => {
+    const hasLoads = loads.some(l => l.owner_id === c.id)
+    const daysSince = Math.floor((now - new Date(c.created_at)) / 86400000)
+    if (!hasLoads && daysSince >= 1 && daysSince <= 7 && c.subscription_status === 'trialing') {
+      insights.push({ type: 'info', title: `${c.company_name || c.full_name || c.email} is on day ${daysSince} of trial — no loads yet`, action: 'Send them a quick tutorial or offer a setup call.' })
+    }
+  })
+
+  // 8. Platform milestone
+  const totalGross = loads.reduce((s, l) => s + (parseFloat(l.rate) || 0), 0)
+  if (totalGross > 0) {
+    const monthlyPace = totalGross * (30 / Math.max(1, Math.floor((now - new Date(Math.min(...loads.map(l => new Date(l.created_at).getTime())))) / 86400000)))
+    insights.push({ type: 'info', title: `Platform revenue pace: $${Math.round(monthlyPace).toLocaleString()}/month based on current activity`, action: carriers.length < 10 ? 'Get to 10 carriers to validate product-market fit.' : 'Scale carrier acquisition. Product is working.' })
+  }
+
+  if (insights.length === 0) {
+    insights.push({ type: 'info', title: 'No actionable insights yet', action: 'Get more carriers on the platform to generate intelligence.' })
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+      <div style={{ padding: '14px 18px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Ic icon={Brain} size={16} color="#f0a500" />
+        <span style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>Q PLATFORM INSIGHTS</span>
+        <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>{insights.length} actionable items</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {insights.slice(0, 8).map((insight, i) => {
+          const style = ic[insight.type] || ic.info
+          const InsightIcon = style.icon
+          return (
+            <div key={i} style={{ padding: '12px 18px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 12, alignItems: 'flex-start', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: style.bg, border: `1px solid ${style.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                <Ic icon={InsightIcon} size={13} color={style.color} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{insight.title}</div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>{insight.action}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function PlatformIntelligence() {
   const [loads, setLoads] = useState([])
   const [carriers, setCarriers] = useState([])
@@ -2511,6 +2618,9 @@ export function PlatformIntelligence() {
 
       {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading platform data...</div> : (
         <>
+          {/* AI Platform Insights */}
+          <PlatformInsights loads={loads} carriers={carriers} leaderboard={leaderboard} hotLanes={hotLanes} weeklyTrend={weeklyTrend} />
+
           {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
             {[

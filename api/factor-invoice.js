@@ -3,26 +3,28 @@ import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
 
 export const config = { runtime: 'edge' }
 
-// Factoring company submission emails (public/known addresses)
-const FACTOR_EMAILS = {
-  'OTR Solutions':              'invoices@otrsolutions.com',
-  'RTS Financial':              'invoices@rtsinc.com',
-  'Triumph Business Capital':   'invoices@triumphpay.com',
-  'Apex Capital':               'invoices@apexcapitalcorp.com',
-  'TAFS':                       'invoices@tafs.com',
-  'TBS Factoring':              'invoices@tbsfactoring.com',
-  'Thunder Funding':            'invoices@thunderfunding.com',
-  'WEX Capital':                'invoices@wexinc.com',
-  'Riviera Finance':            'invoices@rivierafinance.com',
-  'Fleet One Factoring':        'invoices@fleetone.com',
-  'Express Freight Finance':    'invoices@expressfreightfinance.com',
-  'Cass Commercial Bank':       'invoices@cassinfo.com',
-  'Interstate Capital':         'invoices@interstatecapital.com',
-  'Compass Funding':            'invoices@compassfunding.com',
-  'Porter Freight Funding':     'invoices@porterfreight.com',
-  'Bobtail':                    'invoices@bobtail.com',
-  'Denim':                      'invoices@denim.co',
+// Factoring company directory — full details for carrier selection
+const FACTORING_COMPANIES = {
+  'OTR Solutions':              { email: 'invoices@otrsolutions.com', phone: '877-440-8111', rate: '2-5%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'No minimums. Free fuel card program. Free load board access.' },
+  'RTS Financial':              { email: 'invoices@rtsinc.com', phone: '877-787-4558', rate: '1.5-5%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Fuel discount program. Free credit checks. No hidden fees.' },
+  'Triumph Business Capital':   { email: 'invoices@triumphpay.com', phone: '866-644-1149', rate: '2-4%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Bank-backed. Free fuel card. No contract required.' },
+  'Apex Capital':               { email: 'invoices@apexcapitalcorp.com', phone: '855-369-2739', rate: '1.5-5%', same_day: true, payment_speed: 'Same day or next day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'No reserves on select clients. Fuel discounts. 24/7 support.' },
+  'TAFS':                       { email: 'invoices@tafs.com', phone: '913-393-6100', rate: '2-5%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Fuel card with 8¢/gal discount. No monthly minimums.' },
+  'TBS Factoring':              { email: 'invoices@tbsfactoring.com', phone: '877-227-0669', rate: '2-5%', same_day: false, payment_speed: 'Next day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Oklahoma-based. Personalized service. No long-term contracts.' },
+  'Thunder Funding':            { email: 'invoices@thunderfunding.com', phone: '866-707-4997', rate: '2-4%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Low rates for high volume. Fuel card included.' },
+  'WEX Capital':                { email: 'invoices@wexinc.com', phone: '866-230-8589', rate: '2-5%', same_day: false, payment_speed: 'Next day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Integrated with EFS fuel cards. Fleet management tools.' },
+  'Riviera Finance':            { email: 'invoices@rivierafinance.com', phone: '800-872-7484', rate: '2-5%', same_day: false, payment_speed: '1-2 days', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: '50+ years in business. No long-term contracts.' },
+  'Fleet One Factoring':        { email: 'invoices@fleetone.com', phone: '800-483-3840', rate: '2-4%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Part of WEX. Fuel card integration. Nationwide.' },
+  'Express Freight Finance':    { email: 'invoices@expressfreightfinance.com', phone: '866-515-1249', rate: '1.5-3.5%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Low flat rates. No setup fees. No contract minimums.' },
+  'Interstate Capital':         { email: 'invoices@interstatecapital.com', phone: '800-340-0396', rate: '2-5%', same_day: true, payment_speed: 'Same day', min_invoice: 200, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Fuel card with volume discounts. Credit checks included.' },
+  'Compass Funding':            { email: 'invoices@compassfunding.com', phone: '405-546-2820', rate: '2-4%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Small carrier friendly. Personal account managers.' },
+  'Porter Freight Funding':     { email: 'invoices@porterfreight.com', phone: '888-Portal', rate: '2-4.5%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'Fast onboarding. No long-term contracts required.' },
+  'Bobtail':                    { email: 'invoices@bobtail.com', phone: '844-262-8245', rate: '2-5%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'App-based. Instant pay. Modern interface. No contracts.' },
+  'Denim':                      { email: 'invoices@denim.co', phone: '844-336-4669', rate: '2-4%', same_day: true, payment_speed: 'Same day', min_invoice: 0, required_docs: ['Rate Con', 'BOL', 'POD'], notes: 'API-first. Modern platform. Broker-side factoring option.' },
 }
+
+// Legacy lookup
+const FACTOR_EMAILS = Object.fromEntries(Object.entries(FACTORING_COMPANIES).map(([k, v]) => [k, v.email]))
 
 /**
  * POST { invoiceId, factoringCompany, factoringRate }
@@ -59,6 +61,12 @@ export default async function handler(req) {
     'Authorization': `Bearer ${supabaseKey}`,
     'Content-Type': 'application/json',
     'Prefer': 'return=representation',
+  }
+
+  // GET — return factoring company directory
+  if (req.method === 'GET') {
+    const companies = Object.entries(FACTORING_COMPANIES).map(([name, info]) => ({ name, ...info }))
+    return Response.json({ companies }, { headers: corsHeaders(req) })
   }
 
   try {

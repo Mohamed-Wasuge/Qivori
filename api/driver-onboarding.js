@@ -294,6 +294,117 @@ export default async function handler(req) {
         }
       }
 
+      // If complete → create Supabase auth user + company_members link
+      if (isComplete && inv.email) {
+        try {
+          // Create Supabase auth user for the driver
+          const tempPassword = 'Qivori' + Math.random().toString(36).slice(2, 8) + '!'
+          const createUserRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+            method: 'POST',
+            headers: { ...svc, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: inv.email,
+              password: tempPassword,
+              email_confirm: true,
+              user_metadata: { full_name: mergedData.fullName || mergedData.firstName + ' ' + (mergedData.lastName || ''), role: 'driver' },
+            }),
+          })
+
+          if (createUserRes.ok) {
+            const newUser = await createUserRes.json()
+            const newUserId = newUser?.id
+
+            if (newUserId) {
+              // Update profile with driver role and company link
+              await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${newUserId}`, {
+                method: 'PATCH',
+                headers: { ...svc, 'Prefer': 'return=minimal' },
+                body: JSON.stringify({
+                  role: 'driver',
+                  full_name: mergedData.fullName || (mergedData.firstName + ' ' + (mergedData.lastName || '')).trim(),
+                  phone: mergedData.phone || null,
+                  company_id: inv.company_id,
+                  status: 'active',
+                }),
+              })
+
+              // Create company_members link
+              await fetch(`${supabaseUrl}/rest/v1/company_members`, {
+                method: 'POST',
+                headers: { ...svc, 'Prefer': 'return=minimal' },
+                body: JSON.stringify({
+                  company_id: inv.company_id,
+                  user_id: newUserId,
+                  role: 'driver',
+                  driver_id: inv.driver_id || null,
+                  invited_by: inv.invited_by,
+                  status: 'active',
+                }),
+              })
+
+              // Link driver record to new user
+              if (inv.driver_id) {
+                await fetch(`${supabaseUrl}/rest/v1/drivers?id=eq.${inv.driver_id}`, {
+                  method: 'PATCH',
+                  headers: { ...svc, 'Prefer': 'return=minimal' },
+                  body: JSON.stringify({ user_id: newUserId }),
+                })
+              }
+
+              // Mark invitation as accepted
+              await fetch(`${supabaseUrl}/rest/v1/invitations?id=eq.${inv.id}`, {
+                method: 'PATCH',
+                headers: { ...svc, 'Prefer': 'return=minimal' },
+                body: JSON.stringify({ accepted_at: new Date().toISOString() }),
+              })
+
+              // Send login credentials to driver via email
+              const resendKey = process.env.RESEND_API_KEY
+              if (resendKey) {
+                await fetch('https://api.resend.com/emails', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    from: 'Qivori <hello@qivori.com>',
+                    to: [inv.email],
+                    subject: 'Your Qivori Account is Ready',
+                    html: `<h2>Welcome to Qivori</h2>
+                      <p>Your onboarding is complete. Here are your login credentials:</p>
+                      <p><strong>Email:</strong> ${inv.email}<br><strong>Temporary Password:</strong> ${tempPassword}</p>
+                      <p>Log in at <a href="https://qivori.com">qivori.com</a> and change your password in Settings.</p>
+                      <p>— Q</p>`,
+                  }),
+                }).catch(() => {})
+              }
+
+              // Notify carrier (admin) that driver onboarding is complete
+              if (resendKey) {
+                const adminRes = await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${inv.invited_by}&select=email`, { headers: svc })
+                const adminEmail = adminRes.ok ? (await adminRes.json())?.[0]?.email : null
+                if (adminEmail) {
+                  await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      from: 'Qivori <hello@qivori.com>',
+                      to: [adminEmail],
+                      subject: `Driver Onboarding Complete — ${mergedData.fullName || inv.email}`,
+                      html: `<h2>Driver Onboarding Complete</h2>
+                        <p><strong>${mergedData.fullName || inv.email}</strong> has completed all 9 onboarding steps.</p>
+                        <p>Their account is active and they can log in immediately.</p>
+                        <p>Review their DQ files in Qivori → Drivers → Compliance.</p>`,
+                    }),
+                  }).catch(() => {})
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Driver account creation failed:', err)
+          // Non-blocking — onboarding data is saved even if account creation fails
+        }
+      }
+
       return Response.json({ ok: true, status, completedSteps }, { headers: corsHeaders })
     } catch (err) {
       return Response.json({ error: err.message || 'Server error' }, { status: 500, headers: corsHeaders })

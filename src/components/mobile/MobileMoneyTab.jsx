@@ -620,6 +620,40 @@ export default function MobileMoneyTab({ initialSubTab }) {
                         style={{ flex: 1, padding: '8px', background: 'var(--success)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                         <Ic icon={CheckCircle} size={12} color="#000" /> Paid
                       </button>
+                      <button onClick={() => {
+                        haptic()
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/*,.pdf'
+                        input.capture = 'environment'
+                        input.onchange = async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          try {
+                            const { uploadFile: upFn } = await import('../../lib/storage')
+                            const uploaded = await upFn(file, `payments/${inv.id || inv.invoice_number}`)
+                            const res = await apiFetch('/api/process-payment', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ image_url: uploaded.url, invoice_id: inv._dbId || inv.id }),
+                            })
+                            if (res.ok) {
+                              const data = await res.json()
+                              if (data.short_pay?.detected) {
+                                haptic('error')
+                                alert(`SHORT PAY: Received $${data.payment.amount} of $${inv.amount}. Short $${data.short_pay.short}.`)
+                              } else {
+                                haptic('success')
+                                markPaid(inv)
+                              }
+                            }
+                          } catch { alert('Upload failed') }
+                        }
+                        input.click()
+                      }}
+                        style={{ padding: '8px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Camera size={14} color="var(--muted)" />
+                      </button>
                     </div>
                   )}
                 </div>

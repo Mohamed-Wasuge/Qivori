@@ -56,7 +56,7 @@ const MENU_ITEMS = [
   { id: 'help', label: 'Help & Support', sub: 'Get help from the team', icon: HelpCircle, color: 'var(--accent2)' },
 ]
 
-export default function MobileMoreTab() {
+export default function MobileMoreTab({ onNavigate }) {
   const { logout, user, profile } = useApp()
   const ctx = useCarrier() || {}
   const drivers = ctx.drivers || []
@@ -210,12 +210,31 @@ export default function MobileMoreTab() {
 
           {/* Quick Actions */}
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <button onClick={() => { haptic(); setActiveSection(null); /* navigate to home for pre-trip */ }}
+            <button onClick={() => { haptic(); setActiveSection(null); if (onNavigate) onNavigate('home') }}
               style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif" }}>
               <div style={{ fontSize: 18, marginBottom: 4 }}><Shield size={18} color="var(--accent)" /></div>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>Pre-Trip</div>
             </button>
-            <button onClick={() => { haptic(); /* TODO: document upload */ }}
+            <button onClick={() => {
+              haptic()
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = 'image/*,.pdf'
+              input.capture = 'environment'
+              input.onchange = async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                try {
+                  const { uploadFile: upFn } = await import('../../lib/storage')
+                  const uploaded = await upFn(file, `docs/${Date.now()}`)
+                  const { createDocument } = await import('../../lib/database')
+                  await createDocument({ name: file.name, file_url: uploaded.url, doc_type: 'other', metadata: { original_name: file.name, size: file.size } })
+                  haptic('success')
+                  alert('Document uploaded successfully')
+                } catch { alert('Upload failed') }
+              }
+              input.click()
+            }}
               style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif" }}>
               <div style={{ fontSize: 18, marginBottom: 4 }}><Upload size={18} color="var(--accent)" /></div>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>Upload Doc</div>

@@ -696,7 +696,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           </div>
 
           {/* Submit */}
-          <div style={{ padding:'12px 16px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+          <div style={{ padding:'12px 16px 80px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
             {(() => {
               const total = preTripItems.length
               const completed = preTripItems.filter(i => i.status).length

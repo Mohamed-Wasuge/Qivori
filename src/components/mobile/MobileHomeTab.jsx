@@ -626,23 +626,68 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                     background: item.status === 'pass' ? 'rgba(34,197,94,0.06)' : item.status === 'defect' ? 'rgba(239,68,68,0.06)' : 'var(--surface)',
                     border: `1px solid ${item.status === 'pass' ? 'rgba(34,197,94,0.2)' : item.status === 'defect' ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`,
                   }}>
-                    <div>
+                    <div style={{ flex:1 }}>
                       <div style={{ fontSize:14, fontWeight:600 }}>{item.item}</div>
                       {item.critical && <div style={{ fontSize:9, color:'var(--danger)', fontWeight:700 }}>CRITICAL</div>}
+                      {item.photoResult && (
+                        <div style={{ fontSize:9, color: item.photoResult.status === 'pass' ? 'var(--success)' : 'var(--danger)', fontWeight:700, marginTop:2 }}>
+                          Q: {item.photoResult.summary || item.photoResult.status}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display:'flex', gap:8 }}>
+                    <div style={{ display:'flex', gap:6, alignItems:'center' }}>
                       <button onClick={() => { haptic('light'); setPreTripItems(items => items.map(i => i.id === item.id ? { ...i, status:'pass' } : i)) }}
                         style={{
-                          padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight:700,
+                          padding:'8px 14px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight:700,
                           background: item.status === 'pass' ? 'var(--success)' : 'var(--surface2)', color: item.status === 'pass' ? '#fff' : 'var(--muted)',
                           fontFamily:"'DM Sans',sans-serif",
                         }}>Pass</button>
                       <button onClick={() => { haptic('warning'); setPreTripItems(items => items.map(i => i.id === item.id ? { ...i, status:'defect' } : i)) }}
                         style={{
-                          padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight:700,
+                          padding:'8px 14px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight:700,
                           background: item.status === 'defect' ? 'var(--danger)' : 'var(--surface2)', color: item.status === 'defect' ? '#fff' : 'var(--muted)',
                           fontFamily:"'DM Sans',sans-serif",
                         }}>Defect</button>
+                      <button onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/*'
+                        input.capture = 'environment'
+                        input.onchange = async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          haptic('medium')
+                          setPreTripItems(items => items.map(i => i.id === item.id ? { ...i, photoResult: { status: 'analyzing', summary: 'Q is analyzing...' } } : i))
+                          try {
+                            const { uploadFile: upFn } = await import('../../lib/storage')
+                            const uploaded = await upFn(file, `dvir/${item.id}-${Date.now()}`)
+                            const res = await apiFetch('/api/inspect-photo', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ image_url: uploaded.url, component: item.id }),
+                            })
+                            if (res.ok) {
+                              const data = await res.json()
+                              setPreTripItems(items => items.map(i => i.id === item.id ? {
+                                ...i,
+                                status: data.out_of_service ? 'defect' : data.status === 'pass' ? 'pass' : i.status || 'defect',
+                                photoResult: data,
+                              } : i))
+                              haptic(data.status === 'pass' ? 'success' : 'error')
+                            }
+                          } catch {
+                            setPreTripItems(items => items.map(i => i.id === item.id ? { ...i, photoResult: { status: 'error', summary: 'Photo upload failed' } } : i))
+                          }
+                        }
+                        input.click()
+                      }}
+                        style={{
+                          padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)', cursor:'pointer',
+                          background: item.photoResult ? 'rgba(240,165,0,0.1)' : 'var(--surface2)',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                        }}>
+                        <Camera size={16} color={item.photoResult ? 'var(--accent)' : 'var(--muted)'} />
+                      </button>
                     </div>
                   </div>
                 ))}

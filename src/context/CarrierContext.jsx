@@ -451,10 +451,54 @@ export function CarrierProvider({ children }) {
         if (ediStatuses.includes(newStatus) && (load.load_source === 'edi_204' || load.source === 'edi_204')) {
           apiFetch('/api/edi/send-214', {
             method: 'POST',
-            body: JSON.stringify({
-              load_id: load.id,
-              status_event: newStatus,
-            }),
+            body: JSON.stringify({ load_id: load.id, status_event: newStatus }),
+          }).catch(() => {})
+        }
+
+        // ── Q AUTO-CHAIN: Proactive actions on status change ──
+        const loadRef = load.loadId || load.load_id || load.load_number || ''
+        const dest = (load.dest || load.destination || '').split(',')[0]?.trim()
+
+        if (newStatus === 'At Pickup') {
+          // Start detention clock at shipper
+          localStorage.setItem(`detention_${load.id}`, String(Date.now()))
+          // Check call to broker
+          apiFetch('/api/check-calls?action=schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loadId: loadRef, callType: 'pickup_check', brokerPhone: load.broker_phone, brokerName: load.broker || load.broker_name, carrierName: load.driver || load.driver_name, destination: load.dest || load.destination, eta: 'At pickup now', scheduledAt: new Date().toISOString() }),
+          }).catch(() => {})
+          showToast?.('', 'Q: At Pickup', `Detention clock started. Get loaded.`)
+        }
+
+        if (newStatus === 'In Transit' || newStatus === 'Loaded') {
+          // Stop pickup detention
+          localStorage.removeItem(`detention_${load.id}`)
+          showToast?.('', 'Q: Rolling', `In transit to ${dest}. Q is tracking.`)
+        }
+
+        if (newStatus === 'At Delivery') {
+          // Start detention clock at receiver
+          localStorage.setItem(`detention_${load.id}`, String(Date.now()))
+          // Check call to broker — approaching delivery
+          apiFetch('/api/check-calls?action=schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loadId: loadRef, callType: 'delivery_check', brokerPhone: load.broker_phone, brokerName: load.broker || load.broker_name, carrierName: load.driver || load.driver_name, destination: load.dest || load.destination, eta: 'At delivery now', scheduledAt: new Date().toISOString() }),
+          }).catch(() => {})
+          showToast?.('', 'Q: At Delivery', `Detention clock started. Get unloaded.`)
+        }
+
+        if (newStatus === 'Delivered') {
+          // Stop detention clock
+          localStorage.removeItem(`detention_${load.id}`)
+          // Q proactive message
+          showToast?.('', 'Q: Delivered', `Upload POD. Q is generating invoice and searching reloads from ${dest}.`)
+          // Auto-search reloads from delivery city (fire-and-forget notification)
+          apiFetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: `Load ${loadRef} delivered at ${dest}. Find reloads.` }], context: `Just delivered ${loadRef} at ${load.dest || load.destination}. Need reload options.` }),
           }).catch(() => {})
         }
       } catch (e) {

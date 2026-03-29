@@ -2482,34 +2482,34 @@ export function PlatformIntelligence() {
   loads.forEach(l => { statusCounts[l.status || 'Unknown'] = (statusCounts[l.status || 'Unknown'] || 0) + 1 })
 
   const S = {
-    card: { background: '#131720', border: '1px solid #262d40', borderRadius: 12, padding: '20px 24px' },
-    label: { fontSize: 10, fontWeight: 700, color: '#6b7590', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
-    val: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 1 },
-    panel: { background: '#131720', border: '1px solid #262d40', borderRadius: 12, overflow: 'hidden' },
-    panelHead: { padding: '14px 18px', borderBottom: '1px solid #262d40', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-    panelTitle: { fontSize: 13, fontWeight: 700 },
-    row: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderBottom: '1px solid #1a1f2a' },
+    card: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '20px 24px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
+    label: { fontSize: 10, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
+    val: { fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, letterSpacing: 1, color: '#111827' },
+    panel: { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
+    panelHead: { padding: '14px 18px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+    panelTitle: { fontSize: 13, fontWeight: 700, color: '#111827' },
+    row: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderBottom: '1px solid #f3f4f6' },
   }
-  const sc = { 'Delivered': '#34b068', 'Invoiced': '#8b5cf6', 'Dispatched': '#f0a500', 'In Transit': '#3b82f6', 'Rate Con Received': '#6b7590', 'Paid': '#22c55e', 'Cancelled': '#ef4444' }
+  const sc = { 'Delivered': '#34b068', 'Invoiced': '#8b5cf6', 'Dispatched': '#f0a500', 'In Transit': '#3b82f6', 'Rate Con Received': '#6b7280', 'Paid': '#22c55e', 'Cancelled': '#ef4444' }
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, letterSpacing: 3, margin: 0, color: '#f0a500' }}>PLATFORM INTELLIGENCE</h1>
-          <div style={{ fontSize: 12, color: '#6b7590' }}>Carrier performance, market trends, and operational metrics</div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>Carrier performance, market trends, and operational metrics</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['week', 'month', 'quarter', 'year'].map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              style={{ padding: '6px 14px', borderRadius: 8, border: period === p ? '1px solid #f0a500' : '1px solid #262d40', background: period === p ? 'rgba(240,165,0,0.1)' : '#131720', color: period === p ? '#f0a500' : '#6b7590', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
+              style={{ padding: '6px 14px', borderRadius: 8, border: period === p ? '1px solid #f0a500' : '1px solid #e5e7eb', background: period === p ? 'rgba(240,165,0,0.1)' : '#fff', color: period === p ? '#f0a500' : '#6b7280', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
               {p}
             </button>
           ))}
         </div>
       </div>
 
-      {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#6b7590' }}>Loading platform data...</div> : (
+      {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading platform data...</div> : (
         <>
           {/* KPI Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
@@ -2532,20 +2532,20 @@ export function PlatformIntelligence() {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}><Ic icon={Users} size={14} style={{ marginRight: 8, color: '#f0a500' }} />Carrier Leaderboard</div>
-                <span style={{ fontSize: 10, color: '#6b7590' }}>{leaderboard.length} carriers</span>
+                <span style={{ fontSize: 10, color: '#6b7280' }}>{leaderboard.length} carriers</span>
               </div>
               {leaderboard.length === 0 ? (
-                <div style={{ padding: 30, textAlign: 'center', color: '#6b7590', fontSize: 12 }}>No carrier data for this period</div>
+                <div style={{ padding: 30, textAlign: 'center', color: '#6b7280', fontSize: 12 }}>No carrier data for this period</div>
               ) : leaderboard.slice(0, 10).map((c, i) => (
                 <div key={c.id} style={S.row}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: i < 3 ? 'rgba(240,165,0,0.15)' : '#1a1f2a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: i < 3 ? '#f0a500' : '#6b7590' }}>{i + 1}</div>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: i < 3 ? 'rgba(240,165,0,0.15)' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: i < 3 ? '#f0a500' : '#6b7280' }}>{i + 1}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
-                    <div style={{ fontSize: 10, color: '#6b7590' }}>{c.loads} loads · {c.onTime}% on-time · ${c.avgRpm}/mi</div>
+                    <div style={{ fontSize: 10, color: '#6b7280' }}>{c.loads} loads · {c.onTime}% on-time · ${c.avgRpm}/mi</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#34b068' }}>${c.gross.toLocaleString()}</div>
-                    <div style={{ fontSize: 9, color: '#6b7590' }}>{c.plan}</div>
+                    <div style={{ fontSize: 9, color: '#6b7280' }}>{c.plan}</div>
                   </div>
                 </div>
               ))}
@@ -2555,20 +2555,20 @@ export function PlatformIntelligence() {
             <div style={S.panel}>
               <div style={S.panelHead}>
                 <div style={S.panelTitle}><Ic icon={Map} size={14} style={{ marginRight: 8, color: '#f0a500' }} />Hottest Lanes</div>
-                <span style={{ fontSize: 10, color: '#6b7590' }}>by volume</span>
+                <span style={{ fontSize: 10, color: '#6b7280' }}>by volume</span>
               </div>
               {hotLanes.length === 0 ? (
-                <div style={{ padding: 30, textAlign: 'center', color: '#6b7590', fontSize: 12 }}>No lane data for this period</div>
+                <div style={{ padding: 30, textAlign: 'center', color: '#6b7280', fontSize: 12 }}>No lane data for this period</div>
               ) : hotLanes.map((lane, i) => (
                 <div key={lane.lane} style={S.row}>
-                  <div style={{ width: 24, height: 24, borderRadius: 6, background: i < 3 ? 'rgba(59,130,246,0.15)' : '#1a1f2a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i < 3 ? '#3b82f6' : '#6b7590' }}>{i + 1}</div>
+                  <div style={{ width: 24, height: 24, borderRadius: 6, background: i < 3 ? 'rgba(59,130,246,0.15)' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: i < 3 ? '#3b82f6' : '#6b7280' }}>{i + 1}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{lane.origin} <span style={{ color: '#6b7590' }}> → </span> {lane.dest}</div>
-                    <div style={{ fontSize: 10, color: '#6b7590' }}>{lane.count} loads · {lane.miles > 0 ? Math.round(lane.miles / lane.count) : '—'} avg mi</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{lane.origin} <span style={{ color: '#6b7280' }}> → </span> {lane.dest}</div>
+                    <div style={{ fontSize: 10, color: '#6b7280' }}>{lane.count} loads · {lane.miles > 0 ? Math.round(lane.miles / lane.count) : '—'} avg mi</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#f0a500' }}>${Math.round(lane.gross).toLocaleString()}</div>
-                    <div style={{ fontSize: 9, color: '#6b7590' }}>${lane.miles > 0 ? (lane.gross / lane.miles).toFixed(2) : '—'}/mi</div>
+                    <div style={{ fontSize: 9, color: '#6b7280' }}>${lane.miles > 0 ? (lane.gross / lane.miles).toFixed(2) : '—'}/mi</div>
                   </div>
                 </div>
               ))}
@@ -2584,14 +2584,14 @@ export function PlatformIntelligence() {
               </div>
               <div style={{ padding: 16 }}>
                 {weeklyTrend.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#6b7590', fontSize: 12, padding: 20 }}>No trend data yet</div>
+                  <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 12, padding: 20 }}>No trend data yet</div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120 }}>
                     {weeklyTrend.slice(-12).map((w, i) => (
                       <div key={w.week} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                         <div style={{ fontSize: 9, color: '#f0a500', fontWeight: 700 }}>{w.loads}</div>
                         <div style={{ width: '100%', height: Math.max(4, (w.loads / maxWeekLoads) * 90), background: 'linear-gradient(180deg, #f0a500, rgba(240,165,0,0.3))', borderRadius: 3 }} />
-                        <div style={{ fontSize: 8, color: '#6b7590', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}>{w.week.slice(-3)}</div>
+                        <div style={{ fontSize: 8, color: '#6b7280', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}>{w.week.slice(-3)}</div>
                       </div>
                     ))}
                   </div>
@@ -2623,7 +2623,7 @@ export function PlatformIntelligence() {
                 {Object.entries(statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
                   <div key={status} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', fontSize: 12 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc[status] || '#6b7590' }} />
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc[status] || '#6b7280' }} />
                       {status}
                     </span>
                     <span style={{ fontWeight: 700 }}>{count}</span>

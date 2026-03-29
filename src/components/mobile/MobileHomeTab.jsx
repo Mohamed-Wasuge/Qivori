@@ -10,6 +10,40 @@ import {
 import { Ic, haptic, fmt$, statusColor, QInsightCard, getQSystemState } from './shared'
 import { apiFetch } from '../../lib/api'
 
+// ── Mobile Carrier Score ──────────────────────────────────────────────────
+function MobileCarrierScore() {
+  const [score, setScore] = useState(null)
+  useEffect(() => {
+    apiFetch('/api/carrier-score').then(r => r.ok ? r.json() : null).then(d => { if (d?.score) setScore(d) }).catch(() => {})
+  }, [])
+  if (!score) return null
+  const gc = { A: '#22c55e', B: '#3b82f6', C: '#f0a500', D: '#ef4444' }[score.grade] || '#6b7280'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
+      <div style={{ position: 'relative', width: 40, height: 40, flexShrink: 0 }}>
+        <svg width={40} height={40}>
+          <circle cx={20} cy={20} r={16} fill="none" stroke="var(--border)" strokeWidth={4} />
+          <circle cx={20} cy={20} r={16} fill="none" stroke={gc} strokeWidth={4}
+            strokeDasharray={`${2 * Math.PI * 16}`} strokeDashoffset={`${2 * Math.PI * 16 * (1 - score.score / 100)}`}
+            strokeLinecap="round" transform="rotate(-90 20 20)" />
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, color: gc }}>{score.score}</span>
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 700 }}>Carrier Score <span style={{ color: gc, fontWeight: 800 }}>{score.grade}</span></div>
+        <div style={{ fontSize: 9, color: 'var(--muted)' }}>{score.grade_label} · {score.total_loads} loads · {score.delivered} delivered</div>
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'right' }}>
+        {(score.factors || []).slice(0, 2).map(f => (
+          <div key={f.name}>{f.name}: <span style={{ color: f.points >= f.max * 0.7 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{f.points}/{f.max}</span></div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
   const { user, profile } = useApp()
@@ -540,6 +574,9 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           </div>
         </div>
       )}
+
+      {/* ── CARRIER SCORE ── */}
+      <MobileCarrierScore />
 
       {/* ── START SHIFT / PRE-TRIP ── */}
       {!shiftActive ? (

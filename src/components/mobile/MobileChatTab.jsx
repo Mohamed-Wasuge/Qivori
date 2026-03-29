@@ -3520,6 +3520,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       }
       const data = await res.json()
       const rawReply = data.reply || data.error || 'Something went wrong.'
+      const toolResults = data.tool_results || []
 
       const { actions, displayText } = parseActions(rawReply)
 
@@ -3534,11 +3535,28 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
       const replyText = displayText || rawReply
       escalateAttemptRef.current = 0
-      // Show text immediately — voice plays in background (no blocking)
+
+      // Build tool result cards for display
+      const toolCards = toolResults.map(tr => {
+        const r = tr.result
+        if (!r) return null
+        if (r.stops) return { type: 'truck_stops', data: r }
+        if (r.providers) return { type: 'roadside', data: r }
+        if (r.type === 'fuel_prices') return { type: 'fuel', data: r }
+        if (r.type === 'weather') return { type: 'weather', data: r }
+        if (r.type === 'load_results') return { type: 'loads', data: r }
+        if (r.type === 'load_status') return { type: 'load_status', data: r }
+        if (r.type === 'lane_intel') return { type: 'lane_intel', data: r }
+        if (r.type === 'web_results') return { type: 'web', data: r }
+        return null
+      }).filter(Boolean)
+
+      // Show text + tool cards immediately — voice plays in background
       setMessages(m => [...m, {
         role: 'assistant',
         content: replyText,
         actions,
+        toolCards,
       }])
       // Fire TTS in background — when hands-free, auto-listen after Q finishes speaking
       const wasVoice = lastInputWasVoiceRef.current
@@ -3984,6 +4002,75 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
                       </div>
                     </div>
                   )
+                })}
+              </div>
+            )}
+
+            {/* Tool result cards from Q chatbot */}
+            {m.toolCards && m.toolCards.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, maxWidth: '95%' }}>
+                {m.toolCards.map((card, ci) => {
+                  if (card.type === 'truck_stops' && card.data?.stops?.length > 0) {
+                    return card.data.stops.slice(0, 3).map((s, si) => {
+                      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+                      const dirUrl = isIOS ? `maps://maps.apple.com/?daddr=${s.lat},${s.lng}` : `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`
+                      return (
+                        <a key={`ts-${ci}-${si}`} href={dirUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Ic icon={MapPin} size={14} color="var(--accent)" />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{s.name}</div>
+                              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{s.miles_away} mi · {s.address}</div>
+                            </div>
+                            {s.phone && <a href={`tel:${s.phone}`} onClick={e => e.stopPropagation()} style={{ padding: '4px 8px', background: 'var(--success)', borderRadius: 6, fontSize: 9, fontWeight: 700, color: '#fff', textDecoration: 'none' }}>Call</a>}
+                          </div>
+                        </a>
+                      )
+                    })
+                  }
+                  if (card.type === 'roadside' && card.data?.providers?.length > 0) {
+                    return card.data.providers.slice(0, 3).map((p, pi) => (
+                      <a key={`rs-${ci}-${pi}`} href={`tel:${p.phone?.replace(/[^0-9+]/g, '')}`} style={{ textDecoration: 'none' }}>
+                        <div style={{ background: 'var(--surface)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Ic icon={Phone} size={14} color="var(--danger)" />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{p.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc || p.description}</div>
+                          </div>
+                          <div style={{ padding: '6px 10px', background: 'var(--success)', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#fff' }}>{p.phone}</div>
+                        </div>
+                      </a>
+                    ))
+                  }
+                  if (card.type === 'weather' && card.data?.current) {
+                    const w = card.data
+                    return (
+                      <div key={`wx-${ci}`} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--text)' }}>{w.current.temp}°F</span>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700 }}>{w.current.condition}</div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Wind: {w.current.wind} mph · {w.location}</div>
+                          </div>
+                        </div>
+                        {w.alerts?.map((a, ai) => <div key={ai} style={{ fontSize: 10, fontWeight: 700, color: 'var(--danger)', padding: '4px 0' }}>{a}</div>)}
+                      </div>
+                    )
+                  }
+                  if (card.type === 'fuel' && card.data?.prices?.length > 0) {
+                    return (
+                      <div key={`fuel-${ci}`} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+                        {card.data.prices.map((p, pi) => (
+                          <div key={pi} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: pi < card.data.prices.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                            <span style={{ fontSize: 12 }}>{p.station}</span>
+                            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: 'var(--warning)' }}>{p.price}</span>
+                          </div>
+                        ))}
+                        {card.data.maps_url && <a href={card.data.maps_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', fontSize: 11, color: 'var(--accent)', marginTop: 6 }}>Find diesel near me</a>}
+                      </div>
+                    )
+                  }
+                  return null
                 })}
               </div>
             )}

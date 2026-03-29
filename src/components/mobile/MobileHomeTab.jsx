@@ -24,6 +24,10 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   const fuelCostPerMile = ctx.fuelCostPerMile || 0
 
   const [expandedLoad, setExpandedLoad] = useState(null)
+  const [shiftActive, setShiftActive] = useState(() => localStorage.getItem('q_shift_active') === 'true')
+  const [showPreTrip, setShowPreTrip] = useState(false)
+  const [preTripItems, setPreTripItems] = useState(null)
+  const [preTripSubmitting, setPreTripSubmitting] = useState(false)
   const [qInput, setQInput] = useState('')
   const [qGreeting, setQGreeting] = useState('')
   const [aiDecisions, setAiDecisions] = useState([])
@@ -533,6 +537,172 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                 <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)', animation: `qDotPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── START SHIFT / PRE-TRIP ── */}
+      {!shiftActive ? (
+        <button onClick={() => {
+          haptic('medium')
+          // Load FMCSA checklist
+          setPreTripItems([
+            { id:'brakes', cat:'Tractor', item:'Service Brakes', critical:true, status:null },
+            { id:'parking_brake', cat:'Tractor', item:'Parking Brake', critical:true, status:null },
+            { id:'steering', cat:'Tractor', item:'Steering', critical:true, status:null },
+            { id:'horn', cat:'Tractor', item:'Horn', critical:false, status:null },
+            { id:'wipers', cat:'Tractor', item:'Wipers', critical:false, status:null },
+            { id:'mirrors', cat:'Tractor', item:'Mirrors', critical:false, status:null },
+            { id:'headlights', cat:'Tractor', item:'Headlights', critical:true, status:null },
+            { id:'tail_lights', cat:'Tractor', item:'Tail/Stop Lights', critical:true, status:null },
+            { id:'turn_signals', cat:'Tractor', item:'Turn Signals', critical:true, status:null },
+            { id:'tires_front', cat:'Tractor', item:'Front Tires', critical:true, status:null },
+            { id:'tires_rear', cat:'Tractor', item:'Rear Tires', critical:true, status:null },
+            { id:'wheels', cat:'Tractor', item:'Wheels & Lug Nuts', critical:true, status:null },
+            { id:'fuel_system', cat:'Tractor', item:'Fuel System', critical:true, status:null },
+            { id:'air_lines', cat:'Tractor', item:'Air Lines', critical:true, status:null },
+            { id:'suspension', cat:'Tractor', item:'Suspension', critical:true, status:null },
+            { id:'fire_ext', cat:'Safety', item:'Fire Extinguisher', critical:true, status:null },
+            { id:'triangles', cat:'Safety', item:'Warning Triangles', critical:true, status:null },
+            { id:'seat_belt', cat:'Safety', item:'Seat Belt', critical:true, status:null },
+            { id:'trailer_brakes', cat:'Trailer', item:'Trailer Brakes', critical:true, status:null },
+            { id:'trailer_tires', cat:'Trailer', item:'Trailer Tires', critical:true, status:null },
+            { id:'trailer_lights', cat:'Trailer', item:'Trailer Lights', critical:true, status:null },
+            { id:'coupling', cat:'Trailer', item:'Coupling (5th Wheel)', critical:true, status:null },
+            { id:'trailer_doors', cat:'Trailer', item:'Doors & Hinges', critical:false, status:null },
+            { id:'mud_flaps', cat:'Trailer', item:'Mud Flaps', critical:false, status:null },
+          ])
+          setShowPreTrip(true)
+        }}
+          style={{
+            width:'100%', padding:'16px 20px', borderRadius:12, border:'2px solid var(--accent)',
+            background:'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(240,165,0,0.02))',
+            color:'var(--accent)', fontSize:16, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif",
+            letterSpacing:2, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+          }}>
+          <Zap size={20} /> START SHIFT
+        </button>
+      ) : (
+        <div style={{
+          padding:'12px 16px', borderRadius:10, background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.2)',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)', animation:'qStatusPulse 2s ease-in-out infinite' }} />
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:'var(--success)' }}>ON DUTY — SHIFT ACTIVE</div>
+              <div style={{ fontSize:9, color:'var(--muted)' }}>Pre-trip passed · HOS tracking</div>
+            </div>
+          </div>
+          <button onClick={() => { setShiftActive(false); localStorage.removeItem('q_shift_active'); haptic('light') }}
+            style={{ padding:'6px 12px', borderRadius:6, border:'1px solid rgba(239,68,68,0.3)', background:'rgba(239,68,68,0.08)', color:'var(--danger)', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+            End Shift
+          </button>
+        </div>
+      )}
+
+      {/* ── PRE-TRIP INSPECTION OVERLAY ── */}
+      {showPreTrip && preTripItems && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:9999, background:'var(--bg)',
+          display:'flex', flexDirection:'column', overflowY:'auto',
+        }}>
+          <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+            <div>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)' }}>PRE-TRIP INSPECTION</div>
+              <div style={{ fontSize:10, color:'var(--muted)' }}>FMCSA §396.11 — Tap each item: Pass or Defect</div>
+            </div>
+            <button onClick={() => setShowPreTrip(false)} style={{ background:'none', border:'none', color:'var(--muted)', fontSize:18, cursor:'pointer' }}>X</button>
+          </div>
+
+          <div style={{ flex:1, overflowY:'auto', padding:'12px 16px' }}>
+            {['Tractor', 'Safety', 'Trailer'].map(cat => (
+              <div key={cat} style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, fontWeight:800, color:'var(--accent)', letterSpacing:1, marginBottom:8, textTransform:'uppercase' }}>{cat}</div>
+                {preTripItems.filter(i => i.cat === cat).map(item => (
+                  <div key={item.id} style={{
+                    display:'flex', justifyContent:'space-between', alignItems:'center',
+                    padding:'12px 14px', marginBottom:6, borderRadius:10,
+                    background: item.status === 'pass' ? 'rgba(34,197,94,0.06)' : item.status === 'defect' ? 'rgba(239,68,68,0.06)' : 'var(--surface)',
+                    border: `1px solid ${item.status === 'pass' ? 'rgba(34,197,94,0.2)' : item.status === 'defect' ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`,
+                  }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:600 }}>{item.item}</div>
+                      {item.critical && <div style={{ fontSize:9, color:'var(--danger)', fontWeight:700 }}>CRITICAL</div>}
+                    </div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={() => { haptic('light'); setPreTripItems(items => items.map(i => i.id === item.id ? { ...i, status:'pass' } : i)) }}
+                        style={{
+                          padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight:700,
+                          background: item.status === 'pass' ? 'var(--success)' : 'var(--surface2)', color: item.status === 'pass' ? '#fff' : 'var(--muted)',
+                          fontFamily:"'DM Sans',sans-serif",
+                        }}>Pass</button>
+                      <button onClick={() => { haptic('warning'); setPreTripItems(items => items.map(i => i.id === item.id ? { ...i, status:'defect' } : i)) }}
+                        style={{
+                          padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:12, fontWeight:700,
+                          background: item.status === 'defect' ? 'var(--danger)' : 'var(--surface2)', color: item.status === 'defect' ? '#fff' : 'var(--muted)',
+                          fontFamily:"'DM Sans',sans-serif",
+                        }}>Defect</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Submit */}
+          <div style={{ padding:'12px 16px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+            {(() => {
+              const total = preTripItems.length
+              const completed = preTripItems.filter(i => i.status).length
+              const defects = preTripItems.filter(i => i.status === 'defect')
+              const criticalDefects = defects.filter(i => i.critical)
+              return (
+                <>
+                  <div style={{ fontSize:11, color:'var(--muted)', marginBottom:8, textAlign:'center' }}>
+                    {completed}/{total} inspected · {defects.length} defect{defects.length !== 1 ? 's' : ''}
+                    {criticalDefects.length > 0 && <span style={{ color:'var(--danger)', fontWeight:700 }}> · {criticalDefects.length} CRITICAL</span>}
+                  </div>
+                  <button disabled={completed < total || preTripSubmitting}
+                    onClick={async () => {
+                      setPreTripSubmitting(true)
+                      try {
+                        const res = await apiFetch('/api/pre-trip', {
+                          method:'POST',
+                          headers:{ 'Content-Type':'application/json' },
+                          body: JSON.stringify({
+                            items: preTripItems.map(i => ({ id:i.id, item:i.item, status:i.status })),
+                            driver_name: profile?.full_name || firstName,
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.dispatch_ok !== false) {
+                          setShiftActive(true)
+                          localStorage.setItem('q_shift_active', 'true')
+                          setShowPreTrip(false)
+                          haptic('success')
+                        } else {
+                          haptic('error')
+                          alert(`CRITICAL DEFECT — DO NOT DISPATCH\n\n${data.message}`)
+                        }
+                      } catch {
+                        setShiftActive(true)
+                        localStorage.setItem('q_shift_active', 'true')
+                        setShowPreTrip(false)
+                      }
+                      setPreTripSubmitting(false)
+                    }}
+                    style={{
+                      width:'100%', padding:'14px 0', borderRadius:12, border:'none', cursor: completed < total ? 'default' : 'pointer',
+                      background: completed < total ? 'var(--surface2)' : criticalDefects.length > 0 ? 'var(--danger)' : 'var(--success)',
+                      color: completed < total ? 'var(--muted)' : '#fff',
+                      fontSize:15, fontWeight:800, fontFamily:"'Bebas Neue',sans-serif", letterSpacing:2,
+                    }}>
+                    {preTripSubmitting ? 'Submitting...' : completed < total ? `${total - completed} ITEMS REMAINING` : criticalDefects.length > 0 ? `SUBMIT — ${criticalDefects.length} CRITICAL DEFECT${criticalDefects.length > 1 ? 'S' : ''}` : 'SUBMIT — ALL CLEAR'}
+                  </button>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

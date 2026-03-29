@@ -2,6 +2,8 @@ import { sendEmail, logEmail, wasEmailSent, sendAdminEmail, sendAdminSMS, TEMPLA
 
 export const config = { runtime: 'edge' }
 
+const adminEmail = process.env.ADMIN_EMAIL || 'mwasuge@qivori.com'
+
 /**
  * Lifecycle automation cron — runs every hour via Vercel Cron or external trigger.
  * Handles: onboarding drip, trial ending, trial expired, churn prevention, win-back.
@@ -66,6 +68,8 @@ export default async function handler(req) {
             const t = TEMPLATES.day12_trial_ending(firstName, 2)
             await sendEmail(user.email, t.subject, t.html)
             await logEmail(user.id, user.email, 'day12')
+            // Notify admin — trial expiring soon
+            await sendEmail(adminEmail, `Trial Expiring: ${firstName} (${user.email})`, `<h2>Trial Expiring in 2 Days</h2><p><strong>${firstName}</strong> (${user.email}) — trial ends in 2 days.</p><p>Plan: ${user.subscription_plan || '—'}</p><p>Loads created: Check admin dashboard.</p><p>Action: Reach out to convert them.</p>`).catch(() => {})
             results.trial++
           }
         }
@@ -76,6 +80,8 @@ export default async function handler(req) {
             const t = TEMPLATES.trial_expired(firstName)
             await sendEmail(user.email, t.subject, t.html)
             await logEmail(user.id, user.email, 'trial_expired')
+            // Notify admin — trial expired
+            await sendEmail(adminEmail, `Trial Expired: ${firstName} (${user.email})`, `<h2>Trial Expired</h2><p><strong>${firstName}</strong> (${user.email}) — trial has expired. They did not convert.</p><p>Action: Send a personal follow-up or offer an extension.</p>`).catch(() => {})
             results.trial++
           }
         }

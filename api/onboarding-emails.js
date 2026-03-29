@@ -181,7 +181,7 @@ export default async function handler(req) {
   // Verify cron secret or admin auth to prevent unauthorized triggers
   const cronSecret = process.env.CRON_SECRET
   const authHeader = req.headers.get('authorization')
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 

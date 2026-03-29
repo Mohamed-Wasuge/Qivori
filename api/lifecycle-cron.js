@@ -11,7 +11,7 @@ export default async function handler(req) {
   // Allow GET (cron) or POST (manual trigger)
   const cronSecret = process.env.CRON_SECRET
   const authHeader = req.headers.get('authorization')
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

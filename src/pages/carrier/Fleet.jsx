@@ -9,6 +9,97 @@ import { createDocument, fetchVehicleDocuments, createVehicleDocument, deleteVeh
 // FleetMapGoogle is exported directly from FleetMapGoogle.jsx
 // Do NOT re-export it here to avoid circular chunk initialization issues
 
+// ── Export Service History to PDF ──────────────────────────────────────────
+async function exportServicePDF(truck, logs, totalCost, period) {
+  const { jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const W = 612, P = 40
+  const navy = [26, 54, 93], blk = [17, 24, 39], gry = [107, 114, 128], bdr = [229, 231, 235]
+
+  // Header
+  doc.setFillColor(255, 255, 255); doc.rect(0, 0, W, 792, 'F')
+  doc.setFillColor(...navy); doc.rect(0, 0, W, 4, 'F')
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...navy)
+  doc.text('VEHICLE MAINTENANCE REPORT', P, 36)
+  doc.setFontSize(10); doc.setTextColor(...gry)
+  doc.text(`Generated ${new Date().toLocaleDateString()} · Qivori AI TMS`, P, 50)
+
+  doc.setDrawColor(...bdr); doc.line(P, 60, W - P, 60)
+
+  // Vehicle info
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...navy)
+  doc.text('VEHICLE', P, 80)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...blk)
+  const vInfo = `Unit #${truck.unit || '—'} · ${truck.year || ''} ${truck.make || ''} ${truck.model || ''} · VIN: ${truck.vin || '—'} · Plate: ${truck.plate || '—'} ${truck.plateState || ''}`
+  doc.text(vInfo, P, 94)
+
+  // Summary stats
+  const periodLabel = period === 'all' ? 'All Time' : period === '30d' ? 'Last 30 Days' : period === '90d' ? 'Last 90 Days' : period === '6mo' ? 'Last 6 Months' : period === '1yr' ? 'Last Year' : 'Custom Range'
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(...navy)
+  doc.text('SUMMARY', P, 118)
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(...blk)
+  doc.text(`Period: ${periodLabel} · Total Services: ${logs.length} · Total Cost: $${totalCost.toLocaleString()}`, P, 132)
+
+  doc.setDrawColor(...bdr); doc.line(P, 145, W - P, 145)
+
+  // Table header
+  const cols = [P, P + 70, P + 140, P + 240, P + 310, P + 400, P + 470]
+  const headers = ['DATE', 'MILEAGE', 'SERVICE TYPE', 'COST', 'SHOP', 'NEXT DUE', 'NOTES']
+  let y = 160
+
+  doc.setFillColor(248, 250, 252); doc.rect(P, y - 4, W - P * 2, 18, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...gry)
+  headers.forEach((h, i) => doc.text(h, cols[i], y + 8))
+  y += 22
+
+  // Table rows
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+  for (const log of logs) {
+    if (y > 740) {
+      doc.addPage()
+      y = 40
+      doc.setFillColor(248, 250, 252); doc.rect(P, y - 4, W - P * 2, 18, 'F')
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...gry)
+      headers.forEach((h, i) => doc.text(h, cols[i], y + 8))
+      y += 22
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+    }
+
+    doc.setTextColor(...blk)
+    doc.text(String(log.date || '—'), cols[0], y)
+    doc.text(String((log.mileage || 0).toLocaleString()), cols[1], y)
+    doc.setFont('helvetica', 'bold')
+    doc.text(String(log.type || '—'), cols[2], y)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(220, 38, 38)
+    doc.text('$' + (log.cost || 0).toLocaleString(), cols[3], y)
+    doc.setTextColor(...gry)
+    doc.text(String(log.shop || '—').slice(0, 18), cols[4], y)
+    doc.text(String(log.nextDue || '—').slice(0, 14), cols[5], y)
+    doc.text(String(log.notes || '—').slice(0, 16), cols[6], y)
+
+    doc.setDrawColor(240, 240, 240); doc.line(P, y + 6, W - P, y + 6)
+    y += 18
+  }
+
+  if (logs.length === 0) {
+    doc.setTextColor(...gry); doc.setFontSize(11)
+    doc.text('No service records found for this period.', W / 2, y + 20, { align: 'center' })
+  }
+
+  // Footer on last page
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setDrawColor(...bdr); doc.line(P, 760, W - P, 760)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...gry)
+    doc.text(`${truck.unit || 'Vehicle'} Maintenance Report · Page ${i} of ${pageCount} · Qivori AI TMS`, W / 2, 775, { align: 'center' })
+  }
+
+  doc.save(`${truck.unit || 'vehicle'}-maintenance-${periodLabel.replace(/\s/g, '-').toLowerCase()}.pdf`)
+}
+
 // ── Service History with date filters ─────────────────────────────────────
 function ServiceHistory({ truck, truckLogs, showAddService, setShowAddService }) {
   const [dateFilter, setDateFilter] = useState('all') // all, 30d, 90d, 6mo, 1yr, custom
@@ -105,6 +196,11 @@ function ServiceHistory({ truck, truckLogs, showAddService, setShowAddService })
         <div style={{ fontSize: 10, color: 'var(--muted)' }}>
           {filteredLogs.length} records · <span style={{ color: 'var(--danger)', fontWeight: 700 }}>${totalFilteredCost.toLocaleString()}</span> total
         </div>
+
+        <button onClick={() => exportServicePDF(truck, filteredLogs, totalFilteredCost, dateFilter)}
+          style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--accent)', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: "'DM Sans',sans-serif" }}>
+          <Ic icon={Printer} size={11} /> Export PDF
+        </button>
       </div>
 
       {/* Table */}

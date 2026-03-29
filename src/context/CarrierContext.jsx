@@ -702,8 +702,10 @@ export function CarrierProvider({ children }) {
 
     // Build DB + local updates (include co-driver if team)
     const coDriver = coDriverName ? drivers.find(d => (d.full_name || d.name) === coDriverName) : null
+    const matchedDriver = drivers.find(d => (d.full_name || d.name) === driverName)
     const dbUpdates = {
-      carrier_name: driverName, status: 'Assigned to Driver',
+      carrier_name: driverName, driver_name: driverName, status: 'Assigned to Driver',
+      ...(matchedDriver?.id ? { driver_id: matchedDriver.id } : {}),
       ...(coDriverName ? { co_driver_name: coDriverName } : {}),
       ...(coDriver?.id ? { co_driver_id: coDriver.id } : {}),
     }

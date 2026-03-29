@@ -361,7 +361,16 @@ export function AppProvider({ children }) {
         trial_ends_at: trialEnds,
         referred_by: refCode || null,
       })
-      if (profileError) {}
+      if (profileError) {
+        console.error('[Signup] Profile creation failed:', profileError)
+        // Retry once — profile is critical
+        const { error: retryErr } = await supabase.from('profiles').upsert({
+          id: data.user.id, email, role, full_name: fullName, company_name: companyName,
+          status: 'pending', subscription_status: 'trialing', subscription_plan: 'autonomous_fleet',
+          trial_ends_at: trialEnds, referred_by: refCode || null,
+        }, { onConflict: 'id' })
+        if (retryErr) console.error('[Signup] Profile retry failed:', retryErr)
+      }
 
       trackSignup('email', role)
       recordStep(data.user.id, 'signup')

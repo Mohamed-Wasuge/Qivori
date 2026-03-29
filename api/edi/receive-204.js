@@ -714,7 +714,7 @@ export default async function handler(req) {
             method: 'POST',
             headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
             body: JSON.stringify({
-              owner_id: user.id,
+              owner_id: userId,
               load_id: load.load_id || load.load_number || '',
               driver_id: driver.id,
               decision: 'accept',
@@ -728,12 +728,12 @@ export default async function handler(req) {
           })
 
           // Auto-send 214 "Dispatched" status
-          await send214Status(user.id, load, canonical, 'Dispatched', carrierSettings.scac || 'QVRI', partnerConfig, partner_id)
+          await send214Status(userId, load, canonical, 'Dispatched', carrierSettings.scac || 'QVRI', partnerConfig, partner_id)
           timeline.push({ step: 'send_214', time: ts(), detail: '214 Dispatched status sent' })
         }
       } else {
         timeline.push({ step: 'no_driver', time: ts(), detail: 'No available driver found — load awaiting assignment' })
-        await storeException(user.id, partner_id, load?.id, 'ai_review', 'warning', 'No Driver Available',
+        await storeException(userId, partner_id, load?.id, 'ai_review', 'warning', 'No Driver Available',
           'Load accepted but no driver available for auto-dispatch')
       }
     }

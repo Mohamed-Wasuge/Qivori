@@ -174,7 +174,7 @@ export default function MobileShell() {
               <MobileMoneyTab initialSubTab={moneySubTab} />
             </div>
             <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <MobileMoreTab />
+              <MobileMoreTab onNavigate={(tab) => setActiveTab(tab)} />
             </div>
           </>
         )}

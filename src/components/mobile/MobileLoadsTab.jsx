@@ -45,6 +45,17 @@ function DetentionTimer({ loadId, locationType }) {
   const charge = Math.round(billable * RATE)
 
   const stopDetention = () => {
+    // Persist detention to database before clearing localStorage
+    const saved = localStorage.getItem(`detention_${loadId}`)
+    if (saved && elapsed > 0) {
+      const startTime = new Date(parseInt(saved)).toISOString()
+      const endTime = new Date().toISOString()
+      db.updateLoad(loadId, {
+        [`detention_${locationType === 'shipper' ? 'pickup' : 'delivery'}_start`]: startTime,
+        [`detention_${locationType === 'shipper' ? 'pickup' : 'delivery'}_end`]: endTime,
+        [`detention_${locationType === 'shipper' ? 'pickup' : 'delivery'}_charge`]: charge,
+      }).catch(() => {})
+    }
     localStorage.removeItem(`detention_${loadId}`)
     setRunning(false)
   }
@@ -780,6 +791,54 @@ export default function MobileLoadsTab() {
                       </button>
                     </div>
                   )}
+
+                  {/* Navigate + Message buttons */}
+                  {(() => {
+                    const s = (load.status || '').toLowerCase()
+                    const isActive = s !== 'delivered' && s !== 'invoiced' && s !== 'paid' && s !== 'cancelled'
+                    if (!isActive) return null
+                    // Determine navigation target
+                    const navTarget = (s === 'en route to pickup' || s === 'dispatched' || s === 'rate con received' || s === 'assigned to driver')
+                      ? (load.origin || '') : (load.destination || load.dest || '')
+                    const encodedAddr = encodeURIComponent(navTarget)
+                    // Detect iOS vs Android for maps deep link
+                    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                    const mapsUrl = isIOS
+                      ? `maps://maps.apple.com/?daddr=${encodedAddr}`
+                      : `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`
+
+                    return (
+                      <div style={{ padding: '0 14px 12px', display: 'flex', gap: 8 }}>
+                        {navTarget && (
+                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={() => haptic()}
+                            style={{ flex: 1, padding: '10px', background: 'rgba(52,176,104,0.1)', border: '1px solid rgba(52,176,104,0.25)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: "'DM Sans',sans-serif", textDecoration: 'none' }}>
+                            <Ic icon={MapPin} size={14} color="var(--success)" />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>Navigate</span>
+                          </a>
+                        )}
+                        <button onClick={(e) => {
+                          e.stopPropagation()
+                          haptic()
+                          const msg = `Load ${load.loadId || load.load_id}: ${load.status} at ${load.origin} → ${load.destination || load.dest}. ETA update needed.`
+                          apiFetch('/api/admin-alert', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              type: 'driver_message',
+                              title: `Driver Update — ${load.loadId || load.load_id}`,
+                              message: msg,
+                              severity: 'info',
+                              source: 'driver_mobile',
+                            }),
+                          }).catch(() => {})
+                          showToast?.('', 'Sent', 'Dispatcher notified')
+                        }}
+                          style={{ flex: 1, padding: '10px', background: 'rgba(77,142,240,0.1)', border: '1px solid rgba(77,142,240,0.25)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: "'DM Sans',sans-serif" }}>
+                          <Ic icon={Send} size={14} color="#4d8ef0" />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#4d8ef0' }}>Message Dispatch</span>
+                        </button>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>

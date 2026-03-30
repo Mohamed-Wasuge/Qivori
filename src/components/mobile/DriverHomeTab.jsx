@@ -7,6 +7,7 @@ import {
   AlertTriangle, Navigation, Shield, FileText
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor, QInsightCard, getQSystemState } from './shared'
+import * as db from '../../lib/database'
 
 export default function DriverHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
@@ -174,15 +175,32 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
                 <span><Ic icon={Clock} size={10} color="var(--muted)" /> {currentLoad.pickup_date || currentLoad.delivery_date}</span>
               )}
             </div>
-            {/* Quick status advance */}
-            <button onClick={() => { haptic('success'); onNavigate('loads') }} style={{
-              width: '100%', marginTop: 10, padding: '10px', background: 'var(--accent)',
-              border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}>
-              <Ic icon={ArrowRight} size={14} color="#000" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>Update Status</span>
-            </button>
+            {/* Quick actions */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button onClick={() => { haptic('success'); onNavigate('loads') }} style={{
+                flex: 1, padding: '10px', background: 'var(--accent)',
+                border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <Ic icon={ArrowRight} size={14} color="#000" />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>Update Status</span>
+              </button>
+              {(() => {
+                const s = (currentLoad.status || '').toLowerCase()
+                const navTarget = (s === 'en route to pickup' || s === 'dispatched' || s === 'assigned to driver')
+                  ? (currentLoad.origin || '') : (currentLoad.destination || currentLoad.dest || '')
+                if (!navTarget) return null
+                const encodedAddr = encodeURIComponent(navTarget)
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                const mapsUrl = isIOS ? `maps://maps.apple.com/?daddr=${encodedAddr}` : `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`
+                return (
+                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={() => haptic()}
+                    style={{ padding: '10px 14px', background: 'rgba(52,176,104,0.1)', border: '1px solid rgba(52,176,104,0.25)', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: "'DM Sans',sans-serif", textDecoration: 'none' }}>
+                    <Ic icon={Navigation} size={14} color="var(--success)" />
+                  </a>
+                )
+              })()}
+            </div>
           </div>
         )}
 
@@ -332,9 +350,14 @@ function DetentionTracker({ loads, currentLoad }) {
     return () => clearInterval(interval)
   }, [timers])
 
-  // Persist timers
+  // Persist timers (prune entries older than 7 days)
   useEffect(() => {
-    localStorage.setItem('q_detention_timers', JSON.stringify(timers))
+    const now = Date.now()
+    const MAX_AGE = 7 * 24 * 60 * 60 * 1000
+    const pruned = Object.fromEntries(
+      Object.entries(timers).filter(([, t]) => now - (t.end || t.start) < MAX_AGE)
+    )
+    localStorage.setItem('q_detention_timers', JSON.stringify(pruned))
   }, [timers])
 
   const startTimer = (loadId, type) => {
@@ -351,7 +374,19 @@ function DetentionTracker({ loads, currentLoad }) {
       const key = `${loadId}_${type}`
       const t = prev[key]
       if (!t) return prev
-      return { ...prev, [key]: { ...t, active: false, end: Date.now() } }
+      const endTime = Date.now()
+      const elapsed = endTime - t.start
+      const detentionHrs = Math.max(0, (elapsed - FREE_TIME_MS) / 3600000)
+      const charge = Math.round(detentionHrs * DETENTION_RATE * 100) / 100
+      // Persist to database
+      if (type === 'pickup' || type === 'delivery') {
+        db.updateLoad(loadId, {
+          [`detention_${type}_start`]: new Date(t.start).toISOString(),
+          [`detention_${type}_end`]: new Date(endTime).toISOString(),
+          [`detention_${type}_charge`]: charge > 0 ? charge : 0,
+        }).catch(() => {})
+      }
+      return { ...prev, [key]: { ...t, active: false, end: endTime } }
     })
   }
 

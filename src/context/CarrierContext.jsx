@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
 import { setInvoiceCompany } from '../utils/generatePDF'
-import { checkCDL, checkMedicalCard, checkDriverAvailability } from '../lib/compliance'
+import { checkCDL, checkMedicalCard, checkDriverAvailability, checkRegistration, checkInsurance, checkOutOfService } from '../lib/compliance'
+import { canDriverTakeLoad } from '../lib/hosSimulation'
 import {
   DEMO_LOADS,
   DEMO_INVOICES,
@@ -355,6 +356,20 @@ export function CarrierProvider({ children }) {
   // ─── Load operations ─────────────────────────────────────────
   const addLoad = useCallback(async (load) => {
     if (demoGuard('add loads')) return null
+
+    // ── Duplicate load detection ──
+    const incomingRef = load.load_id || load.load_number || load.loadId || ''
+    if (incomingRef) {
+      const dup = loads.find(l =>
+        (l.loadId === incomingRef || l.load_id === incomingRef || l.load_number === incomingRef) &&
+        l.status !== 'Cancelled'
+      )
+      if (dup) {
+        showToast?.('', 'Duplicate Load', `Load ${incomingRef} already exists (${dup.status})`)
+        return null
+      }
+    }
+
     if (useDb) {
       try {
         const newLoad = await db.createLoad(load)
@@ -446,6 +461,23 @@ export function CarrierProvider({ children }) {
             },
           }),
         }).catch(() => {})
+        // Auto-schedule check call for active loads
+        const checkCallStatuses = ['Assigned to Driver', 'En Route to Pickup', 'Loaded', 'In Transit']
+        if (checkCallStatuses.includes(newStatus)) {
+          apiFetch('/api/check-calls?action=schedule', {
+            method: 'POST',
+            body: JSON.stringify({
+              loadId: load.loadId || load.load_id || load.load_number,
+              callType: ['Assigned to Driver', 'En Route to Pickup'].includes(newStatus) ? 'pickup_check' : 'delivery_check',
+              brokerPhone: load.broker_phone,
+              brokerName: load.broker || load.broker_name,
+              carrierName: load.driver || load.driver_name || load.carrier_name,
+              destination: load.dest || load.destination,
+              eta: load.delivery_date || '',
+              scheduledAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+            }),
+          }).catch(() => {})
+        }
         // EDI 214 — auto-send status update if load came from EDI
         const ediStatuses = ['Dispatched', 'At Pickup', 'In Transit', 'At Delivery', 'Delivered']
         if (ediStatuses.includes(newStatus) && (load.load_source === 'edi_204' || load.source === 'edi_204')) {
@@ -559,9 +591,10 @@ export function CarrierProvider({ children }) {
               db.updateLoad(dbLoadId, { status: 'Invoiced' }).then(() => {
                 setLoads(ls => ls.map(ld => ld.id === dbLoadId ? normalizeLoad({ ...ld, status: 'Invoiced' }) : ld))
               }).catch(() => {})
-              // Auto-factor if enabled
+              // Auto-factor if enabled (30s delay for carrier review)
               if (company?.auto_factor_on_delivery && company?.factoring_company && company.factoring_company !== "I don't use factoring" && dbInv?.id) {
-                apiFetch('/api/factor-invoice', {
+                showToast?.('', 'Auto-Factor Queued', `${dbInv.invoice_number} will be sent to ${company.factoring_company} in 30s`)
+                setTimeout(() => apiFetch('/api/factor-invoice', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -572,7 +605,7 @@ export function CarrierProvider({ children }) {
                   }),
                 }).then(() => {
                   showToast?.('', 'Auto-Factored', `${dbInv.invoice_number} → ${company.factoring_company} · Same day pay`)
-                }).catch(() => {})
+                }).catch(() => {}), 30000)
               }
             } catch (err) {
               console.error(`[Pilot] Invoice creation failed (attempt ${attempt}):`, err)
@@ -695,6 +728,59 @@ export function CarrierProvider({ children }) {
         if (blocks.length > 0) {
           const reasons = blocks.map(b => b.label).join(', ')
           showToast?.('', 'Co-Driver Blocked', `${coDriverName}: ${reasons}`)
+          return
+        }
+      }
+    }
+
+    // ── Vehicle compliance pre-check ──
+    // If driver has an assigned vehicle, verify it's road-ready
+    const driverVehicle = vehicles.find(v =>
+      v.assigned_driver === driverName || v.driver_name === driverName ||
+      (driver?.id && v.driver_id === driver?.id)
+    )
+    if (driverVehicle) {
+      const reg = checkRegistration(driverVehicle)
+      const ins = checkInsurance(driverVehicle)
+      const oos = checkOutOfService(driverVehicle)
+      const vBlocks = [reg, ins, oos].filter(c => c.status === 'fail')
+      if (vBlocks.length > 0) {
+        const reasons = vBlocks.map(b => b.label).join(', ')
+        const unit = driverVehicle.unit_number || driverVehicle.truck_number || 'Vehicle'
+        showToast?.('', 'Vehicle Blocked', `${unit}: ${reasons}`)
+        if (useDb && load.id) {
+          db.createAuditLog({
+            action: 'dispatch_vehicle_blocked',
+            entity_type: 'load',
+            entity_id: load.id,
+            old_value: { status: load.status },
+            new_value: { attempted_driver: driverName, vehicle: unit, blocked: true },
+            metadata: { load_id: load.loadId || load.load_id, violations: vBlocks.map(b => b.label) },
+          }).catch(() => {})
+        }
+        return
+      }
+    }
+
+    // ── HOS (Hours of Service) pre-check ──
+    if (driver) {
+      const loadMiles = parseFloat(load.miles) || 0
+      const estimatedHours = loadMiles > 0 ? loadMiles / 55 : 0 // ~55 mph avg
+      if (estimatedHours > 0) {
+        const hosCheck = canDriverTakeLoad(driver, estimatedHours)
+        if (!hosCheck.legal) {
+          showToast?.('', 'HOS Violation', `${driverName}: ${hosCheck.reason}`)
+          console.warn(`[HOS] Dispatch blocked for ${driverName}:`, hosCheck.reason)
+          if (useDb && load.id) {
+            db.createAuditLog({
+              action: 'dispatch_hos_blocked',
+              entity_type: 'load',
+              entity_id: load.id,
+              old_value: { status: load.status },
+              new_value: { attempted_driver: driverName, blocked: true },
+              metadata: { load_id: load.loadId || load.load_id, hos: hosCheck },
+            }).catch(() => {})
+          }
           return
         }
       }

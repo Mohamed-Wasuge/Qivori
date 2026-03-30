@@ -137,7 +137,23 @@ function evaluateLoad(load, driver, context) {
   // 8. Broker urgency
   const brokerUrgency = context.brokerUrgency || 0
 
-  // 9. DECISION ENGINE
+  // 9. Pickup urgency — same-day/next-day means broker is desperate
+  let pickupUrgency = 0
+  if (load.pickup_date) {
+    const hoursUntil = (new Date(load.pickup_date) - new Date()) / (1000 * 60 * 60)
+    if (hoursUntil <= 6) pickupUrgency = 100
+    else if (hoursUntil <= 24) pickupUrgency = 80
+    else if (hoursUntil <= 48) pickupUrgency = 40
+  }
+
+  // 10. Destination market quality
+  const DEAD_ZONES = ['laredo','el paso','mcallen','brownsville','nogales','sweetwater','lubbock','amarillo','midland','odessa']
+  const HOT_MARKETS = ['dallas','houston','atlanta','chicago','los angeles','memphis','indianapolis','columbus','nashville','charlotte']
+  const destCity = (load.dest || load.destination || '').split(',')[0]?.toLowerCase().trim() || ''
+  const isDeadZone = DEAD_ZONES.some(z => destCity.includes(z))
+  const isHotMarket = HOT_MARKETS.some(m => destCity.includes(m))
+
+  // 11. DECISION ENGINE
   let confidence = 50
   let decision = 'negotiate'
   const reasons = []
@@ -149,7 +165,7 @@ function evaluateLoad(load, driver, context) {
       decision: 'reject',
       confidence: 95,
       reasons: [`Estimated profit $${estProfit} is below minimum threshold`],
-      metrics: { estProfit, profitPerMile: round2(profitPerMile), profitPerDay, fuelCost, driverPay, transitDays, laneRatio: round2(laneRatio), seasonMultiplier: round2(seasonMultiplier), weightBonus, brokerUrgency, rpm: round2(rpm) },
+      metrics: { estProfit, profitPerMile: round2(profitPerMile), profitPerDay, fuelCost, driverPay, transitDays, laneRatio: round2(laneRatio), seasonMultiplier: round2(seasonMultiplier), weightBonus, brokerUrgency, pickupUrgency, isDeadZone, isHotMarket, rpm: round2(rpm) },
       negotiation: null,
       auto_booked: false,
     }
@@ -161,7 +177,7 @@ function evaluateLoad(load, driver, context) {
       decision: 'reject',
       confidence: 88,
       reasons: [`Estimated profit $${estProfit} below $800 minimum`],
-      metrics: { estProfit, profitPerMile: round2(profitPerMile), profitPerDay, fuelCost, driverPay, transitDays, laneRatio: round2(laneRatio), seasonMultiplier: round2(seasonMultiplier), weightBonus, brokerUrgency, rpm: round2(rpm) },
+      metrics: { estProfit, profitPerMile: round2(profitPerMile), profitPerDay, fuelCost, driverPay, transitDays, laneRatio: round2(laneRatio), seasonMultiplier: round2(seasonMultiplier), weightBonus, brokerUrgency, pickupUrgency, isDeadZone, isHotMarket, rpm: round2(rpm) },
       negotiation: null,
       auto_booked: false,
     }
@@ -261,6 +277,111 @@ function evaluateLoad(load, driver, context) {
   if (seasonMultiplier > 1.1) reasons.push('Peak season — rates elevated')
   if (seasonMultiplier < 0.9) reasons.push('Slow season — rates depressed')
 
+  // Pickup urgency — broker desperate, push for more
+  if (pickupUrgency >= 80) {
+    confidence += 5
+    reasons.push('Urgent pickup — broker has limited options')
+    if (decision === 'negotiate' && negotiation) {
+      negotiation.targetRate = round2(negotiation.targetRate * 1.08)
+      negotiation.script = `Pickup is ${pickupUrgency >= 100 ? 'today' : 'tomorrow'} — we need $${negotiation.targetRate}/mi to cover the short notice.`
+    }
+  }
+
+  // Destination market quality
+  if (isDeadZone) {
+    if (decision === 'accept' && profitPerMile < 1.80) {
+      decision = 'negotiate'
+      reasons.push(`Dead zone destination (${destCity}) — charge premium for deadhead risk`)
+    }
+    confidence -= 5
+  }
+  if (isHotMarket) {
+    confidence += 3
+    reasons.push(`Hot market destination (${destCity}) — easy reloads`)
+  }
+
+  // ── Smart Dispatcher: Trap Load Detection ──
+  // High gross that masks terrible per-day returns
+  let isTrapLoad = false
+  if (gross >= 2000 && transitDays >= 2.5 && profitPerDay < 350) {
+    isTrapLoad = true
+    if (decision === 'accept') decision = 'negotiate'
+    reasons.push(`Trap load: $${gross.toLocaleString()} gross over ${transitDays} days = only $${profitPerDay}/day — blocks truck`)
+  }
+  if (gross >= 1500 && miles > 800 && rpm < 1.80 && profitPerMile < 0.80) {
+    isTrapLoad = true
+    if (decision === 'accept') decision = 'negotiate'
+    reasons.push(`Cheap freight disguised as good: $${gross.toLocaleString()} across ${miles}mi = $${round2(rpm)}/mi`)
+  }
+
+  // ── Smart Dispatcher: Forward-Looking Strategic Analysis ──
+  const RELOAD_HUBS = { 'dallas': 95, 'houston': 93, 'atlanta': 92, 'chicago': 94, 'los angeles': 90, 'memphis': 88, 'indianapolis': 85, 'columbus': 84, 'nashville': 87, 'charlotte': 83, 'jacksonville': 80, 'kansas city': 82, 'louisville': 78, 'detroit': 75, 'denver': 77, 'phoenix': 76 }
+  const destCityLower = destCity
+  const reloadProb = Object.entries(RELOAD_HUBS).find(([city]) => destCityLower.includes(city))?.[1] || 45
+  const isStranding = reloadProb < 55
+
+  if (isStranding && decision !== 'reject') {
+    if (decision === 'accept' && profitPerMile < 1.50) {
+      decision = 'negotiate'
+      reasons.push(`Weak reload market at destination (${reloadProb}%) — charge premium for deadhead risk`)
+    }
+    confidence -= 8
+  } else if (reloadProb >= 85) {
+    confidence += 3
+    reasons.push(`Strong reload market (${reloadProb}%) — truck stays productive`)
+  }
+
+  // ── Smart Dispatcher: Driver Burnout ──
+  if (driver) {
+    const weeklyHours = parseFloat(driver.weekly_hours) || 0
+    const drivingUsed = parseFloat(driver.driving_hours_used) || 0
+    if (weeklyHours > 50 && miles > 600) {
+      if (decision === 'accept') decision = 'negotiate'
+      reasons.push(`Driver fatigue risk: ${weeklyHours}h this week — prefer shorter load or premium for long haul`)
+      confidence -= 5
+    }
+  }
+
+  // Market rate comparison — use simulation engine
+  const originSt = extractState(load.origin)
+  const destSt = extractState(load.dest || load.destination || '')
+  let marketComparison = null
+  if (originSt && destSt && rpm > 0) {
+    const mBase = { 'Dry Van': 2.35, 'Reefer': 2.75, 'Flatbed': 2.95, 'Step Deck': 3.15, 'Power Only': 1.95, 'Tanker': 3.20 }
+    const mSeasonal = [0.90,0.91,0.98,1.02,1.12,1.14,1.03,1.04,1.12,1.13,1.08,1.06]
+    const eqKey = (load.equipment || 'Dry Van')
+    const base = mBase[eqKey] || 2.35
+    const sm = mSeasonal[month - 1] || 1.0
+    const marketAvg = Math.round(base * sm * 100) / 100
+    const pctDiff = Math.round(((rpm - marketAvg) / marketAvg) * 100)
+    marketComparison = { marketAvg, pctDiff }
+
+    if (pctDiff < -15) {
+      // Far below market — reject
+      if (decision !== 'reject') {
+        decision = 'reject'
+        confidence = 92
+      }
+      reasons.push(`Rate $${round2(rpm)}/mi is ${Math.abs(pctDiff)}% below market avg $${marketAvg}/mi — not recommended`)
+    } else if (pctDiff < -5) {
+      // Below market — negotiate
+      if (decision === 'accept') decision = 'negotiate'
+      reasons.push(`Rate ${Math.abs(pctDiff)}% below market avg $${marketAvg}/mi — negotiate higher`)
+      if (!negotiation) {
+        const targetGross = Math.round(marketAvg * miles)
+        negotiation = {
+          currentRate: round2(rpm),
+          targetRate: round2(marketAvg),
+          minAcceptRate: round2(marketAvg * 0.95),
+          script: `Current rate $${round2(rpm)}/mi is below market at $${marketAvg}/mi. We need at least $${round2(marketAvg * 0.95)}/mi.`
+        }
+      }
+    } else if (pctDiff >= 8) {
+      confidence += 5
+      reasons.push(`Rate ${pctDiff}% above market avg $${marketAvg}/mi — strong load`)
+    }
+  }
+
   // High-profit override
   if (estProfit >= 2000 && profitPerMile >= 1.50 && profitPerDay >= 500) {
     decision = 'accept'
@@ -294,10 +415,27 @@ function evaluateLoad(load, driver, context) {
   // Clamp confidence
   confidence = Math.max(0, Math.min(100, confidence))
 
+  // ── Decision Clarity: Why this decision, why not others ──
+  const decisionClarity = {}
+  if (decision === 'accept' || decision === 'auto_book') {
+    decisionClarity.chosen = `Accepted: profit $${estProfit} ($${round2(profitPerMile)}/mi, $${profitPerDay}/day) meets thresholds`
+    decisionClarity.whyNotReject = estProfit >= 800 ? `Profit $${estProfit} exceeds $800 minimum` : `Backhaul or strategic value overrides low profit`
+    decisionClarity.whyNotNegotiate = profitPerMile >= 1.00 ? `RPM $${round2(profitPerMile)} above $1.00 target` : `Market conditions or urgency favor immediate booking`
+  } else if (decision === 'reject') {
+    decisionClarity.chosen = `Rejected: ${reasons[0] || 'Does not meet minimum thresholds'}`
+    decisionClarity.whyNotAccept = estProfit < 800 ? `Profit $${estProfit} below $800 minimum` : `Market rate, compliance, or strategic factors block acceptance`
+    decisionClarity.whyNotNegotiate = estProfit < 200 ? `Too far below minimum — not worth negotiating` : `Rate too far below market to bridge the gap`
+  } else if (decision === 'negotiate') {
+    decisionClarity.chosen = `Negotiate: ${reasons[0] || 'Rate below optimal but worth pursuing'}`
+    decisionClarity.whyNotAccept = `${profitPerMile < 1.00 ? `RPM $${round2(profitPerMile)} below $1.00 target` : 'Market or strategic factors require higher rate'}`
+    decisionClarity.whyNotReject = `Profit $${estProfit} shows potential if rate improves ${negotiation ? `to $${negotiation.targetRate}/mi` : '5-12%'}`
+  }
+
   return {
     decision,
     confidence,
     reasons,
+    decisionClarity,
     metrics: {
       estProfit,
       profitPerMile: round2(profitPerMile),
@@ -309,7 +447,13 @@ function evaluateLoad(load, driver, context) {
       seasonMultiplier: round2(seasonMultiplier),
       weightBonus,
       brokerUrgency,
+      pickupUrgency,
+      isDeadZone,
+      isHotMarket,
       rpm: round2(rpm),
+      marketComparison,
+      reloadProb,
+      isTrapLoad,
     },
     negotiation: decision === 'negotiate' ? negotiation : null,
     auto_booked: autoBooked,
@@ -332,7 +476,7 @@ async function fetchLaneAvgRate(ownerId, originCity, destCity) {
     try {
       const predRes = await fetch(
         `${SUPABASE_URL}/rest/v1/lane_predictions?owner_id=eq.${ownerId}&origin_state=eq.${originState}&dest_state=eq.${destState}&select=predicted_rpm,trend,trend_pct,confidence&limit=1`,
-        { headers: sbHeaders() }
+        { headers: sbHeaders(), signal: AbortSignal.timeout(5000) }
       )
       if (predRes.ok) {
         const rows = await predRes.json()
@@ -345,7 +489,7 @@ async function fetchLaneAvgRate(ownerId, originCity, destCity) {
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/loads?owner_id=eq.${ownerId}&select=rate,miles&limit=50`,
-      { headers: sbHeaders() }
+      { headers: sbHeaders(), signal: AbortSignal.timeout(5000) }
     )
     if (!res.ok) return 0
     const loads = await res.json()
@@ -361,7 +505,7 @@ async function fetchBrokerUrgency(ownerId, brokerName) {
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/broker_urgency_scores?owner_id=eq.${ownerId}&broker_name=eq.${encodeURIComponent(brokerName)}&select=urgency_score&limit=1`,
-      { headers: sbHeaders() }
+      { headers: sbHeaders(), signal: AbortSignal.timeout(5000) }
     )
     if (!res.ok) return 0
     const rows = await res.json()
@@ -377,6 +521,7 @@ async function storeDecision(ownerId, loadId, driverId, driverType, result, load
     await fetch(`${SUPABASE_URL}/rest/v1/dispatch_decisions`, {
       method: 'POST',
       headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+      signal: AbortSignal.timeout(5000),
       body: JSON.stringify({
         owner_id: ownerId,
         load_id: loadId || null,
@@ -474,7 +619,7 @@ export default async function handler(req) {
 
     // ── STEP 2: Run compliance validation (shared service) ──
     const compliance = validateDispatch({
-      driver: complianceDriver,
+      driver,
       vehicle: complianceVehicle,
       clearinghouseResult,
       hosHoursLeft,

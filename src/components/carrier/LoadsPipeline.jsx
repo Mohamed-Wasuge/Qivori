@@ -5,6 +5,7 @@ import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { uploadFile } from '../../lib/storage'
 import { createDocument, fetchDocuments, deleteDocument } from '../../lib/database'
+import { compareToMarket } from '../../lib/marketRates'
 import { Ic, HubTabBar } from './shared'
 import { DispatchTab } from './DispatchTab'
 import { QDispatchAI } from './QDispatchAI'
@@ -84,6 +85,33 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
   const laneHistory = lanePrev.length
   const laneAvgRPM = lanePrev.length > 0 ? lanePrev.reduce((s,l) => s + ((l.gross || 0) / Math.max(l.miles || 1, 1)), 0) / lanePrev.length : 0
 
+  // Fuel surcharge modeling — dynamic based on real EIA diesel price
+  const baseDiesel = 3.50 // baseline $/gal (DOE national avg reference)
+  const currentDiesel = fuelRate * 7 // back-calculate from per-mile cost (assumes ~7 MPG)
+  const fuelSurcharge = currentDiesel > baseDiesel ? ((currentDiesel - baseDiesel) / 7) * miles : 0
+  const hasHighFuel = currentDiesel > baseDiesel * 1.15 // 15%+ above baseline
+
+  // Backhaul / deadhead detection — check if this load's origin is near a recent delivery
+  const recentDelivered = (allLoads || []).filter(l =>
+    (l.status === 'Delivered' || l.status === 'Invoiced') &&
+    l.loadId !== load.loadId
+  )
+  const loadOrigin = (load.origin || '').toLowerCase().trim()
+  let isBackhaul = false
+  let deadheadNote = ''
+  for (const prev of recentDelivered) {
+    const prevDest = (prev.dest || prev.destination || '').toLowerCase().trim()
+    // Simple match: same city or first 3 chars match
+    if (prevDest && loadOrigin && (
+      prevDest === loadOrigin ||
+      (prevDest.split(',')[0]?.substring(0,3) === loadOrigin.split(',')[0]?.substring(0,3))
+    )) {
+      isBackhaul = true
+      deadheadNote = `Backhaul from ${prev.loadId || 'recent'} delivery`
+      break
+    }
+  }
+
   // Weight analysis
   const isHeavy = weight > 37000
   const isLight = weight > 0 && weight <= 37000
@@ -92,6 +120,115 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
   // Equipment/type detection
   const isPowerOnly = (load.equipment || '').toLowerCase().includes('power only')
   const isDropHook = (load.commodity || '').toLowerCase().includes('drop') || (load.notes || '').toLowerCase().includes('drop & hook')
+
+  // Pickup urgency — same-day/next-day means broker is desperate
+  let pickupUrgency = 'normal' // normal | soon | urgent
+  let urgencyNote = ''
+  if (load.pickup_date) {
+    const pickupDate = new Date(load.pickup_date)
+    const now = new Date()
+    const hoursUntilPickup = (pickupDate - now) / (1000 * 60 * 60)
+    if (hoursUntilPickup <= 6) { pickupUrgency = 'urgent'; urgencyNote = 'Same-day pickup — broker likely flexible on rate' }
+    else if (hoursUntilPickup <= 24) { pickupUrgency = 'urgent'; urgencyNote = 'Next-day pickup — negotiate higher' }
+    else if (hoursUntilPickup <= 48) { pickupUrgency = 'soon'; urgencyNote = 'Pickup in 2 days' }
+  }
+
+  // Destination market quality — known dead zones vs hot reload markets
+  const DEAD_ZONES = ['laredo','el paso','mcallen','brownsville','nogales','sweetwater','lubbock','amarillo','midland','odessa']
+  const HOT_MARKETS = ['dallas','houston','atlanta','chicago','los angeles','memphis','indianapolis','columbus','nashville','charlotte','jacksonville']
+  const destCity = (load.dest || load.destination || '').split(',')[0]?.toLowerCase().trim() || ''
+  const isDeadZone = DEAD_ZONES.some(z => destCity.includes(z))
+  const isHotMarket = HOT_MARKETS.some(m => destCity.includes(m))
+  let marketNote = ''
+  if (isDeadZone) marketNote = `${destCity} is a dead zone — limited reload options`
+  else if (isHotMarket) marketNote = `${destCity} is a hot market — easy reloads`
+
+  // Payment terms impact
+  const paymentTerms = load.payment_terms || ''
+  const isQuickPay = paymentTerms.toLowerCase().includes('quick') || paymentTerms.toLowerCase().includes('same day')
+  const payTermsNote = isQuickPay ? 'Quick Pay — faster cash flow' : paymentTerms ? `Payment: ${paymentTerms}` : ''
+
+  // ── "Cheap Freight Disguised as Good" Trap Detection ──────────────────────
+  // High gross can mask terrible per-day returns on multi-day loads
+  let isTrapLoad = false
+  let trapNote = ''
+  if (gross >= 2000 && transitDays >= 2.5 && profitPerDay < 350) {
+    isTrapLoad = true
+    trapNote = `Trap load: $${gross.toLocaleString()} gross looks good but only $${Math.round(profitPerDay)}/day over ${transitDays.toFixed(1)} days — blocks truck for ${Math.ceil(transitDays)} days`
+  }
+  // Low RPM hidden by long miles
+  if (gross >= 1500 && miles > 800 && rpm < 1.80 && profitPerMile < 0.80) {
+    isTrapLoad = true
+    trapNote = trapNote || `Trap load: $${gross.toLocaleString()} gross across ${miles}mi = only $${rpm.toFixed(2)}/mi — cheap freight disguised as good`
+  }
+
+  // ── Forward-Looking Strategic Analysis — Where Does This Truck End Up? ────
+  // Check destination reload probability based on market quality
+  const RELOAD_HUBS = { 'dallas': 95, 'houston': 93, 'atlanta': 92, 'chicago': 94, 'los angeles': 90, 'memphis': 88, 'indianapolis': 85, 'columbus': 84, 'nashville': 87, 'charlotte': 83, 'jacksonville': 80, 'kansas city': 82, 'louisville': 78, 'detroit': 75, 'denver': 77, 'phoenix': 76, 'orlando': 74, 'miami': 72, 'san antonio': 70, 'sacramento': 73, 'little rock': 55, 'pittsburgh': 68, 'las vegas': 60 }
+  const destCityKey = (load.dest || load.destination || '').split(',')[0]?.toLowerCase().trim() || ''
+  const reloadProb = Object.entries(RELOAD_HUBS).find(([city]) => destCityKey.includes(city))?.[1] || 45
+  let strategicNote = ''
+  if (reloadProb >= 85) strategicNote = `Destination has ${reloadProb}% reload probability — truck stays productive`
+  else if (reloadProb >= 65) strategicNote = `Moderate reload market (${reloadProb}%) — may need to deadhead for next load`
+  else strategicNote = `Weak reload market (${reloadProb}%) — risk of stranding truck 1-2 days`
+  const isStranding = reloadProb < 55 && !isBackhaul
+
+  // ── Consistency Scoring — Penalize One-Off High Pay That Strands Truck ────
+  let consistencyPenalty = 0
+  let consistencyNote = ''
+  if (estProfit > 1500 && isStranding) {
+    consistencyPenalty = -10
+    consistencyNote = `High pay ($${Math.round(estProfit)}) but ${reloadProb}% reload probability — one-off that may strand truck`
+  }
+  // Reward loads that keep truck in productive corridors
+  if (reloadProb >= 85 && profitPerDay >= 350) {
+    consistencyPenalty = 5
+    consistencyNote = `Consistent lane: good pay + ${reloadProb}% reload — keeps truck earning`
+  }
+
+  // ── Driver Burnout Detection ─────────────────────────────────────────────
+  // Check recent loads for consecutive long hauls
+  const recentCompleted = (allLoads || []).filter(l =>
+    (l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'In Transit') &&
+    l.loadId !== load.loadId
+  ).slice(-5) // last 5 loads
+  const recentLongHauls = recentCompleted.filter(l => (parseFloat(l.miles) || 0) > 600).length
+  let burnoutRisk = 'low'
+  let burnoutNote = ''
+  if (recentLongHauls >= 3 && miles > 600) {
+    burnoutRisk = 'high'
+    burnoutNote = `${recentLongHauls} consecutive long hauls — driver fatigue risk. Consider shorter load.`
+  } else if (recentLongHauls >= 2 && miles > 800) {
+    burnoutRisk = 'medium'
+    burnoutNote = `Back-to-back long hauls — monitor driver fatigue`
+  }
+
+  // ── Broker Negotiation Style ─────────────────────────────────────────────
+  let brokerStyle = 'standard' // standard | aggressive | patient | walkaway
+  let brokerTactic = ''
+  if (brokerScore === 'C' && pickupUrgency === 'urgent') {
+    brokerStyle = 'aggressive'
+    brokerTactic = 'Risky broker + urgent pickup = maximum leverage. Push 15-20% above ask.'
+  } else if (brokerScore === 'A' && pickupUrgency === 'urgent') {
+    brokerStyle = 'patient'
+    brokerTactic = 'Good broker under time pressure — counter 8-10% above, they will likely meet.'
+  } else if (brokerScore === 'C') {
+    brokerStyle = 'walkaway'
+    brokerTactic = 'Low-reliability broker — demand premium or walk. Not worth the risk at market rate.'
+  } else if (pickupUrgency === 'urgent') {
+    brokerStyle = 'aggressive'
+    brokerTactic = 'Time pressure gives you leverage — push for 10-15% above posted rate.'
+  }
+
+  // ── Market Rate Comparison ──────────────────────────────────────────────────
+  const originState = (load.origin || '').split(',').pop()?.trim().replace(/[^A-Za-z]/g, '').toUpperCase().substring(0, 2) || ''
+  const destState = (load.dest || load.destination || '').split(',').pop()?.trim().replace(/[^A-Za-z]/g, '').toUpperCase().substring(0, 2) || ''
+  let marketData = null
+  if (originState.length === 2 && destState.length === 2 && rpm > 0) {
+    try {
+      marketData = compareToMarket({ offeredRpm: rpm, originState, destState, equipment: load.equipment, miles, fuelCostPerMile: fuelRate })
+    } catch { /* market rate unavailable */ }
+  }
 
   // Build decision
   let decision = 'ACCEPT'
@@ -123,6 +260,26 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
     confidence = 92
     reasons.push('Strong profit margin')
     advantages.push('High profit per mile')
+  }
+
+  // Market rate gate — override decisions based on market comparison
+  if (marketData) {
+    if (marketData.vsMarket === 'above') {
+      advantages.push(`${marketData.pctDiff}% above market avg ($${marketData.marketAvg.toFixed(2)}/mi)`)
+      if (decision === 'ACCEPT') confidence = Math.min(confidence + 5, 98)
+    } else if (marketData.vsMarket === 'at') {
+      reasons.push(`At market rate ($${marketData.marketAvg.toFixed(2)}/mi)`)
+    } else if (marketData.vsMarket === 'below') {
+      if (decision === 'ACCEPT') decision = 'NEGOTIATE'
+      targetRate = targetRate || Math.round(marketData.marketAvg * miles)
+      risks.push(`${Math.abs(marketData.pctDiff)}% below market avg ($${marketData.marketAvg.toFixed(2)}/mi)`)
+      reasons.push('Rate below market — negotiate to at least market average')
+    } else if (marketData.vsMarket === 'far_below') {
+      decision = 'REJECT'
+      confidence = 92
+      risks.push(`${Math.abs(marketData.pctDiff)}% below market avg ($${marketData.marketAvg.toFixed(2)}/mi)`)
+      reasons.push('Rate significantly below market — not recommended')
+    }
   }
 
   // Weight factor
@@ -170,6 +327,130 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
     if (decision === 'ACCEPT') confidence = Math.min(confidence + 2, 98)
   }
 
+  // Backhaul bonus — reduces deadhead, worth taking at lower margins
+  if (isBackhaul) {
+    advantages.push(deadheadNote || 'Backhaul — eliminates deadhead miles')
+    if (decision === 'NEGOTIATE' && profitPerMile >= 0.60) {
+      decision = 'ACCEPT'
+      confidence = Math.min(confidence + 5, 90)
+      reasons.push('Backhaul reduces deadhead — lower margin acceptable')
+    }
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 3, 98)
+  }
+
+  // Fuel surcharge alert
+  if (hasHighFuel) {
+    risks.push(`Diesel ${((currentDiesel - baseDiesel) / baseDiesel * 100).toFixed(0)}% above baseline — fuel surcharge: $${Math.round(fuelSurcharge)}`)
+    if (decision === 'ACCEPT' && profitPerMile < 1.20) {
+      decision = 'NEGOTIATE'
+      targetRate = targetRate || Math.round(gross + fuelSurcharge)
+      reasons.push('High diesel prices erode margin — request fuel surcharge')
+    }
+  }
+
+  // Pickup urgency — broker desperate = leverage for negotiation
+  if (pickupUrgency === 'urgent') {
+    advantages.push(urgencyNote)
+    if (decision === 'NEGOTIATE') {
+      targetRate = targetRate ? Math.round(targetRate * 1.08) : Math.round(gross * 1.12)
+      reasons.push('Urgent pickup — broker has limited options, push for premium')
+    }
+    confidence = Math.min(confidence + 4, 98)
+  }
+
+  // Destination market quality
+  if (isDeadZone) {
+    risks.push(marketNote)
+    if (decision === 'ACCEPT' && profitPerMile < 1.80) {
+      decision = 'NEGOTIATE'
+      targetRate = targetRate || Math.round(gross * 1.20)
+      reasons.push('Dead zone destination — charge premium for deadhead risk')
+    }
+  } else if (isHotMarket) {
+    advantages.push(marketNote)
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 3, 98)
+  }
+
+  // Quick Pay advantage
+  if (isQuickPay) {
+    advantages.push(payTermsNote)
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 2, 98)
+  }
+
+  // ── Smart Dispatcher: Trap Load Detection ──
+  if (isTrapLoad) {
+    risks.push(trapNote)
+    if (decision === 'ACCEPT') {
+      decision = 'NEGOTIATE'
+      confidence = Math.min(confidence, 72)
+      targetRate = targetRate || Math.round(gross * 1.18) // need 18% more to justify the hold
+      reasons.push('Trap load detected — high gross masks poor daily return')
+    }
+  }
+
+  // ── Smart Dispatcher: Strategic Positioning ──
+  if (isStranding && decision !== 'REJECT') {
+    risks.push(strategicNote)
+    if (decision === 'ACCEPT' && profitPerMile < 1.50) {
+      decision = 'NEGOTIATE'
+      targetRate = targetRate || Math.round(gross * 1.15)
+      reasons.push(`Truck ends up in weak market (${reloadProb}% reload) — charge premium for deadhead risk`)
+    }
+    confidence = Math.max(confidence - 8, 30)
+  } else if (reloadProb >= 85) {
+    advantages.push(strategicNote)
+    if (decision === 'ACCEPT') confidence = Math.min(confidence + 3, 98)
+  }
+
+  // ── Smart Dispatcher: Consistency Scoring ──
+  if (consistencyPenalty !== 0) {
+    confidence = Math.max(Math.min(confidence + consistencyPenalty, 98), 30)
+    if (consistencyNote) {
+      if (consistencyPenalty > 0) advantages.push(consistencyNote)
+      else risks.push(consistencyNote)
+    }
+  }
+
+  // ── Smart Dispatcher: Driver Burnout ──
+  if (burnoutRisk === 'high') {
+    risks.push(burnoutNote)
+    if (decision === 'ACCEPT' && miles > 600) {
+      decision = 'NEGOTIATE'
+      reasons.push('Driver fatigue risk — prefer shorter load or negotiate premium for long haul')
+      confidence = Math.min(confidence, 70)
+    }
+  } else if (burnoutRisk === 'medium') {
+    risks.push(burnoutNote)
+    confidence = Math.max(confidence - 3, 30)
+  }
+
+  // ── Smart Dispatcher: Broker Negotiation Style ──
+  if (brokerTactic) {
+    if (brokerStyle === 'walkaway' && decision === 'ACCEPT' && brokerScore === 'C') {
+      decision = 'NEGOTIATE'
+      targetRate = targetRate || Math.round(gross * 1.15)
+      reasons.push(brokerTactic)
+    } else if (decision === 'NEGOTIATE' && brokerStyle === 'aggressive') {
+      targetRate = targetRate ? Math.round(targetRate * 1.10) : Math.round(gross * 1.15)
+    }
+  }
+
+  // ── Decision Clarity — Why this decision AND why not the alternatives ──
+  const decisionClarity = {}
+  if (decision === 'ACCEPT') {
+    decisionClarity.chosen = `Accept: $${Math.round(estProfit)} profit ($${profitPerMile.toFixed(2)}/mi, $${Math.round(profitPerDay)}/day)`
+    decisionClarity.whyNotReject = `Profit $${Math.round(estProfit)} exceeds minimums`
+    decisionClarity.whyNotNegotiate = profitPerMile >= 1.00 ? `$${profitPerMile.toFixed(2)}/mi above target — no need to push` : `Strategic value (backhaul/market/urgency) favors booking now`
+  } else if (decision === 'REJECT') {
+    decisionClarity.chosen = reasons[0] || 'Below minimum thresholds'
+    decisionClarity.whyNotAccept = risks.slice(0, 2).join('. ') || 'Unacceptable profit or market position'
+    decisionClarity.whyNotNegotiate = estProfit < 200 ? 'Too far below break-even — not worth the conversation' : 'Gap too large to bridge through negotiation'
+  } else {
+    decisionClarity.chosen = `Negotiate: ${reasons[0] || 'Rate has potential but needs improvement'}`
+    decisionClarity.whyNotAccept = risks.slice(0, 2).join('. ') || 'Rate below optimal thresholds'
+    decisionClarity.whyNotReject = `Profit $${Math.round(estProfit)} shows potential if rate improves to ${targetRate ? '$' + targetRate.toLocaleString() : '5-12% higher'}`
+  }
+
   // Build summary reason
   let summaryReason = ''
   if (decision === 'ACCEPT') {
@@ -184,14 +465,24 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
   }
 
   return {
-    decision, confidence, summaryReason, targetRate,
+    decision, confidence, summaryReason, targetRate, decisionClarity,
     estProfit: Math.round(estProfit), profitPerMile: profitPerMile.toFixed(2),
     profitPerDay: Math.round(profitPerDay), transitDays: transitDays.toFixed(1),
     fuelCost: Math.round(fuelCost), driverPay: Math.round(driverPay),
     brokerScore, brokerReliability, weightNote, isHeavy, isLight,
     laneHistory, laneAvgRPM: laneAvgRPM.toFixed(2),
     risks, advantages, rpm: rpm.toFixed(2),
-    isPowerOnly, isDropHook
+    isPowerOnly, isDropHook, isBackhaul, deadheadNote,
+    fuelSurcharge: Math.round(fuelSurcharge), hasHighFuel,
+    pickupUrgency, urgencyNote, isDeadZone, isHotMarket, marketNote,
+    isQuickPay, payTermsNote,
+    marketData,
+    // Smart Dispatcher intelligence
+    isTrapLoad, trapNote,
+    reloadProb, strategicNote, isStranding,
+    consistencyNote,
+    burnoutRisk, burnoutNote,
+    brokerStyle, brokerTactic,
   }
 }
 
@@ -1294,15 +1585,23 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                 {invoiceSending ? 'Sending...' : 'Generate & Send Invoice'}
               </button>
             )}
+            <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--warning)', border:'1px solid rgba(240,165,0,0.25)', background:'rgba(240,165,0,0.06)' }}
+              onClick={() => {
+                updateLoadStatus(load.loadId || load.id, 'Cancelled')
+                showToast('', 'Load Archived', `${load.loadId || load.id} cancelled`)
+                onClose()
+              }}>
+              Archive
+            </button>
             <button className="btn btn-ghost" style={{ fontSize:11, color:'var(--danger)', border:'1px solid rgba(239,68,68,0.25)', background:'rgba(239,68,68,0.06)' }}
               onClick={() => {
-                if (window.confirm(`Delete load ${load.loadId || load.id}? This cannot be undone.`)) {
+                if (window.confirm(`Permanently delete load ${load.loadId || load.id}? This cannot be undone.`)) {
                   removeLoad(load.loadId || load.id)
                   showToast('', 'Load Deleted', `${load.loadId || load.id} removed`)
                   onClose()
                 }
               }}>
-              Delete Load
+              Delete
             </button>
             <button className="btn btn-ghost" style={{ fontSize:11, color:'#4d8ef0', border:'1px solid rgba(77,142,240,0.25)', background:'rgba(77,142,240,0.06)' }}
               onClick={handleShareTracking} disabled={shareLoading}>
@@ -1473,6 +1772,12 @@ export function LoadDetailDrawer({ loadId, onClose }) {
                   )}
                   {qr.isPowerOnly && <span style={{ fontSize:9, fontWeight:600, color:'var(--accent2)', background:'rgba(139,92,246,0.08)', padding:'2px 8px', borderRadius:4 }}>Power Only</span>}
                   {qr.isDropHook && <span style={{ fontSize:9, fontWeight:600, color:'var(--success)', background:'rgba(52,176,104,0.08)', padding:'2px 8px', borderRadius:4 }}>Drop & Hook</span>}
+                  {qr.isBackhaul && <span style={{ fontSize:9, fontWeight:600, color:'var(--success)', background:'rgba(52,176,104,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(52,176,104,0.2)' }}>Backhaul</span>}
+                  {qr.pickupUrgency === 'urgent' && <span style={{ fontSize:9, fontWeight:600, color:'var(--danger)', background:'rgba(239,68,68,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(239,68,68,0.2)' }}>Urgent Pickup</span>}
+                  {qr.isDeadZone && <span style={{ fontSize:9, fontWeight:600, color:'var(--warning)', background:'rgba(240,165,0,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(240,165,0,0.2)' }}>Dead Zone</span>}
+                  {qr.isHotMarket && <span style={{ fontSize:9, fontWeight:600, color:'var(--success)', background:'rgba(52,176,104,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(52,176,104,0.2)' }}>Hot Market</span>}
+                  {qr.hasHighFuel && <span style={{ fontSize:9, fontWeight:600, color:'var(--warning)', background:'rgba(240,165,0,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(240,165,0,0.2)' }}>High Fuel +${qr.fuelSurcharge}</span>}
+                  {qr.isQuickPay && <span style={{ fontSize:9, fontWeight:600, color:'var(--accent3)', background:'rgba(77,142,240,0.08)', padding:'2px 8px', borderRadius:4, border:'1px solid rgba(77,142,240,0.2)' }}>Quick Pay</span>}
                 </div>
                 {/* Risks & Advantages */}
                 {(qr.risks.length > 0 || qr.advantages.length > 0) && (

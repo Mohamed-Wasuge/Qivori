@@ -38,7 +38,7 @@ async function findBestDriver(ownerId, equipment, originState) {
     // Get all active drivers
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/drivers?owner_id=eq.${ownerId}&status=eq.Active&select=*`,
-      { headers: sbHeaders() }
+      { headers: sbHeaders(), signal: AbortSignal.timeout(5000) }
     )
     if (!res.ok) return null
     const drivers = await res.json()
@@ -47,7 +47,7 @@ async function findBestDriver(ownerId, equipment, originState) {
     // Get loads currently assigned (not delivered/paid)
     const loadRes = await fetch(
       `${SUPABASE_URL}/rest/v1/loads?owner_id=eq.${ownerId}&status=not.in.(Delivered,Invoiced,Paid,Cancelled)&select=carrier_name`,
-      { headers: sbHeaders() }
+      { headers: sbHeaders(), signal: AbortSignal.timeout(5000) }
     )
     const activeLoads = loadRes.ok ? await loadRes.json() : []
     const busyDriverNames = new Set(activeLoads.map(l => l.carrier_name).filter(Boolean))

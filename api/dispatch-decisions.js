@@ -35,8 +35,8 @@ export default async function handler(req) {
       const broker = url.searchParams.get('broker')
       const from = url.searchParams.get('from')
       const to = url.searchParams.get('to')
-      const limit = parseInt(url.searchParams.get('limit') || '100')
-      const offset = parseInt(url.searchParams.get('offset') || '0')
+      const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100') || 100, 1), 500)
+      const offset = Math.max(parseInt(url.searchParams.get('offset') || '0') || 0, 0)
 
       let query = `${SUPABASE_URL}/rest/v1/dispatch_decisions?owner_id=eq.${user.id}&select=*&order=created_at.desc&limit=${limit}&offset=${offset}`
       if (decision) query += `&decision=eq.${decision}`

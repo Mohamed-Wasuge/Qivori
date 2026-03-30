@@ -196,6 +196,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
   // Fetch AI dispatch decisions — 15s interval + instant on visibility
   useEffect(() => {
     let cancelled = false
+    let pulseTimeout
     const fetchAI = async () => {
       try {
         const res = await apiFetch('/api/dispatch-decisions?limit=8')
@@ -205,7 +206,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           setAiDecisions(data.decisions)
           setLastScanTime(Date.now())
           setFreshPulse(true)
-          setTimeout(() => setFreshPulse(false), 800)
+          clearTimeout(pulseTimeout)
+          pulseTimeout = setTimeout(() => { if (!cancelled) setFreshPulse(false) }, 800)
         }
       } catch {}
     }
@@ -213,7 +215,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
     const interval = setInterval(fetchAI, 15000)
     const onVis = () => { if (document.visibilityState === 'visible') fetchAI() }
     document.addEventListener('visibilitychange', onVis)
-    return () => { cancelled = true; clearInterval(interval); document.removeEventListener('visibilitychange', onVis) }
+    return () => { cancelled = true; clearInterval(interval); clearTimeout(pulseTimeout); document.removeEventListener('visibilitychange', onVis) }
   }, [])
 
   // Next Best Move — highest confidence + profit recommendation

@@ -91,6 +91,7 @@ import { OnboardingWizard } from './carrier/OnboardingWizard'
 import { SettingsTab } from './carrier/SettingsTab'
 import { BillingTab, SettlementTab, LoadsPipeline, LoadDetailDrawer } from './carrier/LoadsPipeline'
 import { AIDispatchDashboard } from './carrier/AIDispatchDashboard'
+import { SimulationDashboard } from './carrier/SimulationDashboard'
 
 // ── View Error Boundary ─────────────────────────────────────────────────────
 class ViewErrorBoundary extends Component {
@@ -137,6 +138,7 @@ const NAV = [
   { id:'_divider' },
   { id:'edi',          icon: Radio,        label:'EDI Hub' },
   { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
+  { id:'simulation',   icon: FlaskConical, label:'Live Simulation' },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 
@@ -1471,6 +1473,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
     case 'settings':    return <SettingsTab />
     case 'edi':          return <EDIDashboard />
     case 'ai-dashboard': return <AIDispatchDashboard />
+    case 'simulation':   return <SimulationDashboard />
     case 'analytics':   return <AnalyticsDashboard />
     case 'load-board':  return <AILoadBoard />
     case 'rate-check':  return <RateNegotiation />

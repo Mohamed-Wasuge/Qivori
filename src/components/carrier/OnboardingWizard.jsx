@@ -9,7 +9,7 @@ import { Ic } from './shared'
 
 // ── Q Onboarding Flow (Activation System) ─────────────────────────────────────
 export function OnboardingWizard({ onComplete }) {
-  const { showToast, profile, user } = useApp()
+  const { showToast, profile, user, isAdmin } = useApp()
   const { updateCompany, addVehicle, addDriver, loads } = useCarrier()
   const [step, setStep] = useState(1)
   const TOTAL_STEPS = 6
@@ -197,8 +197,8 @@ export function OnboardingWizard({ onComplete }) {
             )}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
               <button className="btn btn-ghost" onClick={() => setStep(1)}>Back</button><div style={{ flex:1 }} />
-              <button className="btn btn-primary" disabled={saving || (!fmcsaVerified || !form.companyName)} onClick={() => handleSaveStep(3)}>
-                {saving ? 'Saving...' : !fmcsaVerified ? 'Verify MC/DOT First' : 'Continue'}
+              <button className="btn btn-primary" disabled={saving || ((!fmcsaVerified && !isAdmin) || !form.companyName)} onClick={() => handleSaveStep(3)}>
+                {saving ? 'Saving...' : (!fmcsaVerified && !isAdmin) ? 'Verify MC/DOT First' : 'Continue'}
               </button>
             </div>
           </div>

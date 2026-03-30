@@ -1531,9 +1531,10 @@ function CarrierLayoutInner() {
     setInviteSending(false)
   }
 
-  // Check if user needs onboarding
+  // Check if user needs onboarding (new user) or verification (existing user without MC/DOT)
   const isNewUser = !localStorage.getItem('qv_onboarded') && !company?.name && loads.length === 0
-  const [showOnboarding, setShowOnboarding] = useState(isNewUser)
+  const needsVerification = !isNewUser && !demoMode && !isAdmin && localStorage.getItem('qv_onboarded') && !company?.mc_number && !company?.dot_number
+  const [showOnboarding, setShowOnboarding] = useState(isNewUser || needsVerification)
 
   const [activeView,    setActiveView]    = useState(isDriver ? 'loads' : 'dashboard')
   const [drawerLoadId,  setDrawerLoadId]  = useState(null)

@@ -21,6 +21,9 @@ export function OnboardingWizard({ onComplete }) {
     driverType: 'owner_operator',
   })
   const [lookupLoading, setLookupLoading] = useState(false)
+  const [fmcsaVerified, setFmcsaVerified] = useState(false)
+  const [fmcsaStatus, setFmcsaStatus] = useState('') // 'AUTHORIZED', 'NOT AUTHORIZED', etc.
+  const [fmcsaError, setFmcsaError] = useState('')
   const [saving, setSaving] = useState(false)
   const [qScanning, setQScanning] = useState(false)
   const [qRecommendation, setQRecommendation] = useState(null)
@@ -32,6 +35,8 @@ export function OnboardingWizard({ onComplete }) {
     const clean = value.replace(/[^0-9]/g, '')
     if (clean.length < 4) return
     setLookupLoading(true)
+    setFmcsaError('')
+    setFmcsaVerified(false)
     try {
       const param = type === 'mc' ? `mc=${clean}` : `dot=${clean}`
       const resp = await apiFetch(`/api/fmcsa-lookup?${param}`)
@@ -39,9 +44,24 @@ export function OnboardingWizard({ onComplete }) {
       if (res.carrier) {
         const c = res.carrier
         setForm(p => ({ ...p, companyName: c.legalName || p.companyName, dot: c.dotNumber || p.dot, mc: c.mcNumber || p.mc, phone: c.phone || p.phone, address: c.phyStreet ? `${c.phyStreet}, ${c.phyCity || ''}, ${c.phyState || ''} ${c.phyZipcode || ''}`.trim() : p.address }))
-        showToast('', 'FMCSA Found', c.legalName || 'Company info loaded')
-      } else { showToast('', 'Not Found', 'No FMCSA match — enter info manually') }
-    } catch (err) { showToast('', 'Lookup Failed', err.message || 'Try entering info manually') }
+        const status = (c.allowedToOperate || c.operatingStatus || '').toUpperCase()
+        setFmcsaStatus(status)
+        if (status === 'AUTHORIZED' || status === 'Y' || status === 'ACTIVE') {
+          setFmcsaVerified(true)
+          showToast('', 'Verified', `${c.legalName} — Active FMCSA authority`)
+        } else {
+          setFmcsaError(`FMCSA status: ${status || 'Unknown'}. Your authority may not be active.`)
+          setFmcsaVerified(true) // Still let them through but show warning
+          showToast('', 'Warning', `Authority status: ${status || 'Unknown'}`)
+        }
+      } else {
+        setFmcsaError('No carrier found in FMCSA database. Check your MC or DOT number.')
+        showToast('', 'Not Found', 'No FMCSA match — check your numbers')
+      }
+    } catch (err) {
+      setFmcsaError('Lookup failed — try again or contact support')
+      showToast('', 'Lookup Failed', err.message || 'Try again')
+    }
     setLookupLoading(false)
   }
 
@@ -59,7 +79,7 @@ export function OnboardingWizard({ onComplete }) {
     setSaving(true)
     try {
       if (step === 2 && (form.companyName || form.mc || form.dot)) {
-        await updateCompany({ name: form.companyName, mc_number: form.mc, dot_number: form.dot, phone: form.phone, address: form.address })
+        await updateCompany({ name: form.companyName, mc_number: form.mc, dot_number: form.dot, phone: form.phone, address: form.address, fmcsa_verified: fmcsaVerified, fmcsa_status: fmcsaStatus })
         showToast('', 'Company Saved', form.companyName || 'Company info saved')
       }
       else if (step === 3 && (form.truckMake || form.truckYear || form.truckUnit)) {
@@ -134,8 +154,7 @@ export function OnboardingWizard({ onComplete }) {
               Get Started <Ic icon={ArrowRight} size={16} style={{ marginLeft:6 }} />
             </button>
             <div style={{ marginTop:16 }}>
-              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={handleSkip}>Skip for now</button>
-              <div style={{ marginTop:8, fontSize:10, color:'var(--muted)', fontStyle:'italic' }}>Q Reminder: Complete setup to activate dispatch intelligence</div>
+              <div style={{ fontSize:10, color:'var(--muted)', fontStyle:'italic' }}>Setup takes about 2 minutes. You'll need your MC or DOT number.</div>
             </div>
           </div>
         )}
@@ -161,15 +180,26 @@ export function OnboardingWizard({ onComplete }) {
                   </div>
                 </div>
               </div>
-              <div style={{ fontSize:10, color:'var(--accent)', marginTop:-8 }}>Enter MC or DOT and hit Lookup to auto-fill from FMCSA</div>
+              <div style={{ fontSize:10, color: fmcsaVerified ? 'var(--success)' : 'var(--accent)', marginTop:-8 }}>
+                {fmcsaVerified ? '✓ Carrier verified via FMCSA' : 'Enter MC or DOT and hit Lookup to verify your authority'}
+              </div>
+              {fmcsaError && (
+                <div style={{ fontSize:11, color:'var(--danger)', padding:'8px 12px', background:'rgba(239,68,68,0.08)', borderRadius:8, border:'1px solid rgba(239,68,68,0.2)' }}>{fmcsaError}</div>
+              )}
               {[{ key:'companyName', label:'Company Name', ph:'Your Trucking LLC' }, { key:'address', label:'Address', ph:'123 Main St, City, State ZIP' }, { key:'phone', label:'Phone', ph:'(555) 123-4567' }].map(f => (
-                <div key={f.key}><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label><input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={wizInput} /></div>
+                <div key={f.key}><label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}{f.key === 'companyName' && <span style={{ color:'var(--danger)' }}> *</span>}</label><input value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={wizInput} /></div>
               ))}
             </div>
+            {!fmcsaVerified && (
+              <div style={{ fontSize:11, color:'var(--muted)', marginTop:12, padding:'10px 14px', background:'var(--surface)', borderRadius:8, border:'1px solid var(--border)', lineHeight:1.6 }}>
+                <strong style={{ color:'var(--text)' }}>Why do we verify?</strong> Qivori is built for real carriers. We verify your MC or DOT number through FMCSA to protect the platform and ensure accurate compliance data.
+              </div>
+            )}
             <div style={{ display:'flex', gap:10, marginTop:20 }}>
               <button className="btn btn-ghost" onClick={() => setStep(1)}>Back</button><div style={{ flex:1 }} />
-              <button className="btn btn-ghost" style={{ fontSize:11 }} onClick={() => setStep(3)}>Skip</button>
-              <button className="btn btn-primary" disabled={saving} onClick={() => handleSaveStep(3)}>{saving ? 'Saving...' : 'Continue'}</button>
+              <button className="btn btn-primary" disabled={saving || (!fmcsaVerified || !form.companyName)} onClick={() => handleSaveStep(3)}>
+                {saving ? 'Saving...' : !fmcsaVerified ? 'Verify MC/DOT First' : 'Continue'}
+              </button>
             </div>
           </div>
         )}

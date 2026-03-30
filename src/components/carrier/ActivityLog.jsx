@@ -150,11 +150,16 @@ function DataExport() {
     const a = document.createElement('a')
     a.href = url
     a.download = filename
+    a.type = 'application/octet-stream'
+    a.rel = 'noopener'
     a.style.display = 'none'
     document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 100)
+    // Safari needs a small delay before click
+    setTimeout(() => {
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 500)
+    }, 50)
   }
 
   const downloadCSV = (filename, headers, rows) => {

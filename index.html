@@ -93,12 +93,28 @@
     </div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Register service worker for PWA
+      // Force-nuke old service workers that cache stale index.html
+      // This runs BEFORE SW registration to break the stale-cache cycle
       if ('serviceWorker' in navigator) {
+        var SW_EXPECTED_VERSION = 141;
+        (function nukeStaleWorkers() {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(reg) {
+              // Tell any waiting worker to activate immediately
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+              // Force update check right now
+              reg.update().catch(function() {});
+            });
+          });
+        })();
+
+        // Register service worker for PWA
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js').then(function(reg) {
-            // Check for updates every 60 minutes
-            setInterval(function() { reg.update() }, 60 * 60 * 1000)
+            // Check for updates every 5 minutes (was 60 — too slow)
+            setInterval(function() { reg.update() }, 5 * 60 * 1000)
 
             // Listen for new service worker waiting
             reg.addEventListener('updatefound', function() {
@@ -106,8 +122,10 @@
               if (!newSW) return
               newSW.addEventListener('statechange', function() {
                 if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New version available — dispatch event for React to show prompt
-                  window.dispatchEvent(new CustomEvent('sw-update-available', { detail: { registration: reg } }))
+                  // Auto-activate new SW immediately instead of waiting
+                  newSW.postMessage({ type: 'SKIP_WAITING' });
+                  // Reload to pick up new version
+                  window.location.reload();
                 }
               })
             })
@@ -119,6 +137,11 @@
           if (event.data && event.data.type === 'SW_UPDATED') {
             window.dispatchEvent(new CustomEvent('sw-updated', { detail: event.data }))
           }
+        })
+
+        // On controller change (new SW took over), reload for fresh content
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          window.location.reload();
         })
       }
 

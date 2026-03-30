@@ -376,6 +376,7 @@ export function CarrierProvider({ children }) {
         const normalized = normalizeLoad(newLoad)
         setLoads(ls => [normalized, ...ls])
         showToast?.('', 'Load Created', `${normalized.loadId || normalized.load_number || 'New load'} added`)
+        db.createAuditLog({ action: 'load.created', entity_type: 'load', entity_id: newLoad.id, new_value: { loadId: normalized.loadId, origin: normalized.origin, destination: normalized.dest, gross: normalized.gross, broker: normalized.broker }, metadata: { driver: normalized.driver, status: normalized.status } }).catch(() => {})
         return normalized
       } catch (e) {
         console.error('DB operation failed:', e)
@@ -417,6 +418,7 @@ export function CarrierProvider({ children }) {
     if (!load) return
     if (useDb && load.id && !String(load.id).startsWith('mock') && !String(load.id).startsWith('local')) {
       try { await db.deleteLoad(load.id) } catch (e) { console.error('DB operation failed:', e); showToast?.('', 'Error', 'Failed to delete load'); return }
+      db.createAuditLog({ action: 'load.deleted', entity_type: 'load', entity_id: load.id, old_value: { loadId: load.loadId, origin: load.origin, destination: load.dest, gross: load.gross, status: load.status }, metadata: { driver: load.driver, broker: load.broker } }).catch(() => {})
     }
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
     setInvoices(invs => invs.filter(i => i.loadId !== loadId && i.load_number !== loadId))
@@ -907,6 +909,7 @@ export function CarrierProvider({ children }) {
       try {
         const newExp = await db.createExpense(exp)
         setExpenses(es => [normalizeExpense(newExp), ...es])
+        db.createAuditLog({ action: 'expense.created', entity_type: 'expense', entity_id: newExp.id, new_value: { category: exp.category, amount: exp.amount, vendor: exp.vendor || exp.description }, metadata: { driver: exp.driver_name, date: exp.expense_date || exp.date } }).catch(() => {})
         return normalizeExpense(newExp)
       } catch (e) {
         console.error('DB operation failed:', e)
@@ -919,27 +922,33 @@ export function CarrierProvider({ children }) {
 
   const editExpense = useCallback(async (id, updates) => {
     if (demoGuard('edit expenses')) return
+    const existing = expenses.find(e => e.id === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.updateExpense(id, updates) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'expense.updated', entity_type: 'expense', entity_id: id, old_value: existing ? { amount: existing.amount, category: existing.category } : null, new_value: updates }).catch(() => {})
     }
     setExpenses(es => es.map(e => e.id === id ? normalizeExpense({ ...e, ...updates }) : e))
-  }, [useDb, demoGuard])
+  }, [useDb, demoGuard, expenses])
 
   const removeExpense = useCallback(async (id) => {
     if (demoGuard('remove expenses')) return
+    const existing = expenses.find(e => e.id === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteExpense(id) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'expense.deleted', entity_type: 'expense', entity_id: id, old_value: existing ? { amount: existing.amount, category: existing.category, vendor: existing.vendor || existing.description } : null }).catch(() => {})
     }
     setExpenses(es => es.filter(e => e.id !== id))
-  }, [useDb, demoGuard])
+  }, [useDb, demoGuard, expenses])
 
   const removeInvoice = useCallback(async (id) => {
     if (demoGuard('remove invoices')) return
+    const existing = invoices.find(i => i.id === id || i._dbId === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteInvoice(id) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'invoice.deleted', entity_type: 'invoice', entity_id: id, old_value: existing ? { invoice_number: existing.invoice_number, amount: existing.amount, status: existing.status } : null }).catch(() => {})
     }
     setInvoices(is => is.filter(i => i.id !== id && i._dbId !== id))
-  }, [useDb, demoGuard])
+  }, [useDb, demoGuard, invoices])
 
   // ─── Check calls ──────────────────────────────────────────────
   const logCheckCall = useCallback(async (loadNumber, call) => {
@@ -969,10 +978,20 @@ export function CarrierProvider({ children }) {
   // ─── Driver operations ──────────────────────────────────────────
   const addDriver = useCallback(async (driver) => {
     if (demoGuard('add drivers')) return null
+    // Duplicate driver detection
+    const driverName = (driver.full_name || driver.name || '').toLowerCase().trim()
+    if (driverName) {
+      const dup = drivers.find(d => (d.full_name || d.name || '').toLowerCase().trim() === driverName)
+      if (dup) {
+        showToast?.('', 'Duplicate Driver', `${driverName} already exists`)
+        return null
+      }
+    }
     if (useDb) {
       try {
         const newDriver = await db.createDriver(driver)
         setDrivers(ds => [newDriver, ...ds])
+        db.createAuditLog({ action: 'driver.created', entity_type: 'driver', entity_id: newDriver.id, new_value: { name: driver.full_name || driver.name, pay_model: driver.pay_model, pay_rate: driver.pay_rate, phone: driver.phone } }).catch(() => {})
         return newDriver
       } catch (e) { console.error('DB operation failed:', e) }
     }
@@ -983,23 +1002,38 @@ export function CarrierProvider({ children }) {
 
   const editDriver = useCallback(async (id, updates) => {
     if (demoGuard('edit drivers')) return
+    const existing = drivers.find(d => d.id === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.updateDriver(id, updates) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'driver.updated', entity_type: 'driver', entity_id: id, old_value: existing ? { name: existing.full_name || existing.name, pay_model: existing.pay_model, pay_rate: existing.pay_rate } : null, new_value: updates }).catch(() => {})
     }
     setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
-  }, [useDb, demoGuard])
+  }, [useDb, demoGuard, drivers])
 
   const removeDriver = useCallback(async (id) => {
     if (demoGuard('remove drivers')) return
+    const existing = drivers.find(d => d.id === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteDriver(id) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'driver.deleted', entity_type: 'driver', entity_id: id, old_value: existing ? { name: existing.full_name || existing.name, phone: existing.phone } : null }).catch(() => {})
     }
     setDrivers(ds => ds.filter(d => d.id !== id))
-  }, [useDb, demoGuard])
+  }, [useDb, demoGuard, drivers])
 
   // ─── Vehicle operations ─────────────────────────────────────────
   const addVehicle = useCallback(async (vehicle) => {
     if (demoGuard('add vehicles')) return null
+    // Duplicate vehicle detection (by VIN or unit number)
+    const vin = (vehicle.vin || '').trim().toUpperCase()
+    const unit = (vehicle.unit_number || '').trim()
+    if (vin) {
+      const dupVin = vehicles.find(v => (v.vin || '').trim().toUpperCase() === vin)
+      if (dupVin) { showToast?.('', 'Duplicate Vehicle', `VIN ${vin} already exists`); return null }
+    }
+    if (unit) {
+      const dupUnit = vehicles.find(v => (v.unit_number || '').trim() === unit)
+      if (dupUnit) { showToast?.('', 'Duplicate Vehicle', `Unit #${unit} already exists`); return null }
+    }
     let result
     if (useDb) {
       try {
@@ -1007,6 +1041,9 @@ export function CarrierProvider({ children }) {
         setVehicles(vs => [newVeh, ...vs])
         result = newVeh
       } catch (e) { console.error('DB operation failed:', e) }
+    }
+    if (result && useDb) {
+      db.createAuditLog({ action: 'vehicle.created', entity_type: 'vehicle', entity_id: result.id, new_value: { unit_number: vehicle.unit_number, make: vehicle.make, model: vehicle.model, vin: vehicle.vin, type: vehicle.type } }).catch(() => {})
     }
     if (!result) {
       result = { ...vehicle, id: 'local-veh-' + Date.now() }
@@ -1027,16 +1064,20 @@ export function CarrierProvider({ children }) {
 
   const editVehicle = useCallback(async (id, updates) => {
     if (demoGuard('edit vehicles')) return
+    const existing = vehicles.find(v => v.id === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.updateVehicle(id, updates) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'vehicle.updated', entity_type: 'vehicle', entity_id: id, old_value: existing ? { unit_number: existing.unit_number, status: existing.status } : null, new_value: updates }).catch(() => {})
     }
     setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
-  }, [useDb, demoGuard])
+  }, [useDb, demoGuard, vehicles])
 
   const removeVehicle = useCallback(async (id) => {
     if (demoGuard('remove vehicles')) return
+    const existing = vehicles.find(v => v.id === id)
     if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
       try { await db.deleteVehicle(id) } catch (e) { console.error('DB operation failed:', e) }
+      db.createAuditLog({ action: 'vehicle.deleted', entity_type: 'vehicle', entity_id: id, old_value: existing ? { unit_number: existing.unit_number, make: existing.make, vin: existing.vin } : null }).catch(() => {})
     }
     setVehicles(vs => {
       const updated = vs.filter(v => v.id !== id)
@@ -1061,6 +1102,7 @@ export function CarrierProvider({ children }) {
     if (useDb) {
       try {
         await db.upsertCompany(merged)
+        db.createAuditLog({ action: 'company.updated', entity_type: 'company', entity_id: 'company', old_value: { name: company?.name, mc_number: company?.mc_number }, new_value: updates }).catch(() => {})
       } catch (e) {
         console.error('DB operation failed:', e)
       }

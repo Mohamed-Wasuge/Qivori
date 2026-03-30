@@ -1532,6 +1532,23 @@ export function PayrollTracker() {
                       <Ic icon={Download} size={12} /> Settlement
                     </button>
                   </div>
+                  {/* Settlement Calculation Breakdown */}
+                  <div style={{ background:'var(--bg)', borderRadius:8, padding:'10px 14px', marginBottom:12, border:'1px solid var(--border)' }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>Pay Calculation</div>
+                    <div style={{ fontSize:13, color:'var(--text)' }}>
+                      {d.driver.pay_model === 'permile'
+                        ? <>{d.loads.length} loads × {Number(d.totalMiles).toLocaleString()} total miles × <b>${Number(d.driver.pay_rate || 0).toFixed(2)}/mi</b> = <b style={{ color:'var(--success)' }}>{fmtMoney(d.driverPay)}</b></>
+                        : d.driver.pay_model === 'flat'
+                        ? <>{d.loads.length} loads × <b>${Number(d.driver.pay_rate || 0).toFixed(2)}/load</b> = <b style={{ color:'var(--success)' }}>{fmtMoney(d.driverPay)}</b></>
+                        : <>{fmtMoney(d.totalGross)} gross × <b>{Number(d.driver.pay_rate || 28)}%</b> = <b style={{ color:'var(--success)' }}>{fmtMoney(d.driverPay)}</b></>
+                      }
+                    </div>
+                    {d.deductions > 0 && (
+                      <div style={{ fontSize:12, color:'var(--danger)', marginTop:4 }}>
+                        − {fmtMoney(d.deductions)} deductions = <b style={{ color:'var(--success)' }}>Net {fmtMoney(d.netPay)}</b>
+                      </div>
+                    )}
+                  </div>
                   {/* Load detail table */}
                   <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:12 }}>
                     <thead><tr style={{ borderBottom:'1px solid var(--border)' }}>
@@ -1557,23 +1574,54 @@ export function PayrollTracker() {
                       })}
                     </tbody>
                   </table>
-                  {/* Deductions */}
-                  {d.recurringDeductions.length > 0 && (
-                    <div style={{ background:'var(--bg)', borderRadius:8, padding:'10px 14px', marginBottom:8 }}>
-                      <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:6 }}>Recurring Deductions</div>
+                  {/* Deductions Breakdown */}
+                  {d.deductions > 0 && (
+                    <div style={{ background:'var(--bg)', borderRadius:8, padding:'10px 14px', marginBottom:8, border:'1px solid var(--border)' }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:6 }}>Deductions Breakdown</div>
                       {d.recurringDeductions.map((r, i) => (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'3px 0' }}>
-                          <span>{r.label}</span><span style={{ color:'var(--danger)' }}>-{fmtMoney(r.amount)}</span>
+                        <div key={'r'+i} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'3px 0' }}>
+                          <span>{r.label} <span style={{ color:'var(--muted)', fontSize:10 }}>(recurring)</span></span>
+                          <span style={{ color:'var(--danger)', fontFamily:"'JetBrains Mono',monospace" }}>-{fmtMoney(r.amount)}</span>
                         </div>
                       ))}
+                      {d.manualDeductions.map((m, i) => (
+                        <div key={'m'+i} style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'3px 0' }}>
+                          <span>{m.label || 'Manual Deduction'} <span style={{ color:'var(--muted)', fontSize:10 }}>(one-time)</span></span>
+                          <span style={{ color:'var(--danger)', fontFamily:"'JetBrains Mono',monospace" }}>-{fmtMoney(m.amount)}</span>
+                        </div>
+                      ))}
+                      {d.fuelDeductions > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'3px 0' }}>
+                          <span>Fuel Advances <span style={{ color:'var(--muted)', fontSize:10 }}>({(d.fuelItems || []).length} transactions)</span></span>
+                          <span style={{ color:'var(--danger)', fontFamily:"'JetBrains Mono',monospace" }}>-{fmtMoney(d.fuelDeductions)}</span>
+                        </div>
+                      )}
+                      {d.advanceDeductions > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, padding:'3px 0' }}>
+                          <span>Cash Advances <span style={{ color:'var(--muted)', fontSize:10 }}>({(d.advanceItems || []).length} advances)</span></span>
+                          <span style={{ color:'var(--danger)', fontFamily:"'JetBrains Mono',monospace" }}>-{fmtMoney(d.advanceDeductions)}</span>
+                        </div>
+                      )}
+                      <div style={{ borderTop:'1px solid var(--border)', marginTop:6, paddingTop:6, display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:700 }}>
+                        <span>Total Deductions</span>
+                        <span style={{ color:'var(--danger)' }}>-{fmtMoney(d.deductions)}</span>
+                      </div>
                     </div>
                   )}
                   {/* Totals */}
-                  <div style={{ borderTop:'2px solid var(--border)', paddingTop:10, display:'flex', justifyContent:'space-between' }}>
-                    <div style={{ fontSize:12, color:'var(--muted)' }}>
-                      Gross: {fmtMoney(d.driverPay)} {d.deductions > 0 ? `· Deductions: -${fmtMoney(d.deductions)}` : ''}
+                  <div style={{ borderTop:'2px solid var(--border)', paddingTop:10 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'var(--muted)', marginBottom:4 }}>
+                      <span>Gross Driver Pay</span><span>{fmtMoney(d.driverPay)}</span>
                     </div>
-                    <div style={{ fontSize:16, fontWeight:800, color:'var(--success)' }}>Net: {fmtMoney(d.netPay)}</div>
+                    {d.deductions > 0 && (
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'var(--danger)', marginBottom:4 }}>
+                        <span>Total Deductions</span><span>-{fmtMoney(d.deductions)}</span>
+                      </div>
+                    )}
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4 }}>
+                      <span style={{ fontSize:14, fontWeight:700 }}>Net Pay</span>
+                      <span style={{ fontSize:18, fontWeight:800, color:'var(--success)' }}>{fmtMoney(d.netPay)}</span>
+                    </div>
                   </div>
                 </div>
               ))}

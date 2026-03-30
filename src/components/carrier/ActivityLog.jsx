@@ -90,14 +90,14 @@ function ChangeDiff({ oldVal, newVal }) {
   const allKeys = [...new Set([...Object.keys(oldObj), ...Object.keys(newObj)])]
   const changes = allKeys.filter(k => JSON.stringify(oldObj[k]) !== JSON.stringify(newObj[k]))
   if (changes.length === 0 && typeof newVal === 'string') {
-    return <span style={{ color: '#94a3b8', fontSize: 12 }}>{newVal}</span>
+    return <span style={{ color: 'var(--muted)', fontSize: 12 }}>{newVal}</span>
   }
   if (changes.length === 0) return null
   return (
     <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.6 }}>
       {changes.map(k => (
         <div key={k} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ color: '#64748b', minWidth: 80 }}>{k}:</span>
+          <span style={{ color: 'var(--muted)', minWidth: 80 }}>{k}:</span>
           {oldObj[k] != null && <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>{String(oldObj[k])}</span>}
           {newObj[k] != null && <span style={{ color: '#22c55e' }}>{String(newObj[k])}</span>}
         </div>
@@ -115,7 +115,7 @@ function LogEntry({ log }) {
 
   return (
     <div
-      style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: '1px solid #1a1f2a', cursor: hasDetails ? 'pointer' : 'default' }}
+      style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: hasDetails ? 'pointer' : 'default' }}
       onClick={() => hasDetails && setExpanded(!expanded)}
     >
       <div style={{ width: 32, height: 32, borderRadius: 8, background: meta.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -123,19 +123,19 @@ function LogEntry({ log }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>{meta.label}</span>
-          {log.entity_id && <span style={{ color: '#64748b', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>{log.entity_id.slice(0, 8)}</span>}
-          {hasDetails && (expanded ? <ChevronDown size={12} color="#64748b" /> : <ChevronRight size={12} color="#64748b" />)}
+          <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{meta.label}</span>
+          {log.entity_id && <span style={{ color: 'var(--muted)', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}>{log.entity_id.slice(0, 8)}</span>}
+          {hasDetails && (expanded ? <ChevronDown size={12} color="var(--muted)" /> : <ChevronRight size={12} color="var(--muted)" />)}
         </div>
-        {log.reason && <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{log.reason}</div>}
+        {log.reason && <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>{log.reason}</div>}
         {expanded && <ChangeDiff oldVal={log.old_value} newVal={log.new_value} />}
         {expanded && log.metadata && Object.keys(log.metadata).length > 0 && (
-          <div style={{ marginTop: 6, padding: '6px 10px', background: '#0f1219', borderRadius: 6, fontSize: 11, color: '#64748b', fontFamily: 'JetBrains Mono, monospace' }}>
+          <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--bg)', borderRadius: 6, fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}>
             {formatValue(log.metadata)}
           </div>
         )}
       </div>
-      <span style={{ color: '#475569', fontSize: 11, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatTimestamp(log.created_at)}</span>
+      <span style={{ color: 'var(--muted)', fontSize: 11, flexShrink: 0, whiteSpace: 'nowrap' }}>{formatTimestamp(log.created_at)}</span>
     </div>
   )
 }
@@ -257,9 +257,9 @@ function DataExport() {
     <div style={{ padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <Download size={18} color="#f0a500" />
-        <span style={{ color: '#e2e8f0', fontSize: 16, fontWeight: 700 }}>Export Your Data</span>
+        <span style={{ color: 'var(--text)', fontSize: 16, fontWeight: 700 }}>Export Your Data</span>
       </div>
-      <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
+      <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
         Download your data anytime. CSV files open in Excel/Google Sheets. The full backup contains everything in JSON format.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -269,17 +269,17 @@ function DataExport() {
             onClick={exp.action}
             disabled={exporting === exp.id}
             style={{
-              background: '#111827', border: '1px solid #1e293b', borderRadius: 10, padding: 16,
+              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 16,
               cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.2s',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#334155'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>{exp.label}</span>
-              {exp.count != null && <span style={{ color: '#64748b', fontSize: 12 }}>{exp.count} records</span>}
+              <span style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>{exp.label}</span>
+              {exp.count != null && <span style={{ color: 'var(--muted)', fontSize: 12 }}>{exp.count} records</span>}
             </div>
-            <div style={{ color: '#64748b', fontSize: 12 }}>{exp.desc}</div>
+            <div style={{ color: 'var(--muted)', fontSize: 12 }}>{exp.desc}</div>
             {exporting === exp.id && <div style={{ color: '#22c55e', fontSize: 12, marginTop: 6 }}>Downloading...</div>}
           </button>
         ))}
@@ -357,11 +357,11 @@ export function ActivityLog() {
   const sty = {
     sel: (active) => ({
       padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-      background: active ? '#f0a500' : 'transparent', color: active ? '#000' : '#94a3b8',
+      background: active ? '#f0a500' : 'transparent', color: active ? '#000' : 'var(--muted)',
     }),
     filter: {
-      padding: '6px 12px', borderRadius: 6, fontSize: 12, background: '#111827', border: '1px solid #1e293b',
-      color: '#e2e8f0', cursor: 'pointer', outline: 'none',
+      padding: '6px 12px', borderRadius: 6, fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)',
+      color: 'var(--text)', cursor: 'pointer', outline: 'none',
     },
   }
 
@@ -371,8 +371,8 @@ export function ActivityLog() {
       <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <h2 style={{ color: '#e2e8f0', fontSize: 20, fontWeight: 700, margin: 0 }}>Activity Log & Data</h2>
-            <p style={{ color: '#64748b', fontSize: 13, margin: '4px 0 0' }}>Every change tracked. Your data, always exportable.</p>
+            <h2 style={{ color: 'var(--text)', fontSize: 20, fontWeight: 700, margin: 0 }}>Activity Log & Data</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: '4px 0 0' }}>Every change tracked. Your data, always exportable.</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={sty.sel(tab === 'log')} onClick={() => setTab('log')}>Activity Log</button>
@@ -386,7 +386,7 @@ export function ActivityLog() {
           {/* Filters */}
           <div style={{ padding: '0 24px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
             <div style={{ position: 'relative', flex: 1, minWidth: 180, maxWidth: 300 }}>
-              <Search size={14} color="#64748b" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+              <Search size={14} color="var(--muted)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 placeholder="Search activity..."
                 value={searchQuery}
@@ -406,25 +406,25 @@ export function ActivityLog() {
             <button onClick={exportAuditCSV} style={{ ...sty.filter, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Download size={12} /> Export CSV
             </button>
-            <span style={{ color: '#475569', fontSize: 12 }}>{filtered.length} entries</span>
+            <span style={{ color: 'var(--muted)', fontSize: 12 }}>{filtered.length} entries</span>
           </div>
 
           {/* Log List */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
             {loading ? (
-              <div style={{ color: '#64748b', textAlign: 'center', padding: 40 }}>Loading activity...</div>
+              <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 40 }}>Loading activity...</div>
             ) : filtered.length === 0 ? (
               <div style={{ textAlign: 'center', padding: 60 }}>
-                <Clock size={32} color="#334155" style={{ marginBottom: 12 }} />
-                <div style={{ color: '#64748b', fontSize: 14 }}>No activity found</div>
-                <div style={{ color: '#475569', fontSize: 12, marginTop: 4 }}>
+                <Clock size={32} color="var(--muted)" style={{ marginBottom: 12 }} />
+                <div style={{ color: 'var(--muted)', fontSize: 14 }}>No activity found</div>
+                <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>
                   {entityFilter || timeFilter !== 'all' ? 'Try adjusting your filters' : 'Activity will appear here as you use Qivori'}
                 </div>
               </div>
             ) : (
               Object.entries(grouped).map(([date, entries]) => (
                 <div key={date} style={{ marginBottom: 16 }}>
-                  <div style={{ color: '#475569', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, padding: '8px 0', borderBottom: '1px solid #1a1f2a', marginBottom: 4 }}>
+                  <div style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, padding: '8px 0', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
                     {date}
                   </div>
                   {entries.map(log => <LogEntry key={log.id || log.created_at} log={log} />)}

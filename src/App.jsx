@@ -161,6 +161,14 @@ function AppContent() {
     '#/guides/trucking-expenses': 'trucking-expenses',
   }
 
+  // Handle path-based routes for legal pages (Twilio reviewers visit /privacy, /terms directly)
+  useEffect(() => {
+    const path = window.location.pathname
+    if (path === '/privacy' || path === '/terms') {
+      setLegalPage(path === '/privacy' ? 'privacy' : 'terms')
+    }
+  }, [])
+
   // Handle query params for email links (email clients strip # fragments)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -208,7 +216,15 @@ function AppContent() {
     return () => window.removeEventListener('hashchange', handleHash)
   }, [])
 
-  const closeLegal = () => { setLegalPage(null); window.location.hash = '' }
+  const closeLegal = () => {
+    setLegalPage(null)
+    // If accessed via /privacy or /terms path, navigate to home
+    if (window.location.pathname === '/privacy' || window.location.pathname === '/terms') {
+      window.history.replaceState({}, '', '/')
+    } else {
+      window.location.hash = ''
+    }
+  }
 
   return (
     <Suspense fallback={<LoadingFallback />}>

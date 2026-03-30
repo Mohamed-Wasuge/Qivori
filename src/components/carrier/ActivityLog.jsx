@@ -145,23 +145,29 @@ function DataExport() {
   const { loads, invoices, expenses, drivers, vehicles, company } = useCarrier()
   const [exporting, setExporting] = useState(null)
 
+  const triggerDownload = (blob, filename) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+  }
+
   const downloadCSV = (filename, headers, rows) => {
     const escape = v => {
       const s = v == null ? '' : String(v)
       return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
     }
     const csv = [headers.join(','), ...rows.map(r => r.map(escape).join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
+    triggerDownload(new Blob([csv], { type: 'text/csv' }), filename)
   }
 
   const downloadJSON = (filename, data) => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
+    triggerDownload(new Blob([JSON.stringify(data, null, 2)], { type: 'application/octet-stream' }), filename)
   }
 
   const exportLoads = () => {

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import {
   Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Sun, Moon, Eye, Zap,
-  Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info, FileCheck
+  Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info, FileCheck, Activity
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
 import { Ic } from './shared'
+import { ActivityLog } from './ActivityLog'
 
 // Lazy-load Settings domain components
 const lazyN = (fn, name) => lazy(() => fn().then(m => ({ default: m[name] })))
@@ -1173,6 +1174,7 @@ export function SettingsTab() {
     { id:'invoicing',      icon: FileText, label:'Invoicing' },
     { id:'import-data',    icon: Upload, label:'Import Data' },
     { id:'appearance',     icon: Palette, label:'Appearance' },
+    { id:'activity-data',  icon: Activity, label:'Activity & Data' },
   ]
 
   const FieldRow = ({ label, value, onChange, type='text' }) => (
@@ -1746,6 +1748,11 @@ export function SettingsTab() {
           </>
         )}
 
+        {settingsSec === 'activity-data' && (
+          <div style={{ margin: '-20px', height: 'calc(100% + 40px)' }}>
+            <ActivityLog />
+          </div>
+        )}
 
       </div>
     </div>

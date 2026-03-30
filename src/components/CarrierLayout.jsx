@@ -140,7 +140,6 @@ const NAV = [
   { id:'edi',          icon: Radio,        label:'EDI Hub' },
   { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
   { id:'simulation',   icon: FlaskConical, label:'Live Simulation' },
-  { id:'activity-log', icon: Activity,     label:'Activity & Data' },
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 

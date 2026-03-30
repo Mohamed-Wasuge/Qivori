@@ -1,18 +1,17 @@
 // Qivori AI — Service Worker
 // Cache versioning: bump CACHE_VERSION to force update
-const CACHE_VERSION = 140
+const CACHE_VERSION = 141
 const STATIC_CACHE = `qivori-static-v${CACHE_VERSION}`
 const RUNTIME_CACHE = `qivori-runtime-v${CACHE_VERSION}`
 const OFFLINE_URL = '/offline.html'
 
 const PRECACHE_ASSETS = [
-  '/',
-  '/manifest.json',
   '/offline.html',
+  '/manifest.json',
 ]
 
 // File extensions that should use cache-first strategy
-const CACHE_FIRST_EXTENSIONS = ['.js', '.css', '.woff', '.woff2', '.ttf', '.eot', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']
+const CACHE_FIRST_EXTENSIONS = ['.woff', '.woff2', '.ttf', '.eot', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']
 
 // Domains/paths that are API calls (network-first)
 const API_PATTERNS = ['/api/', '/rest/v1/', '/auth/v1/', '/storage/v1/', '/functions/v1/']
@@ -32,7 +31,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== STATIC_CACHE)
+          // Delete ALL old caches — both static and runtime from previous versions
+          .filter(k => k !== STATIC_CACHE && k !== RUNTIME_CACHE)
           .map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
@@ -63,31 +63,32 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets: cache-first
-  if (CACHE_FIRST_EXTENSIONS.some(ext => url.pathname.endsWith(ext))) {
-    event.respondWith(cacheFirstForStatic(request))
-    return
-  }
-
-  // Navigation requests (HTML pages): network-first with offline fallback
+  // Navigation requests (HTML pages): ALWAYS network-first, never serve stale HTML
   if (request.mode === 'navigate') {
     event.respondWith(networkFirstForNavigation(request))
     return
   }
 
-  // Everything else: network-first, cache fallback
+  // JS/CSS from /assets/ with content hashes: cache-first (hash = unique, safe to cache forever)
+  if (url.pathname.startsWith('/assets/') && /\.(js|css)$/.test(url.pathname)) {
+    event.respondWith(cacheFirstHashed(request))
+    return
+  }
+
+  // Static assets (fonts, images): cache-first
+  if (CACHE_FIRST_EXTENSIONS.some(ext => url.pathname.endsWith(ext))) {
+    event.respondWith(cacheFirstForStatic(request))
+    return
+  }
+
+  // Everything else: network-first
   event.respondWith(networkFirstForAPI(request))
 })
 
-// Cache-first for static assets (JS, CSS, images, fonts)
-// But always fetch fresh for hashed Vite bundles (they have new hashes on each build)
-async function cacheFirstForStatic(request) {
-  const url = new URL(request.url)
-  const isHashedAsset = url.pathname.includes('/assets/') && /[-_][A-Za-z0-9]{8,}\.(js|css)$/.test(url.pathname)
-  if (!isHashedAsset) {
-    const cached = await caches.match(request)
-    if (cached) return cached
-  }
+// Hashed Vite bundles — safe to cache forever since filename changes on rebuild
+async function cacheFirstHashed(request) {
+  const cached = await caches.match(request)
+  if (cached) return cached
 
   try {
     const response = await fetch(request)
@@ -97,9 +98,25 @@ async function cacheFirstForStatic(request) {
     }
     return response
   } catch {
-    // Network failed — try cache as fallback
-    const cached = await caches.match(request)
-    if (cached) return cached
+    return new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
+  }
+}
+
+// Cache-first for static assets (images, fonts — NOT JS/CSS)
+async function cacheFirstForStatic(request) {
+  const cached = await caches.match(request)
+  if (cached) return cached
+
+  try {
+    const response = await fetch(request)
+    if (response.ok) {
+      const cache = await caches.open(RUNTIME_CACHE)
+      cache.put(request, response.clone())
+    }
+    return response
+  } catch {
+    const fallback = await caches.match(request)
+    if (fallback) return fallback
     return new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
   }
 }
@@ -118,19 +135,15 @@ async function networkFirstForAPI(request) {
   }
 }
 
-// Network-first for navigation with offline fallback page
+// Network-first for navigation — NEVER serve stale index.html
 async function networkFirstForNavigation(request) {
   try {
     const response = await fetch(request)
-    if (response.ok) {
-      const cache = await caches.open(STATIC_CACHE)
-      cache.put(request, response.clone())
-    }
+    // Only cache the offline page, NOT index.html
+    // index.html must always come fresh from the network
     return response
   } catch {
-    const cached = await caches.match(request)
-    if (cached) return cached
-    // Serve the offline page
+    // Offline — serve offline page, NOT a stale index.html
     const offlinePage = await caches.match(OFFLINE_URL)
     if (offlinePage) return offlinePage
     return new Response('Offline', { status: 503 })

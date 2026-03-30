@@ -39,7 +39,7 @@ function EventRow({ event, isNew }) {
         <Ic icon={cfg.icon} size={14} color={cfg.color} />
       </div>
       <div style={{ flex: 1, fontSize: 12, lineHeight: 1.6, color: 'var(--text)' }}>
-        {event.detail}
+        {typeof event.detail === 'string' ? event.detail : JSON.stringify(event.detail)}
       </div>
     </div>
   )
@@ -169,7 +169,7 @@ function WeeklySummary({ summary }) {
       {summary.bestLoad && (
         <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(52,176,104,0.06)', border: '1px solid rgba(52,176,104,0.2)', borderRadius: 8 }}>
           <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, marginBottom: 4 }}>BEST LOAD</div>
-          <div style={{ fontSize: 12 }}>{summary.bestLoad}</div>
+          <div style={{ fontSize: 12 }}>{typeof summary.bestLoad === 'string' ? summary.bestLoad : `${summary.bestLoad?.id || ''} — $${summary.bestLoad?.profit || 0}`}</div>
         </div>
       )}
 
@@ -177,7 +177,7 @@ function WeeklySummary({ summary }) {
         <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8 }}>
           <div style={{ fontSize: 10, color: 'var(--danger)', fontWeight: 700, marginBottom: 4 }}>MISSED OPPORTUNITIES</div>
           {summary.missedOpportunities.slice(0, 3).map((m, i) => (
-            <div key={i} style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{m}</div>
+            <div key={i} style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>{typeof m === 'string' ? m : `${m?.lane || m?.loadId || 'Load'} — $${m?.rate || 0} (${m?.reason || ''})`}</div>
           ))}
         </div>
       )}

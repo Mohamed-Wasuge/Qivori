@@ -1525,6 +1525,70 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
               ))}
             </div>
 
+            {/* Inspection Summary Table — matches SAFER format */}
+            {fmcsaInspections && (fmcsaInspections.vehicle > 0 || fmcsaInspections.driver > 0) && (
+              <div style={S.panel}>
+                <div style={S.panelHead}>
+                  <div style={S.panelTitle}><Ic icon={FileCheck} /> Inspection Summary</div>
+                  <span style={{ fontSize:11, color:'var(--muted)' }}>Last 24 months (FMCSA SAFER)</span>
+                </div>
+                <div style={{ padding:16, overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                    <thead>
+                      <tr style={{ borderBottom:'2px solid var(--border)' }}>
+                        <th style={{ textAlign:'left', padding:'8px 12px', color:'var(--muted)', fontWeight:600, fontSize:11 }}>Inspection Type</th>
+                        <th style={{ textAlign:'center', padding:'8px 12px', color:'var(--accent)', fontWeight:600, fontSize:11 }}>Vehicle</th>
+                        <th style={{ textAlign:'center', padding:'8px 12px', color:'var(--accent)', fontWeight:600, fontSize:11 }}>Driver</th>
+                        {fmcsaInspections.hazmat > 0 && <th style={{ textAlign:'center', padding:'8px 12px', color:'var(--accent)', fontWeight:600, fontSize:11 }}>Hazmat</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'8px 12px', fontWeight:600 }}>Inspections</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>{fmcsaInspections.vehicle}</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>{fmcsaInspections.driver}</td>
+                        {fmcsaInspections.hazmat > 0 && <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color:'var(--accent)' }}>{fmcsaInspections.hazmat}</td>}
+                      </tr>
+                      <tr style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'8px 12px', fontWeight:600 }}>Out of Service</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color: (fmcsaInspections.oosCount?.vehicle || 0) > 0 ? 'var(--danger)' : 'var(--success)' }}>{fmcsaInspections.oosCount?.vehicle || 0}</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color: (fmcsaInspections.oosCount?.driver || 0) > 0 ? 'var(--danger)' : 'var(--success)' }}>{fmcsaInspections.oosCount?.driver || 0}</td>
+                        {fmcsaInspections.hazmat > 0 && <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color: (fmcsaInspections.oosCount?.hazmat || 0) > 0 ? 'var(--danger)' : 'var(--success)' }}>{fmcsaInspections.oosCount?.hazmat || 0}</td>}
+                      </tr>
+                      <tr style={{ borderBottom:'1px solid var(--border)' }}>
+                        <td style={{ padding:'8px 12px', fontWeight:600 }}>Out of Service %</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color: (fmcsaInspections.oosRates?.vehicle || 0) > fmcsaInspections.nationalAvgOos?.vehicle ? 'var(--danger)' : 'var(--success)' }}>{(fmcsaInspections.oosRates?.vehicle || 0).toFixed(1)}%</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color: (fmcsaInspections.oosRates?.driver || 0) > fmcsaInspections.nationalAvgOos?.driver ? 'var(--danger)' : 'var(--success)' }}>{(fmcsaInspections.oosRates?.driver || 0).toFixed(1)}%</td>
+                        {fmcsaInspections.hazmat > 0 && <td style={{ textAlign:'center', padding:'8px 12px', fontFamily:"'Bebas Neue',sans-serif", fontSize:16, color: (fmcsaInspections.oosRates?.hazmat || 0) > fmcsaInspections.nationalAvgOos?.hazmat ? 'var(--danger)' : 'var(--success)' }}>{(fmcsaInspections.oosRates?.hazmat || 0).toFixed(1)}%</td>}
+                      </tr>
+                      <tr>
+                        <td style={{ padding:'8px 12px', fontWeight:600, color:'var(--muted)', fontSize:11 }}>Nat'l Average %</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontSize:11, color:'var(--muted)' }}>{fmcsaInspections.nationalAvgOos?.vehicle || 20.72}%</td>
+                        <td style={{ textAlign:'center', padding:'8px 12px', fontSize:11, color:'var(--muted)' }}>{fmcsaInspections.nationalAvgOos?.driver || 5.51}%</td>
+                        {fmcsaInspections.hazmat > 0 && <td style={{ textAlign:'center', padding:'8px 12px', fontSize:11, color:'var(--muted)' }}>{fmcsaInspections.nationalAvgOos?.hazmat || 4.5}%</td>}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {/* Crash Summary */}
+                {(fmcsaInspections.crashes?.total || 0) > 0 && (
+                  <div style={{ padding:'0 16px 16px', display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))', gap:8 }}>
+                    {[
+                      { label: 'Total Crashes', value: fmcsaInspections.crashes.total, color: 'var(--danger)' },
+                      { label: 'Fatal', value: fmcsaInspections.crashes.fatal, color: fmcsaInspections.crashes.fatal > 0 ? 'var(--danger)' : 'var(--success)' },
+                      { label: 'Injury', value: fmcsaInspections.crashes.injury, color: fmcsaInspections.crashes.injury > 0 ? 'var(--warning)' : 'var(--success)' },
+                      { label: 'Tow', value: fmcsaInspections.crashes.tow, color: fmcsaInspections.crashes.tow > 0 ? 'var(--warning)' : 'var(--success)' },
+                    ].map(c => (
+                      <div key={c.label} style={{ background:'var(--surface2)', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+                        <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>{c.label}</div>
+                        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:18, color:c.color }}>{c.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* BASIC Score Breakdown — live data */}
             <div style={S.panel}>
               <div style={S.panelHead}>

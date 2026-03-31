@@ -6,6 +6,7 @@ import { useApp } from './AppContext'
 import { setInvoiceCompany } from '../utils/generatePDF'
 import { checkCDL, checkMedicalCard, checkDriverAvailability, checkRegistration, checkInsurance, checkOutOfService } from '../lib/compliance'
 import { canDriverTakeLoad } from '../lib/hosSimulation'
+import { calculateCrashRisk } from '../lib/crashRiskEngine'
 import {
   DEMO_LOADS,
   DEMO_INVOICES,
@@ -785,6 +786,89 @@ export function CarrierProvider({ children }) {
           }
           return
         }
+      }
+    }
+
+    // ── AI Crash Risk Prediction ──
+    // Uses 8-factor model to predict crash probability before dispatch
+    if (driver) {
+      try {
+        const riskResult = calculateCrashRisk(driver, {
+          vehicle: driverVehicle,
+          load: {
+            weight: parseFloat(load.weight) || 0,
+            miles: parseFloat(load.miles) || 0,
+            hazmat: load.hazmat || load.equipment?.toLowerCase?.()?.includes('hazmat'),
+            origin: load.origin,
+            destination: load.dest || load.destination,
+          },
+          departureTime: load.pickup_date || load.pickup || new Date().toISOString(),
+        })
+
+        // Also block if ANY single factor is extreme (80+) — one critical danger is enough
+        const hasCriticalFactor = riskResult.factors.some(f => f.score >= 80)
+
+        // BLOCK dispatch: composite 60+ OR any single factor 80+
+        if (riskResult.score >= 60 || hasCriticalFactor) {
+          const topFactors = riskResult.factors
+            .filter(f => f.score >= 30)
+            .map(f => f.label)
+            .join(', ')
+          showToast?.('', 'Safety Risk: CRITICAL', `${driverName} crash risk score ${riskResult.score}/100. Top risks: ${topFactors || 'Multiple factors'}. ${riskResult.recommendations[0]?.action || 'Review before dispatch.'}`)
+          if (useDb && load.id) {
+            db.createAuditLog({
+              action: 'dispatch_crash_risk_blocked',
+              entity_type: 'load',
+              entity_id: load.id,
+              old_value: { status: load.status },
+              new_value: { attempted_driver: driverName, blocked: true, crash_risk_score: riskResult.score },
+              metadata: {
+                load_id: load.loadId || load.load_id,
+                risk_level: riskResult.level,
+                risk_score: riskResult.score,
+                factors: riskResult.factors.map(f => ({ factor: f.factor, score: f.score })),
+                recommendations: riskResult.recommendations.map(r => r.action),
+              },
+            }).catch(() => {})
+            apiFetch('/api/admin-alert', {
+              method: 'POST',
+              body: JSON.stringify({
+                type: 'crash_risk_critical',
+                title: 'AI Safety: Dispatch Blocked — Critical Crash Risk',
+                message: `Driver "${driverName}" blocked from load ${load.loadId || load.load_id} (${load.origin} → ${load.dest || load.destination}). Crash risk: ${riskResult.score}/100 (${riskResult.level}). Factors: ${topFactors}. Recommendations: ${riskResult.recommendations.map(r => r.action).join('; ')}`,
+                severity: 'critical',
+                source: 'crash_risk_engine',
+              }),
+            }).catch(() => {})
+          }
+          return
+        }
+
+        // MODERATE-HIGH risk (35-59) — Allow but warn and log
+        if (riskResult.score >= 35) {
+          const topFactors = riskResult.factors
+            .filter(f => f.score >= 20)
+            .map(f => f.label)
+            .join(', ')
+          showToast?.('', 'Safety Warning: HIGH Risk', `${driverName} crash risk ${riskResult.score}/100. Proceed with caution. ${riskResult.recommendations[0]?.action || ''}`)
+          if (useDb && load.id) {
+            db.createAuditLog({
+              action: 'dispatch_crash_risk_warning',
+              entity_type: 'load',
+              entity_id: load.id,
+              old_value: { status: load.status },
+              new_value: { driver: driverName, crash_risk_score: riskResult.score, dispatched_with_warning: true },
+              metadata: {
+                load_id: load.loadId || load.load_id,
+                risk_level: riskResult.level,
+                risk_score: riskResult.score,
+                factors: riskResult.factors.map(f => ({ factor: f.factor, score: f.score })),
+              },
+            }).catch(() => {})
+          }
+        }
+      } catch (e) {
+        console.warn('[CrashRisk] Scoring failed, proceeding with dispatch:', e.message)
       }
     }
 

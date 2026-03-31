@@ -52,16 +52,13 @@ export default async function handler(req) {
       return Response.json({ error: 'Carrier not found' }, { status: 404, headers: corsHeaders(req) })
     }
 
-    // Fetch additional safety/inspection data
-    const [basics, inspections] = await Promise.all([
-      fetchBasics(carrierData.dotNumber, webKey).catch(() => null),
-      fetchInspections(carrierData.dotNumber, webKey).catch(() => null),
-    ])
+    // Fetch BASIC scores
+    const basics = await fetchBasics(carrierData.dotNumber, webKey).catch(() => null)
 
     return Response.json({
       carrier: carrierData,
       basics: basics || [],
-      inspections: inspections || { total: 0, vehicle: 0, driver: 0, hazmat: 0, iep: 0, reviews: 0 },
+      inspections: carrierData._inspections || { total: 0, vehicle: 0, driver: 0, hazmat: 0, iep: 0, reviews: 0, crashes: { total: 0, fatal: 0, injury: 0, tow: 0 }, oosCount: { vehicle: 0, driver: 0, hazmat: 0 }, oosRates: { vehicle: 0, driver: 0, hazmat: 0 }, nationalAvgOos: { vehicle: 20.72, driver: 5.51, hazmat: 4.5 } },
     }, {
       headers: { ...corsHeaders(req), 'Cache-Control': 'public, max-age=3600' }
     })
@@ -124,41 +121,48 @@ async function fetchBasics(dot, webKey) {
   }))
 }
 
-// ── Fetch inspection summary ──
-async function fetchInspections(dot, webKey) {
-  const res = await fetch(`${FMCSA_BASE}/carriers/${dot}/inspection?webKey=${webKey}`)
-  if (!res.ok) return { total: 0, vehicle: 0, driver: 0, hazmat: 0, iep: 0, reviews: 0 }
-  const data = await res.json()
-  const insp = data?.content?.inspectionSummary || data?.content || {}
-  return {
-    total: parseInt(insp.inspTotal || insp.totalInspections || 0),
-    vehicle: parseInt(insp.inspVehicle || insp.vehicleInspections || 0),
-    driver: parseInt(insp.inspDriver || insp.driverInspections || 0),
-    hazmat: parseInt(insp.inspHazmat || insp.hazmatInspections || 0),
-    iep: parseInt(insp.inspIep || 0),
-    reviews: parseInt(insp.inspReview || insp.complianceReviews || 0),
-    crashes: {
-      total: parseInt(insp.crashTotal || 0),
-      fatal: parseInt(insp.crashFatal || 0),
-      injury: parseInt(insp.crashInj || 0),
-      tow: parseInt(insp.crashTow || 0),
-    },
-    oosRates: {
-      vehicle: parseFloat(insp.vehicleOosRate || 0),
-      driver: parseFloat(insp.driverOosRate || 0),
-      hazmat: parseFloat(insp.hazmatOosRate || 0),
-    },
-    nationalAvgOos: {
-      vehicle: 20.72,
-      driver: 5.51,
-      hazmat: 4.5,
-    },
-  }
-}
-
 // ── Parse raw FMCSA carrier data into clean object ──
 function parseCarrier(raw) {
   if (!raw) return null
+
+  // Extract inspection/crash data — FMCSA includes this in the carrier record
+  const vehicleInsp = parseInt(raw.vehicleInsp || 0)
+  const driverInsp = parseInt(raw.driverInsp || 0)
+  const hazmatInsp = parseInt(raw.hazmatInsp || 0)
+  const vehicleOos = parseInt(raw.vehicleOosInsp || 0)
+  const driverOos = parseInt(raw.driverOosInsp || 0)
+  const hazmatOos = parseInt(raw.hazmatOosInsp || 0)
+
+  const _inspections = {
+    total: vehicleInsp + driverInsp,
+    vehicle: vehicleInsp,
+    driver: driverInsp,
+    hazmat: hazmatInsp,
+    iep: 0,
+    reviews: 0,
+    crashes: {
+      total: parseInt(raw.crashTotal || 0),
+      fatal: parseInt(raw.fatalCrash || 0),
+      injury: parseInt(raw.injCrash || 0),
+      tow: parseInt(raw.towawayCrash || raw.towCrash || 0),
+    },
+    oosCount: {
+      vehicle: vehicleOos,
+      driver: driverOos,
+      hazmat: hazmatOos,
+    },
+    oosRates: {
+      vehicle: parseFloat(raw.vehicleOosRate || 0),
+      driver: parseFloat(raw.driverOosRate || 0),
+      hazmat: parseFloat(raw.hazmatOosRate || 0),
+    },
+    nationalAvgOos: {
+      vehicle: parseFloat(raw.vehicleOosRateNationalAverage || 20.72),
+      driver: parseFloat(raw.driverOosRateNationalAverage || 5.51),
+      hazmat: parseFloat(raw.hazmatOosRateNationalAverage || 4.5),
+    },
+  }
+
   return {
     dotNumber: raw.dotNumber || raw.dot_number || '',
     mcNumber: raw.mcNumber || raw.mc_number || raw.docketNumber || '',
@@ -177,7 +181,7 @@ function parseCarrier(raw) {
     statusCode: raw.statusCode || '',
     allowedToOperate: raw.allowedToOperate === 'Y' || raw.allowedToOperate === true,
     bipdInsuranceOnFile: parseFloat(raw.bipdInsuranceOnFile || raw.bipdInsurance || 0),
-    bipdInsuranceRequired: parseFloat(raw.bipdInsuranceRequired || raw.bipdRequired || 0),
+    bipdInsuranceRequired: parseFloat(raw.bipdRequiredAmount || raw.bipdInsuranceRequired || raw.bipdRequired || 0),
     bondInsuranceOnFile: parseFloat(raw.bondInsuranceOnFile || 0),
     cargoInsuranceOnFile: parseFloat(raw.cargoInsuranceOnFile || raw.cargoInsurance || 0),
     // Fleet
@@ -188,15 +192,17 @@ function parseCarrier(raw) {
     safetyRatingDate: raw.safetyRatingDate || raw.reviewDate || '',
     safetyReviewType: raw.safetyReviewType || '',
     // Operation classification
-    isPassengerCarrier: raw.passengerCarrier === 'Y',
+    isPassengerCarrier: raw.passengerCarrier === 'Y' || raw.isPassengerCarrier === 'Y',
     isHHGCarrier: raw.hhgCarrier === 'Y',
     isPrivateCarrier: raw.privateCarrier === 'Y',
-    isInterstate: raw.interstateCarrier === 'Y' || raw.carrierOperationCode === 'A',
+    isInterstate: raw.interstateCarrier === 'Y' || raw.carrierOperation?.carrierOperationCode === 'A',
     // Dates
     addDate: raw.addDate || '',
     oicDate: raw.oicDate || '',
     mcs150Date: raw.mcs150FormDate || raw.mcs150Date || '',
     mcs150Mileage: parseInt(raw.mcs150Mileage || raw.mcs150Miles || 0),
     mcs150MileageYear: raw.mcs150MileageYear || raw.mcs150Year || '',
+    // Inspection data (extracted from carrier record)
+    _inspections,
   }
 }

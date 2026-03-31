@@ -393,6 +393,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-hero { padding: 60px 20px 50px !important; }
           .lp-hero h1 { font-size: 42px !important; }
           .lp-hero p { font-size: 15px !important; }
+          .lp-hero-grid { grid-template-columns: 1fr !important; text-align: center !important; }
           .lp-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .lp-section { padding: 50px 20px !important; }
           .lp-pain-row { grid-template-columns: 1fr !important; gap: 8px !important; }
@@ -456,7 +457,7 @@ export default function LandingPage({ onGetStarted }) {
           </button>
           <button onClick={handleTry}
             style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 10, padding: '9px 22px', color: '#000', fontSize: 13, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", fontWeight: 800, letterSpacing: 1, boxShadow: '0 4px 16px rgba(240,165,0,0.3)' }}>
-            ACTIVATE Q
+            START FREE TRIAL
           </button>
         </div>
 
@@ -472,55 +473,133 @@ export default function LandingPage({ onGetStarted }) {
             <a href="#/loads" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent) !important', fontWeight: 600 }}>{t('landing.browseLoads')}</a>
             <div className="lp-mob-btns">
               <button onClick={onGetStarted} style={{ padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{t('landing.signIn')}</button>
-              <button onClick={handleTry} style={{ padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>ACTIVATE Q</button>
+              <button onClick={handleTry} style={{ padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>START FREE TRIAL</button>
             </div>
           </div>
         )}
       </nav>
 
       {/* ── HERO ──────────────────────────────────────────────────────── */}
-      <section className="lp-hero" style={{ position: 'relative', padding: '120px 48px 100px', maxWidth: 1000, margin: '0 auto', textAlign: 'center', overflow: 'hidden' }}>
+      <section className="lp-hero" style={{ position: 'relative', padding: '100px 48px 60px', maxWidth: 1100, margin: '0 auto', overflow: 'hidden' }}>
         {/* Background glow effects */}
         <div style={{ position: 'absolute', top: '-50%', left: '50%', transform: 'translateX(-50%)', width: 800, height: 800, borderRadius: '50%', background: 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)', animation: 'heroGlow 4s ease-in-out infinite', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', top: '-30%', right: '-10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,212,170,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-        <FadeIn>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 50, padding: '8px 20px 8px 10px', marginBottom: 40 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }} className="lp-hero-grid">
+          {/* Left: Copy */}
+          <div>
+            <FadeIn>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 50, padding: '8px 20px 8px 10px', marginBottom: 32 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 0.5 }}>AI-POWERED TMS FOR OWNER-OPERATORS</span>
+              </div>
+            </FadeIn>
+
+            <FadeIn delay={0.1}>
+              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 72, letterSpacing: 3, lineHeight: 0.92, marginBottom: 24, color: 'var(--text)', position: 'relative' }}>
+                <span style={{ color: 'var(--accent)', textShadow: '0 0 80px rgba(240,165,0,0.3)' }}>Q</span> POWERS YOUR<br />TRUCKING BUSINESS.
+              </h1>
+            </FadeIn>
+
+            <FadeIn delay={0.2}>
+              <p style={{ fontSize: 18, color: 'var(--muted)', lineHeight: 1.7, maxWidth: 440, marginBottom: 12, fontWeight: 400 }}>
+                AI that evaluates your loads, protects your drivers, and maximizes your profit.
+              </p>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', maxWidth: 380, marginBottom: 36, fontWeight: 500 }}>
+                Safer fleets. Smarter dispatch. More profit.
+              </p>
+            </FadeIn>
+
+            <FadeIn delay={0.3}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <button onClick={handleTry}
+                  style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 14, padding: '16px 40px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, boxShadow: '0 8px 40px rgba(240,165,0,0.35)', display: 'inline-flex', alignItems: 'center', gap: 10, transition: 'all 0.2s' }}>
+                  START FREE TRIAL
+                </button>
+                <a href="#pricing"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '16px 32px', color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                  See Pricing
+                </a>
+              </div>
+              <div style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>14-day free trial. No credit card required.</div>
+            </FadeIn>
+          </div>
+
+          {/* Right: Product Preview (styled dashboard mockup) */}
+          <FadeIn delay={0.2}>
+            <div style={{ background: 'linear-gradient(135deg, #12141a 0%, #1a1f2a 100%)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 3, boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(240,165,0,0.1)', position: 'relative' }}>
+              {/* Browser chrome */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5f57' }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#febc2e' }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#28c840' }} />
+                <div style={{ flex: 1, marginLeft: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '4px 12px', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>qivori.com</div>
+              </div>
+              {/* Dashboard mockup content */}
+              <div style={{ padding: '20px 18px' }}>
+                {/* Top bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2 }}><span style={{ color: 'var(--accent)' }}>QI</span>VORI</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: 9, fontWeight: 700, color: '#22c55e' }}>SAFETY: CLEAR</div>
+                    <div style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.2)', fontSize: 9, fontWeight: 700, color: '#f0a500' }}>3 LOADS</div>
+                  </div>
+                </div>
+                {/* KPI row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+                  {[
+                    { label: 'Revenue', val: '$12,840', color: '#22c55e' },
+                    { label: 'Safety Score', val: '94/100', color: '#3b82f6' },
+                    { label: 'Active Loads', val: '3', color: '#f0a500' },
+                  ].map(k => (
+                    <div key={k.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>{k.label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: k.color, fontFamily: "'Bebas Neue',sans-serif" }}>{k.val}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Load cards */}
+                {[
+                  { route: 'Dallas → Houston', rate: '$1,950', rpm: '$3.25', risk: 'LOW', riskColor: '#22c55e' },
+                  { route: 'Atlanta → Miami', rate: '$2,400', rpm: '$2.88', risk: 'LOW', riskColor: '#22c55e' },
+                  { route: 'Chicago → Detroit', rate: '$1,180', rpm: '$3.10', risk: 'MOD', riskColor: '#f59e0b' },
+                ].map((l, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, marginBottom: 6, border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{l.route}</div>
+                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{l.rpm}/mi</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: `${l.riskColor}15`, color: l.riskColor, border: `1px solid ${l.riskColor}30` }}>{l.risk}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{l.rate}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: 0.5 }}>THE AI OPERATING SYSTEM FOR TRUCKING</span>
-          </div>
-        </FadeIn>
+          </FadeIn>
+        </div>
+      </section>
 
-        <FadeIn delay={0.1}>
-          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 84, letterSpacing: 4, lineHeight: 0.92, marginBottom: 28, color: 'var(--text)', position: 'relative' }}>
-            <span style={{ color: 'var(--accent)', textShadow: '0 0 80px rgba(240,165,0,0.3)' }}>Q</span> POWERS YOUR<br />TRUCKING BUSINESS.
-          </h1>
-        </FadeIn>
-
-        <FadeIn delay={0.2}>
-          <p style={{ fontSize: 20, color: 'var(--muted)', lineHeight: 1.7, maxWidth: 600, margin: '0 auto 20px', fontWeight: 400 }}>
-            Evaluate loads, negotiate rates, predict safety risks, and maximize profit — automatically.
-          </p>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.35)', maxWidth: 420, margin: '0 auto 48px', fontWeight: 500 }}>
-            Safer fleets. Smarter dispatch. More profit.
-          </p>
-        </FadeIn>
-
-        <FadeIn delay={0.3}>
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={handleTry}
-              style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 14, padding: '18px 48px', color: '#000', fontSize: 17, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 2, boxShadow: '0 8px 40px rgba(240,165,0,0.35)', display: 'inline-flex', alignItems: 'center', gap: 10, transition: 'all 0.2s' }}>
-              ACTIVATE Q
-            </button>
-            <button onClick={() => setVideoModal(true)}
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, padding: '18px 36px', color: 'var(--text)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", backdropFilter: 'blur(8px)', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <Ic icon={Play} size={16} /> Watch Q in action
-            </button>
-          </div>
-        </FadeIn>
-
+      {/* ── SOCIAL PROOF NUMBERS ─────────────────────────────────── */}
+      <section style={{ padding: '40px 40px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.01)' }}>
+        <div className="lp-stats-grid" style={{ maxWidth: 700, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, textAlign: 'center' }}>
+          {[
+            { val: '200+', label: 'Carriers on Waitlist' },
+            { val: '63+', label: 'Features Built' },
+            { val: '10h+', label: 'Saved per Week' },
+            { val: '99.9%', label: 'Uptime' },
+          ].map(s => (
+            <FadeIn key={s.label}>
+              <div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: 'var(--accent)', lineHeight: 1 }}>{s.val}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, fontWeight: 500 }}>{s.label}</div>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
       </section>
 
       {/* ── TRUSTED PARTNERS ──────────────────────────────────── */}
@@ -924,7 +1003,7 @@ export default function LandingPage({ onGetStarted }) {
             </p>
             <button onClick={handleTry}
               style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 14, padding: '20px 56px', color: '#000', fontSize: 18, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, boxShadow: '0 8px 40px rgba(240,165,0,0.35)', transition: 'all 0.2s' }}>
-              ACTIVATE Q
+              START FREE TRIAL
             </button>
           </div>
         </FadeIn>

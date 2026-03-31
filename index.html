@@ -96,7 +96,7 @@
       // Force-nuke old service workers that cache stale index.html
       // This runs BEFORE SW registration to break the stale-cache cycle
       if ('serviceWorker' in navigator) {
-        var SW_EXPECTED_VERSION = 141;
+        var SW_EXPECTED_VERSION = 148;
         (function nukeStaleWorkers() {
           navigator.serviceWorker.getRegistrations().then(function(regs) {
             regs.forEach(function(reg) {

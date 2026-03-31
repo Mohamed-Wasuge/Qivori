@@ -588,11 +588,11 @@ export default function LandingPage({ onGetStarted }) {
                 THE Q OPERATING SYSTEM
               </h2>
               <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 480, margin: '0 auto' }}>
-                One system. Three engines. Total control.
+                One system. Four engines. Total control.
               </p>
             </div>
           </FadeIn>
-          <div className="lp-how-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+          <div className="lp-how-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 20, maxWidth: 720, margin: '0 auto' }}>
             {Q_SYSTEM.map((block, i) => (
               <FadeIn key={block.title} delay={i * 0.1}>
                 <div className="lp-feature-card" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 18, padding: '32px 24px', height: '100%', borderTop: `3px solid ${block.color}` }}>
@@ -648,10 +648,10 @@ export default function LandingPage({ onGetStarted }) {
                 </div>
                 <div>
                   <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, color: 'var(--success)' }}>ACCEPT</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>High profit, light weight, strong lane</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>High profit, light weight, strong lane — driver safety: clear</div>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
                 <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>EST. PROFIT</div>
                   <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--success)' }}>$1,180</div>
@@ -663,6 +663,10 @@ export default function LandingPage({ onGetStarted }) {
                 <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>MARGIN</div>
                   <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)' }}>60%</div>
+                </div>
+                <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>SAFETY RISK</div>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--success)' }}>LOW</div>
                 </div>
               </div>
             </div>
@@ -686,7 +690,7 @@ export default function LandingPage({ onGetStarted }) {
               {/* Others column */}
               <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 18, padding: '32px 28px' }}>
                 <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2, color: 'var(--muted)', marginBottom: 24 }}>OTHERS</div>
-                {['Manual decisions', 'Static tools', 'Basic automation', 'You do the work'].map(item => (
+                {['Manual decisions', 'No safety prediction', 'Basic automation', 'You do the work'].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border)', fontSize: 14, color: 'var(--muted)' }}>
                     <span style={{ color: 'rgba(239,68,68,0.5)', fontSize: 16 }}>&#x2715;</span>
                     {item}
@@ -696,7 +700,7 @@ export default function LandingPage({ onGetStarted }) {
               {/* Q column */}
               <div style={{ background: 'rgba(240,165,0,0.04)', border: '2px solid rgba(240,165,0,0.2)', borderRadius: 18, padding: '32px 28px' }}>
                 <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2, color: 'var(--accent)', marginBottom: 24 }}>Q</div>
-                {['Makes decisions', 'Runs operations', 'Maximizes profit automatically', 'Q does the work'].map(item => (
+                {['Recommends best decisions', 'Predicts safety risks', 'Maximizes profit automatically', 'Q handles the routine'].map(item => (
                   <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid rgba(240,165,0,0.1)', fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
                     <Ic icon={Check} size={16} color="var(--success)" />
                     {item}
@@ -724,10 +728,10 @@ export default function LandingPage({ onGetStarted }) {
         <FadeIn delay={0.1}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 400, margin: '0 auto' }}>
             {[
-              '"Q, find me the best load"',
-              '"Q, negotiate this rate"',
+              '"Q, show me the most profitable loads"',
+              '"Q, is this load safe for my driver?"',
               '"Q, what\'s my profit today?"',
-              '"Q, assign this to my driver"',
+              '"Q, assign this to my best available driver"',
             ].map((cmd, i) => (
               <div key={i} style={{
                 background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,

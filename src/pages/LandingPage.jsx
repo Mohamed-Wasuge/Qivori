@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { trackDemoRequest, trackDemoEnter, trackCheckout } from '../lib/analytics'
 import { useTranslation } from '../lib/i18n'
-import { Bot, TrendingUp, Truck, Zap, Satellite, Check, Mic, Send, Play, MessageCircle, X, Mail, Users, Clock } from 'lucide-react'
+import { Bot, TrendingUp, Truck, Zap, Satellite, Check, Mic, Send, Play, MessageCircle, X, Mail, Users, Clock, Shield } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -211,19 +211,23 @@ function ChatBubble() {
 }
 
 const HOW_Q_WORKS = [
-  { step: '01', title: 'Q scans the market', desc: 'Finds and evaluates loads in real time. Every lane, every rate, every broker — analyzed instantly.', icon: Satellite },
-  { step: '02', title: 'Q makes decisions', desc: 'Accepts, rejects, or negotiates based on profit. No guesswork. No wasted time.', icon: Bot },
-  { step: '03', title: 'Q executes', desc: 'Calls brokers, assigns drivers, and secures loads. Your business runs while you sleep.', icon: Zap },
+  { step: '01', title: 'Q analyzes your options', desc: 'Evaluates available loads in real time. Compares lanes, rates, and broker reliability — so you pick the most profitable match.', icon: Satellite },
+  { step: '02', title: 'Q protects your fleet', desc: 'Predicts crash risk, checks driver safety scores, monitors weather & HOS — blocks unsafe dispatches before they happen.', icon: Shield },
+  { step: '03', title: 'Q executes', desc: 'Contacts brokers, assigns drivers, and books approved loads. You stay in control while Q handles the routine.', icon: Zap },
 ]
 
 const Q_SYSTEM = [
   {
     title: 'Q Intelligence', icon: Bot, color: '#f0a500',
-    items: ['Load selection', 'Rate negotiation', 'Market awareness', 'Broker risk scoring'],
+    items: ['Load evaluation', 'Rate negotiation', 'Load board integration', 'Broker risk scoring'],
   },
   {
     title: 'Fleet Control', icon: Truck, color: '#00d4aa',
     items: ['Driver assignment', 'Dispatch automation', 'Route optimization', 'Real-time tracking'],
+  },
+  {
+    title: 'Safety & Compliance', icon: Shield, color: '#ef4444',
+    items: ['Crash risk prediction', 'HOS & fatigue monitoring', 'FMCSA compliance', 'Weather route safety'],
   },
   {
     title: 'Profit Engine', icon: TrendingUp, color: '#4d8ef0',
@@ -491,16 +495,16 @@ export default function LandingPage({ onGetStarted }) {
 
         <FadeIn delay={0.1}>
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 84, letterSpacing: 4, lineHeight: 0.92, marginBottom: 28, color: 'var(--text)', position: 'relative' }}>
-            <span style={{ color: 'var(--accent)', textShadow: '0 0 80px rgba(240,165,0,0.3)' }}>Q</span> RUNS YOUR<br />TRUCKING BUSINESS.
+            <span style={{ color: 'var(--accent)', textShadow: '0 0 80px rgba(240,165,0,0.3)' }}>Q</span> POWERS YOUR<br />TRUCKING BUSINESS.
           </h1>
         </FadeIn>
 
         <FadeIn delay={0.2}>
           <p style={{ fontSize: 20, color: 'var(--muted)', lineHeight: 1.7, maxWidth: 600, margin: '0 auto 20px', fontWeight: 400 }}>
-            Find loads, negotiate rates, assign drivers, and maximize profit — automatically.
+            Evaluate loads, negotiate rates, predict safety risks, and maximize profit — automatically.
           </p>
           <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.35)', maxWidth: 420, margin: '0 auto 48px', fontWeight: 500 }}>
-            No dispatchers. No wasted miles. Just results.
+            Safer fleets. Smarter dispatch. More profit.
           </p>
         </FadeIn>
 
@@ -816,7 +820,7 @@ export default function LandingPage({ onGetStarted }) {
                 PLANS THAT SCALE WITH YOU
               </h2>
               <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 440, margin: '0 auto', lineHeight: 1.7 }}>
-                From basic TMS to fully autonomous AI dispatch. Pick the level of control you want — upgrade anytime.
+                From basic TMS to AI-powered dispatch with built-in safety intelligence. Pick your level of automation — upgrade anytime.
               </p>
             </div>
           </FadeIn>
@@ -835,9 +839,9 @@ export default function LandingPage({ onGetStarted }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
                 {[
-                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, compliance, invoicing', color: '#4d8ef0' },
-                  { label: 'AI Dispatch', desc: 'Q assists — scans boards, finds loads, you approve', color: '#f0a500' },
-                  { label: 'Autonomous Fleet', desc: 'Fully hands-free — Q books, dispatches, negotiates', color: '#00d4aa' },
+                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, safety, compliance, invoicing', color: '#4d8ef0' },
+                  { label: 'AI Dispatch', desc: 'Q evaluates loads, predicts risk, highlights matches — you approve', color: '#f0a500' },
+                  { label: 'Autonomous Fleet', desc: 'AI-powered — Q evaluates, books approved loads, and dispatches safely', color: '#00d4aa' },
                 ].map((p, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
@@ -880,9 +884,11 @@ export default function LandingPage({ onGetStarted }) {
             </div>
           </FadeIn>
           {[
-            { q: 'What exactly does Q do?', a: 'Q is an AI operating system for trucking. It finds loads, evaluates profitability, negotiates rates, assigns drivers, tracks fleet, manages invoicing and compliance — automatically.' },
+            { q: 'What exactly does Q do?', a: 'Q is an AI-powered TMS for trucking. It evaluates loads for profitability, predicts crash risk, monitors driver safety, negotiates rates, assigns drivers, tracks fleet, manages invoicing and compliance — automatically. It works alongside your existing load boards to help you make smarter, safer decisions.' },
+            { q: 'How does Q improve fleet safety?', a: 'Q uses predictive AI to score crash risk for every driver before dispatch. It monitors HOS fatigue levels, weather conditions, vehicle maintenance, CSA compliance, and route hazards — blocking unsafe dispatches before they happen. Think of it as a safety co-pilot for your fleet.' },
             { q: 'Do I need to be tech-savvy?', a: 'No. Q is voice-first. Just talk to it. "Q, find me a load." "Q, what\'s my profit today?" It works like having an intelligent dispatcher on call 24/7.' },
-            { q: 'How does pricing work?', a: 'Three simple plans. TMS Pro at $99/mo — full management platform, no AI. AI Dispatch at $199/mo — Q scans boards and finds loads, you approve everything. Autonomous Fleet at 3% per load — fully hands-free, Q only charges when it books a load for you. All plans include a 14-day free trial, no credit card required.' },
+            { q: 'How does pricing work?', a: 'Three simple plans. TMS Pro at $99/mo — full management platform with safety monitoring. AI Dispatch at $199/mo — Q reviews available loads and highlights the best matches, you approve everything. Autonomous Fleet at 3% per load — AI-powered, Q only charges when it executes an approved load for you. All plans include a 14-day free trial, no credit card required.' },
+            { q: 'Does Q work with my load boards?', a: 'Yes. Q integrates with Truckstop, 123Loadboard, DAT, and more. It doesn\'t replace your load boards — it makes them more powerful by analyzing loads for profitability, safety risk, and optimal driver match.' },
             { q: 'Can I try it before paying?', a: '14-day free trial. No credit card required. Full access to every feature. Cancel anytime.' },
           ].map((item, i) => (
             <FadeIn key={i} delay={i * 0.08}>

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { trackDemoRequest, trackDemoEnter, trackCheckout } from '../lib/analytics'
 import { useTranslation } from '../lib/i18n'
-import { Bot, TrendingUp, Truck, Zap, Satellite, Check, Mic, Send, Play, MessageCircle, X, Mail, Users, Clock, Shield } from 'lucide-react'
+import { Bot, TrendingUp, Truck, Zap, Satellite, Check, Mic, Send, Play, X, Mail, Users, Clock, Shield } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -100,115 +100,6 @@ function WaitlistSection() {
   )
 }
 
-function ChatBubble() {
-  const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: 'Q online. Ask me anything — pricing, how Q runs your operation, or what it can do for your fleet.' }
-  ])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleSend = async () => {
-    if (!input.trim() || loading) return
-    const userMsg = input.trim()
-    setInput('')
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }])
-    setLoading(true)
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: userMsg }].map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text || m.content })),
-          context: 'This is a landing page visitor asking about Qivori / Q, an AI-powered TMS for trucking. Three plans: (1) TMS Pro $99/mo + $49/additional truck — full TMS, no AI, everything manual. (2) AI Dispatch $199/mo + $79/additional truck — AI scans boards, finds loads, you approve. No voice AI. (3) Autonomous Fleet 3% per load — fully hands-free AI dispatch, voice AI, auto booking, only charged when Q books. 14-day free trial, no credit card. Keep answers short, confident, and helpful. Direct them to sign up. You are Q, the AI assistant.',
-        }),
-      })
-      const data = await res.json()
-      setMessages(prev => [...prev, { role: 'assistant', text: data.reply || 'Sorry, I had trouble responding. Try again!' }])
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', text: 'Having trouble connecting. Please try again in a moment.' }])
-    }
-    setLoading(false)
-  }
-
-  return (
-    <>
-      {/* Chat Window */}
-      {open && (
-        <div style={{ position: 'fixed', bottom: 90, right: 20, width: 360, maxWidth: 'calc(100vw - 40px)', height: 480, maxHeight: 'calc(100dvh - 120px)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', zIndex: 999, overflow: 'hidden' }}>
-          {/* Header */}
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface2)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Q</div>
-                <div style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--success)' }} /> Online
-                </div>
-              </div>
-            </div>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-              <Ic icon={X} size={16} color="var(--muted)" />
-            </button>
-          </div>
-
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {messages.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                <div style={{
-                  padding: '10px 14px', borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: m.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
-                  color: m.role === 'user' ? '#000' : 'var(--text)',
-                  border: m.role === 'user' ? 'none' : '1px solid var(--border)',
-                  fontSize: 13, lineHeight: 1.55, fontWeight: m.role === 'user' ? 600 : 400
-                }}>
-                  {m.text}
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div style={{ alignSelf: 'flex-start', padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '14px 14px 14px 4px', fontSize: 13, color: 'var(--muted)' }}>
-                Typing...
-              </div>
-            )}
-          </div>
-
-          {/* Input */}
-          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSend()}
-              placeholder="Ask Q anything..."
-              style={{ flex: 1, padding: '10px 14px', fontSize: 13, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', outline: 'none' }}
-            />
-            <button onClick={handleSend} disabled={loading} style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: loading ? 0.5 : 1 }}>
-              <Ic icon={Send} size={14} color="#000" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Floating Button */}
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          position: 'fixed', bottom: 20, right: 20, width: 56, height: 56, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', cursor: 'pointer',
-          boxShadow: '0 8px 32px rgba(240,165,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 998, transition: 'transform 0.2s'
-        }}
-        onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'}
-        onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
-      >
-        <Ic icon={open ? X : MessageCircle} size={24} color="#000" />
-      </button>
-    </>
-  )
-}
 
 const HOW_Q_WORKS = [
   { step: '01', title: 'Q analyzes your options', desc: 'Evaluates available loads in real time. Compares lanes, rates, and broker reliability — so you pick the most profitable match.', icon: Satellite },
@@ -1068,7 +959,6 @@ export default function LandingPage({ onGetStarted }) {
       </footer>
 
       {/* ── LIVE CHAT BUBBLE ───────────────────────────────────────── */}
-      <ChatBubble />
 
       {/* ── VIDEO MODAL ─────────────────────────────────────────────── */}
       {videoModal && (

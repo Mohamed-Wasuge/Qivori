@@ -56,11 +56,11 @@ export function SmartDispatch() {
   const [quickRouteLoading, setQuickRouteLoading] = useState(false)
   const [showMap, setShowMap]           = useState(false)
 
-  // Compute average driver pay rate from actual driver profiles (fallback: industry avg 28%)
+  // Compute average driver pay rate from actual driver profiles (0 if none configured)
   const avgDriverPayPct = useMemo(() => {
     const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28
+    return 0
   }, [dbDrivers])
 
   // Quick mileage lookup when both origin + destination search fields are filled

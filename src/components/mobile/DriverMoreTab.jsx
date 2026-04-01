@@ -79,7 +79,7 @@ export default function DriverMoreTab() {
   const payModelText = myDriver?.pay_model === 'percent' ? `${myDriver.pay_rate}% of gross`
     : myDriver?.pay_model === 'permile' ? `$${Number(myDriver.pay_rate || 0).toFixed(2)}/mile`
     : myDriver?.pay_model === 'flat' ? `$${Number(myDriver.pay_rate || 0).toFixed(0)} flat/load`
-    : '28% of gross (default)'
+    : 'Not configured'
 
   // Back button helper
   const BackButton = () => (

@@ -224,7 +224,7 @@ export function QDispatchAI() {
     if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
   }, [transcript])
 
-  const fuelRate = fuelCostPerMile || 0.55
+  const fuelRate = fuelCostPerMile
   const [backendEval, setBackendEval] = useState(null)
   const [backendEvalLoadId, setBackendEvalLoadId] = useState(null)
 

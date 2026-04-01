@@ -139,7 +139,7 @@ const NAV = [
   { id:'_divider' },
   { id:'edi',          icon: Radio,        label:'EDI Hub' },
   { id:'ai-dashboard', icon: Bot,          label:'AI Control Center' },
-  { id:'simulation',   icon: FlaskConical, label:'Live Simulation' },
+  // SimulationDashboard removed from nav — demo/internal only
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 

@@ -21,8 +21,8 @@ function calcDriverPay(revenue, miles, driverName, drivers) {
     if (driver.pay_model === 'permile') return (miles || 0) * rate
     if (driver.pay_model === 'flat') return rate
   }
-  // Fallback: 28% of revenue (industry average for OO)
-  return revenue * 0.28
+  // No pay model set — return 0 (owner keeps all revenue until driver pay is configured)
+  return 0
 }
 
 function isToday(d) {

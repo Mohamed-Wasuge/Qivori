@@ -38,12 +38,12 @@ function qEvaluateLoad(load, { fuelCostPerMile, drivers, brokerStats, allLoads }
   const miles = parseFloat(load.miles) || 0
   const weight = parseFloat(load.weight) || 0
   const rpm = miles > 0 ? gross / miles : 0
-  const fuelRate = fuelCostPerMile || 0.55
+  const fuelRate = fuelCostPerMile // from CarrierContext (EIA diesel price / MPG)
 
   // Estimate driver pay (use assigned driver's rate or default 50%)
   const driverRec = (drivers || []).find(d => (d.full_name || d.name) === load.driver)
   const payModel = driverRec?.pay_model || 'percent'
-  const payRate = parseFloat(driverRec?.pay_rate) || 50
+  const payRate = parseFloat(driverRec?.pay_rate) || 0
   const driverPay = payModel === 'permile' ? miles * payRate : payModel === 'flat' ? payRate : gross * (payRate / 100)
 
   // Fuel cost
@@ -619,14 +619,15 @@ export function SettlementTab() {
 
   const getPayLabel = (driverName) => {
     const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
-    const model = driverRec?.pay_model || 'percent'
-    const rate = parseFloat(driverRec?.pay_rate) || 50
+    if (!driverRec?.pay_model || !driverRec?.pay_rate) return 'Not set'
+    const model = driverRec.pay_model
+    const rate = parseFloat(driverRec.pay_rate)
     if (model === 'permile') return `$${rate}/mi`
     if (model === 'flat') return `$${rate}/load`
     return `${rate}%`
   }
 
-  const fuelRate = fuelCostPerMile || 0.22
+  const fuelRate = fuelCostPerMile
 
   // Compute driver settlements from delivered/invoiced loads
   const settledLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
@@ -2276,7 +2277,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
               const miles = load.miles || 0
               const driverPay = payModel === 'permile' ? Math.round(miles * payRate) : payModel === 'flat' ? Math.round(payRate) : Math.round(gross * (payRate / 100))
               const payLabel = payModel === 'permile' ? `$${payRate}/mi` : payModel === 'flat' ? `$${payRate}/load` : `${payRate}%`
-              const fuelRate = fuelCostPerMile || 0.22
+              const fuelRate = fuelCostPerMile
               const fuelCost = Math.round(miles * fuelRate)
               const estNet = gross - driverPay - fuelCost
               return [

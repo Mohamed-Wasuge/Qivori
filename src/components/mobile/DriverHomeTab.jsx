@@ -202,7 +202,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
   const payModelText = myDriver?.pay_model === 'percent' ? `${myDriver.pay_rate}% of gross`
     : myDriver?.pay_model === 'permile' ? `$${Number(myDriver.pay_rate || 0).toFixed(2)}/mile`
     : myDriver?.pay_model === 'flat' ? `$${Number(myDriver.pay_rate || 0).toFixed(0)} flat/load`
-    : '28% of gross (default)'
+    : 'Not configured'
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

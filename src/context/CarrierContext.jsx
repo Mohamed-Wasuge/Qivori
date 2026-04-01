@@ -351,7 +351,7 @@ export function CarrierProvider({ children }) {
           setFuelCostPerMile(+(price / mpg).toFixed(3))
         }
       }
-    }).catch(() => {}) // keep default $0.22/mi on failure
+    }).catch(() => {}) // keep default $0.55/mi on failure (EIA unavailable)
   }, [demoMode])
 
   // ─── Load operations ─────────────────────────────────────────

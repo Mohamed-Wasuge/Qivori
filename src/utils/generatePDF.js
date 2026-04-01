@@ -264,7 +264,7 @@ export function generateInvoicePDF(invoice) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...lgray)
-  doc.text(companyName ? `${companyName}  |  Powered by Qivori AI` : 'Qivori AI  |  qivori.com  |  support@qivori.com', W/2, 755, { align: 'center' })
+  doc.text(companyName ? `${companyName}  |  Powered by Qivori AI` : 'Qivori AI  |  qivori.com  |  hello@qivori.com', W/2, 755, { align: 'center' })
 
   doc.save(`${invoice.id || 'invoice'}-Qivori.pdf`)
 }

@@ -273,7 +273,7 @@ export default function MobileMoreTab({ onNavigate }) {
               <Ic icon={Mail} size={15} color="var(--accent)" />
               <div>
                 <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Email</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>support@qivori.com</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>hello@qivori.com</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>

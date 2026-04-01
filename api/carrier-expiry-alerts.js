@@ -94,7 +94,7 @@ function generateExpiryEmailHTML(carrierName, docType, daysLeft, expiryDate) {
         <div style="text-align: center; margin: 20px 0;">
           <a href="https://qivori.com/settings/company" style="background: #00d4ff; color: #1a1a2e; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Update Documents</a>
         </div>
-        <p style="color: #666; font-size: 12px;">Need help? Contact support@qivori.com</p>
+        <p style="color: #666; font-size: 12px;">Need help? Contact hello@qivori.com</p>
       </div>
     </div>
   `;

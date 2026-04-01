@@ -395,7 +395,7 @@ export function Documents() {
       priority: newTicket.priority,
       status: 'open',
       user_name: 'Admin',
-      user_email: user?.email || 'support@qivori.com',
+      user_email: user?.email || 'hello@qivori.com',
     })
     setCreating(false)
     if (error) {

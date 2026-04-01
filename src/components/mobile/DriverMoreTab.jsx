@@ -246,10 +246,11 @@ export default function DriverMoreTab() {
   // ── HELP Section ──
   if (activeSection === 'help') {
     const faqs = [
-      { q: 'How do I update my load status?', a: 'Go to My Loads, tap the load, then tap "Update Status" or use the advance button.' },
-      { q: 'Where do I upload BOL/POD?', a: 'Tap a delivered load → "Upload BOL" or "Upload POD" in the Get Paid section.' },
-      { q: 'When do I get paid?', a: 'Your carrier processes settlements after loads are delivered and invoiced. Check the Pay tab.' },
-      { q: 'How is detention calculated?', a: '2 hours free time at pickup/delivery. After that, $75/hr is tracked automatically.' },
+      { q: 'How do I add a load?', a: "Tap 'Add Load' on the Loads tab or snap a rate con." },
+      { q: 'How do I invoice a broker?', a: 'When a load is delivered, Q auto-generates an invoice. View in Money tab.' },
+      { q: 'How do I track my IFTA?', a: 'Go to More → IFTA Report. Log fuel purchases as expenses with state.' },
+      { q: 'How do I do a pre-trip inspection?', a: 'Go to More → Pre-Trip Inspection. Complete the DOT DVIR checklist before driving.' },
+      { q: 'How do I upload my documents?', a: 'Go to More → My Packets. Tap the camera icon next to any missing document.' },
     ]
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -257,19 +258,19 @@ export default function DriverMoreTab() {
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
           <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Help & Support</div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>CONTACT</div>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>CONTACT US</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10, marginBottom: 8 }}>
               <Ic icon={Mail} size={15} color="var(--accent)" />
               <div>
                 <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Email</div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>support@qivori.com</div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>hello@qivori.com</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
               <Ic icon={MessageCircle} size={15} color="var(--accent)" />
               <div>
                 <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Talk to Q</div>
-                <div style={{ fontSize: 12, color: 'var(--text)' }}>Tap the Q button for AI help</div>
+                <div style={{ fontSize: 12, color: 'var(--text)' }}>Open Q from the home screen for AI assistance</div>
               </div>
             </div>
           </div>

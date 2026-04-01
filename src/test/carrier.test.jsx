@@ -65,12 +65,11 @@ vi.mock('../utils/generatePDF', () => ({
 
 import { AppProvider } from '../context/AppContext'
 import { CarrierProvider } from '../context/CarrierContext'
-import {
-  CarrierDashboard, SmartDispatch, CarrierFleet,
-  FuelOptimizer, BrokerRiskIntel, DriverProfiles,
-  DriverSettlement, FleetMap, LaneIntel,
-  ExpenseTracker, BrokerDirectory, FleetManager,
-} from '../pages/CarrierPages'
+import { CarrierDashboard } from '../pages/CarrierPages'
+import { SmartDispatch, LaneIntel } from '../pages/carrier/LoadBoard'
+import { CarrierFleet, FuelOptimizer, FleetManager } from '../pages/carrier/Fleet'
+import { BrokerRiskIntel, BrokerDirectory, ExpenseTracker } from '../pages/carrier/Finance'
+import { DriverProfiles, DriverSettlement } from '../pages/carrier/DriverScorecard'
 
 const Wrapper = ({ children }) => (
   <AppProvider>

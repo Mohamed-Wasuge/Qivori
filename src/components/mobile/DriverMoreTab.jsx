@@ -10,6 +10,8 @@ import {
 } from 'lucide-react'
 import { Ic, haptic, fmt$ } from './shared'
 import MobileIFTATab from './MobileIFTATab'
+import { uploadFile } from '../../lib/storage'
+import { apiFetch } from '../../lib/api'
 
 function calcDriverPay(revenue, miles, driver) {
   if (driver?.pay_model && driver?.pay_rate) {
@@ -382,6 +384,23 @@ const DVIR_CATEGORIES = [
   ]},
 ]
 
+const AI_SCAN_ITEMS = {
+  'Tires': 'tire',
+  'Brakes (Service)': 'brake',
+  'Brakes (Parking)': 'brake',
+  'Lights (Head/Stop/Tail/Dash)': 'light',
+  'Coupling Devices': 'coupling',
+  'Fifth Wheel': 'coupling',
+  'Exhaust': 'exhaust',
+  'Suspension': 'suspension',
+  'Wheels/Rims/Lugs': 'tire',
+  'Brake Connections': 'brake',
+  'Brakes': 'brake',
+  'Coupling Devices (King Pin)': 'coupling',
+  'Lights (All)': 'light',
+  'Tarpaulin': 'general',
+}
+
 function MyTruckSection({ myDriver, vehicles, BackButton }) {
   const driverId = myDriver?.id
   const driverName = myDriver?.full_name || myDriver?.name || ''
@@ -515,6 +534,8 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
   const [submitted, setSubmitted] = useState(false)
   const [expandedCat, setExpandedCat] = useState('Power Unit')
   const [odometer, setOdometer] = useState('')
+  const [scanResults, setScanResults] = useState({})
+  const [scanning, setScanning] = useState(null)
 
   const allItems = DVIR_CATEGORIES.flatMap(c => c.items)
   const checkedCount = Object.keys(itemStates).length
@@ -534,6 +555,43 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
     const next = { ...itemStates }
     cat.items.forEach(item => { next[item] = 'pass' })
     setItemStates(next)
+  }
+
+  const scanWithAI = async (item, file) => {
+    if (!file) return
+    setScanning(item)
+    try {
+      const result = await uploadFile(file, `dvir/${selectedVehicle || 'unknown'}`)
+      const res = await apiFetch('/api/inspect-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: result.url,
+          component: AI_SCAN_ITEMS[item] || 'general',
+        }),
+      })
+      const data = await res.json()
+      setScanResults(prev => ({ ...prev, [item]: data }))
+      if (data.status === 'pass') {
+        markItem(item, 'pass')
+        haptic('success')
+        showToast('success', 'Q: PASS', `${item} — ${data.findings?.[0] || 'No defects found'}`)
+      } else {
+        markItem(item, 'defect')
+        const note = data.findings?.join('. ') || data.action_required || 'Defect detected by AI'
+        setDefectNotes(prev => ({ ...prev, [item]: `[AI] ${note}` }))
+        haptic('warning')
+        if (data.out_of_service) {
+          showToast('error', 'Q: OUT OF SERVICE', `${item} — ${data.action_required || 'Critical defect detected'}`)
+        } else {
+          showToast('warning', 'Q: DEFECT', `${item} — ${data.action_required || 'Minor defect found'}`)
+        }
+      }
+    } catch (err) {
+      showToast('error', 'Scan Failed', 'Could not analyze photo — mark manually')
+    } finally {
+      setScanning(null)
+    }
   }
 
   const submitDVIR = async () => {
@@ -647,6 +705,25 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
         <input value={odometer} onChange={e => setOdometer(e.target.value.replace(/\D/g, ''))} placeholder="Odometer reading"
           style={{ width: '100%', padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", marginBottom: 16, boxSizing: 'border-box' }} />
 
+        {/* AI Scan banner */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+          background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(139,92,246,0.06))',
+          border: '1px solid rgba(240,165,0,0.2)', borderRadius: 12, marginBottom: 12,
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: '#000', fontWeight: 800 }}>Q</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>AI-Powered Inspection</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Tap the camera icon on critical items — Q scans your photo for FMCSA defects</div>
+          </div>
+        </div>
+
         {/* Inspection categories */}
         {DVIR_CATEGORIES.map(cat => {
           const catChecked = cat.items.filter(i => itemStates[i]).length
@@ -681,8 +758,34 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
                     const st = itemStates[item]
                     return (
                       <div key={item} style={{ marginBottom: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 4px' }}>
-                          <span style={{ flex: 1, fontSize: 12, color: 'var(--text)', fontWeight: st ? 600 : 400 }}>{item}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 4px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: st ? 600 : 400 }}>{item}</span>
+                            {AI_SCAN_ITEMS[item] && !st && !scanning && (
+                              <div style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, marginTop: 1 }}>AI scan available</div>
+                            )}
+                          </div>
+                          {AI_SCAN_ITEMS[item] && (
+                            <button onClick={() => {
+                              const inp = document.createElement('input')
+                              inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment'
+                              inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) scanWithAI(item, f) }
+                              inp.click()
+                            }}
+                              disabled={scanning === item}
+                              style={{
+                                width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: scanning === item ? 'wait' : 'pointer',
+                                border: scanResults[item] ? `2px solid ${scanResults[item].status === 'pass' ? 'var(--success)' : '#f59e0b'}` : '1px solid var(--accent)',
+                                background: scanning === item ? 'rgba(240,165,0,0.15)' : scanResults[item] ? (scanResults[item].status === 'pass' ? 'rgba(0,212,170,0.08)' : 'rgba(245,158,11,0.08)') : 'rgba(240,165,0,0.06)',
+                              }}>
+                              {scanning === item ? (
+                                <div style={{ width: 14, height: 14, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.6s linear infinite' }} />
+                              ) : (
+                                <Camera size={14} color={scanResults[item] ? (scanResults[item].status === 'pass' ? 'var(--success)' : '#f59e0b') : 'var(--accent)'} />
+                              )}
+                            </button>
+                          )}
                           <button onClick={() => markItem(item, 'pass')}
                             style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: st === 'pass' ? '2px solid var(--success)' : '1px solid var(--border)', background: st === 'pass' ? 'rgba(0,212,170,0.12)' : 'var(--bg)' }}>
                             <Check size={14} color={st === 'pass' ? 'var(--success)' : 'var(--muted)'} />
@@ -692,9 +795,52 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
                             <X size={14} color={st === 'defect' ? '#f59e0b' : 'var(--muted)'} />
                           </button>
                         </div>
-                        {st === 'defect' && (
+                        {scanResults[item] && (
+                          <div style={{
+                            margin: '0 4px 4px', padding: '8px 10px', borderRadius: 8,
+                            background: scanResults[item].status === 'pass' ? 'rgba(0,212,170,0.06)' : scanResults[item].out_of_service ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.06)',
+                            border: `1px solid ${scanResults[item].status === 'pass' ? 'rgba(0,212,170,0.2)' : scanResults[item].out_of_service ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                              <div style={{
+                                width: 18, height: 18, borderRadius: '50%',
+                                background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 9, color: '#000', fontWeight: 800 }}>Q</span>
+                              </div>
+                              <span style={{
+                                fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+                                color: scanResults[item].status === 'pass' ? 'var(--success)' : scanResults[item].out_of_service ? 'var(--danger)' : '#f59e0b',
+                              }}>
+                                {scanResults[item].status === 'pass' ? 'PASS' : scanResults[item].out_of_service ? 'CRITICAL — OUT OF SERVICE' : 'MINOR DEFECT'}
+                              </span>
+                              {scanResults[item].confidence && (
+                                <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>{scanResults[item].confidence}% confident</span>
+                              )}
+                            </div>
+                            {scanResults[item].findings?.length > 0 && (
+                              <div style={{ fontSize: 10, color: 'var(--text)', lineHeight: 1.4 }}>
+                                {scanResults[item].findings.map((f, i) => (
+                                  <div key={i} style={{ marginBottom: 2 }}>• {f}</div>
+                                ))}
+                              </div>
+                            )}
+                            {scanResults[item].fmcsa_violation && (
+                              <div style={{ fontSize: 9, color: 'var(--danger)', fontWeight: 600, marginTop: 4 }}>
+                                FMCSA {scanResults[item].fmcsa_violation}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {st === 'defect' && !scanResults[item] && (
                           <input value={defectNotes[item] || ''} onChange={e => setDefectNotes(prev => ({ ...prev, [item]: e.target.value }))}
                             placeholder="Describe the defect..."
+                            style={{ width: '100%', padding: '8px 10px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, color: 'var(--text)', fontSize: 11, fontFamily: "'DM Sans',sans-serif", marginBottom: 4, boxSizing: 'border-box' }} />
+                        )}
+                        {st === 'defect' && scanResults[item] && (
+                          <input value={defectNotes[item] || ''} onChange={e => setDefectNotes(prev => ({ ...prev, [item]: e.target.value }))}
+                            placeholder="Add notes to AI findings..."
                             style={{ width: '100%', padding: '8px 10px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, color: 'var(--text)', fontSize: 11, fontFamily: "'DM Sans',sans-serif", marginBottom: 4, boxSizing: 'border-box' }} />
                         )}
                       </div>

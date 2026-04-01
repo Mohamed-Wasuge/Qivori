@@ -36,15 +36,6 @@ export default function DriverMoreTab() {
   }, [drivers, user, profile])
 
   const [activeSection, setActiveSection] = useState(null)
-  const [dqFiles, setDqFiles] = useState([])
-
-  useEffect(() => {
-    if (myDriver?.id) {
-      import('../../lib/database').then(dbMod => {
-        dbMod.fetchDQFiles(myDriver.id).then(files => setDqFiles(files || []))
-      }).catch(() => {})
-    }
-  }, [myDriver?.id])
   const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
 
   // Stats
@@ -189,9 +180,9 @@ export default function DriverMoreTab() {
     )
   }
 
-  // ── PACKETS / DOCUMENTS Section (with Upload) ──
-  if (activeSection === 'packets') {
-    return <PacketsWithUpload myDriver={myDriver} dqFiles={dqFiles} setDqFiles={setDqFiles} BackButton={BackButton} />
+  // ── MY TRUCK / EQUIPMENT Section ──
+  if (activeSection === 'truck') {
+    return <MyTruckSection myDriver={myDriver} vehicles={ctx.vehicles || []} BackButton={BackButton} />
   }
 
   // ── COMPLIANCE Section ──
@@ -250,7 +241,7 @@ export default function DriverMoreTab() {
       { q: 'How do I invoice a broker?', a: 'When a load is delivered, Q auto-generates an invoice. View in Money tab.' },
       { q: 'How do I track my IFTA?', a: 'Go to More → IFTA Report. Log fuel purchases as expenses with state.' },
       { q: 'How do I do a pre-trip inspection?', a: 'Go to More → Pre-Trip Inspection. Complete the DOT DVIR checklist before driving.' },
-      { q: 'How do I upload my documents?', a: 'Go to More → My Packets. Tap the camera icon next to any missing document.' },
+      { q: 'How do I view my truck info?', a: 'Go to More → My Equipment to see your assigned truck, trailer, and document expiry dates.' },
     ]
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -291,9 +282,9 @@ export default function DriverMoreTab() {
   // ── MAIN MENU ──
   const MENU = [
     { id: 'dvir', label: 'Pre-Trip Inspection', sub: 'DOT DVIR — 32-point checklist', icon: ClipboardCheck, color: '#22c55e' },
+    { id: 'truck', label: 'My Equipment', sub: 'Assigned truck & trailer docs', icon: Truck, color: '#6366f1' },
     { id: 'profile', label: 'My Profile', sub: 'Personal info, CDL, qualifications', icon: User, color: 'var(--accent)' },
     { id: 'payroll', label: 'Payroll', sub: 'Weekly pay breakdown & YTD', icon: DollarSign, color: 'var(--success)' },
-    { id: 'packets', label: 'My Packets', sub: 'DQ file — upload & manage docs', icon: FileText, color: '#8b5cf6' },
     { id: 'compliance', label: 'Compliance', sub: 'CDL, medical card, drug test', icon: Shield, color: 'var(--success)' },
     { id: 'ifta', label: 'IFTA Report', sub: 'Fuel tax calculator', icon: Fuel, color: '#8b5cf6' },
     { id: 'help', label: 'Help & Support', sub: 'FAQ & contact', icon: HelpCircle, color: 'var(--accent)' },
@@ -391,6 +382,129 @@ const DVIR_CATEGORIES = [
   ]},
 ]
 
+function MyTruckSection({ myDriver, vehicles, BackButton }) {
+  const driverId = myDriver?.id
+  const driverName = myDriver?.full_name || myDriver?.name || ''
+
+  const assigned = (vehicles || []).filter(v =>
+    v.assigned_driver === driverId ||
+    v.driver_name === driverName ||
+    (myDriver?.vehicle_id && v.id === myDriver.vehicle_id)
+  )
+
+  const truck = assigned.find(v => (v.type || '').toLowerCase() === 'truck') || assigned[0] || null
+  const trailer = assigned.find(v => (v.type || '').toLowerCase() === 'trailer') || null
+
+  const now = new Date()
+  const daysUntil = (dateStr) => {
+    if (!dateStr) return null
+    return Math.ceil((new Date(dateStr) - now) / 86400000)
+  }
+  const statusColor = (days) => !days && days !== 0 ? 'var(--muted)' : days < 0 ? 'var(--danger)' : days <= 30 ? '#f59e0b' : 'var(--success)'
+  const statusText = (days) => !days && days !== 0 ? 'N/A' : days < 0 ? 'EXPIRED' : days <= 7 ? `${days} days` : days <= 30 ? `${days} days` : 'Valid'
+
+  const renderVehicle = (v, label) => {
+    if (!v) return (
+      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', marginBottom: 10 }}>
+        <Ic icon={Truck} size={24} color="var(--border)" />
+        <div style={{ fontSize: 12, fontWeight: 600, marginTop: 8 }}>No {label.toLowerCase()} assigned</div>
+        <div style={{ fontSize: 10, marginTop: 4 }}>Contact dispatch to assign your {label.toLowerCase()}</div>
+      </div>
+    )
+
+    const docs = [
+      { label: 'Registration', expiry: v.registration_expiry },
+      { label: 'Insurance', expiry: v.insurance_expiry },
+      { label: 'DOT Inspection', expiry: v.dot_inspection_expiry || v.annual_inspection_due },
+    ]
+
+    return (
+      <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', padding: '16px', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 2 }}>{label.toUpperCase()}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>
+              {v.unit_number || `${v.year || ''} ${v.make || ''} ${v.model || ''}`}
+            </div>
+          </div>
+          <div style={{
+            padding: '4px 10px', borderRadius: 8, fontSize: 10, fontWeight: 700,
+            background: v.status === 'Active' ? 'rgba(52,176,104,0.1)' : 'rgba(239,68,68,0.1)',
+            color: v.status === 'Active' ? 'var(--success)' : 'var(--danger)',
+          }}>
+            {v.status || 'Active'}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+          {[
+            ['Year/Make/Model', `${v.year || '—'} ${v.make || ''} ${v.model || ''}`],
+            ['License Plate', v.license_plate ? `${v.license_plate} (${v.license_state || ''})` : '—'],
+            ['VIN', v.vin ? `...${v.vin.slice(-6)}` : '—'],
+            ['Odometer', v.current_miles ? `${Number(v.current_miles).toLocaleString()} mi` : '—'],
+          ].map(([k, val]) => (
+            <div key={k}>
+              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>{k}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{val}</div>
+            </div>
+          ))}
+        </div>
+
+        {v.next_service_miles && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 8, marginBottom: 10,
+            background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <Ic icon={AlertTriangle} size={12} color="#f59e0b" />
+            <span style={{ fontSize: 10, color: 'var(--text)' }}>
+              Next service at <span style={{ fontWeight: 700 }}>{Number(v.next_service_miles).toLocaleString()} mi</span>
+              {v.current_miles && ` (${Math.max(0, Number(v.next_service_miles) - Number(v.current_miles)).toLocaleString()} mi remaining)`}
+            </span>
+          </div>
+        )}
+
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 8 }}>DOCUMENTS</div>
+        {docs.map(doc => {
+          const days = daysUntil(doc.expiry)
+          return (
+            <div key={doc.label} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 0', borderBottom: '1px solid var(--border)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(days), flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{doc.label}</span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {doc.expiry ? (
+                  <>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: statusColor(days) }}>{statusText(days)}</div>
+                    <div style={{ fontSize: 9, color: 'var(--muted)' }}>Exp: {new Date(doc.expiry).toLocaleDateString()}</div>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Not on file</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <BackButton label="My Equipment" />
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
+        {renderVehicle(truck, 'Truck')}
+        {renderVehicle(trailer, 'Trailer')}
+        <div style={{ height: 80 }} />
+      </div>
+    </div>
+  )
+}
+
 export function DVIRInspection({ myDriver, vehicles, BackButton }) {
   const { showToast } = useApp()
   const [selectedVehicle, setSelectedVehicle] = useState('')
@@ -444,6 +558,7 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
 
       haptic('success')
       setSubmitted(true)
+      localStorage.setItem(`pretripDone_${new Date().toISOString().split('T')[0]}`, 'true')
       showToast('success', 'DVIR Submitted', defectsArr.length > 0
         ? `${defectsArr.length} defect${defectsArr.length > 1 ? 's' : ''} reported — notify your dispatcher`
         : 'Vehicle passed all inspection items — safe to dispatch')

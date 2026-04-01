@@ -128,6 +128,38 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
     } catch { return null }
   }, [myDriver, currentLoad, ctx.vehicles])
 
+  // Find assigned truck & trailer
+  const myVehicles = useMemo(() => {
+    const vehicles = ctx.vehicles || []
+    const driverId = myDriver?.id
+    const driverName = myDriver?.full_name || myDriver?.name || ''
+
+    // Find vehicles assigned to this driver (via load or direct assignment)
+    const assigned = vehicles.filter(v =>
+      v.assigned_driver === driverId ||
+      v.driver_name === driverName ||
+      (myDriver?.vehicle_id && v.id === myDriver.vehicle_id)
+    )
+
+    // Also check current load's vehicle
+    if (currentLoad?.vehicle_id) {
+      const loadVehicle = vehicles.find(v => v.id === currentLoad.vehicle_id)
+      if (loadVehicle && !assigned.find(a => a.id === loadVehicle.id)) {
+        assigned.push(loadVehicle)
+      }
+    }
+
+    const truck = assigned.find(v => (v.type || '').toLowerCase() === 'truck') || assigned[0] || null
+    const trailer = assigned.find(v => (v.type || '').toLowerCase() === 'trailer') || null
+    return { truck, trailer }
+  }, [ctx.vehicles, myDriver, currentLoad])
+
+  // Check if pre-trip done today
+  const [preTripDoneToday, setPreTripDoneToday] = useState(() => {
+    const key = `pretripDone_${new Date().toISOString().split('T')[0]}`
+    return localStorage.getItem(key) === 'true'
+  })
+
   // Dispatched loads awaiting driver acceptance
   const dispatchedLoads = loads.filter(l => {
     const s = (l.status || '').toLowerCase()
@@ -223,6 +255,19 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
           </div>
         )}
 
+        {/* ── PRE-TRIP COMPLETE BADGE ── */}
+        {preTripDoneToday && !safetyScore && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+            background: 'rgba(52,176,104,0.08)', border: '1px solid rgba(52,176,104,0.2)',
+            borderRadius: 12, marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.06s both',
+          }}>
+            <Ic icon={CheckCircle} size={16} color="var(--success)" />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>Pre-trip inspection complete</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>Today</span>
+          </div>
+        )}
+
         {/* ── DISPATCHED LOADS — ACCEPT/REVIEW ── */}
         {dispatchedLoads.length > 0 && (
           <div style={{
@@ -289,6 +334,44 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {/* ── PRE-TRIP INSPECTION GATE ── */}
+        {!preTripDoneToday && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(240,165,0,0.06))',
+            border: '2px solid rgba(239,68,68,0.3)', borderRadius: 16,
+            padding: '16px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.04s both',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                background: 'rgba(239,68,68,0.15)', border: '2px solid rgba(239,68,68,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <Ic icon={Shield} size={20} color="var(--danger)" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>
+                  PRE-TRIP REQUIRED
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  DOT requires inspection before starting your shift
+                </div>
+              </div>
+            </div>
+            <button onClick={() => { haptic('success'); onNavigate('more') }} style={{
+              width: '100%', padding: '14px', background: 'var(--danger)', border: 'none', borderRadius: 12,
+              cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}>
+              <Ic icon={Shield} size={16} color="#fff" />
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: 1 }}>START PRE-TRIP INSPECTION</span>
+            </button>
+            <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
+              46-point DOT checklist · Q AI flags critical defects
+            </div>
           </div>
         )}
 
@@ -381,6 +464,77 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
           </div>
         )}
 
+        {/* ── MY TRUCK & TRAILER ── */}
+        {(myVehicles.truck || myVehicles.trailer) && (
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+            padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.11s both',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <Ic icon={Truck} size={12} color="var(--accent)" />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>MY EQUIPMENT</span>
+            </div>
+            {[myVehicles.truck, myVehicles.trailer].filter(Boolean).map(v => {
+              const regExp = v.registration_expiry ? new Date(v.registration_expiry) : null
+              const insExp = v.insurance_expiry ? new Date(v.insurance_expiry) : null
+              const dotExp = v.dot_inspection_expiry || v.annual_inspection_due ? new Date(v.dot_inspection_expiry || v.annual_inspection_due) : null
+              const now = new Date()
+              const daysUntil = (d) => d ? Math.ceil((d - now) / 86400000) : null
+              const statusDot = (days) => !days ? 'var(--muted)' : days < 0 ? 'var(--danger)' : days <= 30 ? '#f59e0b' : 'var(--success)'
+              return (
+                <div key={v.id} style={{ padding: '10px', background: 'var(--bg)', borderRadius: 10, marginBottom: 6, border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800 }}>
+                        {v.unit_number || `${v.year || ''} ${v.make || ''}`}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                        {v.type === 'Trailer' ? 'Trailer' : 'Truck'} · {v.year} {v.make} {v.model}
+                        {v.license_plate && ` · ${v.license_plate}`}
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: '3px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700,
+                      background: v.status === 'Active' ? 'rgba(52,176,104,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: v.status === 'Active' ? 'var(--success)' : 'var(--danger)',
+                    }}>
+                      {v.status || 'Active'}
+                    </div>
+                  </div>
+                  {v.current_miles && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6 }}>
+                      Odometer: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{Number(v.current_miles).toLocaleString()} mi</span>
+                      {v.next_service_miles && <span> · Service due at {Number(v.next_service_miles).toLocaleString()} mi</span>}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Registration', days: daysUntil(regExp) },
+                      { label: 'Insurance', days: daysUntil(insExp) },
+                      { label: 'DOT Inspect', days: daysUntil(dotExp) },
+                    ].map(item => (
+                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusDot(item.days) }} />
+                        <span style={{ fontSize: 9, color: 'var(--muted)' }}>{item.label}</span>
+                        {item.days !== null && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: statusDot(item.days) }}>
+                            {item.days < 0 ? 'EXPIRED' : item.days <= 30 ? `${item.days}d` : 'OK'}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            {!myVehicles.truck && !myVehicles.trailer && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: '8px' }}>
+                No vehicle assigned yet
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── DETENTION & DRIVE TIME TRACKER ── */}
         <DetentionTracker loads={activeLoads} currentLoad={currentLoad} />
 
@@ -389,7 +543,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 8 }}>QUICK ACTIONS</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             {[
-              { icon: Shield, label: 'Pre-Trip', color: '#34b068', action: () => onNavigate('more') },
+              { icon: Shield, label: preTripDoneToday ? 'Pre-Trip \u2713' : 'Pre-Trip', color: preTripDoneToday ? '#34b068' : '#ef4444', action: () => onNavigate('more') },
               { icon: FileText, label: 'Upload BOL', color: '#8b5cf6', action: () => onNavigate('loads') },
               { icon: Clock, label: 'Detention', color: '#f59e0b', action: () => onNavigate('loads') },
               { icon: Camera, label: 'Lumper', color: '#ef4444', action: () => onNavigate('loads') },

@@ -92,6 +92,18 @@ function DetentionTimer({ loadId, locationType }) {
   )
 }
 
+// ── GPS Location Helper ──────────────────────────────────────────────────
+function getLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, enableHighAccuracy: false }
+    )
+  })
+}
+
 const STATUS_FILTERS = ['All', 'Booked', 'Dispatched', 'In Transit', 'Delivered', 'Invoiced', 'Paid']
 const STATUS_FLOW = ['Rate Con Received', 'Booked', 'Dispatched', 'En Route to Pickup', 'At Pickup', 'Loaded', 'In Transit', 'At Delivery', 'Delivered', 'Invoiced', 'Paid']
 
@@ -551,6 +563,10 @@ export default function MobileLoadsTab() {
                       ['Pickup', load.pickup_date || '—'],
                       ['Delivery', load.delivery_date || '—'],
                       ['Ref #', load.reference_number || load.refNum || '—'],
+                      ...(load.commodity ? [['Commodity', load.commodity]] : []),
+                      ...(load.shipper_name ? [['Shipper', load.shipper_name]] : []),
+                      ...(load.consignee_name ? [['Consignee', load.consignee_name]] : []),
+                      ...(load.notes ? [['Instructions', load.notes]] : []),
                     ].map(([k, v]) => (
                       <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}>
                         <span style={{ color: 'var(--muted)' }}>{k}</span>
@@ -558,6 +574,252 @@ export default function MobileLoadsTab() {
                       </div>
                     ))}
                   </div>
+
+                  {/* ── DRIVER ACTIONS ── */}
+                  {isDriver && (() => {
+                    const st = (load.status || '').toLowerCase()
+                    const lid = load.loadId || load.load_id || load.load_number || load.id
+
+                    const checkIn = async (type) => {
+                      haptic('success')
+                      const loc = await getLocation()
+                      const timestamp = new Date().toISOString()
+                      const updates = {
+                        [`${type}_checkin_time`]: timestamp,
+                      }
+                      if (loc) {
+                        updates[`${type}_checkin_lat`] = loc.lat
+                        updates[`${type}_checkin_lng`] = loc.lng
+                      }
+                      try {
+                        await db.updateLoad(load.id, updates)
+                      } catch {}
+                      if (type === 'pickup') {
+                        updateLoadStatus(lid, 'At Pickup')
+                        showToast?.('success', 'Checked In', `Arrived at pickup${loc ? ' · GPS recorded' : ''}`)
+                      } else {
+                        updateLoadStatus(lid, 'At Delivery')
+                        showToast?.('success', 'Checked In', `Arrived at delivery${loc ? ' · GPS recorded' : ''}`)
+                      }
+                    }
+
+                    const checkOut = async (type) => {
+                      haptic('success')
+                      const loc = await getLocation()
+                      const timestamp = new Date().toISOString()
+                      const updates = {
+                        [`${type}_checkout_time`]: timestamp,
+                      }
+                      if (loc) {
+                        updates[`${type}_checkout_lat`] = loc.lat
+                        updates[`${type}_checkout_lng`] = loc.lng
+                      }
+                      try {
+                        await db.updateLoad(load.id, updates)
+                      } catch {}
+                      if (type === 'pickup') {
+                        updateLoadStatus(lid, 'Loaded')
+                        showToast?.('success', 'Loaded', 'Marked loaded — heading to delivery')
+                      } else {
+                        updateLoadStatus(lid, 'Delivered')
+                        showToast?.('success', 'Delivered', 'Load delivered — upload POD to get paid')
+                      }
+                    }
+
+                    if (st === 'dispatched' || st === 'assigned to driver' || st === 'en route to pickup') {
+                      const navTarget = load.origin || ''
+                      const encodedAddr = encodeURIComponent(navTarget)
+                      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                      const mapsUrl = isIOS ? `maps://maps.apple.com/?daddr=${encodedAddr}` : `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`
+                      return (
+                        <div style={{ padding: '0 14px 10px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8 }}>DRIVER ACTIONS</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => checkIn('pickup')} style={{
+                              flex: 1, padding: '14px', background: 'var(--accent)', border: 'none', borderRadius: 12,
+                              cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                            }}>
+                              <Ic icon={MapPin} size={18} color="#000" />
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#000' }}>Arrived at Pickup</span>
+                              <span style={{ fontSize: 9, color: 'rgba(0,0,0,0.6)' }}>GPS check-in</span>
+                            </button>
+                            {navTarget && (
+                              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={() => haptic()} style={{
+                                padding: '14px 16px', background: 'rgba(52,176,104,0.1)', border: '1px solid rgba(52,176,104,0.25)',
+                                borderRadius: 12, cursor: 'pointer', textDecoration: 'none',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              }}>
+                                <Ic icon={MapPin} size={18} color="var(--success)" />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)' }}>Navigate</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (st === 'at pickup') {
+                      return (
+                        <div style={{ padding: '0 14px 10px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8 }}>DRIVER ACTIONS</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => {
+                              const inp = document.createElement('input')
+                              inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                              inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'BOL') }
+                              inp.click()
+                            }} style={{
+                              flex: 1, padding: '12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)',
+                              borderRadius: 12, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}>
+                              <Ic icon={Camera} size={14} color="#8b5cf6" />
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>Scan BOL</span>
+                            </button>
+                            <button onClick={() => checkOut('pickup')} style={{
+                              flex: 1, padding: '12px', background: 'var(--success)', border: 'none', borderRadius: 12,
+                              cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}>
+                              <Ic icon={CheckCircle} size={14} color="#fff" />
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Loaded — Roll Out</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (st === 'loaded' || st === 'in transit') {
+                      const navTarget = load.destination || load.dest || ''
+                      const encodedAddr = encodeURIComponent(navTarget)
+                      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                      const mapsUrl = isIOS ? `maps://maps.apple.com/?daddr=${encodedAddr}` : `https://www.google.com/maps/dir/?api=1&destination=${encodedAddr}`
+                      return (
+                        <div style={{ padding: '0 14px 10px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8 }}>DRIVER ACTIONS</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => checkIn('delivery')} style={{
+                              flex: 1, padding: '14px', background: 'var(--accent)', border: 'none', borderRadius: 12,
+                              cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                            }}>
+                              <Ic icon={MapPin} size={18} color="#000" />
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#000' }}>Arrived at Delivery</span>
+                              <span style={{ fontSize: 9, color: 'rgba(0,0,0,0.6)' }}>GPS check-in</span>
+                            </button>
+                            {navTarget && (
+                              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={() => haptic()} style={{
+                                padding: '14px 16px', background: 'rgba(52,176,104,0.1)', border: '1px solid rgba(52,176,104,0.25)',
+                                borderRadius: 12, cursor: 'pointer', textDecoration: 'none',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              }}>
+                                <Ic icon={MapPin} size={18} color="var(--success)" />
+                                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)' }}>Navigate</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (st === 'at delivery') {
+                      return (
+                        <div style={{ padding: '0 14px 10px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8 }}>DRIVER ACTIONS</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => {
+                              const inp = document.createElement('input')
+                              inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                              inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'POD') }
+                              inp.click()
+                            }} style={{
+                              flex: 1, padding: '12px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)',
+                              borderRadius: 12, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}>
+                              <Ic icon={Camera} size={14} color="#8b5cf6" />
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>Scan POD</span>
+                            </button>
+                            <button onClick={() => checkOut('delivery')} style={{
+                              flex: 1, padding: '12px', background: 'var(--success)', border: 'none', borderRadius: 12,
+                              cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            }}>
+                              <Ic icon={CheckCircle} size={14} color="#fff" />
+                              <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Mark Delivered</span>
+                            </button>
+                          </div>
+                          {/* Lumper receipt */}
+                          <button onClick={() => {
+                            const inp = document.createElement('input')
+                            inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                            inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'Lumper Receipt') }
+                            inp.click()
+                          }} style={{
+                            width: '100%', marginTop: 8, padding: '10px', background: 'rgba(239,68,68,0.08)',
+                            border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10,
+                            cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          }}>
+                            <Ic icon={FileText} size={12} color="var(--danger)" />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--danger)' }}>Snap Lumper Receipt</span>
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    if (st === 'delivered') {
+                      const docs = loadDocs[load.id] || []
+                      const hasBOL = docs.some(d => d.doc_type === 'BOL' || d.doc_type === 'Signed BOL') || load.bol_url || load.signed_bol_url
+                      const hasPOD = docs.some(d => d.doc_type === 'POD') || load.pod_url
+                      return (
+                        <div style={{ padding: '0 14px 10px' }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', letterSpacing: 1, marginBottom: 8 }}>UPLOAD DOCS TO GET PAID</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            {!hasBOL && (
+                              <button onClick={() => {
+                                const inp = document.createElement('input')
+                                inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                                inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'BOL') }
+                                inp.click()
+                              }} style={{
+                                flex: 1, padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 12,
+                                cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              }}>
+                                <Ic icon={Upload} size={14} color="#000" />
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>Upload BOL</span>
+                              </button>
+                            )}
+                            {!hasPOD && (
+                              <button onClick={() => {
+                                const inp = document.createElement('input')
+                                inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                                inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, load.id, 'POD') }
+                                inp.click()
+                              }} style={{
+                                flex: 1, padding: '12px', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.3)',
+                                borderRadius: 12, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              }}>
+                                <Ic icon={Camera} size={14} color="#8b5cf6" />
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6' }}>Upload POD</span>
+                              </button>
+                            )}
+                          </div>
+                          {hasBOL && hasPOD && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px', marginTop: 6, background: 'rgba(52,176,104,0.08)', borderRadius: 10 }}>
+                              <Ic icon={CheckCircle} size={14} color="var(--success)" />
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>All docs uploaded — dispatch will invoice</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    return null
+                  })()}
 
                   {/* ── STOPS TIMELINE ── */}
                   {(() => {

@@ -58,6 +58,26 @@ export function UserManagement() {
     setConfirmAction(null)
   }
 
+  const handleResetPassword = async (userId, email) => {
+    setActionLoading(userId)
+    try {
+      const res = await apiFetch('/api/admin-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, email, action: 'send_reset_link' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        showToast('', 'Reset Link Sent', `Password reset email sent to ${email}`)
+      } else {
+        showToast('error', 'Error', data.error || 'Failed to send reset link')
+      }
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Failed to send reset link')
+    }
+    setActionLoading(null)
+  }
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading users...</div>
 
   const filtered = profiles.filter(p => {
@@ -168,6 +188,11 @@ export function UserManagement() {
                             {actionLoading === p.id ? '...' : 'Suspend'}
                           </button>
                         )}
+                        <button onClick={() => handleResetPassword(p.id, p.email)}
+                          disabled={actionLoading === p.id}
+                          style={{ fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.08)', color: '#3b82f6', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                          {actionLoading === p.id ? '...' : 'Reset PW'}
+                        </button>
                         <button onClick={() => setConfirmAction({ userId: p.id, email: p.email, action: 'remove' })}
                           disabled={actionLoading === p.id}
                           style={{ fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>

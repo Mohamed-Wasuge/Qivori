@@ -60,3 +60,11 @@ CREATE TABLE IF NOT EXISTS revenue_events (
 );
 CREATE INDEX IF NOT EXISTS idx_revenue_events_type ON revenue_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_revenue_events_created ON revenue_events(created_at);
+
+-- RLS: email_logs (service role only — system table)
+ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role full access email_logs" ON email_logs FOR ALL USING (auth.role() = 'service_role');
+
+-- RLS: revenue_events (service role only — system table)
+ALTER TABLE revenue_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role full access revenue_events" ON revenue_events FOR ALL USING (auth.role() = 'service_role');

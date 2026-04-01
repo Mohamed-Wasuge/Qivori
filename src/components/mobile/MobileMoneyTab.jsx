@@ -8,6 +8,10 @@ import {
 } from 'lucide-react'
 import { Ic, haptic, fmt$, QInsightCard } from './shared'
 import { apiFetch } from '../../lib/api'
+import {
+  AreaChart, Area, LineChart, Line, PieChart, Pie, Cell,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts'
 
 const EXPENSE_CATEGORIES = ['Fuel', 'Tolls', 'Repairs', 'Insurance', 'Meals', 'Parking', 'Permits', 'Tires', 'DEF', 'Lumper', 'Scale', 'Other']
 const MARGIN_TARGET = 18
@@ -169,12 +173,70 @@ export default function MobileMoneyTab({ initialSubTab }) {
       decisionText = 'Margins healthy. Continue current strategy — selective on rate, not volume.'
     }
 
+    // Weekly earnings chart data (daily for last 7 days)
+    const weeklyEarnings = (() => {
+      const days = []
+      const now = new Date()
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(now.getDate() - i)
+        const dayStr = d.toISOString().split('T')[0]
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' })
+        const dayRev = loads
+          .filter(l => {
+            const ld = (l.delivery_date || l.created_at || '').substring(0, 10)
+            return ld === dayStr
+          })
+          .reduce((s, l) => s + (l.gross || l.rate || 0), 0)
+        days.push({ name: dayLabel, earnings: Math.round(dayRev) })
+      }
+      return days
+    })()
+
+    // 7-day profit trend for sparkline
+    const profitTrend = (() => {
+      const days = []
+      const now = new Date()
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(now.getDate() - i)
+        const dayStr = d.toISOString().split('T')[0]
+        const dayRev = loads
+          .filter(l => (l.delivery_date || l.created_at || '').substring(0, 10) === dayStr)
+          .reduce((s, l) => s + (l.gross || l.rate || 0), 0)
+        const dayExp = expenses
+          .filter(e => (e.date || '').substring(0, 10) === dayStr)
+          .reduce((s, e) => s + (e.amount || 0), 0)
+        days.push({ v: Math.round(dayRev - dayExp) })
+      }
+      return days
+    })()
+
+    // Expense categories for pie chart
+    const expenseCategories = (() => {
+      const cats = {}
+      expenses.forEach(e => {
+        const c = e.category || e.cat || 'Other'
+        cats[c] = (cats[c] || 0) + (e.amount || 0)
+      })
+      const COLORS = {
+        Fuel: '#ef4444', Tolls: '#f59e0b', Repairs: '#8b5cf6', Insurance: '#3b82f6',
+        Meals: '#22c55e', Parking: '#06b6d4', Permits: '#ec4899', Tires: '#f97316',
+        DEF: '#6366f1', Lumper: '#14b8a6', Scale: '#a855f7', Other: '#6b7280',
+      }
+      return Object.entries(cats)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([name, value]) => ({ name, value: Math.round(value), color: COLORS[name] || '#6b7280' }))
+    })()
+
     return {
       totalFuel, totalGallons, fuelPctOfExpenses,
       profitToday, profitWeek, todayRevenue, weekRevenue,
       avgProfitPerLoad, truckStats,
       paidTotal, pendingTotal, pendingInvoices, paidInvoices,
       alerts, insightText, insightSub, insightAccent, decisionText,
+      weeklyEarnings, profitTrend, expenseCategories,
     }
   }, [loads, expenses, invoices, unpaidInvoices, totalRevenue, totalExpenses, netProfit, margin, fuelCostPerMile, activeLoads])
 
@@ -353,10 +415,64 @@ export default function MobileMoneyTab({ initialSubTab }) {
               <QStatCard label="Q Profit Today" value={fmt$(qFinance.profitToday)}
                 color={qFinance.profitToday >= 0 ? 'var(--success)' : 'var(--danger)'}
                 icon={qFinance.profitToday >= 0 ? TrendingUp : TrendingDown} />
-              <QStatCard label="Q Profit This Week" value={fmt$(qFinance.profitWeek)}
-                color={qFinance.profitWeek >= 0 ? 'var(--success)' : 'var(--danger)'}
-                icon={qFinance.profitWeek >= 0 ? TrendingUp : TrendingDown} />
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <Ic icon={qFinance.profitWeek >= 0 ? TrendingUp : TrendingDown} size={11}
+                    color={qFinance.profitWeek >= 0 ? 'var(--success)' : 'var(--danger)'} />
+                  <span style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Q Profit This Week</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: qFinance.profitWeek >= 0 ? 'var(--success)' : 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 0.5 }}>
+                    {fmt$(qFinance.profitWeek)}
+                  </span>
+                  {qFinance.profitTrend.length > 0 && (
+                    <ResponsiveContainer width={60} height={25}>
+                      <LineChart data={qFinance.profitTrend}>
+                        <Line type="monotone" dataKey="v" stroke={qFinance.profitWeek >= 0 ? '#22c55e' : '#ef4444'}
+                          strokeWidth={1.5} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Weekly Earnings Area Chart */}
+            {qFinance.weeklyEarnings.some(d => d.earnings > 0) && (
+              <div style={{
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+                padding: '14px', animation: 'qInsightSlide 0.4s ease 0.12s both',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <Ic icon={TrendingUp} size={12} color="var(--accent)" />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>WEEKLY EARNINGS</span>
+                </div>
+                <ResponsiveContainer width="100%" height={150}>
+                  <AreaChart data={qFinance.weeklyEarnings} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+                    <defs>
+                      <linearGradient id="earningsGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f0a500" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#f0a500" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="name" axisLine={false} tickLine={false}
+                      tick={{ fontSize: 10, fill: 'var(--muted)', fontFamily: "'DM Sans',sans-serif" }} />
+                    <YAxis hide />
+                    <Tooltip
+                      contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 10, fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}
+                      labelStyle={{ color: '#f0a500', fontWeight: 700, marginBottom: 4 }}
+                      itemStyle={{ color: '#fff' }}
+                      formatter={(v) => [fmt$(v), 'Earnings']}
+                      cursor={{ stroke: 'rgba(240,165,0,0.2)' }}
+                    />
+                    <Area type="monotone" dataKey="earnings" stroke="#f0a500" strokeWidth={2}
+                      fill="url(#earningsGrad)" dot={false} activeDot={{ r: 5, fill: '#f0a500', stroke: '#000', strokeWidth: 2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
             {/* Margin Target Tracker */}
             <div style={{
@@ -681,36 +797,41 @@ export default function MobileMoneyTab({ initialSubTab }) {
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleReceiptScan(f); e.target.value = '' }} />
             </div>
 
-            {/* Expense category breakdown */}
-            {expenses.length > 0 && (
+            {/* Expense category breakdown — Donut Chart */}
+            {qFinance.expenseCategories.length > 0 && (
               <div style={{
                 background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
                 padding: '12px 14px', marginBottom: 10, animation: 'qInsightSlide 0.3s ease',
               }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8 }}>EXPENSE BREAKDOWN</div>
-                {(() => {
-                  const cats = {}
-                  expenses.forEach(e => {
-                    const c = e.category || e.cat || 'Other'
-                    cats[c] = (cats[c] || 0) + (e.amount || 0)
-                  })
-                  return Object.entries(cats)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
-                    .map(([cat, amount]) => {
-                      const pct = totalExpenses > 0 ? (amount / totalExpenses * 100) : 0
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <ResponsiveContainer width={120} height={140}>
+                    <PieChart>
+                      <Pie data={qFinance.expenseCategories} dataKey="value" cx="50%" cy="50%"
+                        innerRadius={35} outerRadius={55} paddingAngle={2} strokeWidth={0}>
+                        {qFinance.expenseCategories.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 10, fontSize: 11, fontFamily: "'DM Sans',sans-serif" }}
+                        formatter={(v, name) => [fmt$(v), name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {qFinance.expenseCategories.map(cat => {
+                      const pct = totalExpenses > 0 ? (cat.value / totalExpenses * 100) : 0
                       return (
-                        <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, width: 70, flexShrink: 0 }}>{cat}</span>
-                          <div style={{ flex: 1, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', background: cat === 'Fuel' ? 'var(--danger)' : 'var(--accent)', width: `${pct}%`, borderRadius: 2, transition: 'width 0.5s ease' }} />
-                          </div>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', minWidth: 50, textAlign: 'right' }}>{fmt$(amount)}</span>
-                          <span style={{ fontSize: 9, color: 'var(--muted)', minWidth: 30, textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+                        <div key={cat.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: cat.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</span>
+                          <span style={{ fontSize: 9, color: 'var(--muted)', flexShrink: 0 }}>{pct.toFixed(0)}%</span>
                         </div>
                       )
-                    })
-                })()}
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 

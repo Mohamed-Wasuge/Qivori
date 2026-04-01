@@ -4,8 +4,31 @@ import {
   Bot, AlertTriangle, TrendingUp, TrendingDown, Fuel, Zap, Target, Shield, Clock,
   ChevronUp, ChevronDown, Calendar
 } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
+  RadialBarChart, RadialBar, PolarAngleAxis,
+  AreaChart, Area,
+  ScatterChart, Scatter, CartesianGrid, ZAxis, Cell
+} from 'recharts'
 import { useCarrier } from '../../context/CarrierContext'
 import { Ic } from './shared'
+
+// ── Custom dark tooltip for all Recharts ────────────────────────────────────
+const DarkTooltip = ({ active, payload, label, formatter }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background:'#1a1a1a', border:'1px solid #333', borderRadius:8, padding:'10px 14px', fontFamily:"'DM Sans',sans-serif", fontSize:12, color:'#fff', boxShadow:'0 4px 20px rgba(0,0,0,0.5)' }}>
+      {label && <div style={{ fontSize:11, color:'#888', marginBottom:6, fontWeight:600 }}>{label}</div>}
+      {payload.map((p, i) => (
+        <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'2px 0' }}>
+          <div style={{ width:8, height:8, borderRadius:2, background:p.color || p.fill }} />
+          <span style={{ color:'#aaa' }}>{p.name}:</span>
+          <span style={{ fontWeight:700, color:'#fff' }}>{formatter ? formatter(p.value) : (typeof p.value === 'number' ? '$' + p.value.toLocaleString() : p.value)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // ── Q PROFIT ENGINE ──────────────────────────────────────────────────────────
 export const PIQ_TABS = ['Q Engine', 'Overview', 'Per Load', 'By Driver', 'By Broker']
@@ -158,6 +181,47 @@ export function ProfitIQTab() {
   })()
   const histNet     = histRev.map((r,i) => r - histExp[i])
   const maxBar      = Math.max(...histRev, 1)
+
+  // ── Recharts data: P&L bar chart ─────────────────────────────────────────
+  const plBarData = histMonths.map((m, i) => ({
+    month: m, Revenue: histRev[i], Expenses: histExp[i], 'Net Profit': histNet[i]
+  }))
+
+  // ── Recharts data: 8-week revenue trend ──────────────────────────────────
+  const weeklyRevData = useMemo(() => {
+    const weeks = []
+    const now = new Date()
+    for (let w = 7; w >= 0; w--) {
+      const weekStart = new Date(now)
+      weekStart.setDate(now.getDate() - (w * 7) - now.getDay())
+      weekStart.setHours(0,0,0,0)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      weekEnd.setHours(23,59,59,999)
+      const weekLabel = weekStart.toLocaleDateString('en-US', { month:'short', day:'numeric' })
+      const rev = loads.reduce((s, l) => {
+        const d = new Date(getLoadDate(l))
+        if (isNaN(d)) return s
+        return (d >= weekStart && d <= weekEnd) ? s + Number(l.gross || l.gross_pay || 0) : s
+      }, 0)
+      weeks.push({ week: weekLabel, Revenue: Math.round(rev) })
+    }
+    return weeks
+  }, [loads])
+
+  // ── Recharts data: load profitability scatter ────────────────────────────
+  const scatterData = useMemo(() => {
+    return loadProfit.map(l => ({
+      miles: parseFloat(l.miles) || 0,
+      profitPerMile: parseFloat(l.profitPerMile.toFixed(2)),
+      loadId: l.loadId,
+      origin: l.origin ? l.origin.split(',')[0] : '?',
+      dest: l.dest ? l.dest.split(',')[0] : '?',
+      rpm: parseFloat(l.rpm || 0).toFixed(2),
+      net: l.net,
+      tier: l.profitPerMile >= 0.80 ? 'good' : l.profitPerMile >= 0.40 ? 'fair' : 'bad'
+    }))
+  }, [loadProfit])
 
   const netProfit   = totalRevenue - totalExpenses
   const margin      = totalRevenue > 0 ? ((netProfit/totalRevenue)*100).toFixed(1) : '0.0'
@@ -418,17 +482,38 @@ export function ProfitIQTab() {
                 <span style={{ fontSize:10, color:'var(--muted)' }}>target</span>
               </div>
             </div>
-            <div style={{ height:12, background:'var(--border)', borderRadius:6, position:'relative', overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${Math.min(qData.margin / MARGIN_TARGET * 100, 100)}%`, background: qData.margin>=MARGIN_TARGET ? 'var(--success)' : qData.margin>=20 ? 'linear-gradient(90deg, var(--warning), var(--accent))' : 'var(--danger)', borderRadius:6, transition:'width 0.6s ease' }} />
-              {/* Target line */}
-              <div style={{ position:'absolute', top:0, bottom:0, left:'100%', width:2, background:'var(--text)', opacity:0.3 }} />
-            </div>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--muted)', marginTop:6 }}>
-              <span>0%</span>
-              <span style={{ color:'var(--warning)' }}>20%</span>
-              <span style={{ color:'var(--success)', fontWeight:700 }}>{MARGIN_TARGET}% TARGET</span>
-              <span>50%+</span>
-            </div>
+            {/* Radial Margin Gauge */}
+            {(() => {
+              const gaugeVal = Math.min(qData.margin, 60)
+              const gaugeColor = qData.margin >= MARGIN_TARGET ? '#22c55e' : qData.margin >= 20 ? '#f0a500' : '#ef4444'
+              const radialData = [{ name: 'Margin', value: gaugeVal, fill: gaugeColor }]
+              return (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', position:'relative' }}>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <RadialBarChart
+                      cx="50%" cy="50%"
+                      innerRadius="70%" outerRadius="90%"
+                      startAngle={210} endAngle={-30}
+                      data={radialData}
+                      barSize={12}
+                    >
+                      <PolarAngleAxis type="number" domain={[0, 60]} tick={false} angleAxisId={0} />
+                      <RadialBar
+                        angleAxisId={0}
+                        dataKey="value"
+                        cornerRadius={6}
+                        background={{ fill: '#333' }}
+                        animationDuration={800}
+                      />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                  <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', textAlign:'center' }}>
+                    <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color: gaugeColor, lineHeight:1 }}>{qData.margin.toFixed(1)}%</div>
+                    <div style={{ fontSize:9, color:'#888', marginTop:2 }}>of {MARGIN_TARGET}% target</div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
@@ -669,44 +754,24 @@ export function ProfitIQTab() {
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:16 }}>
-            {/* P&L Bar Chart */}
+            {/* P&L Bar Chart — Recharts */}
             <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
               <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <div style={{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6 }}><Ic icon={BarChart2} size={14} /> 6-Month P&L</div>
-                <div style={{ display:'flex', gap:14 }}>
-                  {[{c:'var(--accent)',l:'Revenue'},{c:'var(--danger)',l:'Expenses'},{c:'var(--success)',l:'Net'}].map(x=>(
-                    <div key={x.l} style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--muted)' }}>
-                      <div style={{ width:8,height:8,borderRadius:2,background:x.c }}/>
-                      {x.l}
-                    </div>
-                  ))}
-                </div>
               </div>
-              <div style={{ padding:'16px 20px 8px' }}>
-                <div style={{ display:'flex', alignItems:'flex-end', gap:10, height:140 }}>
-                  {histMonths.map((m,i) => {
-                    const isCurrent = i === histMonths.length - 1
-                    return (
-                      <div key={m} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                        <div style={{ width:'100%', display:'flex', gap:2, alignItems:'flex-end', height:120, justifyContent:'center' }}>
-                          <div style={{ width:'30%', height:`${(histRev[i]/maxBar)*120}px`, background:'var(--accent)', borderRadius:'3px 3px 0 0', opacity: isCurrent?1:0.55 }} title={`$${histRev[i].toLocaleString()}`}/>
-                          <div style={{ width:'30%', height:`${(histExp[i]/maxBar)*120}px`, background:'var(--danger)', borderRadius:'3px 3px 0 0', opacity: isCurrent?1:0.55 }} title={`$${histExp[i].toLocaleString()}`}/>
-                          <div style={{ width:'30%', height:`${(Math.max(histNet[i],0)/maxBar)*120}px`, background:'var(--success)', borderRadius:'3px 3px 0 0' }} title={`$${histNet[i].toLocaleString()}`}/>
-                        </div>
-                        <div style={{ fontSize:10, color: isCurrent?'var(--accent)':'var(--muted)', fontWeight: isCurrent?700:400 }}>{m}</div>
-                        {isCurrent && <div style={{ fontSize:9, color:'var(--accent)', fontWeight:700 }}>LIVE</div>}
-                      </div>
-                    )
-                  })}
-                </div>
-                {/* Value labels */}
-                <div style={{ display:'flex', gap:10, paddingTop:8, borderTop:'1px solid var(--border)', marginTop:4 }}>
-                  {histMonths.map((m,i) => (
-                    <div key={m} style={{ flex:1, textAlign:'center' }}>
-                      <div style={{ fontSize:9, color:'var(--success)', fontWeight:700 }}>${(histNet[i]/1000).toFixed(1)}K</div>
-                    </div>
-                  ))}
-                </div>
+              <div style={{ padding:'12px 12px 4px' }}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={plBarData} barGap={2} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fill:'#888', fontSize:11, fontFamily:"'DM Sans',sans-serif" }} axisLine={{ stroke:'#333' }} tickLine={false} />
+                    <YAxis tick={{ fill:'#888', fontSize:10, fontFamily:"'DM Sans',sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`} width={50} />
+                    <Tooltip content={<DarkTooltip />} cursor={{ fill:'rgba(255,255,255,0.03)' }} />
+                    <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize:11, fontFamily:"'DM Sans',sans-serif", color:'#888', paddingTop:4 }} />
+                    <Bar dataKey="Revenue" fill="#f0a500" radius={[3,3,0,0]} animationDuration={800} />
+                    <Bar dataKey="Expenses" fill="#ef4444" radius={[3,3,0,0]} animationDuration={800} />
+                    <Bar dataKey="Net Profit" fill="#22c55e" radius={[3,3,0,0]} animationDuration={800} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
@@ -749,6 +814,78 @@ export function ProfitIQTab() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Revenue Trend + Scatter Plot row */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            {/* Revenue Trend Area Chart */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6 }}><Ic icon={TrendingUp} size={14} /> 8-Week Revenue Trend</div>
+              </div>
+              <div style={{ padding:'12px 12px 4px' }}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={weeklyRevData}>
+                    <defs>
+                      <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f0a500" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#f0a500" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                    <XAxis dataKey="week" tick={{ fill:'#888', fontSize:10, fontFamily:"'DM Sans',sans-serif" }} axisLine={{ stroke:'#333' }} tickLine={false} />
+                    <YAxis tick={{ fill:'#888', fontSize:10, fontFamily:"'DM Sans',sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`} width={50} />
+                    <Tooltip content={<DarkTooltip />} />
+                    <Area type="monotone" dataKey="Revenue" stroke="#f0a500" strokeWidth={2} fill="url(#goldGradient)" animationDuration={800} dot={{ fill:'#f0a500', r:3, strokeWidth:0 }} activeDot={{ r:5, fill:'#f0a500', stroke:'#fff', strokeWidth:2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Load Profitability Scatter Plot */}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:6 }}><Ic icon={Target} size={14} /> Load Profitability Map</div>
+                <div style={{ display:'flex', gap:10 }}>
+                  {[{c:'#22c55e',l:'Good'},{c:'#f0a500',l:'Fair'},{c:'#ef4444',l:'Bad'}].map(x=>(
+                    <div key={x.l} style={{ display:'flex', alignItems:'center', gap:4, fontSize:10, color:'#888' }}>
+                      <div style={{ width:7,height:7,borderRadius:'50%',background:x.c }}/>
+                      {x.l}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ padding:'12px 12px 4px' }}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <ScatterChart>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis type="number" dataKey="miles" name="Miles" tick={{ fill:'#888', fontSize:10, fontFamily:"'DM Sans',sans-serif" }} axisLine={{ stroke:'#333' }} tickLine={false} label={{ value:'Miles', position:'insideBottom', offset:-2, style:{ fill:'#666', fontSize:10, fontFamily:"'DM Sans',sans-serif" } }} />
+                    <YAxis type="number" dataKey="profitPerMile" name="$/Mile" tick={{ fill:'#888', fontSize:10, fontFamily:"'DM Sans',sans-serif" }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(2)}`} width={50} label={{ value:'Profit/Mi', angle:-90, position:'insideLeft', offset:10, style:{ fill:'#666', fontSize:10, fontFamily:"'DM Sans',sans-serif" } }} />
+                    <ZAxis range={[40, 120]} />
+                    <Tooltip content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null
+                      const d = payload[0].payload
+                      return (
+                        <div style={{ background:'#1a1a1a', border:'1px solid #333', borderRadius:8, padding:'10px 14px', fontFamily:"'DM Sans',sans-serif", fontSize:12, color:'#fff', boxShadow:'0 4px 20px rgba(0,0,0,0.5)' }}>
+                          <div style={{ fontWeight:700, color:'#f0a500', marginBottom:4 }}>{d.loadId}</div>
+                          <div style={{ color:'#aaa', marginBottom:2 }}>{d.origin} → {d.dest}</div>
+                          <div style={{ display:'flex', gap:12, marginTop:4 }}>
+                            <span>RPM: <b style={{ color:'#fff' }}>${d.rpm}</b></span>
+                            <span>Net: <b style={{ color: d.net >= 0 ? '#22c55e' : '#ef4444' }}>${d.net.toLocaleString()}</b></span>
+                          </div>
+                          <div style={{ marginTop:2 }}>{d.miles} mi · ${d.profitPerMile}/mi profit</div>
+                        </div>
+                      )
+                    }} />
+                    <Scatter data={scatterData} animationDuration={800}>
+                      {scatterData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.tier === 'good' ? '#22c55e' : entry.tier === 'fair' ? '#f0a500' : '#ef4444'} fillOpacity={0.8} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
         </>)}
 

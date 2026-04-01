@@ -4,6 +4,10 @@ import { useApp } from '../../context/AppContext'
 import { FileText, Camera, ChevronDown, Fuel, MapPin, DollarSign, TrendingDown } from 'lucide-react'
 import { Ic, haptic, fmt$ } from './shared'
 import { apiFetch } from '../../lib/api'
+import {
+  BarChart, Bar, PieChart, Pie, Cell,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts'
 
 // US state tax rates (cents per gallon) — simplified; real rates vary by year
 const STATE_TAX_RATES = {
@@ -182,17 +186,55 @@ export default function MobileIFTATab() {
           <SummaryCard label="Net Tax" value={fmt$(summary.netTax)} color={summary.netTax >= 0 ? 'var(--danger)' : 'var(--success)'} />
         </div>
 
-        {/* Tax owed vs credits */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-          <div style={{ flex: 1, padding: '10px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 10, textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Tax Owed</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(summary.totalTaxOwed)}</div>
+        {/* Fuel Tax Summary — Donut Pie Chart */}
+        {(summary.totalTaxOwed > 0 || summary.totalCredits > 0) && (
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+            padding: '14px', marginBottom: 12, animation: 'fadeInUp 0.3s ease',
+          }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10 }}>FUEL TAX SUMMARY</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <ResponsiveContainer width={120} height={120}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Tax Owed', value: Math.max(0.01, summary.totalTaxOwed), color: '#ef4444' },
+                      { name: 'Fuel Credits', value: Math.max(0.01, summary.totalCredits), color: '#22c55e' },
+                    ]}
+                    dataKey="value" cx="50%" cy="50%" innerRadius={30} outerRadius={48}
+                    paddingAngle={3} strokeWidth={0}
+                  >
+                    <Cell fill="#ef4444" />
+                    <Cell fill="#22c55e" />
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 10, fontSize: 11, fontFamily: "'DM Sans',sans-serif" }}
+                    formatter={(v) => [fmt$(v)]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#ef4444' }} />
+                  <span style={{ fontSize: 10, color: 'var(--muted)', flex: 1 }}>Tax Owed</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#ef4444', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(summary.totalTaxOwed)}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#22c55e' }} />
+                  <span style={{ fontSize: 10, color: 'var(--muted)', flex: 1 }}>Fuel Credits</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#22c55e', fontFamily: "'Bebas Neue',sans-serif" }}>-{fmt$(summary.totalCredits)}</span>
+                </div>
+                <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, flex: 1 }}>Net</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: summary.netTax >= 0 ? '#ef4444' : '#22c55e', fontFamily: "'Bebas Neue',sans-serif" }}>
+                    {summary.netTax >= 0 ? '' : '-'}{fmt$(Math.abs(summary.netTax))}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div style={{ flex: 1, padding: '10px', background: 'rgba(0,212,170,0.06)', border: '1px solid rgba(0,212,170,0.15)', borderRadius: 10, textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Fuel Credits</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif" }}>-{fmt$(summary.totalCredits)}</div>
-          </div>
-        </div>
+        )}
 
         {/* State breakdown */}
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 8 }}>STATE BREAKDOWN</div>
@@ -205,19 +247,45 @@ export default function MobileIFTATab() {
           </div>
         )}
 
+        {/* State Mileage Horizontal Bar Chart */}
+        {summary.stateDetails.length > 0 && (
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+            padding: '14px', marginBottom: 12, animation: 'fadeInUp 0.3s ease',
+          }}>
+            <ResponsiveContainer width="100%" height={Math.min(200, summary.stateDetails.slice(0, 8).length * 28 + 20)}>
+              <BarChart layout="vertical" data={summary.stateDetails.slice(0, 8)}
+                margin={{ top: 0, right: 5, bottom: 0, left: 0 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="state" axisLine={false} tickLine={false} width={30}
+                  tick={{ fontSize: 11, fill: 'var(--text)', fontWeight: 700, fontFamily: "'Bebas Neue',sans-serif" }} />
+                <Tooltip
+                  contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 10, fontSize: 11, fontFamily: "'DM Sans',sans-serif" }}
+                  labelStyle={{ color: '#f0a500', fontWeight: 700, marginBottom: 4 }}
+                  formatter={(v) => [`${v.toLocaleString()} mi`, 'Miles']}
+                  cursor={{ fill: 'rgba(240,165,0,0.06)' }}
+                />
+                <Bar dataKey="miles" radius={[0, 4, 4, 0]} barSize={14}>
+                  {summary.stateDetails.slice(0, 8).map((entry, idx) => (
+                    <Cell key={idx} fill={idx === 0 ? '#f0a500' : 'rgba(240,165,0,0.4)'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* State detail cards */}
         {summary.stateDetails.map((s, index) => (
           <div key={s.state} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginBottom: 6, animation: `fadeInUp 0.25s ease ${index * 0.05}s both` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif", width: 28 }}>{s.state}</span>
-              <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', background: 'var(--accent)', borderRadius: 2, width: `${Math.min(100, (s.miles / Math.max(1, summary.totalMiles)) * 100)}%`, transition: 'width 0.5s ease' }} />
-              </div>
+              <span style={{ fontSize: 11, color: 'var(--muted)', flex: 1 }}>{s.miles.toLocaleString()} mi</span>
               <span style={{ fontSize: 11, fontWeight: 700, color: s.net >= 0 ? 'var(--danger)' : 'var(--success)', minWidth: 50, textAlign: 'right' }}>
                 {s.net >= 0 ? '' : '-'}{fmt$(Math.abs(s.net))}
               </span>
             </div>
             <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--muted)' }}>
-              <span>{s.miles.toLocaleString()} mi</span>
               <span>{s.gallonsUsed} gal used</span>
               <span>{s.gallonsPurchased} gal bought</span>
               <span>${s.taxRate}/gal tax</span>

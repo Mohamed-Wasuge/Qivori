@@ -160,6 +160,29 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
     return localStorage.getItem(key) === 'true'
   })
 
+  // Server-side pre-trip verification — localStorage is just a fast cache
+  useEffect(() => {
+    (async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const today = new Date().toISOString().split('T')[0]
+        const { data } = await supabase
+          .from('eld_dvirs')
+          .select('id')
+          .eq('inspection_type', 'pre_trip')
+          .gte('submitted_at', today + 'T00:00:00')
+          .limit(1)
+        if (data && data.length > 0) {
+          setPreTripDoneToday(true)
+        } else {
+          // No server record — clear any stale localStorage
+          setPreTripDoneToday(false)
+          localStorage.removeItem(`pretripDone_${today}`)
+        }
+      } catch {}
+    })()
+  }, [])
+
   // Dispatched loads awaiting driver acceptance
   const dispatchedLoads = loads.filter(l => {
     const s = (l.status || '').toLowerCase()

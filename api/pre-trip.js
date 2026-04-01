@@ -148,7 +148,7 @@ Be direct. Driver safety first.`
         source_provider: 'qivori_ai',
       }
 
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/dvir_inspections`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/eld_dvirs`, {
         method: 'POST', headers: sbHeaders(), body: JSON.stringify(dvirData),
       })
       if (res.ok) {

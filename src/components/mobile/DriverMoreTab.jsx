@@ -597,6 +597,16 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
   const submitDVIR = async () => {
     if (!allChecked) { showToast('error', 'Incomplete', 'Inspect all items before submitting'); return }
     if (!selectedVehicle) { showToast('error', 'No Vehicle', 'Select a vehicle/unit first'); return }
+
+    // Require AI photo scan on critical items marked as pass
+    const criticalWithoutScan = Object.entries(itemStates)
+      .filter(([item, status]) => status === 'pass' && AI_SCAN_ITEMS[item] && !scanResults[item])
+    if (criticalWithoutScan.length > 0) {
+      showToast?.('error', 'Photo Required', `${criticalWithoutScan.length} critical item(s) need AI photo scan before passing`)
+      haptic?.('error')
+      return
+    }
+
     setSubmitting(true)
     try {
       const defectsArr = Object.entries(itemStates)

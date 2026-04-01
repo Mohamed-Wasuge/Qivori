@@ -1,4 +1,5 @@
 import { sendEmail, sendAdminEmail, sendAdminSMS, logEmail, logRevenueEvent, TEMPLATES } from './_lib/emails.js'
+import { applyPendingRewardsForUser } from './apply-referral-rewards.js'
 
 export const config = { runtime: 'edge' }
 
@@ -145,6 +146,15 @@ export default async function handler(req) {
 
           // Check if this was a referral signup → reward referrer
           await processReferralReward(supabaseUrl, supabaseServiceKey, customerEmail, stripeKey).catch(() => {})
+
+          // Apply any pending referral rewards for the NEW subscriber immediately
+          // (e.g., the referee's 1 free month, or if they referred others before subscribing)
+          const subscriberProfile = await getProfileByEmail(supabaseUrl, supabaseServiceKey, customerEmail)
+          if (subscriberProfile?.id) {
+            await applyPendingRewardsForUser(subscriberProfile.id, supabaseUrl, supabaseServiceKey, stripeKey).catch(err => {
+              console.error(`[stripe-webhook] Failed to apply pending rewards for ${customerEmail}:`, err?.message)
+            })
+          }
         }
         break
       }
@@ -453,6 +463,20 @@ async function updateProfileByCustomer(supabaseUrl, serviceKey, customerId, upda
     }
   } catch (err) {
     console.error(`[stripe-webhook] updateProfileByCustomer error for ${customerId}:`, err?.message)
+  }
+}
+
+async function getProfileByEmail(supabaseUrl, serviceKey, email) {
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id,email,full_name,subscription_plan,stripe_customer_id&limit=1`, {
+      headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.[0] || null
+  } catch (err) {
+    console.error(`[stripe-webhook] getProfileByEmail error for ${email}:`, err?.message)
+    return null
   }
 }
 

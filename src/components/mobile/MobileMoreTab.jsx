@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck } from 'lucide-react'
 import { Ic, haptic } from './shared'
 import { apiFetch } from '../../lib/api'
 import MobileIFTATab from './MobileIFTATab'
+import { DVIRInspection } from './DriverMoreTab'
 
 // Recent DVIR history for mobile
 function MobileDVIRHistory() {
@@ -13,7 +14,7 @@ function MobileDVIRHistory() {
     (async () => {
       try {
         const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('dvir_inspections').select('id,status,vehicle_name,driver_name,defects,submitted_at').order('submitted_at', { ascending: false }).limit(5)
+        const { data } = await supabase.from('eld_dvirs').select('id,status,vehicle_name,driver_name,defects,submitted_at').order('submitted_at', { ascending: false }).limit(5)
         if (data) setDvirs(data)
       } catch {}
     })()
@@ -50,9 +51,10 @@ function MobileDVIRHistory() {
 }
 
 const MENU_ITEMS = [
+  { id: 'dvir', label: 'Pre-Trip Inspection', sub: 'DOT DVIR — 46-point checklist', icon: ClipboardCheck, color: '#22c55e' },
+  { id: 'compliance', label: 'Compliance', sub: 'ELD, DVIR, CSA, HOS', icon: Shield, color: 'var(--success)' },
   { id: 'ifta', label: 'IFTA Report', sub: 'Fuel tax calculator', icon: Fuel, color: '#8b5cf6' },
   { id: 'profile', label: 'Profile', sub: 'Your account details', icon: User, color: 'var(--accent)' },
-  { id: 'compliance', label: 'Compliance', sub: 'ELD, DVIR, CSA', icon: Shield, color: 'var(--success)' },
   { id: 'help', label: 'Help & Support', sub: 'Get help from the team', icon: HelpCircle, color: 'var(--accent2)' },
 ]
 
@@ -79,6 +81,17 @@ export default function MobileMoreTab({ onNavigate }) {
         <MobileIFTATab />
       </div>
     )
+  }
+
+  if (activeSection === 'dvir') {
+    const BackBtn = () => (
+      <button onClick={() => { haptic(); setActiveSection(null) }}
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+        <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+      </button>
+    )
+    return <DVIRInspection myDriver={firstDriver} vehicles={ctx.vehicles || []} BackButton={BackBtn} />
   }
 
   if (activeSection === 'profile') {
@@ -210,9 +223,9 @@ export default function MobileMoreTab({ onNavigate }) {
 
           {/* Quick Actions */}
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <button onClick={() => { haptic(); setActiveSection(null); if (onNavigate) onNavigate('home') }}
+            <button onClick={() => { haptic(); setActiveSection('dvir') }}
               style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'center', fontFamily: "'DM Sans',sans-serif" }}>
-              <div style={{ fontSize: 18, marginBottom: 4 }}><Shield size={18} color="var(--accent)" /></div>
+              <div style={{ fontSize: 18, marginBottom: 4 }}><ClipboardCheck size={18} color="#22c55e" /></div>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>Pre-Trip</div>
             </button>
             <button onClick={() => {

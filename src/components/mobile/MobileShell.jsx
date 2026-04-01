@@ -1,17 +1,31 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
 import { Home, Package, DollarSign, MoreHorizontal, X, Clock, Wallet } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic } from './shared'
-import MobileHomeTab from './MobileHomeTab'
-import MobileLoadsTab from './MobileLoadsTab'
-import MobileMoneyTab from './MobileMoneyTab'
-import MobileMoreTab from './MobileMoreTab'
-import MobileChatTab from './MobileChatTab'
-import DriverHomeTab from './DriverHomeTab'
-import DriverPayTab from './DriverPayTab'
-import DriverMoreTab from './DriverMoreTab'
+
+// Lazy-load all tabs — only loads the tab JS when first rendered
+const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
+const MobileLoadsTab = lazy(() => import('./MobileLoadsTab'))
+const MobileMoneyTab = lazy(() => import('./MobileMoneyTab'))
+const MobileMoreTab = lazy(() => import('./MobileMoreTab'))
+const MobileChatTab = lazy(() => import('./MobileChatTab'))
+const DriverHomeTab = lazy(() => import('./DriverHomeTab'))
+const DriverPayTab = lazy(() => import('./DriverPayTab'))
+const DriverMoreTab = lazy(() => import('./DriverMoreTab'))
+
+// Minimal loading spinner for tab suspense
+const TabLoader = () => (
+  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', animation: 'qBreath 1.5s ease-in-out infinite' }}>
+        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800 }}>Q</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Loading...</div>
+    </div>
+  </div>
+)
 
 const TABS = [
   { id: 'home', label: 'Home', icon: Home },
@@ -145,39 +159,25 @@ export default function MobileShell() {
 
       {/* ── TAB CONTENT ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {isDriver ? (
-          <>
-            {/* DRIVER TABS */}
-            <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <DriverHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />
-            </div>
-            <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <MobileLoadsTab />
-            </div>
-            <div style={{ flex: 1, display: activeTab === 'pay' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <DriverPayTab />
-            </div>
-            <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <DriverMoreTab />
-            </div>
-          </>
-        ) : (
-          <>
-            {/* OWNER/ADMIN TABS */}
-            <div style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />
-            </div>
-            <div style={{ flex: 1, display: activeTab === 'loads' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <MobileLoadsTab />
-            </div>
-            <div style={{ flex: 1, display: activeTab === 'money' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <MobileMoneyTab initialSubTab={moneySubTab} />
-            </div>
-            <div style={{ flex: 1, display: activeTab === 'more' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden', animation: 'tabSlide 0.2s ease-out', WebkitOverflowScrolling: 'touch' }}>
-              <MobileMoreTab onNavigate={(tab) => setActiveTab(tab)} />
-            </div>
-          </>
-        )}
+        <Suspense fallback={<TabLoader />}>
+          {isDriver ? (
+            <>
+              {/* DRIVER TABS */}
+              {activeTab === 'home' && <DriverHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />}
+              {activeTab === 'loads' && <MobileLoadsTab />}
+              {activeTab === 'pay' && <DriverPayTab />}
+              {activeTab === 'more' && <DriverMoreTab />}
+            </>
+          ) : (
+            <>
+              {/* OWNER/ADMIN TABS */}
+              {activeTab === 'home' && <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />}
+              {activeTab === 'loads' && <MobileLoadsTab />}
+              {activeTab === 'money' && <MobileMoneyTab initialSubTab={moneySubTab} />}
+              {activeTab === 'more' && <MobileMoreTab onNavigate={(tab) => setActiveTab(tab)} />}
+            </>
+          )}
+        </Suspense>
       </div>
 
       {/* ── FLOATING Q BUTTON ── */}

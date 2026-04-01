@@ -391,7 +391,7 @@ const DVIR_CATEGORIES = [
   ]},
 ]
 
-function DVIRInspection({ myDriver, vehicles, BackButton }) {
+export function DVIRInspection({ myDriver, vehicles, BackButton }) {
   const { showToast } = useApp()
   const [selectedVehicle, setSelectedVehicle] = useState('')
   const [inspType, setInspType] = useState('pre_trip')

@@ -1743,7 +1743,7 @@ function resolveView(viewId, navTo, onOpenDrawer) {
 }
 
 function CarrierLayoutInner() {
-  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, companyRole, switchView, currentRole } = useApp()
+  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, isDispatcher, companyRole, switchView, currentRole } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
   const { isTrialing, trialDaysLeft, isActive, isPaid } = useSubscription()

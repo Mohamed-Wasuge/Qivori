@@ -151,6 +151,27 @@ const DRIVER_NAV = [
   { id:'settings',     icon: SettingsIcon, label:'Settings',       i18nKey:'nav.settings'     },
 ]
 
+// ── Dispatcher nav — dispatch-relevant tabs only ────────────────────────────
+const DISPATCHER_NAV = [
+  { id:'dashboard',    icon: Monitor,      label:'Dashboard'       },
+  { id:'load-board',   icon: Zap,          label:'Find Loads'      },
+  { id:'loads',        icon: Package,      label:'My Loads'        },
+  { id:'drivers',      icon: Users,        label:'Drivers'         },
+  { id:'fleet',        icon: Truck,        label:'My Fleet'        },
+  { id:'compliance',   icon: Shield,       label:'Safety & Compliance' },
+  { id:'_divider' },
+  { id:'settings',     icon: SettingsIcon, label:'Settings'        },
+]
+
+// ── Accountant nav — finance-relevant tabs only ─────────────────────────────
+const ACCOUNTANT_NAV = [
+  { id:'dashboard',    icon: Monitor,      label:'Dashboard'       },
+  { id:'loads',        icon: Package,      label:'My Loads'        },
+  { id:'financials',   icon: DollarSign,   label:'Money'           },
+  { id:'_divider' },
+  { id:'settings',     icon: SettingsIcon, label:'Settings'        },
+]
+
 // ── Q Intelligence Feed — AI-powered insights for each hub ──
 function QInsightsFeed({ hub, summary, onNavigate }) {
   const [insights, setInsights] = useState([])
@@ -1736,7 +1757,10 @@ function CarrierLayoutInner() {
   const [inviteSending, setInviteSending] = useState(false)
 
   // Choose nav based on company role
-  const currentNav = isDriver ? DRIVER_NAV : NAV
+  const currentNav = isDriver ? DRIVER_NAV
+    : isDispatcher ? DISPATCHER_NAV
+    : companyRole === 'accountant' ? ACCOUNTANT_NAV
+    : NAV
 
   const handleSendInvite = async () => {
     if (!inviteEmail) { showToast('error', 'Error', 'Email is required'); return }
@@ -1783,10 +1807,34 @@ function CarrierLayoutInner() {
   const [dismissedNotifs, setDismissedNotifs] = useState([])
   const notifRef = useRef(null)
 
+  // Allowed view IDs based on current nav (role-based guard)
+  const allowedViews = useMemo(() => {
+    const ids = new Set(currentNav.filter(n => n.id && n.id !== '_divider').map(n => n.id))
+    // Always allow sub-views that are accessible from within allowed hubs
+    if (ids.has('loads')) { ids.add('rate-check'); ids.add('activity-log') }
+    if (ids.has('settings')) ids.add('referrals')
+    return ids
+  }, [currentNav])
+
   const navTo = (viewId) => {
+    // Role-based view guard — redirect to dashboard (or first allowed view) if not allowed
+    if (!allowedViews.has(viewId)) {
+      const fallback = currentNav.find(n => n.id && n.id !== '_divider')
+      setActiveView(fallback?.id || 'dashboard')
+      setMobileNav(false)
+      return
+    }
     setActiveView(viewId)
     setMobileNav(false)
   }
+
+  // Guard: if activeView is not in allowed set (e.g. role changed), redirect
+  useEffect(() => {
+    if (allowedViews.size > 0 && !allowedViews.has(activeView)) {
+      const fallback = currentNav.find(n => n.id && n.id !== '_divider')
+      setActiveView(fallback?.id || 'dashboard')
+    }
+  }, [allowedViews, activeView, currentNav])
 
   useEffect(() => {
     const h = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(o => !o) } }

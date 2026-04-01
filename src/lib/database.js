@@ -1042,3 +1042,41 @@ export async function updateDriverAvailability(driverId, { is_available, availab
   if (error) throw error
   return data
 }
+
+// ─── COMPANY MEMBERS & INVITATIONS ──────────────────────────
+export async function fetchCompanyMembers() {
+  const data = await safeSelect('company_members',
+    supabase.from('company_members').select('*, profiles:user_id(full_name, email, avatar_url)').order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export async function fetchPendingInvitations() {
+  const data = await safeSelect('invitations',
+    supabase.from('invitations').select('*').is('accepted_at', null).order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export async function removeCompanyMember(memberId) {
+  const { data, error } = await safeMutate('removeCompanyMember',
+    supabase.from('company_members').update({ status: 'deactivated' }).eq('id', memberId).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function updateMemberRole(memberId, role) {
+  const { data, error } = await safeMutate('updateMemberRole',
+    supabase.from('company_members').update({ role }).eq('id', memberId).select().single()
+  )
+  if (error) throw error
+  return data
+}
+
+export async function cancelInvitation(invitationId) {
+  const { error } = await safeMutate('cancelInvitation',
+    supabase.from('invitations').delete().eq('id', invitationId)
+  )
+  if (error) throw error
+}

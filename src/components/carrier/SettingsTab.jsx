@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import {
   Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Sun, Moon, Eye, Zap,
-  Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info, FileCheck, Activity
+  Truck, BarChart2, Fuel, Route, AlertTriangle, CheckCircle, ChevronLeft, Plus, Upload, Download, X, ArrowRight, File, Check, Info, FileCheck, Activity, Lock
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 import { Ic } from './shared'
 import { ActivityLog } from './ActivityLog'
 
@@ -1055,7 +1056,7 @@ function DispatchSettings() {
 
 // ── Settings tab ───────────────────────────────────────────────────────────────
 export function SettingsTab() {
-  const { showToast, theme, setTheme } = useApp()
+  const { showToast, theme, setTheme, companyRole, isAdmin } = useApp()
   const { company: ctxCompany, updateCompany } = useCarrier()
   const [company, setCompany] = useState(ctxCompany || { name:'', mc:'', dot:'', address:'', phone:'', email:'', ein:'' })
   const [billing, setBilling] = useState({
@@ -1158,7 +1159,10 @@ export function SettingsTab() {
   const [pageServiceAreas, setPageServiceAreas] = useState(ctxCompany?.service_areas || '')
   const [pageEquipment, setPageEquipment] = useState(ctxCompany?.equipment_types || '')
 
-  const SECTIONS = [
+  // Owner-only settings sections — hidden from dispatchers, accountants, drivers
+  const OWNER_ONLY_SECTIONS = new Set(['team', 'subscription', 'providers', 'integrations'])
+
+  const ALL_SECTIONS = [
     { id:'company',        icon: Building2, label:'Company Profile' },
     { id:'website',        icon: Globe, label:'My Website' },
     { id:'dispatch',       icon: Zap, label:'Dispatch Rules' },
@@ -1174,8 +1178,11 @@ export function SettingsTab() {
     { id:'invoicing',      icon: FileText, label:'Invoicing' },
     { id:'import-data',    icon: Upload, label:'Import Data' },
     { id:'appearance',     icon: Palette, label:'Appearance' },
+    { id:'security',       icon: Shield, label:'Security' },
     { id:'activity-data',  icon: Activity, label:'Activity & Data' },
   ]
+
+  const SECTIONS = isAdmin ? ALL_SECTIONS : ALL_SECTIONS.filter(s => !OWNER_ONLY_SECTIONS.has(s.id))
 
   const FieldRow = ({ label, value, onChange, type='text' }) => (
     <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
@@ -1748,6 +1755,8 @@ export function SettingsTab() {
           </>
         )}
 
+        {settingsSec === 'security' && <ChangePassword />}
+
         {settingsSec === 'activity-data' && (
           <div style={{ margin: '-20px', height: 'calc(100% + 40px)' }}>
             <ActivityLog />
@@ -1756,6 +1765,71 @@ export function SettingsTab() {
 
       </div>
     </div>
+  )
+}
+
+// ── Change Password ───────────────────────────────────────────────────────────
+function ChangePassword() {
+  const { showToast, user, demoMode } = useApp()
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const inputStyle = { background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', width:'100%' }
+
+  const handleSubmit = async () => {
+    if (demoMode) { showToast('', 'Demo Mode', 'Password changes are disabled in demo mode'); return }
+    if (!currentPw || !newPw || !confirmPw) { showToast('', 'Missing fields', 'Please fill in all password fields'); return }
+    if (newPw.length < 8) { showToast('', 'Too short', 'New password must be at least 8 characters'); return }
+    if (newPw !== confirmPw) { showToast('', 'Mismatch', 'New passwords do not match'); return }
+
+    setSaving(true)
+    try {
+      // Re-authenticate with current password
+      const { error: authError } = await supabase.auth.signInWithPassword({ email: user?.email, password: currentPw })
+      if (authError) { showToast('', 'Incorrect password', 'Your current password is wrong'); setSaving(false); return }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPw })
+      if (updateError) { showToast('', 'Update failed', updateError.message); setSaving(false); return }
+
+      showToast('', 'Password updated', 'Your password has been changed successfully')
+      setCurrentPw(''); setNewPw(''); setConfirmPw('')
+    } catch (err) {
+      showToast('', 'Error', err.message || 'Something went wrong')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <>
+      <div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:1, marginBottom:4 }}>SECURITY</div>
+        <div style={{ fontSize:12, color:'var(--muted)' }}>Change your account password</div>
+      </div>
+
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', gap:6 }}><Ic icon={Lock} size={14} /> Change Password</div>
+        <div style={{ padding:20, display:'flex', flexDirection:'column', gap:14, maxWidth:420 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <label style={{ fontSize:11, color:'var(--muted)' }}>Current Password</label>
+            <input type="password" value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Enter current password" style={inputStyle} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <label style={{ fontSize:11, color:'var(--muted)' }}>New Password</label>
+            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Min 8 characters" style={inputStyle} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <label style={{ fontSize:11, color:'var(--muted)' }}>Confirm New Password</label>
+            <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Re-enter new password" style={inputStyle} />
+          </div>
+          <button onClick={handleSubmit} disabled={saving}
+            style={{ alignSelf:'flex-start', marginTop:4, padding:'10px 28px', background:'var(--accent)', color:'#000', border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1, fontFamily:"'DM Sans',sans-serif" }}>
+            {saving ? 'Updating…' : 'Update Password'}
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 

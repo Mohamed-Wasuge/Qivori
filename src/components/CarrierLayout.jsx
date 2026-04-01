@@ -1743,13 +1743,11 @@ function resolveView(viewId, navTo, onOpenDrawer) {
 }
 
 function CarrierLayoutInner() {
-  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, isDispatcher, companyRole, switchView, currentRole } = useApp()
+  const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, isDispatcher, companyRole, switchView, currentRole, subscriptionBlocked, pastDue, openBillingPortal } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
   const { isTrialing, trialDaysLeft, isActive, isPaid } = useSubscription()
 
-  // Trial expired = had a trial that ended and never paid
-  const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('driver')
@@ -1975,85 +1973,146 @@ function CarrierLayoutInner() {
         </div>
       )}
 
-      {/* Trial expired overlay */}
-      {trialExpired && (
+      {/* ── HARD PAYWALL — non-dismissible, blocks all access ─── */}
+      {subscriptionBlocked && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.92)',
+          backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{
             background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
-            maxWidth: 440, width: '90%', padding: 0, overflow: 'hidden',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+            maxWidth: 480, width: '92%', padding: 0, overflow: 'hidden',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
           }}>
+            {/* Header */}
             <div style={{
-              padding: '32px 24px 20px', textAlign: 'center',
-              background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(240,165,0,0.02))',
+              padding: '36px 28px 24px', textAlign: 'center',
+              background: 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(240,165,0,0.05))',
               borderBottom: '1px solid var(--border)',
             }}>
               <div style={{
-                width: 56, height: 56, borderRadius: '50%', margin: '0 auto 16px',
+                width: 60, height: 60, borderRadius: '50%', margin: '0 auto 16px',
                 background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Clock size={24} color="#ef4444" />
+                <AlertTriangle size={28} color="#ef4444" />
               </div>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 1, marginBottom: 6 }}>
-                YOUR FREE TRIAL HAS ENDED
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 26, letterSpacing: 1, marginBottom: 8, color: 'var(--text)' }}>
+                {profile?.subscription_status === 'canceled' ? 'SUBSCRIPTION CANCELED' : 'YOUR FREE TRIAL HAS ENDED'}
               </div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-                Your 14-day trial is over, but all your data is safe. Upgrade to pick up right where you left off.
+              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, maxWidth: 360, margin: '0 auto' }}>
+                {profile?.subscription_status === 'canceled'
+                  ? 'Your subscription has been canceled. Reactivate to regain access to your loads, invoices, and AI tools.'
+                  : 'Your 14-day trial is over, but all your data is safe. Subscribe now to pick up right where you left off.'}
               </div>
             </div>
 
-            <div style={{ padding: '20px 24px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 12 }}>
+            {/* What you're missing */}
+            <div style={{ padding: '20px 28px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 14 }}>
+                FEATURES WAITING FOR YOU
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 20 }}>
+                {[
+                  { icon: Zap, text: 'AI Load Matching' },
+                  { icon: Map, text: 'Smart Dispatch' },
+                  { icon: DollarSign, text: 'Revenue Tracking' },
+                  { icon: FileText, text: 'Auto Invoicing' },
+                  { icon: Shield, text: 'Compliance (IFTA, DVIR)' },
+                  { icon: Truck, text: 'Fleet GPS Tracking' },
+                  { icon: Bot, text: 'AI Rate Negotiation' },
+                  { icon: TrendingUp, text: 'Broker Risk Intel' },
+                ].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text)' }}>
+                    <f.icon size={14} color="var(--accent)" style={{ flexShrink: 0 }} />
+                    <span>{f.text}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pricing */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 10 }}>
                 FOUNDER PRICING — LOCKED FOR LIFE
               </div>
               <div style={{
                 background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)',
-                borderRadius: 10, padding: 14, marginBottom: 16,
+                borderRadius: 10, padding: 14,
               }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                   <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#f0a500' }}>$199</span>
                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo first truck</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
-                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$79</span>/mo each additional truck
+                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$99</span>/mo each additional truck
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                  Everything included. AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks.
+                  First 100 carriers only. Includes everything — AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks.
                 </div>
               </div>
             </div>
 
-            <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Actions */}
+            <div style={{ padding: '0 28px 28px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button onClick={() => {
-                import('../lib/api').then(({ apiFetch }) => {
-                  apiFetch('/api/create-checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ planId: 'autonomous_fleet', email: profile?.email, userId: profile?.id, truckCount: 1 }),
-                  }).then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })
-                    .catch(() => showToast('error', 'Error', 'Could not start checkout'))
-                })
+                apiFetch('/api/create-checkout', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ planId: 'autonomous_fleet', email: profile?.email, userId: profile?.id, truckCount: 1 }),
+                }).then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })
+                  .catch(() => showToast('error', 'Error', 'Could not start checkout'))
               }} style={{
-                width: '100%', padding: '14px', border: 'none', borderRadius: 10, cursor: 'pointer',
+                width: '100%', padding: '16px', border: 'none', borderRadius: 10, cursor: 'pointer',
                 background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000',
-                fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
-                boxShadow: '0 4px 16px rgba(240,165,0,0.25)',
+                fontSize: 15, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
+                boxShadow: '0 4px 20px rgba(240,165,0,0.3)',
               }}>
-                Upgrade Now — $199/mo
+                Subscribe Now — $199/mo
               </button>
-              <button onClick={logout} style={{
-                width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: 10,
-                cursor: 'pointer', background: 'transparent', color: 'var(--muted)', fontSize: 12,
-                fontFamily: "'DM Sans',sans-serif",
-              }}>
-                Sign Out
-              </button>
+              {profile?.stripe_customer_id && (
+                <button onClick={openBillingPortal} style={{
+                  width: '100%', padding: '12px', border: '1px solid var(--accent)', borderRadius: 10,
+                  cursor: 'pointer', background: 'rgba(240,165,0,0.06)', color: '#f0a500', fontSize: 13,
+                  fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
+                }}>
+                  Manage Subscription
+                </button>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 4 }}>
+                <a href="mailto:support@qivori.com" style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'underline' }}>
+                  Contact Support
+                </a>
+                <button onClick={logout} style={{
+                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 12,
+                  fontFamily: "'DM Sans',sans-serif", textDecoration: 'underline', padding: 0,
+                }}>
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── PAST DUE WARNING BANNER — allows access but warns ─── */}
+      {!demoMode && pastDue && !subscriptionBlocked && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))',
+          borderBottom: '1px solid rgba(239,68,68,0.3)',
+          padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, flexShrink: 0,
+        }}>
+          <AlertTriangle size={14} color="#ef4444" />
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>
+            Payment failed — please update your billing info to avoid losing access
+          </span>
+          {profile?.stripe_customer_id && (
+            <button onClick={openBillingPortal} style={{
+              background: '#ef4444', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '4px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "'DM Sans',sans-serif",
+            }}>
+              Update Payment
+            </button>
+          )}
         </div>
       )}
 

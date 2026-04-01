@@ -484,12 +484,36 @@ export function AppProvider({ children }) {
   }
 
   // Subscription helpers
+  const subStatus = profile?.subscription_status || null
+  const trialEndsAt = profile?.trial_ends_at || null
+
+  // Computed: is the trial past its end date?
+  const trialExpired = subStatus === 'trialing' && trialEndsAt && new Date(trialEndsAt).getTime() < Date.now()
+
+  // Computed: days left in trial (null if not trialing)
+  const daysLeftInTrial = (subStatus === 'trialing' && trialEndsAt)
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000))
+    : null
+
+  // Computed: is subscription effectively blocked?
+  // Blocked if: canceled, expired, inactive, OR trial expired — but NOT if active
+  const subscriptionBlocked = !demoMode
+    && !(user?.email?.endsWith('@qivori.com'))
+    && subStatus !== 'active'
+    && (
+      ['canceled', 'expired', 'inactive'].includes(subStatus)
+      || trialExpired
+    )
+
+  // Computed: past due — show warning but allow access (grace period)
+  const pastDue = subStatus === 'past_due'
+
   const subscription = {
     plan: profile?.subscription_plan || null,
-    status: profile?.subscription_status || null,
-    isActive: ['active', 'trialing'].includes(profile?.subscription_status),
-    isTrial: profile?.subscription_status === 'trialing',
-    trialEndsAt: profile?.trial_ends_at || null,
+    status: subStatus,
+    isActive: ['active', 'trialing'].includes(subStatus) && !trialExpired,
+    isTrial: subStatus === 'trialing' && !trialExpired,
+    trialEndsAt: trialEndsAt,
     customerId: profile?.stripe_customer_id || null,
   }
 
@@ -516,6 +540,7 @@ export function AppProvider({ children }) {
       user, profile, authLoading,
       demoMode, enterDemo, exitDemo,
       subscription, openBillingPortal,
+      trialExpired, subscriptionBlocked, pastDue, daysLeftInTrial,
       loginWithCredentials, signUp, resetPassword, logout, goToLogin, navigatePage,
       toggleSidebar, closeSidebar, showToast,
       theme, setTheme,

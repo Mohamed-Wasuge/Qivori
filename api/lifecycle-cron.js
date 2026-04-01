@@ -23,16 +23,61 @@ export default async function handler(req) {
     return Response.json({ error: 'Supabase not configured' }, { status: 500 })
   }
 
-  const results = { drip: 0, trial: 0, churn: 0, winback: 0, errors: 0 }
+  const results = { drip: 0, trial: 0, churn: 0, winback: 0, expired: 0, errors: 0 }
   const now = Date.now()
 
   try {
     // Fetch all users with profiles
-    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?select=id,email,full_name,role,created_at,subscription_status,subscription_plan,trial_ends_at,last_login,last_load_search,load_board_connected,cancelled_at&order=created_at.desc&limit=500`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?select=id,email,full_name,role,created_at,subscription_status,subscription_plan,trial_ends_at,last_login,last_load_search,load_board_connected,cancelled_at,grace_period_end&order=created_at.desc&limit=500`, {
       headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
     })
     if (!res.ok) throw new Error('Failed to fetch profiles')
     const users = await res.json()
+
+    // ── 0. AUTO-EXPIRE: update subscription_status in DB ──
+    for (const user of users) {
+      if (!user.id) continue
+      try {
+        // Auto-expire trialing users whose trial_ends_at has passed
+        if (user.subscription_status === 'trialing' && user.trial_ends_at) {
+          const trialEnd = new Date(user.trial_ends_at).getTime()
+          if (trialEnd < now) {
+            await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': serviceKey,
+                'Authorization': `Bearer ${serviceKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ subscription_status: 'expired' }),
+            })
+            user.subscription_status = 'expired' // update local copy for email logic below
+            results.expired++
+          }
+        }
+        // Auto-expire past_due users whose grace_period_end has passed
+        if (user.subscription_status === 'past_due' && user.grace_period_end) {
+          const graceEnd = new Date(user.grace_period_end).getTime()
+          if (graceEnd < now) {
+            await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': serviceKey,
+                'Authorization': `Bearer ${serviceKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ subscription_status: 'expired' }),
+            })
+            user.subscription_status = 'expired'
+            results.expired++
+          }
+        }
+      } catch (e) {
+        results.errors++
+      }
+    }
 
     for (const user of users) {
       if (!user.email || !user.id) continue

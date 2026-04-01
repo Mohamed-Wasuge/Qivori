@@ -717,7 +717,7 @@ export default function LandingPage({ onGetStarted }) {
         </FadeIn>
       </section>
 
-      {/* ── TESTIMONIALS / SOCIAL PROOF ───────────────────────────────── */}
+      {/* ── BUILT FOR OWNER-OPERATORS ─────────────────────────────────── */}
       <section className="lp-section" style={{ padding: '100px 40px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <FadeIn>
@@ -729,54 +729,42 @@ export default function LandingPage({ onGetStarted }) {
                 marginBottom: 20,
               }}>
                 <Ic icon={Users} size={14} color="var(--accent)" />
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>100+ CARRIERS TRUST QIVORI AI</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>BUILT FOR 1–10 TRUCK FLEETS</span>
               </div>
               <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, marginBottom: 14 }}>
-                TRUSTED BY OWNER-OPERATORS
+                WHY OWNER-OPERATORS CHOOSE Q
               </h2>
-              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 460, margin: '0 auto', lineHeight: 1.7 }}>
-                Real carriers. Real results. Hear from operators who switched to Q.
+              <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 500, margin: '0 auto', lineHeight: 1.7 }}>
+                Everything you need to run your trucking business in one place. No more juggling 5 different apps.
               </p>
             </div>
           </FadeIn>
 
           <div className="lp-testimonials-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {[
-              { quote: 'I used to spend 2 hours a day booking loads and doing paperwork. Qivori cut that down to 15 minutes. More time driving, more money in my pocket.', name: 'James Mitchell', detail: '4 trucks', location: 'Atlanta, GA' },
-              { quote: 'The AI found me a backhaul I would\'ve missed. Paid for 3 months of Qivori in one load.', name: 'Maria Santos', detail: 'Owner-Operator', location: 'Dallas, TX' },
-              { quote: 'IFTA used to take me a whole weekend. Now it\'s done in 2 minutes. I actually look forward to tax season.', name: 'Darnell Washington', detail: '2 trucks', location: 'Memphis, TN' },
-              { quote: 'Everything I need in one place — loads, invoicing, compliance, fuel tracking. No more juggling 5 different apps.', name: 'Sarah Kim', detail: '6 trucks', location: 'Phoenix, AZ' },
-            ].map((t, i) => (
+              { icon: Clock, stat: '15 min', label: 'Average time to book, dispatch, and invoice a load with Q' },
+              { icon: Shield, stat: '46-Point', label: 'DOT-compliant DVIR pre-trip inspection built into the driver app' },
+              { icon: TrendingUp, stat: '$2.94/mi', label: 'Average RPM visibility with real-time lane rate intelligence' },
+              { icon: Zap, stat: '60+ Features', label: 'From load booking to IFTA — one platform, zero paperwork' },
+            ].map((item, i) => (
               <FadeIn key={i} delay={i * 0.1}>
                 <div className="lp-feature-card" style={{
                   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
-                  padding: '28px 24px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                  padding: '32px 24px', textAlign: 'center',
                 }}>
-                  <div>
-                    <div style={{ display: 'flex', gap: 2, marginBottom: 16 }}>
-                      {[...Array(5)].map((_, s) => (
-                        <span key={s} style={{ color: 'var(--accent)', fontSize: 16, lineHeight: 1 }}>&#9733;</span>
-                      ))}
-                    </div>
-                    <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, fontStyle: 'italic', margin: 0 }}>
-                      "{t.quote}"
-                    </p>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%', margin: '0 auto 16px',
+                    background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Ic icon={item.icon} size={24} color="var(--accent)" />
                   </div>
-                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{
-                      width: 40, height: 40, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(240,165,0,0.05))',
-                      border: '1px solid rgba(240,165,0,0.2)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 15, fontWeight: 700, color: 'var(--accent)',
-                    }}>
-                      {t.name.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{t.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t.detail} &middot; {t.location}</div>
-                    </div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 }}>
+                    {item.stat}
                   </div>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                    {item.label}
+                  </p>
                 </div>
               </FadeIn>
             ))}

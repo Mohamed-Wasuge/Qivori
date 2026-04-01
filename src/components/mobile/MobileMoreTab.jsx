@@ -22,14 +22,14 @@ function MobileDVIRHistory() {
 
   if (dvirs.length === 0) return (
     <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, textAlign: 'center' }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, marginBottom: 8, fontFamily: "'Bebas Neue',sans-serif" }}>RECENT INSPECTIONS</div>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 8 }}>RECENT INSPECTIONS</div>
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>No DVIRs yet. Complete a pre-trip to see history here.</div>
     </div>
   )
 
   return (
     <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10, fontFamily: "'Bebas Neue',sans-serif" }}>RECENT INSPECTIONS</div>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 10 }}>RECENT INSPECTIONS</div>
       {dvirs.map(d => {
         const passed = d.status === 'safe' || d.status === 'defects_minor'
         const defectCount = (d.defects || []).length
@@ -117,7 +117,7 @@ export default function MobileMoreTab({ onNavigate }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
         </button>
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Profile</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, letterSpacing: 1 }}>Profile</div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 0 }}>
             {fields.map((f, i) => (
               <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < fields.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -148,13 +148,13 @@ export default function MobileMoreTab({ onNavigate }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
         </button>
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Compliance</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, letterSpacing: 1 }}>Compliance</div>
           {d ? (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {complianceItems.map(item => {
                 const isExpiring = item.expiry && new Date(item.expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
                 const isExpired = item.expiry && new Date(item.expiry) < new Date()
-                const expiryColor = isExpired ? 'var(--danger)' : isExpiring ? '#f59e0b' : 'var(--success)'
+                const expiryColor = isExpired ? 'var(--danger)' : isExpiring ? 'var(--accent)' : 'var(--success)'
                 return (
                   <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg)', borderRadius: 10 }}>
                     <div>
@@ -182,7 +182,7 @@ export default function MobileMoreTab({ onNavigate }) {
           )}
           {/* HOS Status */}
           <div style={{ marginTop: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10, fontFamily: "'Bebas Neue',sans-serif" }}>HOS STATUS</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 10 }}>HOS STATUS</div>
             {(() => {
               const hosStart = localStorage.getItem('qivori_hos_drive_start')
               const hosDriven = parseFloat(localStorage.getItem('qivori_hos_driven') || '0')
@@ -277,7 +277,7 @@ export default function MobileMoreTab({ onNavigate }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
         </button>
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Help & Support</div>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, letterSpacing: 1 }}>Help & Support</div>
 
           {/* Contact */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
@@ -318,7 +318,7 @@ export default function MobileMoreTab({ onNavigate }) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
       {/* Profile header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24, animation: 'fadeInUp 0.3s ease' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
         <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{firstName[0]}</span>
         </div>
@@ -362,7 +362,7 @@ export default function MobileMoreTab({ onNavigate }) {
             ].map(item => {
               const isExpiring = item.expiry && new Date(item.expiry) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
               const isExpired = item.expiry && new Date(item.expiry) < new Date()
-              const expiryColor = isExpired ? 'var(--danger)' : isExpiring ? '#f59e0b' : 'var(--success)'
+              const expiryColor = isExpired ? 'var(--danger)' : isExpiring ? 'var(--accent)' : 'var(--success)'
               return (
                 <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg)', borderRadius: 8 }}>
                   <div>
@@ -392,7 +392,6 @@ export default function MobileMoreTab({ onNavigate }) {
               display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
               background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
               cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'left',
-              animation: `fadeInUp 0.25s ease ${index * 0.05}s both`,
               transition: 'all 0.15s ease',
             }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: `${item.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

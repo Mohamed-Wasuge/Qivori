@@ -152,7 +152,7 @@ export default function MobileShell() {
         <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span></span>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: `${qState.color}10`, borderRadius: 20 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite' }} />
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color }} />
           <span style={{ fontSize: 9, color: qState.color, fontWeight: 700, letterSpacing: 0.3 }}>{qState.label}</span>
         </div>
       </div>
@@ -228,7 +228,6 @@ export default function MobileShell() {
               <div style={{
                 width: 34, height: 34, borderRadius: '50%', background: 'var(--accent)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                animation: 'qGlow 3s ease-in-out infinite',
               }}>
                 <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
               </div>

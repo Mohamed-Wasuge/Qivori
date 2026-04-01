@@ -4083,7 +4083,6 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
             <div style={{
               width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              animation: 'qBreath 2s ease-in-out infinite',
             }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
@@ -4136,7 +4135,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
               width: 40, height: 40, borderRadius: '50%',
               background: callConnecting ? 'var(--accent)' : speaking ? 'var(--success)' : 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              animation: callConnecting ? 'qBreath 1.5s ease-in-out infinite' : speaking ? 'qGlow 2s ease-in-out infinite' : 'qListenGlow 2s ease-in-out infinite',
+              animation: 'none',
               transition: 'background 0.3s ease',
             }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 19, color: speaking ? '#fff' : '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
@@ -4175,7 +4174,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         ) : listening ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeInUp 0.15s ease' }}>
             {/* Q listening avatar */}
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'qListenGlow 2s ease-in-out infinite' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ flex: 1, background: 'var(--surface2)', borderRadius: 24, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>

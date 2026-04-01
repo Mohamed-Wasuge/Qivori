@@ -392,7 +392,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           width: 32, height: 32, borderRadius: '50%', background: qAutonomous ? 'var(--accent)' : 'var(--surface)',
           border: qAutonomous ? 'none' : '1px solid var(--border)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          animation: qAutonomous ? 'qGlow 2s ease-in-out infinite' : 'none', flexShrink: 0,
+          animation: 'none', flexShrink: 0,
           transition: 'all 0.3s ease',
         }}>
           <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: qAutonomous ? '#000' : 'var(--muted)', fontWeight: 800, lineHeight: 1 }}>Q</span>
@@ -400,7 +400,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, color: 'var(--text)' }}>{firstName}</span>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: freshPulse ? 'var(--accent)' : qState.color, animation: freshPulse ? 'qBreath 0.4s ease' : 'qStatusPulse 2s ease-in-out infinite', transition: 'background 0.3s' }} />
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: freshPulse ? 'var(--accent)' : qState.color, animation: freshPulse ? 'qBreath 0.4s ease' : 'none', transition: 'background 0.3s' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: 'var(--muted)', overflow: 'hidden' }}>
             {qSubtext}
@@ -410,7 +410,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
           <div style={{ textAlign: 'center', lineHeight: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", color: 'var(--accent)' }}>{fmt$(totalRevenue)}</div>
-            <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>MTD</div>
+            <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>MTD</div>
           </div>
           <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
           <button onClick={toggleAutonomous} style={{
@@ -459,7 +459,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           borderRadius: '4px 14px 14px 14px', borderLeft: '3px solid var(--accent)',
           lineHeight: 1.5, animation: 'qInsightSlide 0.4s ease',
         }}>
-          <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 4 }}>Q BRIEFING</div>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 4 }}>Q BRIEFING</div>
           <span style={{ opacity: 0.9 }}>{qGreeting}</span>
         </div>
       )}
@@ -488,7 +488,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
               <div style={{
                 width: 28, height: 28, borderRadius: '50%', background: decisionColor,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                boxShadow: `0 0 12px ${decisionColor}40`,
+
+
               }}>
                 <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
               </div>
@@ -559,13 +560,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
             <div style={{
               width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              animation: 'qBreath 2.5s ease-in-out infinite',
-              boxShadow: '0 0 16px rgba(240,165,0,0.2)',
+
+
             }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 2 }}>Q IS ANALYZING</div>
+              <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: 'var(--accent)', marginBottom: 2 }}>SCANNING MARKET</div>
               <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500 }}>Scanning load boards for profitable opportunities</div>
             </div>
             <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -627,7 +628,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           display:'flex', alignItems:'center', justifyContent:'space-between',
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)', animation:'qStatusPulse 2s ease-in-out infinite' }} />
+            <div style={{ width:8, height:8, borderRadius:'50%', background:'var(--success)', }} />
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:'var(--success)' }}>ON DUTY — SHIFT ACTIVE</div>
               <div style={{ fontSize:9, color:'var(--muted)' }}>Pre-trip passed · HOS tracking</div>
@@ -813,7 +814,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         <div style={{
           width: 40, height: 40, borderRadius: '50%', background: 'rgba(0,0,0,0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          animation: 'qBreath 3s ease-in-out infinite',
+
         }}>
           <Ic icon={Zap} size={20} color="#000" />
         </div>
@@ -873,9 +874,9 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
       {/* ── METRICS ── */}
       <div style={{ animation: 'fadeInUp 0.4s ease 0.15s both' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <QMetricCard icon={DollarSign} label="Q Revenue" value={fmt$(totalRevenue)} color="var(--accent)" />
+          <QMetricCard icon={DollarSign} label="Revenue" value={fmt$(totalRevenue)} color="var(--accent)" />
           <QMetricCard
-            icon={TrendingUp} label="Q Profit" value={fmt$(netProfit)}
+            icon={TrendingUp} label="Profit" value={fmt$(netProfit)}
             color={netProfit >= 0 ? 'var(--success)' : 'var(--danger)'}
             sub={`${profitMargin.toFixed(0)}% margin`}
             target={`Target: ${marginTarget}%`}
@@ -895,8 +896,8 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
       {activeLoads.length > 0 && (
         <div style={{ animation: 'fadeInUp 0.4s ease 0.2s both' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'qStatusPulse 2s ease-in-out infinite' }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2 }}>Q TRACKED LOADS</span>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2 }}>ACTIVE LOADS</span>
           </div>
           {activeLoads.slice(0, 3).map((load, index) => {
             const isExpanded = expandedLoad === (load.id || load.load_id)
@@ -956,13 +957,13 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
           padding: '12px 14px', background: 'rgba(239,68,68,0.06)',
           border: '1px solid rgba(239,68,68,0.15)', borderRadius: 12,
           display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-          animation: 'fadeInUp 0.4s ease 0.25s both, qAlertGlow 3s ease-in-out infinite',
+          animation: 'fadeInUp 0.4s ease 0.25s both',
         }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, color: 'var(--danger)', fontWeight: 800, lineHeight: 1 }}>Q</span>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)', letterSpacing: 1, marginBottom: 2 }}>Q ALERT</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--danger)', letterSpacing: 1, marginBottom: 2 }}>ACTION NEEDED</div>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
               {unpaidInvoices.length} unpaid invoice{unpaidInvoices.length > 1 ? 's' : ''} — {fmt$(unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0))} outstanding
             </div>
@@ -976,7 +977,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
         <div style={{ animation: 'fadeInUp 0.4s ease 0.25s both' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Ic icon={Zap} size={10} color="#6366f1" />
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', letterSpacing: 2 }}>Q AI DECISIONS</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', letterSpacing: 2 }}>AI DECISIONS</span>
             <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>Last {aiDecisions.length}</span>
           </div>
           {aiDecisions.slice(0, 4).map((d, i) => {
@@ -997,7 +998,7 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, color, background: `${color}15`, padding: '2px 6px', borderRadius: 4 }}>{label}</span>
                   <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>{d.confidence || 0}%</span>
-                  {d.auto_booked && <span style={{ fontSize: 8, color: '#6366f1', fontWeight: 700 }}>BOOKED</span>}
+                  {d.auto_booked && <span style={{ fontSize: 9, color: '#6366f1', fontWeight: 700 }}>BOOKED</span>}
                   <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 700 }}>
@@ -1063,7 +1064,7 @@ function QMetricCard({ icon, label, value, color, sub, target, targetReached, on
       {target && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
           <div style={{ width: 4, height: 4, borderRadius: '50%', background: targetReached ? 'var(--success)' : 'var(--danger)' }} />
-          <span style={{ fontSize: 8, color: targetReached ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+          <span style={{ fontSize: 9, color: targetReached ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
             {target} · {targetReached ? 'Reached' : 'Not reached'}
           </span>
         </div>

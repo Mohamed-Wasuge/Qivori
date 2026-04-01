@@ -108,7 +108,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
       if (s === 'loaded' || s === 'in transit') return { text: `Deliver to: ${currentLoad.destination || currentLoad.dest || '?'}`, action: () => onNavigate('loads'), icon: Truck, color: 'var(--success)' }
       if (s === 'at delivery') return { text: 'Confirm delivery & upload POD', action: () => onNavigate('loads'), icon: CheckCircle, color: 'var(--success)' }
     }
-    return { text: 'READY TO ROLL', subtext: 'Tap to ask Q for your next load', action: () => onOpenQ?.('Do I have any new loads?'), icon: Truck, color: 'var(--accent)', isReady: true }
+    return { text: 'READY TO ROLL', action: () => onOpenQ?.('Do I have any new loads?'), icon: Truck, color: 'var(--accent)', isReady: true }
   }, [currentLoad, deliveredLoads, onNavigate, onOpenQ])
 
   // AI Safety score for this driver
@@ -189,16 +189,14 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         <div style={{ padding: '20px 0 12px', animation: 'fadeInUp 0.4s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
-              width: 48, height: 48, borderRadius: '50%',
+              width: 44, height: 44, borderRadius: '50%',
               background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              animation: 'qGlow 3s ease-in-out infinite',
-              boxShadow: '0 4px 16px rgba(240,165,0,0.3)',
             }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, lineHeight: 1.2 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'DM Sans',sans-serif", letterSpacing: 0, lineHeight: 1.2 }}>
                 {greeting}, {firstName}
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
@@ -340,8 +338,8 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         {/* ── PRE-TRIP INSPECTION GATE ── */}
         {!preTripDoneToday && (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(240,165,0,0.06))',
-            border: '2px solid rgba(239,68,68,0.3)', borderRadius: 16,
+            background: 'rgba(239,68,68,0.06)',
+            border: '1px solid rgba(239,68,68,0.3)', borderRadius: 16,
             padding: '16px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.04s both',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -367,11 +365,8 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
               <Ic icon={Shield} size={16} color="#fff" />
-              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: 1 }}>START PRE-TRIP INSPECTION</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>Start Pre-Trip Inspection</span>
             </button>
-            <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'center', marginTop: 8 }}>
-              46-point DOT checklist · Q AI flags critical defects
-            </div>
           </div>
         )}
 
@@ -386,22 +381,21 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
           fontFamily: "'DM Sans',sans-serif", animation: 'fadeInUp 0.4s ease 0.05s both',
         }}>
           <div style={{
-            width: nextAction.isReady ? 44 : 36, height: nextAction.isReady ? 44 : 36,
-            borderRadius: nextAction.isReady ? 12 : 10,
+            width: nextAction.isReady ? 36 : 36, height: nextAction.isReady ? 36 : 36,
+            borderRadius: nextAction.isReady ? 10 : 10,
             background: nextAction.isReady ? 'linear-gradient(135deg, var(--accent), #f59e0b)' : nextAction.color,
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            boxShadow: nextAction.isReady ? '0 4px 12px rgba(240,165,0,0.3)' : 'none',
           }}>
-            <Ic icon={nextAction.icon} size={nextAction.isReady ? 22 : 18} color="#000" />
+            <Ic icon={nextAction.icon} size={18} color="#000" />
           </div>
           <div style={{ flex: 1, textAlign: 'left' }}>
             {nextAction.isReady ? (
               <>
-                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', letterSpacing: 2, marginBottom: 2, fontFamily: "'Bebas Neue',sans-serif" }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', letterSpacing: 1, marginBottom: 2, fontFamily: "'DM Sans',sans-serif" }}>
                   {nextAction.text}
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>
-                  {nextAction.subtext}
+                <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)' }}>
+                  Tap to ask Q
                 </div>
               </>
             ) : (
@@ -421,7 +415,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
             padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.1s both',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(currentLoad.status), animation: 'qStatusPulse 2s infinite' }} />
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(currentLoad.status) }} />
               <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(currentLoad.status) }}>{currentLoad.status}</span>
               <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace' }}>{currentLoad.load_id || currentLoad.loadId || ''}</span>
             </div>
@@ -471,8 +465,8 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
             padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.11s both',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <Ic icon={Truck} size={12} color="var(--accent)" />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>MY EQUIPMENT</span>
+              <Ic icon={Truck} size={12} color="var(--muted)" />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1 }}>MY EQUIPMENT</span>
             </div>
             {[myVehicles.truck, myVehicles.trailer].filter(Boolean).map(v => {
               const regExp = v.registration_expiry ? new Date(v.registration_expiry) : null
@@ -513,7 +507,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
                       { label: 'Insurance', days: daysUntil(insExp) },
                       { label: 'DOT Inspect', days: daysUntil(dotExp) },
                     ].map(item => (
-                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusDot(item.days) }} />
                         <span style={{ fontSize: 9, color: 'var(--muted)' }}>{item.label}</span>
                         {item.days !== null && (
@@ -552,17 +546,15 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
             ].map((item, i) => (
               <button key={i} onClick={() => { haptic(); item.action() }} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 6, padding: '14px 8px',
+                gap: 6, padding: '12px 8px',
                 background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
                 cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
-                aspectRatio: '1', minHeight: 80,
               }}>
                 {item.isQ ? (
                   <div style={{
                     width: 32, height: 32, borderRadius: '50%',
                     background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(240,165,0,0.3)',
                   }}>
                     <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
                   </div>
@@ -583,19 +575,23 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         {/* ── EARNINGS ── */}
         {earnings.total === 0 && earnings.week === 0 ? (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(52,176,104,0.08), rgba(240,165,0,0.05))',
-            border: '1px solid rgba(52,176,104,0.2)', borderRadius: 14,
-            padding: '16px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.15s both',
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+            padding: '14px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.15s both',
+            display: 'flex', alignItems: 'center', gap: 12,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <Ic icon={DollarSign} size={12} color="var(--success)" />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', letterSpacing: 1 }}>YOUR EARNINGS</span>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, background: 'rgba(52,176,104,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <Ic icon={DollarSign} size={18} color="var(--success)" />
             </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
-              Complete your first load to start earning
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-              Pay model: <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{payModelText}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
+                Complete loads to start earning
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                {payModelText}
+              </div>
             </div>
           </div>
         ) : (
@@ -660,7 +656,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
                 borderTop: i > 0 ? '1px solid var(--border)' : 'none',
               }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: a.color, flexShrink: 0, animation: a.urgent ? 'qStatusPulse 1.5s infinite' : 'none' }} />
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: a.color, flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: a.urgent ? 700 : 500 }}>{a.text}</span>
               </div>
             ))}
@@ -674,22 +670,22 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
             padding: '12px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.3s both',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <Ic icon={TrendingUp} size={12} color="var(--accent)" />
-              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>MY STATS</span>
+              <Ic icon={TrendingUp} size={12} color="var(--muted)" />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1 }}>MY STATS</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               <div>
-                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>Loads</div>
+                <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Loads</div>
                 <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif" }}>{completedLoads.length}</div>
               </div>
               <div>
-                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>Miles</div>
+                <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Miles</div>
                 <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif" }}>
                   {completedLoads.reduce((s, l) => s + (l.miles || 0), 0).toLocaleString()}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>Avg/Load</div>
+                <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Avg/Load</div>
                 <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>
                   {completedLoads.length > 0 ? fmt$(earnings.total / completedLoads.length) : '$0'}
                 </div>
@@ -833,8 +829,8 @@ function DetentionTracker({ loads, currentLoad }) {
       padding: '12px', marginBottom: 10, animation: 'fadeInUp 0.4s ease 0.12s both',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-        <Ic icon={Clock} size={12} color="var(--accent)" />
-        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>DETENTION & DRIVE TIME</span>
+        <Ic icon={Clock} size={12} color="var(--muted)" />
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1 }}>DETENTION & DRIVE TIME</span>
       </div>
 
       {/* Pickup detention */}

@@ -76,13 +76,13 @@ export default function DriverPayTab() {
       <div style={{ flexShrink: 0, padding: '14px 16px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
+            width: 32, height: 32, borderRadius: '50%', background: 'rgba(240,165,0,0.1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: '#000', fontWeight: 800, lineHeight: 1 }}>Q</span>
+            <Ic icon={DollarSign} size={16} color="var(--accent)" />
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5 }}>MY PAY</div>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 1.5 }}>MY PAY</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>{payModelText}</div>
           </div>
         </div>
@@ -91,18 +91,18 @@ export default function DriverPayTab() {
       {/* Summary cards */}
       <div style={{ flexShrink: 0, padding: '12px 16px', display: 'flex', gap: 8 }}>
         <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>Total Earned</div>
+          <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Total Earned</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(totalPay)}</div>
           <div style={{ fontSize: 9, color: 'var(--muted)' }}>{payHistory.length} loads · {totalMiles.toLocaleString()} mi</div>
         </div>
         <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>Paid</div>
+          <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Paid</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(paidTotal)}</div>
           <div style={{ fontSize: 9, color: 'var(--muted)' }}>{paidLoads.length} settlements</div>
         </div>
         <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px', textAlign: 'center' }}>
-          <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>Pending</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: pendingTotal > 0 ? '#f59e0b' : 'var(--muted)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(pendingTotal)}</div>
+          <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>Pending</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: pendingTotal > 0 ? 'var(--accent)' : 'var(--muted)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(pendingTotal)}</div>
           <div style={{ fontSize: 9, color: 'var(--muted)' }}>{pendingPay.length} loads</div>
         </div>
       </div>
@@ -126,38 +126,13 @@ export default function DriverPayTab() {
       {/* Pay history list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
         {payHistory.length === 0 && (
-          <div style={{ padding: '20px 0', color: 'var(--muted)' }}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: 'var(--accent)', fontWeight: 800 }}>Q</span>
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>No pay history yet</div>
-              <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>Once you complete loads, Q tracks every dollar.<br/>Here's how your pay works:</div>
+          <div style={{ padding: '32px 0', textAlign: 'center' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <Ic icon={DollarSign} size={18} color="var(--accent)" />
             </div>
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10 }}>HOW YOU GET PAID</div>
-              {[
-                { step: '1', text: 'Complete a load & deliver', sub: 'Upload BOL + POD at delivery' },
-                { step: '2', text: 'Dispatcher invoices the broker', sub: 'Q auto-generates the invoice' },
-                { step: '3', text: 'Broker pays — you get settled', sub: `Your rate: ${payModelText}` },
-              ].map((item, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: '#000' }}>{item.step}</span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{item.text}</div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{item.sub}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, color: 'var(--muted)' }}>
-              Detention pay tracked automatically at $75/hr after 2hr free time
-            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>No settlements yet</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Your pay will show here after completing loads</div>
+            <div style={{ display: 'inline-block', marginTop: 10, padding: '4px 10px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)', fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{payModelText}</div>
           </div>
         )}
 
@@ -167,14 +142,14 @@ export default function DriverPayTab() {
             <div key={load.id || load.load_id || i} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '12px',
               background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-              marginBottom: 6, animation: `fadeInUp 0.2s ease ${i * 0.03}s both`,
+              marginBottom: 6, animation: 'fadeInUp 0.2s ease both',
             }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10,
-                background: isPaid ? 'rgba(0,212,170,0.08)' : 'rgba(245,158,11,0.08)',
+                background: isPaid ? 'rgba(0,212,170,0.08)' : 'rgba(240,165,0,0.08)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
-                <Ic icon={isPaid ? CheckCircle : Clock} size={16} color={isPaid ? 'var(--success)' : '#f59e0b'} />
+                <Ic icon={isPaid ? CheckCircle : Clock} size={16} color={isPaid ? 'var(--success)' : 'var(--accent)'} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -183,7 +158,7 @@ export default function DriverPayTab() {
                 <div style={{ fontSize: 10, color: 'var(--muted)' }}>
                   {load.date || '—'} · {load.miles || 0} mi
                   {isPaid && <span style={{ color: 'var(--success)', fontWeight: 700 }}> · PAID</span>}
-                  {!isPaid && <span style={{ color: '#f59e0b' }}> · Pending</span>}
+                  {!isPaid && <span style={{ color: 'var(--accent)' }}> · Pending</span>}
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>

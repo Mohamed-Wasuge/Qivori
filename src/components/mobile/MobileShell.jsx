@@ -19,7 +19,7 @@ const DriverMoreTab = lazy(() => import('./DriverMoreTab'))
 const TabLoader = () => (
   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ textAlign: 'center' }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', animation: 'qBreath 1.5s ease-in-out infinite' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
         <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800 }}>Q</span>
       </div>
       <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Loading...</div>
@@ -190,8 +190,8 @@ export default function MobileShell() {
             background: qState.state === 'alert' ? 'var(--danger)' : 'var(--accent)',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 20px rgba(240,165,0,0.25)',
-            animation: 'fabPop 0.3s ease, qBreath 3s ease-in-out 0.5s infinite',
+            boxShadow: '0 2px 12px rgba(240,165,0,0.2)',
+            animation: 'fabPop 0.3s ease',
             transition: 'transform 0.15s ease, background 0.3s ease',
           }}
         >

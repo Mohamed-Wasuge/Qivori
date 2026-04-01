@@ -122,15 +122,15 @@ export default function DriverMoreTab() {
           {/* YTD summary */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>YTD Earnings</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>YTD Earnings</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(stats.totalPay)}</div>
             </div>
             <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>YTD Miles</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>YTD Miles</div>
               <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif" }}>{stats.totalMiles.toLocaleString()}</div>
             </div>
             <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: 8, color: 'var(--muted)', fontWeight: 600 }}>YTD Loads</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>YTD Loads</div>
               <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif" }}>{stats.completed}</div>
             </div>
           </div>
@@ -251,7 +251,7 @@ export default function DriverMoreTab() {
         <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
           <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>Help & Support</div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>CONTACT US</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: 'var(--muted)', marginBottom: 12 }}>CONTACT US</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 10, marginBottom: 8 }}>
               <Ic icon={Mail} size={15} color="var(--accent)" />
               <div>
@@ -268,7 +268,7 @@ export default function DriverMoreTab() {
             </div>
           </div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>FAQ</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: 'var(--muted)', marginBottom: 12 }}>FAQ</div>
             {faqs.map(faq => (
               <div key={faq.q} style={{ padding: '10px 12px', background: 'var(--bg)', borderRadius: 10, marginBottom: 6 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{faq.q}</div>
@@ -297,8 +297,8 @@ export default function DriverMoreTab() {
 
       {/* Driver profile header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, animation: 'fadeInUp 0.3s ease' }}>
-        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{firstName[0]}</span>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#6366f1', fontFamily: "'Bebas Neue',sans-serif" }}>{firstName[0]}</span>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{profile?.full_name || myDriver?.full_name || 'Driver'}</div>
@@ -319,7 +319,7 @@ export default function DriverMoreTab() {
           { label: 'Earned', value: fmt$(stats.totalPay), color: 'var(--success)' },
         ].map(s => (
           <div key={s.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px', textAlign: 'center' }}>
-            <div style={{ fontSize: 7, color: 'var(--muted)', fontWeight: 600, letterSpacing: 0.5 }}>{s.label}</div>
+            <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600, letterSpacing: 0.5 }}>{s.label}</div>
             <div style={{ fontSize: 14, fontWeight: 800, color: s.color, fontFamily: "'Bebas Neue',sans-serif" }}>{s.value}</div>
           </div>
         ))}
@@ -335,7 +335,7 @@ export default function DriverMoreTab() {
               cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", textAlign: 'left',
               animation: `fadeInUp 0.25s ease ${index * 0.05}s both`,
             }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: `${item.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${item.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Ic icon={item.icon} size={17} color={item.color} />
             </div>
             <div style={{ flex: 1 }}>
@@ -441,7 +441,7 @@ function MyTruckSection({ myDriver, vehicles, BackButton }) {
       <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', padding: '16px', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 2 }}>{label.toUpperCase()}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 2 }}>{label.toUpperCase()}</div>
             <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>
               {v.unit_number || `${v.year || ''} ${v.make || ''} ${v.model || ''}`}
             </div>
@@ -633,13 +633,13 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
         <BackButton />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center' }}>
           <div style={{
-            width: 80, height: 80, borderRadius: '50%', marginBottom: 20,
+            width: 60, height: 60, borderRadius: '50%', marginBottom: 20,
             background: defectCount > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(0,212,170,0.1)',
-            border: `3px solid ${defectCount > 0 ? '#f59e0b' : 'var(--success)'}`,
+            border: `2px solid ${defectCount > 0 ? '#f59e0b' : 'var(--success)'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             animation: 'cardPop 0.4s ease',
           }}>
-            <Ic icon={defectCount > 0 ? AlertTriangle : CheckCircle} size={36} color={defectCount > 0 ? '#f59e0b' : 'var(--success)'} />
+            <Ic icon={defectCount > 0 ? AlertTriangle : CheckCircle} size={28} color={defectCount > 0 ? '#f59e0b' : 'var(--success)'} />
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, marginBottom: 8 }}>
             {defectCount > 0 ? 'DEFECTS REPORTED' : 'INSPECTION PASSED'}
@@ -665,7 +665,7 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>DVIR Inspection</div>
+            <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>DVIR Inspection</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>FMCSA §396.11 — Required before every trip</div>
           </div>
           <div style={{ padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700,
@@ -719,7 +719,7 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
             <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: '#000', fontWeight: 800 }}>Q</span>
           </div>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>AI-Powered Inspection</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>AI-Powered Inspection</div>
             <div style={{ fontSize: 10, color: 'var(--muted)' }}>Tap the camera icon on critical items — Q scans your photo for FMCSA defects</div>
           </div>
         </div>
@@ -744,7 +744,7 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {catChecked < cat.items.length && (
                     <button onClick={e => { e.stopPropagation(); markAllPass(cat.category) }}
-                      style={{ padding: '4px 8px', background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.2)', borderRadius: 6, fontSize: 9, fontWeight: 700, color: 'var(--success)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+                      style={{ padding: '4px 8px', background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.2)', borderRadius: 6, fontSize: 10, fontWeight: 700, color: 'var(--success)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
                       ALL OK
                     </button>
                   )}
@@ -761,9 +761,6 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 4px' }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: st ? 600 : 400 }}>{item}</span>
-                            {AI_SCAN_ITEMS[item] && !st && !scanning && (
-                              <div style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, marginTop: 1 }}>AI scan available</div>
-                            )}
                           </div>
                           {AI_SCAN_ITEMS[item] && (
                             <button onClick={() => {
@@ -803,17 +800,14 @@ export function DVIRInspection({ myDriver, vehicles, BackButton }) {
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                               <div style={{
-                                width: 18, height: 18, borderRadius: '50%',
-                                background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              }}>
-                                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 9, color: '#000', fontWeight: 800 }}>Q</span>
-                              </div>
+                                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                background: scanResults[item].status === 'pass' ? 'var(--success)' : scanResults[item].out_of_service ? 'var(--danger)' : '#f59e0b',
+                              }} />
                               <span style={{
                                 fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
                                 color: scanResults[item].status === 'pass' ? 'var(--success)' : scanResults[item].out_of_service ? 'var(--danger)' : '#f59e0b',
                               }}>
-                                {scanResults[item].status === 'pass' ? 'PASS' : scanResults[item].out_of_service ? 'CRITICAL — OUT OF SERVICE' : 'MINOR DEFECT'}
+                                {scanResults[item].status === 'pass' ? 'PASS' : scanResults[item].out_of_service ? 'CRITICAL' : 'MINOR DEFECT'}
                               </span>
                               {scanResults[item].confidence && (
                                 <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 'auto' }}>{scanResults[item].confidence}% confident</span>
@@ -987,7 +981,7 @@ function EditableProfile({ myDriver, company, user, profile, firstName, payModel
 
         {/* Personal Info — Editable */}
         <div style={{ background: 'var(--surface)', border: editing ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 12, transition: 'border-color 0.2s' }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: editing ? 'var(--accent)' : 'var(--muted)', marginBottom: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: editing ? 'var(--accent)' : 'var(--muted)', marginBottom: 10 }}>
             {editing ? 'EDITING — PERSONAL INFO' : 'PERSONAL INFO'}
           </div>
           <EditableRow label="Phone" fieldKey="phone" type="tel" />
@@ -999,7 +993,7 @@ function EditableProfile({ myDriver, company, user, profile, firstName, payModel
 
         {/* CDL & Qualifications — Read-only */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 10 }}>CDL & QUALIFICATIONS</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: 'var(--muted)', marginBottom: 10 }}>CDL & QUALIFICATIONS</div>
           {[
             ['CDL Number', d.cdl_number || d.license_number || '•••••'],
             ['CDL Class', d.license_class || d.cdl_class || 'A'],
@@ -1014,7 +1008,7 @@ function EditableProfile({ myDriver, company, user, profile, firstName, payModel
 
         {/* Company — Read-only */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 10 }}>COMPANY</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: 'var(--muted)', marginBottom: 10 }}>COMPANY</div>
           {[
             ['Company', company.name || company.company_name || '—'],
             ['MC #', company.mc_number || company.mc || '—'],

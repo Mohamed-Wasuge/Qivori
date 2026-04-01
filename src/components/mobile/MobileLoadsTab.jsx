@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
@@ -97,7 +97,7 @@ const STATUS_FLOW = ['Rate Con Received', 'Booked', 'Dispatched', 'En Route to P
 
 export default function MobileLoadsTab() {
   const ctx = useCarrier() || {}
-  const { showToast, user } = useApp()
+  const { showToast, user, isDriver } = useApp()
   const loads = ctx.loads || []
   const invoices = ctx.invoices || []
   const updateLoadStatus = ctx.updateLoadStatus || (() => {})
@@ -318,30 +318,34 @@ export default function MobileLoadsTab() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* Header with Snap Rate Con */}
+      {/* Header */}
       <div style={{ flexShrink: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>LOADS</div>
+          <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{isDriver ? 'MY LOADS' : 'LOADS'}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
         </div>
-        <button onClick={() => { haptic(); setShowAddLoad(v => !v) }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-          <Ic icon={Plus} size={14} color="var(--accent)" />
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Add Load</span>
-        </button>
-        <button onClick={() => rateConRef.current?.click()}
-          disabled={scanning}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-          <Ic icon={scanning ? Clock : ScanLine} size={14} color="#000" />
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Snap Rate Con'}</span>
-        </button>
+        {!isDriver && (
+          <>
+            <button onClick={() => { haptic(); setShowAddLoad(v => !v) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              <Ic icon={Plus} size={14} color="var(--accent)" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Add Load</span>
+            </button>
+            <button onClick={() => rateConRef.current?.click()}
+              disabled={scanning}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              <Ic icon={scanning ? Clock : ScanLine} size={14} color="#000" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Snap Rate Con'}</span>
+            </button>
+          </>
+        )}
         <input ref={rateConRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleRateConPhoto(f); e.target.value = '' }} />
       </div>
 
       {/* Status filter chips */}
       <div style={{ flexShrink: 0, padding: '0 16px 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        {STATUS_FILTERS.map(s => {
+        {(isDriver ? STATUS_FILTERS.filter(s => s !== 'Invoiced' && s !== 'Paid') : STATUS_FILTERS).map(s => {
           const isActive = filter === s
           const count = s === 'All' ? loads.length : loads.filter(l => {
             const st = (l.status || '').toLowerCase()
@@ -356,8 +360,8 @@ export default function MobileLoadsTab() {
         })}
       </div>
 
-      {/* ── GET PAID Banner — Delivered loads needing action ── */}
-      {deliveredNeedAction.length > 0 && !showAddLoad && (
+      {/* ── GET PAID Banner — Delivered loads needing action (owners only) ── */}
+      {!isDriver && deliveredNeedAction.length > 0 && !showAddLoad && (
         <div style={{
           margin: '0 16px 8px', padding: '12px 14px',
           background: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(240,165,0,0.08))',
@@ -475,8 +479,8 @@ export default function MobileLoadsTab() {
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, color: 'var(--accent)', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>No loads yet</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>Snap a rate con or let Q find your next load.</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{isDriver ? 'No loads assigned yet' : 'No loads yet'}</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>{isDriver ? 'Your dispatcher will assign loads here. Ask Q if you have questions.' : 'Snap a rate con or let Q find your next load.'}</div>
           </div>
         )}
 
@@ -686,7 +690,7 @@ export default function MobileLoadsTab() {
                               <Ic icon={Camera} size={12} color="var(--accent)" /> Upload POD
                             </button>
                           )}
-                          {!hasInv && (
+                          {!isDriver && !hasInv && (
                             <button onClick={() => generateInvoiceForLoad(load)} style={{
                               flex: 1, minWidth: 100, padding: '10px', background: '#8b5cf6', border: 'none', borderRadius: 8,
                               cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif",
@@ -695,7 +699,7 @@ export default function MobileLoadsTab() {
                               <Ic icon={FileText} size={12} color="#fff" /> Create Invoice
                             </button>
                           )}
-                          {hasInv && !isFactored && (inv?.status || '').toLowerCase() !== 'paid' && (
+                          {!isDriver && hasInv && !isFactored && (inv?.status || '').toLowerCase() !== 'paid' && (
                             <>
                               <button onClick={() => quickFactor(load)} style={{
                                 flex: 1, minWidth: 80, padding: '10px', background: '#8b5cf6', border: 'none', borderRadius: 8,

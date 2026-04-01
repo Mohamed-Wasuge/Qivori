@@ -126,12 +126,38 @@ export default function DriverPayTab() {
       {/* Pay history list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
         {payHistory.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--muted)' }}>
-            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: 'var(--accent)', fontWeight: 800 }}>Q</span>
+          <div style={{ padding: '20px 0', color: 'var(--muted)' }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: 'var(--accent)', fontWeight: 800 }}>Q</span>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>No pay history yet</div>
+              <div style={{ fontSize: 11, marginTop: 4, lineHeight: 1.5 }}>Once you complete loads, Q tracks every dollar.<br/>Here's how your pay works:</div>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>No pay history yet</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>Complete loads to see your earnings here.</div>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 10 }}>HOW YOU GET PAID</div>
+              {[
+                { step: '1', text: 'Complete a load & deliver', sub: 'Upload BOL + POD at delivery' },
+                { step: '2', text: 'Dispatcher invoices the broker', sub: 'Q auto-generates the invoice' },
+                { step: '3', text: 'Broker pays — you get settled', sub: `Your rate: ${payModelText}` },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#000' }}>{item.step}</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{item.text}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{item.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 12, fontSize: 10, color: 'var(--muted)' }}>
+              Detention pay tracked automatically at $75/hr after 2hr free time
+            </div>
           </div>
         )}
 

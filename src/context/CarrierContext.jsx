@@ -1281,7 +1281,7 @@ export function CarrierProvider({ children }) {
   const deliveredLoads = visibleLoads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
   const activeLoads = visibleLoads.filter(l => !['Delivered', 'Invoiced', 'Cancelled'].includes(l.status))
   const unpaidInvoices = visibleInvoices.filter(i => i.status === 'Unpaid')
-  const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || 0), 0)
+  const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0)
   const totalExpenses = visibleExpenses.reduce((s, e) => s + (e.amount || 0), 0)
 
   // Broker intelligence — score brokers from load + invoice history

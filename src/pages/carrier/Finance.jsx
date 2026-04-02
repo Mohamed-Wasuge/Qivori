@@ -2103,9 +2103,10 @@ export function CashFlowForecaster() {
       const delWk   = CF_DUE_WEEK[delDate] ?? 1
       const isRelay = load.load_source === 'amazon_relay' || load.payment_terms === 'biweekly'
       const payWk   = Math.min(5, delWk + (isRelay ? 2 : 4)) // Amazon pays ~2 weeks, brokers ~30 days
-      incoming[payWk] += load.gross
+      const loadGross = load.gross || load.rate || 0
+      incoming[payWk] += loadGross
       const payNote = isRelay ? 'pays biweekly (Amazon Relay)' : 'pays ~30 days later'
-      items[payWk].push({ type:'load', id:load.loadId, label:`${load.loadId} · ${load.origin?.split(',')[0]}→${load.dest?.split(',')[0]}`, amount:load.gross, broker:load.broker, detail:`Delivers ${delDate || 'TBD'} · ${payNote}`, projected:true })
+      items[payWk].push({ type:'load', id:load.loadId, label:`${load.loadId} · ${load.origin?.split(',')[0]}→${load.dest?.split(',')[0]}`, amount:loadGross, broker:load.broker, detail:`Delivers ${delDate || 'TBD'} · ${payNote}`, projected:true })
     })
 
     // 3. Weekly outgoing (deterministic, no Math.random)
@@ -3202,7 +3203,7 @@ export function AnalyticsDashboard() {
       if (isNaN(parsed)) return
       const key = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}`
       const m = months.find(mo => mo.key === key)
-      if (m) { m.revenue += Number(l.gross || l.gross_pay || 0); m.loads++; m.miles += Number(l.miles || 0) }
+      if (m) { m.revenue += Number(l.gross || l.rate || l.gross_pay || 0); m.loads++; m.miles += Number(l.miles || 0) }
     })
     expenses.forEach(e => {
       const parsed = new Date(e.date)
@@ -3222,7 +3223,7 @@ export function AnalyticsDashboard() {
       if (!o || !d) return
       const key = `${o} → ${d}`
       if (!laneMap[key]) laneMap[key] = { lane:key, revenue:0, loads:0, miles:0, rates:[] }
-      laneMap[key].revenue += Number(l.gross || l.gross_pay || 0)
+      laneMap[key].revenue += Number(l.gross || l.rate || l.gross_pay || 0)
       laneMap[key].loads++
       laneMap[key].miles += Number(l.miles || 0)
       if (l.rate) laneMap[key].rates.push(Number(l.rate))

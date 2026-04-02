@@ -79,7 +79,7 @@ export function ProfitIQTab() {
 
   // Per-load profit: gross minus per-driver pay and real fuel cost
   const loadProfit = completedLoads.map(l => {
-    const gross      = l.gross || 0
+    const gross      = l.gross || l.rate || 0
     const miles      = parseFloat(l.miles) || 0
     const driverPay  = calcDriverPay(l.driver, gross, miles)
     const fuelCost   = Math.round(miles * fuelRate)
@@ -169,7 +169,7 @@ export function ProfitIQTab() {
       if (isNaN(d)) return
       const diffMonths = (now.getFullYear()-d.getFullYear())*12 + now.getMonth()-d.getMonth()
       const idx = 5 - diffMonths
-      if (idx >= 0 && idx < 5) histRev[idx] += Number(l.gross || l.gross_pay || 0)
+      if (idx >= 0 && idx < 5) histRev[idx] += Number(l.gross || l.rate || l.gross_pay || 0)
     })
     expenses.forEach(e => {
       const d = new Date(e.date)
@@ -202,7 +202,7 @@ export function ProfitIQTab() {
       const rev = loads.reduce((s, l) => {
         const d = new Date(getLoadDate(l))
         if (isNaN(d)) return s
-        return (d >= weekStart && d <= weekEnd) ? s + Number(l.gross || l.gross_pay || 0) : s
+        return (d >= weekStart && d <= weekEnd) ? s + Number(l.gross || l.rate || l.gross_pay || 0) : s
       }, 0)
       weeks.push({ week: weekLabel, Revenue: Math.round(rev) })
     }
@@ -247,7 +247,7 @@ export function ProfitIQTab() {
     completedLoads.forEach(l => {
       const truck = l.vehicle || l.truck || l.driver || 'Unassigned'
       if (!truckMap[truck]) truckMap[truck] = { name:truck, gross:0, net:0, miles:0, loads:0, fuelCost:0, driverPay:0 }
-      const gross = l.gross || 0
+      const gross = l.gross || l.rate || 0
       const miles = parseFloat(l.miles) || 0
       const driverPay = calcDriverPay(l.driver, gross, miles)
       const fuel = Math.round(miles * fuelRate)
@@ -264,7 +264,7 @@ export function ProfitIQTab() {
     completedLoads.forEach(l => {
       const truck = l.vehicle || l.truck || l.driver || 'Unassigned'
       const lDate = getLoadDate(l)
-      const gross = l.gross || 0
+      const gross = l.gross || l.rate || 0
       const miles = parseFloat(l.miles) || 0
       const driverPay = calcDriverPay(l.driver, gross, miles)
       const fuel = Math.round(miles * fuelRate)
@@ -341,7 +341,7 @@ export function ProfitIQTab() {
     else qInsight = `Profit engine online. ${bestTruck ? `Replicate ${bestTruck.name}'s lane strategy across fleet.` : 'Maintain current rate discipline.'} ${unpaidTotal > 0 ? `$${unpaidTotal.toLocaleString()} in receivables outstanding.` : ''}`
 
     // Cash flow projection (next 30 days)
-    const projectedIncoming = unpaidTotal + activeLoads.reduce((s,l) => s + (l.gross || 0), 0)
+    const projectedIncoming = unpaidTotal + activeLoads.reduce((s,l) => s + (l.gross || l.rate || 0), 0)
     const monthlyBurn = totalExpenses || (completedLoads.length > 0 ? completedLoads.reduce((s,l) => s + calcDriverPay(l.driver, l.gross||0, parseFloat(l.miles)||0) + Math.round((parseFloat(l.miles)||0) * fuelRate), 0) : 5000)
     const cashRunway = monthlyBurn > 0 ? Math.round((projectedIncoming / monthlyBurn) * 30) : 999
 

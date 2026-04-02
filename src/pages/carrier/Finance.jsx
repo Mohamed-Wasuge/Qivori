@@ -1522,6 +1522,42 @@ export function ExpenseTracker() {
         </div>
       </div>
 
+      {/* Expense Donut Chart */}
+      {totalBycat.length > 1 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Expense Distribution</div>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={totalBycat.map(c => ({ name: c.cat, value: c.total }))} dataKey="value" cx="50%" cy="50%"
+                  innerRadius={55} outerRadius={85} paddingAngle={2} strokeWidth={0} animationDuration={800}>
+                  {totalBycat.map((c, i) => {
+                    const PIE_COLORS = ['#f59e0b','#ef4444','#3b82f6','#8b5cf6','#22c55e','#06b6d4','#ec4899','#f97316','#6366f1','#14b8a6','#a855f7','#6b7280']
+                    return <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  })}
+                </Pie>
+                <Tooltip contentStyle={{ background:'#1a1a2e', border:'1px solid rgba(240,165,0,0.3)', borderRadius:10, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}
+                  formatter={(v, name) => [`$${v.toLocaleString()}`, name]} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 12 }}>Top Categories</div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={totalBycat.slice(0, 8).map(c => ({ name: c.cat, amount: c.total }))} layout="vertical"
+                margin={{ top: 0, right: 10, bottom: 0, left: 60 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false}
+                  tick={{ fontSize: 11, fill: '#ccc', fontFamily: "'DM Sans',sans-serif" }} width={60} />
+                <Tooltip contentStyle={{ background:'#1a1a2e', border:'1px solid rgba(240,165,0,0.3)', borderRadius:10, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}
+                  formatter={(v) => [`$${v.toLocaleString()}`, 'Amount']} cursor={{ fill: 'rgba(240,165,0,0.05)' }} />
+                <Bar dataKey="amount" fill="#f0a500" radius={[0, 4, 4, 0]} animationDuration={800} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Receipt Drop Zone */}
       {!showForm && (
         <div
@@ -2402,7 +2438,7 @@ export function PLDashboard() {
     return expenses
   }, [expenses, period, currentMonth, currentYear])
 
-  const revenue = useMemo(() => periodLoads.reduce((s, l) => s + (l.gross || 0), 0), [periodLoads])
+  const revenue = useMemo(() => periodLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0), [periodLoads])
   const totalExp = useMemo(() => periodExpenses.reduce((s, e) => s + (e.amount || 0), 0), [periodExpenses])
   const net = revenue - totalExp
   const margin = revenue > 0 ? ((net / revenue) * 100).toFixed(1) : '0.0'
@@ -2416,7 +2452,7 @@ export function PLDashboard() {
       const k = key(l)
       if (!k) return
       if (!map[k]) map[k] = { label:k, rev:0, loads:0 }
-      map[k].rev += l.gross || 0
+      map[k].rev += l.gross || l.rate || 0
       map[k].loads++
     })
     return Object.values(map).sort((a,b) => b.rev - a.rev)

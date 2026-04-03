@@ -23,12 +23,51 @@ export default async function handler(req) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders })
   }
 
-  const ACCESS_TOKEN = process.env.MOTIVE_ACCESS_TOKEN
+  let ACCESS_TOKEN = process.env.MOTIVE_ACCESS_TOKEN
+  const REFRESH_TOKEN = process.env.MOTIVE_REFRESH_TOKEN
+  const CLIENT_ID = process.env.MOTIVE_CLIENT_ID
+  const CLIENT_SECRET = process.env.MOTIVE_CLIENT_SECRET
+
   if (!ACCESS_TOKEN) {
     return Response.json({ error: 'MOTIVE_ACCESS_TOKEN not set in env vars' }, { status: 500, headers: corsHeaders })
   }
 
-  const results = {}
+  // Step 1: Try to refresh the token first (tokens expire quickly)
+  let refreshResult = null
+  if (REFRESH_TOKEN && CLIENT_ID && CLIENT_SECRET) {
+    try {
+      const refreshRes = await fetch('https://api.gomotive.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: REFRESH_TOKEN,
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+        }),
+      })
+      if (refreshRes.ok) {
+        const tokenData = await refreshRes.json()
+        ACCESS_TOKEN = tokenData.access_token
+        refreshResult = {
+          ok: true,
+          new_token_prefix: ACCESS_TOKEN.slice(0, 10) + '...',
+          expires_in: tokenData.expires_in,
+          note: 'UPDATE MOTIVE_ACCESS_TOKEN in Vercel with this new token',
+          new_access_token: ACCESS_TOKEN,
+          new_refresh_token: tokenData.refresh_token || REFRESH_TOKEN,
+        }
+      } else {
+        refreshResult = { ok: false, status: refreshRes.status, error: await refreshRes.text() }
+      }
+    } catch (e) {
+      refreshResult = { ok: false, error: e.message }
+    }
+  } else {
+    refreshResult = { skipped: true, reason: 'Missing MOTIVE_CLIENT_ID or MOTIVE_CLIENT_SECRET — cannot refresh token' }
+  }
+
+  const results = { token_refresh: refreshResult }
   const headers = {
     'Authorization': `Bearer ${ACCESS_TOKEN}`,
     'Content-Type': 'application/json',
@@ -64,27 +103,44 @@ export default async function handler(req) {
     } else results.drivers.error = await res.text()
   } catch (e) { results.drivers = { error: e.message } }
 
-  // Test 4: Get HOS daily logs
-  try {
-    const res = await fetch('https://api.gomotive.com/v1/hours_of_service/daily_logs?per_page=5', { headers })
-    results.hos_logs = { status: res.status, ok: res.ok }
-    if (res.ok) {
-      const data = await res.json()
-      results.hos_logs.count = (data.daily_logs || data.data || []).length
-      results.hos_logs.sample = (data.daily_logs || data.data || []).slice(0, 2)
-    } else results.hos_logs.error = await res.text()
-  } catch (e) { results.hos_logs = { error: e.message } }
+  // Test 4: Get HOS daily logs (try multiple endpoint paths)
+  const hosEndpoints = [
+    'https://api.gomotive.com/v1/hours_of_service/daily_logs?per_page=5',
+    'https://api.gomotive.com/v2/hours_of_service/daily_logs?per_page=5',
+    'https://api.gomotive.com/v1/hos_daily_logs?per_page=5',
+  ]
+  for (const hosUrl of hosEndpoints) {
+    try {
+      const res = await fetch(hosUrl, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        results.hos_logs = { status: res.status, ok: true, endpoint: hosUrl, count: (data.daily_logs || data.data || []).length, sample: (data.daily_logs || data.data || []).slice(0, 2) }
+        break
+      } else if (!results.hos_logs || results.hos_logs.status === 404) {
+        results.hos_logs = { status: res.status, ok: false, endpoint: hosUrl, error: (await res.text()).slice(0, 200) }
+      }
+    } catch (e) { results.hos_logs = { error: e.message, endpoint: hosUrl } }
+  }
 
-  // Test 5: Get vehicle inspections (DVIRs)
-  try {
-    const res = await fetch('https://api.gomotive.com/v1/vehicle_inspections?per_page=5', { headers })
-    results.dvirs = { status: res.status, ok: res.ok }
-    if (res.ok) {
-      const data = await res.json()
-      results.dvirs.count = (data.vehicle_inspections || data.data || []).length
-      results.dvirs.sample = (data.vehicle_inspections || data.data || []).slice(0, 2)
-    } else results.dvirs.error = await res.text()
-  } catch (e) { results.dvirs = { error: e.message } }
+  // Test 5: Get vehicle inspections / DVIRs (try multiple paths)
+  const dvirEndpoints = [
+    'https://api.gomotive.com/v1/vehicle_inspections?per_page=5',
+    'https://api.gomotive.com/v2/vehicle_inspections?per_page=5',
+    'https://api.gomotive.com/v1/dvirs?per_page=5',
+    'https://api.gomotive.com/v1/inspection_reports?per_page=5',
+  ]
+  for (const dvirUrl of dvirEndpoints) {
+    try {
+      const res = await fetch(dvirUrl, { headers })
+      if (res.ok) {
+        const data = await res.json()
+        results.dvirs = { status: res.status, ok: true, endpoint: dvirUrl, count: (data.vehicle_inspections || data.inspections || data.data || []).length, sample: (data.vehicle_inspections || data.inspections || data.data || []).slice(0, 2) }
+        break
+      } else if (!results.dvirs || results.dvirs.status === 404) {
+        results.dvirs = { status: res.status, ok: false, endpoint: dvirUrl, error: (await res.text()).slice(0, 200) }
+      }
+    } catch (e) { results.dvirs = { error: e.message, endpoint: dvirUrl } }
+  }
 
   // Test 6: Get company info
   try {

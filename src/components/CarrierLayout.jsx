@@ -353,7 +353,7 @@ function DriversHub() {
   ]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:0 }}>
       {/* Corporate HR header */}
       <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -381,7 +381,7 @@ function DriversHub() {
         </div>
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0 }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
           {tab === 'team' && (
             <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
@@ -402,7 +402,7 @@ function DriversHub() {
           )}
           {tab === 'payroll' && <PayrollTracker />}
           {tab === 'compliance' && (
-            <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+            <div style={{ display:'flex', flexDirection:'column' }}>
               <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
                 {COMPLIANCE_TABS.map(ct => (
                   <button key={ct.id} onClick={() => setComplianceTab(ct.id)} style={{
@@ -413,7 +413,7 @@ function DriversHub() {
                   }}>{ct.label}</button>
                 ))}
               </div>
-              <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+              <div style={{ flex:1, minHeight:0 }}>
                 {complianceTab === 'dq-files' && <DQFileManager />}
                 {complianceTab === 'expiry-alerts' && <ExpiryAlerts />}
                 {complianceTab === 'drug-alcohol' && <DrugAlcoholCompliance />}
@@ -448,7 +448,7 @@ function FleetHub() {
   }, [truckCount, onRoad, totalMiles, totalFuel, fuelCostPerMile, activeLoads])
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:0 }}>
       {/* Fleet header */}
       <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -477,7 +477,7 @@ function FleetHub() {
         </div>
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0 }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
           {tab === 'fleet' && (
             <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
@@ -593,7 +593,7 @@ function FinancialsHub() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:0 }}>
       {/* Corporate financial header */}
       <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -622,7 +622,7 @@ function FinancialsHub() {
         </div>
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0 }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
 
           {tab === 'overview' && (
@@ -772,7 +772,7 @@ function FinancialsHub() {
           {tab === 'factoring' && <FactoringCashflow />}
 
           {tab === 'reports' && (
-            <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+            <div style={{ display:'flex', flexDirection:'column' }}>
               <div style={{ flexShrink:0, display:'flex', gap:0, padding:'0 20px', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
                 {REPORTS_TABS.map(rt => (
                   <button key={rt.id} onClick={() => setReportsTab(rt.id)} style={{
@@ -783,7 +783,7 @@ function FinancialsHub() {
                   }}>{rt.label}</button>
                 ))}
               </div>
-              <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+              <div style={{ flex:1, minHeight:0 }}>
                 {reportsTab === 'pl' && <PLDashboard />}
                 {reportsTab === 'profit-iq' && <ProfitIQTab />}
                 {reportsTab === 'receivables' && <ReceivablesAging />}
@@ -1095,7 +1095,7 @@ function ComplianceHub() {
   const TABS = [{ id:'overview', label:'Overview' },{ id:'safety-intel', label:'Safety Intelligence' },{ id:'audit', label:'Audit Today' },{ id:'center', label:'DVIR / ELD' },{ id:'ifta', label:'IFTA' },{ id:'broker-risk', label:'Broker Risk' },{ id:'clearinghouse', label:'Drug & Alcohol' }]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
+    <div style={{ display:'flex', flexDirection:'column', minHeight:0 }}>
       {/* Corporate compliance header */}
       <div style={{ flexShrink:0, padding:'14px 24px', background:'var(--surface)', borderBottom:'1px solid var(--border)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -1124,7 +1124,7 @@ function ComplianceHub() {
         </div>
       </div>
       <HubTabBar tabs={TABS} active={tab} onChange={setTab} />
-      <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
+      <div style={{ flex:1, minHeight:0 }}>
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>}>
 
           {tab === 'overview' && (

@@ -230,12 +230,14 @@ async function motiveFetch(apiKey, endpoint, params = {}) {
     if (v !== undefined && v !== null) url.searchParams.set(k, v);
   }
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'X-Api-Key': apiKey,
-      'Content-Type': 'application/json',
-    },
-  });
+  // Support both OAuth Bearer tokens and legacy X-Api-Key
+  // OAuth tokens are typically longer (100+ chars) and start with 'C' or contain mixed case
+  const isOAuthToken = apiKey.length > 60
+  const headers = isOAuthToken
+    ? { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+    : { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' }
+
+  const res = await fetch(url.toString(), { headers });
 
   if (res.status === 429) {
     console.warn('Motive API rate limited (429)');
@@ -245,6 +247,13 @@ async function motiveFetch(apiKey, endpoint, params = {}) {
   if (!res.ok) {
     const errText = await res.text();
     console.error(`Motive API error (${endpoint}): ${res.status} - ${errText}`);
+    // If Bearer failed, retry with X-Api-Key as fallback
+    if (isOAuthToken) {
+      const res2 = await fetch(url.toString(), {
+        headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' },
+      });
+      if (res2.ok) return res2.json();
+    }
     return null;
   }
 

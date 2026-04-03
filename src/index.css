@@ -523,10 +523,10 @@ td { padding: 12px 14px; font-size: 13px; vertical-align: middle; }
   min-height: 0;
 }
 
-/* Hub wrappers (flex column with sub-tabs) need to fill height */
+/* Hub wrappers flow naturally — carrier-main is the ONE scroll root */
 .carrier-main > div[style*="flex-direction: column"],
 .carrier-main > div[style*="flex-direction:column"] {
-  flex: 1 1 0%;
+  flex: 0 0 auto;
 }
 
 /* Overview / block-layout pages just flow naturally and let carrier-main scroll */

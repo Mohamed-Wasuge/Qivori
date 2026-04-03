@@ -285,7 +285,7 @@ export default async function handler(req) {
     // ── Call Claude with tools ──
     let claudeResponse = await callClaude(apiKey, systemPrompt, messages)
     if (!claudeResponse) {
-      return Response.json({ error: 'AI unavailable' }, { status: 502, headers: corsHeaders(req) })
+      return Response.json({ error: 'AI unavailable', detail: 'All Claude models failed — check ANTHROPIC_API_KEY in Vercel env vars' }, { status: 502, headers: corsHeaders(req) })
     }
 
     // ── Process tool calls ──
@@ -357,44 +357,38 @@ export default async function handler(req) {
 // ── Claude API Call ──────────────────────────────────────────────────────────
 
 async function callClaude(apiKey, systemPrompt, messages) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-      tools: TOOLS,
-    }),
-  })
-
-  if (!res.ok) {
-    // Fallback model
-    const res2 = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages,
-        tools: TOOLS,
-      }),
-    })
-    if (res2.ok) return await res2.json()
-    return null
+  const MODELS = ['claude-sonnet-4-6', 'claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022']
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
   }
 
-  return await res.json()
+  for (const model of MODELS) {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages,
+          tools: TOOLS,
+        }),
+      })
+      if (res.ok) return await res.json()
+      // If overloaded or rate-limited, try next model
+      const status = res.status
+      if (status === 529 || status === 429 || status === 500 || status === 503) continue
+      // For auth errors (401/403) or bad request (400), don't retry — it'll fail on all models
+      if (status === 401 || status === 403) return null
+      // Try next model for any other error
+    } catch {
+      // Network error — try next model
+    }
+  }
+  return null
 }
 
 // ── Tool Execution (calls /api/q-tools internally) ───────────────────────────

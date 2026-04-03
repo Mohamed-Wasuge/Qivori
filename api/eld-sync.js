@@ -374,9 +374,68 @@ function mapHOSStatus(raw) {
   return 'off_duty';
 }
 
+// --- Motive Token Refresh ---
+
+async function refreshMotiveToken(userId, conn) {
+  // Get refresh token from metadata
+  let metadata = {}
+  try { metadata = typeof conn.metadata === 'string' ? JSON.parse(conn.metadata) : (conn.metadata || {}) } catch { metadata = {} }
+
+  const refreshToken = metadata.refresh_token
+  if (!refreshToken) return null
+
+  const CLIENT_ID = process.env.MOTIVE_CLIENT_ID
+  const CLIENT_SECRET = process.env.MOTIVE_CLIENT_SECRET
+  if (!CLIENT_ID || !CLIENT_SECRET) return null
+
+  try {
+    const res = await fetch('https://api.gomotive.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+      }),
+    })
+
+    if (!res.ok) {
+      console.error(`Motive token refresh failed for user ${userId}: ${res.status}`)
+      return null
+    }
+
+    const tokenData = await res.json()
+    const newAccessToken = tokenData.access_token
+    const newRefreshToken = tokenData.refresh_token || refreshToken
+
+    if (!newAccessToken) return null
+
+    // Update the connection in Supabase with new tokens
+    const newMetadata = JSON.stringify({
+      ...metadata,
+      refresh_token: newRefreshToken,
+      token_type: tokenData.token_type,
+      expires_in: tokenData.expires_in,
+      last_refreshed: new Date().toISOString(),
+    })
+
+    await supabaseQuery(`eld_connections?user_id=eq.${userId}&provider=eq.motive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ api_key: newAccessToken, metadata: newMetadata }),
+    })
+
+    console.log(`Motive token refreshed for user ${userId}`)
+    return newAccessToken
+  } catch (e) {
+    console.error(`Motive token refresh error for user ${userId}:`, e.message)
+    return null
+  }
+}
+
 // --- Sync orchestrator ---
 
-async function syncProvider(userId, provider, apiKey) {
+async function syncProvider(userId, provider, apiKey, conn) {
   const results = { hos: 0, vehicles: 0, dvirs: 0, errors: [] };
 
   try {
@@ -389,10 +448,20 @@ async function syncProvider(userId, provider, apiKey) {
         syncSamsaraDVIRs(userId, apiKey),
       ]);
     } else if (provider === 'motive') {
+      // Try sync — if 401, refresh token and retry once
+      let currentKey = apiKey
+      const testRes = await motiveFetch(currentKey, '/companies', { per_page: 1 })
+      if (!testRes && conn) {
+        // Token likely expired — try refresh
+        const newKey = await refreshMotiveToken(userId, conn)
+        if (newKey) {
+          currentKey = newKey
+        }
+      }
       [hosLogs, vehicles, dvirs] = await Promise.all([
-        syncMotiveHOS(userId, apiKey),
-        syncMotiveVehicles(userId, apiKey),
-        syncMotiveDVIRs(userId, apiKey),
+        syncMotiveHOS(userId, currentKey),
+        syncMotiveVehicles(userId, currentKey),
+        syncMotiveDVIRs(userId, currentKey),
       ]);
     } else {
       results.errors.push(`Unknown provider: ${provider}`);
@@ -494,7 +563,7 @@ export default async function handler(req) {
         continue;
       }
 
-      const result = await syncProvider(conn.user_id, conn.provider, conn.api_key);
+      const result = await syncProvider(conn.user_id, conn.provider, conn.api_key, conn);
       syncResults.push({
         provider: conn.provider,
         user_id: conn.user_id,

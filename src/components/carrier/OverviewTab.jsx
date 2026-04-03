@@ -349,6 +349,7 @@ export function OverviewTab({ onTabChange }) {
   const { showToast } = useApp()
   const { loads, allLoads, activeLoads, totalRevenue, totalExpenses, unpaidInvoices, deliveredLoads, drivers, vehicles, removeLoad, company, updateCompany, invoices, fuelCostPerMile, expenses } = useCarrier()
   const [dismissed, setDismissed] = useState([])
+  const [checklistDismissed, setChecklistDismissed] = useState(() => localStorage.getItem('qv_checklist_dismissed') === 'true')
   const [qPulse, setQPulse] = useState(true)
 
   // Animated KPI values
@@ -591,6 +592,50 @@ export function OverviewTab({ onTabChange }) {
         {/* Bottom glow line */}
         <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, var(--accent), var(--success), var(--accent), transparent)', opacity:0.3 }} />
       </div>
+
+      {/* ═══ GETTING STARTED CHECKLIST ════════════════════════════════ */}
+      {(() => {
+        const steps = [
+          { key: 'company', label: 'Set up company', desc: 'MC/DOT verified', done: !!(company?.mc_number || company?.dot_number), nav: 'settings' },
+          { key: 'truck', label: 'Add a truck', desc: `${vehicles.length} registered`, done: vehicles.length > 0, nav: 'fleet' },
+          { key: 'driver', label: 'Add a driver', desc: `${drivers.length} on roster`, done: drivers.length > 0, nav: 'drivers' },
+          { key: 'load', label: 'Book first load', desc: `${loads.length} total`, done: loads.length > 0, nav: 'loads' },
+          { key: 'invoice', label: 'Send an invoice', desc: `${invoices.length} created`, done: invoices.length > 0, nav: 'financials' },
+        ]
+        const completed = steps.filter(s => s.done).length
+        const allDone = completed === steps.length
+        if (checklistDismissed || allDone) return null
+        return (
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, overflow:'hidden', flexShrink:0 }}>
+            <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <Target size={14} color='var(--accent)' />
+                <span style={{ fontSize:11, fontWeight:800, color:'var(--text)', letterSpacing:0.5 }}>GET STARTED</span>
+                <span style={{ fontSize:10, color:'var(--muted)', fontWeight:600 }}>{completed}/{steps.length} complete</span>
+              </div>
+              <button className="btn btn-ghost" style={{ fontSize:9, color:'var(--muted)' }} onClick={() => { setChecklistDismissed(true); localStorage.setItem('qv_checklist_dismissed','true') }}>Dismiss</button>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height:3, background:'var(--border)' }}>
+              <div style={{ height:'100%', width:`${(completed/steps.length)*100}%`, background:'linear-gradient(90deg, var(--accent), var(--success))', borderRadius:2, transition:'width 0.5s ease' }} />
+            </div>
+            {steps.map(s => (
+              <div key={s.key} onClick={() => !s.done && onTabChange(s.nav)} style={{ padding:'8px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:10, cursor: s.done ? 'default' : 'pointer', opacity: s.done ? 0.6 : 1, transition:'background 0.15s' }}
+                onMouseOver={e => { if (!s.done) e.currentTarget.style.background='rgba(240,165,0,0.04)' }}
+                onMouseOut={e => e.currentTarget.style.background='transparent'}>
+                <div style={{ width:20, height:20, borderRadius:'50%', border: s.done ? 'none' : '2px solid var(--border)', background: s.done ? 'var(--success)' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {s.done && <CheckCircle size={14} color='#fff' />}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', textDecoration: s.done ? 'line-through' : 'none' }}>{s.label}</div>
+                  <div style={{ fontSize:9, color:'var(--muted)', fontWeight:600 }}>{s.done ? s.desc : `Tap to ${s.label.toLowerCase()}`}</div>
+                </div>
+                {!s.done && <ChevronRight size={14} color='var(--muted)' />}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* ═══ 2. Q INSIGHT CARD ═════════════════════════════════════════ */}
       {qInsights.length > 0 && (

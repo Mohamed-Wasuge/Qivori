@@ -90,6 +90,18 @@ export default async function handler(req) {
       });
     }
 
+    // If no state (manual test auth), show tokens so they can be copied to Vercel
+    if (!state) {
+      return new Response(redirectHTML('success', 'Motive connected successfully!', {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_in: tokenData.expires_in,
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+
     return new Response(redirectHTML('success', 'Motive connected successfully!'), {
       status: 200,
       headers: { 'Content-Type': 'text/html' },
@@ -103,7 +115,7 @@ export default async function handler(req) {
   }
 }
 
-function redirectHTML(status, message) {
+function redirectHTML(status, message, tokens = null) {
   const isSuccess = status === 'success';
   return `<!DOCTYPE html>
 <html>
@@ -125,6 +137,13 @@ function redirectHTML(status, message) {
     <div class="icon">${isSuccess ? '✓' : '✕'}</div>
     <div class="title">${isSuccess ? 'Connected!' : 'Connection Failed'}</div>
     <div class="msg">${message}</div>
+    ${tokens ? `
+    <div style="text-align:left; background:#1a1a2e; border:1px solid #333; border-radius:8px; padding:16px; margin:16px 0; font-size:11px; font-family:monospace; word-break:break-all;">
+      <div style="color:#f0a500; font-weight:700; margin-bottom:8px;">Copy these to Vercel env vars:</div>
+      <div style="margin-bottom:8px;"><span style="color:#8a8a9a;">MOTIVE_ACCESS_TOKEN=</span><br/><span style="color:#00d4aa;">${tokens.access_token}</span></div>
+      <div style="margin-bottom:8px;"><span style="color:#8a8a9a;">MOTIVE_REFRESH_TOKEN=</span><br/><span style="color:#00d4aa;">${tokens.refresh_token || 'N/A'}</span></div>
+      <div><span style="color:#8a8a9a;">Expires in:</span> <span style="color:#fff;">${tokens.expires_in}s</span></div>
+    </div>` : ''}
     <a class="btn" href="https://qivori.com">Return to Qivori</a>
   </div>
   <script>

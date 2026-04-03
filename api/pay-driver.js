@@ -9,6 +9,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
 async function supabaseRequest(path, options = {}) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars')
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
@@ -148,7 +149,9 @@ export default async function handler(req) {
         `drivers?id=eq.${payroll.driver_id}&select=name,full_name&limit=1`
       )
       if (drivers[0]) driverName = drivers[0].name || drivers[0].full_name || 'Driver'
-    } catch {}
+    } catch (err) {
+      console.error('[pay-driver] Failed to fetch driver name:', err?.message)
+    }
 
     // 5. Calculate fee for instant pay
     const isInstant = paymentSpeed === 'instant'

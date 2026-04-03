@@ -65,7 +65,7 @@ export default async function handler(req) {
     fetch(`${supabaseUrl}/rest/v1/webhook_events`, {
       method: 'POST', headers: sbHeaders,
       body: JSON.stringify({ event_id: event.id, event_type: event.type, processed_at: new Date().toISOString() })
-    }).catch(() => {})
+    }).catch(err => console.error('[stripe-webhook] Failed to record event:', err?.message))
 
     switch (event.type) {
       // ── CHECKOUT COMPLETED — new subscription ──
@@ -358,7 +358,7 @@ export default async function handler(req) {
           await fetch(`${supabaseUrl}/rest/v1/driver_payroll?id=eq.${payout.metadata.payroll_id}`, {
             method: 'PATCH', headers: sbHeaders,
             body: JSON.stringify({ payment_status: 'paid' }),
-          }).catch(() => {})
+          }).catch(err => console.error('[stripe-webhook] payout.paid DB update failed:', err?.message))
         }
         break
       }
@@ -374,7 +374,7 @@ export default async function handler(req) {
               payment_status: 'failed',
               payment_error: payout.failure_message || 'Payout failed',
             }),
-          }).catch(() => {})
+          }).catch(err => console.error('[stripe-webhook] payout.failed DB update failed:', err?.message))
         }
         break
       }
@@ -387,7 +387,7 @@ export default async function handler(req) {
           await fetch(`${supabaseUrl}/rest/v1/driver_payroll?id=eq.${transfer.metadata.payroll_id}`, {
             method: 'PATCH', headers: sbHeaders,
             body: JSON.stringify({ payment_status: 'paid' }),
-          }).catch(() => {})
+          }).catch(err => console.error('[stripe-webhook] transfer.paid DB update failed:', err?.message))
         }
         break
       }

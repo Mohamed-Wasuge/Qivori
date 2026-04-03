@@ -11,6 +11,11 @@ export default async function handler(req){
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error('[settlement] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars')
+    return json({ error: 'Server configuration error' }, 500)
+  }
+
   const authErr = await requireAuth(req)
   if (authErr) return authErr
   const user = req._user
@@ -152,7 +157,7 @@ export default async function handler(req){
             method:'POST',
             headers:{Authorization:'Bearer '+RESEND_API_KEY,'Content-Type':'application/json'},
             body:JSON.stringify({from:'Qivori <payments@qivori.com>',to:[coDriverEmail],subject:'Settlement Ready — $'+coDriverPay.toFixed(2)+' Payment (Team)',html:`<p>Hi ${coDriverName}, your co-driver settlement for $${coDriverPay.toFixed(2)} has been processed. Load: ${loadId.substring(0,8)}. Gross: $${agreedRate.toFixed(2)}.</p>`})
-          }).catch(() => {})
+          }).catch(err => console.error('[settlement] Co-driver email failed:', err?.message))
         }
 
         return json({ok:true,loadId,agreedRate,driverPay,coDriverPay,totalDriverPay,carrierProfit:adjustedCarrierProfit,payModel,payRate,status:'settled',team:true})

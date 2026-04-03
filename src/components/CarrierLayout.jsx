@@ -1753,6 +1753,7 @@ function CarrierLayoutInner() {
   const [inviteRole, setInviteRole] = useState('driver')
   const [inviteDriverId, setInviteDriverId] = useState('')
   const [inviteSending, setInviteSending] = useState(false)
+  const [referralStats, setReferralStats] = useState(null)
 
   // Choose nav based on company role
   const currentNav = isDriver ? DRIVER_NAV
@@ -1855,6 +1856,14 @@ function CarrierLayoutInner() {
     localStorage.setItem('qv_read_notifs', JSON.stringify(readNotifs))
   }, [readNotifs])
 
+  // Fetch referral stats (fire once on mount, skip in demo mode)
+  useEffect(() => {
+    if (demoMode) return
+    apiFetch('/api/referral-stats').then(r => r.json()).then(data => {
+      if (data && !data.error) setReferralStats(data)
+    }).catch(() => {})
+  }, [demoMode])
+
   // Generate rich notifications from real data
   const timeAgo = (mins) => {
     if (mins < 60) return `${mins}m ago`
@@ -1907,8 +1916,16 @@ function CarrierLayoutInner() {
     // Trial ending (sample)
     if (loads.length > 0 && loads.length < 5) n.push({ id: 'trial-ending', icon: Clock, title: 'Free Trial — 7 Days Left', desc: 'Upgrade to keep all your data and unlock premium features', color: 'var(--accent)', view: 'settings', type: 'system', time: 1440 })
 
-    // New referral signup — only show if user has referral activity
-    // TODO: wire to actual referral data when available
+    // Referral notifications — wired to /api/referral-stats data
+    if (referralStats?.stats) {
+      const { signups, rewardsEarned, pending } = referralStats.stats
+      if (signups > 0) {
+        n.push({ id: `referral-signups-${signups}`, icon: UserPlus, title: `${signups} Referral Signup${signups > 1 ? 's' : ''}`, desc: `${rewardsEarned} free month${rewardsEarned !== 1 ? 's' : ''} earned — ${referralStats.tier?.current?.label || 'Bronze'} tier`, color: 'var(--accent2)', view: 'referrals', type: 'referral', time: 360 })
+      }
+      if (pending > 0) {
+        n.push({ id: `referral-pending-${pending}`, icon: Link2, title: `${pending} Pending Referral${pending > 1 ? 's' : ''}`, desc: 'Shared your link — waiting for signups', color: 'var(--muted)', view: 'referrals', type: 'referral', time: 720 })
+      }
+    }
 
     // Weekly summary available
     if (loads.length >= 3) n.push({ id: 'weekly-summary', icon: BarChart2, title: 'Weekly Summary Ready', desc: `${loads.length} loads, $${loads.reduce((s,l) => s + (l.gross || 0), 0).toLocaleString()} gross — view your analytics`, color: 'var(--accent2)', view: 'analytics', type: 'summary', time: 4320 })
@@ -1918,7 +1935,7 @@ function CarrierLayoutInner() {
     if (drivers.length === 0) n.push({ id: 'add-drivers', icon: Users, title: 'Add Drivers', desc: 'Add your drivers to assign loads', color: 'var(--accent2)', view: 'drivers', type: 'system', time: 10 })
 
     return n
-  }, [loads, activeLoads, unpaidInvoices, drivers])
+  }, [loads, activeLoads, unpaidInvoices, drivers, referralStats])
 
   const notifs = ALL_NOTIFS.filter(n => !dismissedNotifs.includes(n.id))
   const unreadCount = notifs.filter(n => !readNotifs.includes(n.id)).length

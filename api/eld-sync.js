@@ -63,8 +63,8 @@ async function authenticateUser(req) {
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.split(' ')[1];
 
-  // Allow cron/service key auth
-  if (token === process.env.CRON_SECRET || token === SUPABASE_KEY) {
+  // Allow cron/service key auth (null-check to prevent undefined === undefined bypass)
+  if ((process.env.CRON_SECRET && token === process.env.CRON_SECRET) || (SUPABASE_KEY && token === SUPABASE_KEY)) {
     return { id: '__cron__', role: 'service' };
   }
 
@@ -500,7 +500,7 @@ async function syncProvider(userId, provider, apiKey, conn) {
     await supabaseQuery(`eld_connections?user_id=eq.${userId}&provider=eq.${provider}`, {
       method: 'PATCH',
       body: JSON.stringify({ status: 'error' }),
-    }).catch(() => {});
+    }).catch(err => console.error('[eld-sync] Failed to update connection error status:', err?.message));
   }
 
   return results;
@@ -511,6 +511,11 @@ async function syncProvider(userId, provider, apiKey, conn) {
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error('[eld-sync] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars');
+    return new Response(JSON.stringify({ error: 'Server configuration error' }), { status: 500, headers: corsHeaders });
   }
 
   if (req.method !== 'GET' && req.method !== 'POST') {

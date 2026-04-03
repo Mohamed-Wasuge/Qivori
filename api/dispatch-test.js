@@ -318,7 +318,9 @@ async function storeDecisions(ownerId, results) {
       headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
       body: JSON.stringify(records),
     })
-  } catch {}
+  } catch (err) {
+    console.error('[dispatch-test] Failed to store decisions:', err?.message)
+  }
 }
 
 // ── Handler ─────────────────────────────────────────────────────────────────

@@ -2583,7 +2583,7 @@ export function AILoadBoard() {
                     </button>
                   </div>
                   <div style={{ fontSize:11, color:'var(--muted)', marginTop:8 }}>
-                    Booking adds to dispatch queue with status "Rate Con Received". Upload rate con PDF to auto-fill all fields.
+                    Booking adds to dispatch queue with status "Rate Con Received". Upload a rate confirmation PDF to auto-fill all fields.
                   </div>
                 </div>
               ) : (

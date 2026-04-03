@@ -2,7 +2,7 @@ import { useState, useCallback, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
-import { Home, Package, DollarSign, MoreHorizontal, X, Clock, Wallet } from 'lucide-react'
+import { Home, Package, DollarSign, MoreHorizontal, X, Clock, Wallet, Sparkles } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic } from './shared'
 
 // Lazy-load all tabs — only loads the tab JS when first rendered
@@ -42,7 +42,7 @@ const DRIVER_TABS = [
 ]
 
 export default function MobileShell() {
-  const { logout, user, profile, demoMode, showToast, isDriver } = useApp()
+  const { logout, user, profile, demoMode, showToast, isDriver, goToLogin } = useApp()
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
   const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'
   const ctx = useCarrier() || {}
@@ -89,6 +89,17 @@ export default function MobileShell() {
 
   return (
     <div style={{ height: '100dvh', width: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden' }}>
+
+      {/* Demo banner */}
+      {demoMode && (
+        <div style={{ background:'linear-gradient(90deg, #f0a500, #e09000)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'center', gap:10, flexShrink:0, flexWrap:'wrap' }}>
+          <Sparkles size={13} color="#000" />
+          <span style={{ fontSize:12, fontWeight:700, color:'#000' }}>Demo mode</span>
+          <button onClick={goToLogin} style={{ background:'#000', color:'#f0a500', border:'none', borderRadius:8, padding:'7px 20px', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", boxShadow:'0 2px 6px rgba(0,0,0,0.3)' }}>
+            Create Real Account
+          </button>
+        </div>
+      )}
 
       {/* Trial countdown */}
       {!demoMode && isTrialing && trialDaysLeft !== null && (

@@ -827,7 +827,7 @@ export function BookedLoads() {
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loads confirmed via rate confirmation — assign drivers and track to invoice</div>
         </div>
         <button className="btn btn-primary" onClick={() => setShowForm(s => !s)}>
-          {showForm ? '✕ Cancel' : '+ Add Rate Con'}
+          {showForm ? '✕ Cancel' : '+ Add Load'}
         </button>
       </div>
 
@@ -843,6 +843,7 @@ export function BookedLoads() {
           <div style={{ marginBottom: 10, display:'flex', justifyContent:'center' }}><Ic icon={FileText} size={36} /></div>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Drop Rate Confirmation Here</div>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>PDF or image · AI will auto-fill all fields</div>
+          <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 4 }}>A rate con (rate confirmation) is the contract from your broker with load details and agreed pay</div>
         </div>
       )}
 
@@ -858,7 +859,10 @@ export function BookedLoads() {
       {showForm && !parsing && (
         <div style={{ background: 'var(--surface)', border: '1px solid rgba(240,165,0,0.3)', borderRadius: 12, padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent)', display:'flex', alignItems:'center', gap:6 }}><Ic icon={FileText} size={14} /> Rate Confirmation — Review & Confirm</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent)', display:'flex', alignItems:'center', gap:6 }}><Ic icon={FileText} size={14} /> Rate Confirmation — Review & Confirm</div>
+              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Rate con is the contract from the broker confirming load details and pay</div>
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-ghost" style={{ fontSize: 11 }}
                 onClick={() => { document.getElementById('ratecon-input2').click() }}>
@@ -901,12 +905,13 @@ export function BookedLoads() {
               { key: 'broker',    label: 'Broker',           ph: 'TQL, Echo, CH Robinson...' },
               { key: 'brokerPhone', label: 'Broker Phone',   ph: '(555) 123-4567' },
               { key: 'brokerEmail', label: 'Broker Email',   ph: 'dispatch@broker.com' },
-              { key: 'equipment', label: 'Equipment',        ph: 'Dry Van' },
+              { key: 'equipment', label: 'Equipment',        ph: 'Dry Van', hint: 'Trailer type needed (dry van, reefer, flatbed, etc.)' },
             ].map(f => (
               <div key={f.key}>
                 <label style={{ fontSize: 10, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
                   {form[f.key] ? '+ ' : ''}{f.label}
                 </label>
+                {f.hint && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: -2, marginBottom: 4 }}>{f.hint}</div>}
                 <input value={form[f.key] || ''} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
                   placeholder={f.ph}
                   style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
@@ -964,7 +969,7 @@ export function BookedLoads() {
           <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 8 }}>RATE & CARGO</div>
           <div style={{ display: 'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap: 10, marginBottom: 12 }}>
             {[
-              { key: 'rate',      label: 'Total Rate ($)', ph: '3500' },
+              { key: 'rate',      label: 'Total Rate ($)', ph: '3500', hint: 'Total gross amount you\'ll receive for this load' },
               { key: 'miles',     label: calcMiles ? 'Calculating...' : 'Miles', ph: calcMiles ? '...' : '674' },
               { key: 'weight',    label: 'Weight (lbs)',   ph: '42000' },
               { key: 'commodity', label: 'Commodity',      ph: 'Auto Parts' },
@@ -973,6 +978,7 @@ export function BookedLoads() {
                 <label style={{ fontSize: 10, color: form[f.key] ? 'var(--accent2)' : 'var(--muted)', display: 'block', marginBottom: 3 }}>
                   {form[f.key] ? '+ ' : ''}{f.label}
                 </label>
+                {f.hint && <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: -2, marginBottom: 4 }}>{f.hint}</div>}
                 <input value={form[f.key] || ''} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))}
                   placeholder={f.ph}
                   style={{ width: '100%', background: form[f.key] ? 'rgba(0,212,170,0.05)' : 'var(--surface2)', border: `1px solid ${form[f.key] ? 'rgba(0,212,170,0.3)' : 'var(--border)'}`, borderRadius: 6, padding: '7px 10px', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
@@ -1091,9 +1097,9 @@ export function BookedLoads() {
             </select>
           </div>
           {form.rate && (
-            <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, fontSize: 12, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-              <span>Gross: <b style={{ color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>${parseFloat(form.rate||0).toLocaleString(undefined,{maximumFractionDigits:0})}</b></span>
-              {form.miles && <span>RPM: <b style={{ color: 'var(--accent2)' }}>${(parseFloat(form.rate||0) / parseFloat(form.miles||1)).toFixed(2)}</b>/mi</span>}
+            <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 8, fontSize: 12, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <span>Gross: <b style={{ color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18 }}>${parseFloat(form.rate||0).toLocaleString(undefined,{maximumFractionDigits:0})}</b> <span style={{ fontSize: 9, color: 'var(--muted)' }}>total pay</span></span>
+              {form.miles && <span>RPM: <b style={{ color: 'var(--accent2)' }}>${(parseFloat(form.rate||0) / parseFloat(form.miles||1)).toFixed(2)}</b>/mi <span style={{ fontSize: 9, color: 'var(--muted)' }}>rate per mile</span></span>}
               {form.miles && <span>Est. Fuel: <b style={{ color: 'var(--danger)' }}>${Math.round(parseFloat(form.miles||0)/6.8*3.89).toLocaleString()}</b></span>}
               {form.miles && <span>Est. Net: <b style={{ color: 'var(--success)' }}>${Math.round(parseFloat(form.rate||0) - parseFloat(form.miles||0)/6.8*3.89 - parseFloat(form.rate||0)*0.28).toLocaleString()}</b></span>}
             </div>
@@ -1246,7 +1252,7 @@ export function BookedLoads() {
       {/* Load cards */}
       {bookedLoads.length === 0 && (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 13 }}>
-          No booked loads yet. Click <b>+ Add Rate Con</b> to log your first confirmed load.
+          No booked loads yet. Click <b>+ Add Load</b> to log your first confirmed load.
         </div>
       )}
       {bookedLoads.map(load => {

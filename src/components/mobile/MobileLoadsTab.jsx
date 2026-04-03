@@ -454,14 +454,20 @@ export default function MobileLoadsTab() {
               style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
             <input type="number" placeholder="Miles" value={newLoad.miles} onChange={e => setNewLoad(x => ({ ...x, miles: e.target.value }))}
               style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input type="number" placeholder="Rate ($)" value={newLoad.rate} onChange={e => setNewLoad(x => ({ ...x, rate: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+            <div>
+              <input type="number" placeholder="Rate ($)" value={newLoad.rate} onChange={e => setNewLoad(x => ({ ...x, rate: e.target.value }))}
+                style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
+              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Total gross amount you'll receive</div>
+            </div>
             <input placeholder="Broker" value={newLoad.broker} onChange={e => setNewLoad(x => ({ ...x, broker: e.target.value }))}
               style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <select value={newLoad.equipment} onChange={e => setNewLoad(x => ({ ...x, equipment: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
-              {['Dry Van', 'Reefer', 'Flatbed', 'Stepdeck', 'Power Only'].map(eq => <option key={eq} value={eq}>{eq}</option>)}
-            </select>
+            <div>
+              <select value={newLoad.equipment} onChange={e => setNewLoad(x => ({ ...x, equipment: e.target.value }))}
+                style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }}>
+                {['Dry Van', 'Reefer', 'Flatbed', 'Stepdeck', 'Power Only'].map(eq => <option key={eq} value={eq}>{eq}</option>)}
+              </select>
+              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Trailer type needed for this load</div>
+            </div>
             <input type="date" placeholder="Pickup" value={newLoad.pickup} onChange={e => setNewLoad(x => ({ ...x, pickup: e.target.value }))}
               style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
             <input type="date" placeholder="Delivery" value={newLoad.delivery} onChange={e => setNewLoad(x => ({ ...x, delivery: e.target.value }))}

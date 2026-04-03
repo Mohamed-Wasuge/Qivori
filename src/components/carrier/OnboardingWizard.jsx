@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import {
-  Zap, Building2, Truck, User, Package, CheckCircle, FileText, Search, Brain, MapPin, DollarSign, ChevronRight, ArrowRight, Star
+  Zap, Truck, User, CheckCircle, FileText, Search, Brain, DollarSign, ArrowRight
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
@@ -103,23 +103,13 @@ export function OnboardingWizard({ onComplete }) {
     else setStep(nextStep)
   }
 
-  const stepLabels = ['Welcome to Q', 'Company', 'Add Truck', 'Add Driver', 'Activate Q', 'First Load']
+  const stepLabels = ['Welcome to Q', 'Company', 'Add Truck', 'Add Driver', 'Activate Q', 'Go Live']
 
-  // Q Load Scanner — generates a recommendation based on truck info
+  // Q Activation — calibrates dispatch AI for the user's setup
   const scanForLoads = async () => {
     setQScanning(true)
-    // Simulate Q scanning (would hit real API in production)
     await new Promise(r => setTimeout(r, 2200))
-    const locations = [
-      { origin: 'Dallas, TX', dest: 'Houston, TX', miles: 239, rate: 1180, weight: 33000, rpm: 4.94 },
-      { origin: 'Atlanta, GA', dest: 'Nashville, TN', miles: 248, rate: 1290, weight: 38000, rpm: 5.20 },
-      { origin: 'Chicago, IL', dest: 'Indianapolis, IN', miles: 181, rate: 980, weight: 42000, rpm: 5.41 },
-      { origin: 'Phoenix, AZ', dest: 'Los Angeles, CA', miles: 370, rate: 1640, weight: 35000, rpm: 4.43 },
-      { origin: 'Charlotte, NC', dest: 'Raleigh, NC', miles: 167, rate: 820, weight: 28000, rpm: 4.91 },
-      { origin: 'Memphis, TN', dest: 'Little Rock, AR', miles: 135, rate: 710, weight: 30000, rpm: 5.26 },
-    ]
-    const pick = locations[Math.floor(Math.random() * locations.length)]
-    setQRecommendation({ ...pick, equipment: form.truckType || 'Dry Van', broker: 'CH Robinson' })
+    setQRecommendation(true) // signals calibration complete
     setQScanning(false)
   }
 
@@ -143,10 +133,10 @@ export function OnboardingWizard({ onComplete }) {
           <div style={{ textAlign:'center', paddingTop:32 }}>
             <div style={{ width:72, height:72, borderRadius:18, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}><Ic icon={Brain} size={32} color="var(--accent)" /></div>
             <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:36, letterSpacing:3, marginBottom:4, display:'flex', alignItems:'baseline', justifyContent:'center', gap:6 }}>WELCOME TO <span style={{ color:'var(--accent)' }}>Q</span></div>
-            <div style={{ fontSize:15, color:'var(--accent)', fontWeight:600, marginBottom:16 }}>Let's get your first load booked.</div>
+            <div style={{ fontSize:15, color:'var(--accent)', fontWeight:600, marginBottom:16 }}>Let's get your dispatch AI online.</div>
             <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.8, maxWidth:380, margin:'0 auto 28px' }}>Q is your AI dispatch system. It finds loads, negotiates rates, and manages your operation — all from one platform.</div>
             <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap', marginBottom:28 }}>
-              {[{ icon: Truck, label:'Add Truck', color:'var(--accent2)' }, { icon: User, label:'Add Driver', color:'var(--accent3)' }, { icon: Brain, label:'Activate Q', color:'var(--accent)' }, { icon: Package, label:'First Load', color:'var(--success)' }].map(item => (
+              {[{ icon: Truck, label:'Add Truck', color:'var(--accent2)' }, { icon: User, label:'Add Driver', color:'var(--accent3)' }, { icon: Brain, label:'Activate Q', color:'var(--accent)' }, { icon: Zap, label:'Go Live', color:'var(--success)' }].map(item => (
                 <div key={item.label} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, fontSize:11, color:'var(--muted)' }}><Ic icon={item.icon} size={13} color={item.color} />{item.label}</div>
               ))}
             </div>
@@ -295,14 +285,14 @@ export function OnboardingWizard({ onComplete }) {
             <div style={{ width:72, height:72, borderRadius:18, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', animation:'pulse 2s ease-in-out infinite' }}>
               <Ic icon={Brain} size={32} color="var(--accent)" />
             </div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, marginBottom:8 }}>Q IS <span style={{ color:'var(--accent)' }}>READY</span></div>
-            <div style={{ fontSize:14, color:'var(--accent)', fontWeight:600, marginBottom:8 }}>Ready to find your first load</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, marginBottom:8 }}>ACTIVATE <span style={{ color:'var(--accent)' }}>Q</span></div>
+            <div style={{ fontSize:14, color:'var(--accent)', fontWeight:600, marginBottom:8 }}>Your AI dispatch system is ready to go online</div>
             <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.8, maxWidth:380, margin:'0 auto 28px' }}>
-              Q will scan available loads, match your {form.truckType || 'truck'}, and recommend the best option for you.
+              Q will calibrate to your {form.truckType || 'truck'} and preferences, then you're ready to start dispatching.
             </div>
             <button className="btn btn-primary" style={{ padding:'16px 48px', fontSize:15, fontWeight:700 }}
               onClick={scanForLoads}>
-              <Ic icon={Search} size={16} style={{ marginRight:8 }} /> Find My First Load
+              <Ic icon={Zap} size={16} style={{ marginRight:8 }} /> Activate Q
             </button>
             <div style={{ display:'flex', gap:12, justifyContent:'center', marginTop:16 }}>
               <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => setStep(4)}>Back</button>
@@ -318,68 +308,42 @@ export function OnboardingWizard({ onComplete }) {
             <div style={{ width:80, height:80, borderRadius:20, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 24px', animation:'spin 2s linear infinite' }}>
               <Ic icon={Brain} size={36} color="var(--accent)" />
             </div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:8, color:'var(--accent)' }}>Q IS SCANNING</div>
-            <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.8 }}>Analyzing available loads...<br/>Matching to your {form.truckType || 'equipment'}...<br/>Calculating best profit...</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, letterSpacing:2, marginBottom:8, color:'var(--accent)' }}>Q IS CALIBRATING</div>
+            <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.8 }}>Setting up your dispatch AI...<br/>Configuring for {form.truckType || 'your equipment'}...<br/>Initializing profit engine...</div>
             <style>{`@keyframes spin { 0% { transform: rotate(0deg) } 100% { transform: rotate(360deg) } }`}</style>
           </div>
         )}
 
-        {/* Step 5c: Q Recommendation */}
+        {/* Step 5c: Q Ready — capabilities overview */}
         {step === 5 && qRecommendation && !loadAccepted && (
-          <div style={{ paddingTop:16 }}>
-            <div style={{ textAlign:'center', marginBottom:20 }}>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2, marginBottom:4 }}>Q <span style={{ color:'var(--accent)' }}>RECOMMENDATION</span></div>
-              <div style={{ fontSize:12, color:'var(--muted)' }}>Q found the best load for you</div>
+          <div style={{ textAlign:'center', paddingTop:24 }}>
+            <div style={{ width:72, height:72, borderRadius:18, background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
+              <Ic icon={CheckCircle} size={32} color="var(--success)" />
             </div>
-            <div style={{ background:'var(--surface)', border:'2px solid var(--accent)', borderRadius:14, padding:24, marginBottom:20 }}>
-              {/* Route */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:20 }}>
-                <div style={{ textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>ORIGIN</div>
-                  <div style={{ fontSize:16, fontWeight:700 }}>{qRecommendation.origin}</div>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:2, marginBottom:8 }}>Q IS <span style={{ color:'var(--success)' }}>READY</span></div>
+            <div style={{ fontSize:14, color:'var(--accent)', fontWeight:600, marginBottom:24 }}>Your AI dispatch system is calibrated</div>
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:20, marginBottom:24, textAlign:'left' }}>
+              <div style={{ fontSize:11, color:'var(--muted)', fontWeight:700, letterSpacing:1, marginBottom:14 }}>WHAT Q CAN DO FOR YOU</div>
+              {[
+                { icon: Search, label: 'Scan load boards for profitable loads', color: 'var(--accent)' },
+                { icon: DollarSign, label: 'Auto-calculate profit per mile', color: 'var(--success)' },
+                { icon: FileText, label: 'Monitor compliance & HOS', color: 'var(--accent3)' },
+                { icon: Zap, label: 'Generate invoices instantly', color: 'var(--accent2)' },
+              ].map(item => (
+                <div key={item.label} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)' }}>
+                  <div style={{ width:32, height:32, borderRadius:8, background:`${item.color}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <Ic icon={item.icon} size={16} color={item.color} />
+                  </div>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{item.label}</div>
                 </div>
-                <Ic icon={ArrowRight} size={20} color="var(--accent)" />
-                <div style={{ textAlign:'center' }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>DESTINATION</div>
-                  <div style={{ fontSize:16, fontWeight:700 }}>{qRecommendation.dest}</div>
-                </div>
-              </div>
-              {/* Stats */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:16 }}>
-                <div style={{ textAlign:'center', padding:'12px 8px', background:'rgba(34,197,94,0.06)', borderRadius:8 }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>PROFIT</div>
-                  <div className="mono" style={{ fontSize:20, fontWeight:700, color:'var(--success)' }}>${qRecommendation.rate.toLocaleString()}</div>
-                </div>
-                <div style={{ textAlign:'center', padding:'12px 8px', background:'rgba(240,165,0,0.06)', borderRadius:8 }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>RPM</div>
-                  <div className="mono" style={{ fontSize:20, fontWeight:700, color:'var(--accent)' }}>${qRecommendation.rpm}</div>
-                </div>
-                <div style={{ textAlign:'center', padding:'12px 8px', background:'rgba(77,142,240,0.06)', borderRadius:8 }}>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginBottom:4 }}>MILES</div>
-                  <div className="mono" style={{ fontSize:20, fontWeight:700, color:'var(--accent3)' }}>{qRecommendation.miles}</div>
-                </div>
-              </div>
-              {/* Details */}
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--muted)', padding:'8px 0', borderTop:'1px solid var(--border)' }}>
-                <span>Weight: {qRecommendation.weight.toLocaleString()} lbs</span>
-                <span>Equipment: {qRecommendation.equipment}</span>
-                <span>Broker: {qRecommendation.broker}</span>
-              </div>
-              {/* Q Decision */}
-              <div style={{ marginTop:12, padding:'10px 14px', borderRadius:8, background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', display:'flex', alignItems:'center', gap:8 }}>
-                <Ic icon={Brain} size={14} color="var(--success)" />
-                <div style={{ fontSize:12, color:'var(--success)', fontWeight:700 }}>Q Decision: ACCEPT</div>
-                <div style={{ flex:1 }} />
-                <div style={{ display:'flex', gap:2 }}>{[1,2,3,4,5].map(s => <Ic key={s} icon={Star} size={10} color="var(--accent)" />)}</div>
-              </div>
+              ))}
             </div>
             <button className="btn btn-primary" style={{ width:'100%', padding:'16px', fontSize:15, fontWeight:700 }}
               onClick={() => { setLoadAccepted(true) }}>
-              <Ic icon={CheckCircle} size={16} style={{ marginRight:8 }} /> Accept Load
+              <Ic icon={ArrowRight} size={16} style={{ marginRight:8 }} /> Go Live
             </button>
             <div style={{ display:'flex', gap:12, justifyContent:'center', marginTop:12 }}>
-              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => { setQRecommendation(null); scanForLoads() }}>Find Another</button>
-              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={async () => { await markOnboardingComplete(); onComplete('loads') }}>Skip</button>
+              <button className="btn btn-ghost" style={{ fontSize:12 }} onClick={() => setStep(4)}>Back</button>
             </div>
           </div>
         )}
@@ -388,16 +352,14 @@ export function OnboardingWizard({ onComplete }) {
         {(step === 6 || (step === 5 && loadAccepted)) && (
           <div style={{ textAlign:'center', paddingTop:40 }}>
             <div style={{ width:80, height:80, borderRadius:20, background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 24px' }}>
-              <Ic icon={CheckCircle} size={36} color="var(--success)" />
+              <Ic icon={Zap} size={36} color="var(--success)" />
             </div>
-            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:30, letterSpacing:2, marginBottom:8 }}>Q HAS <span style={{ color:'var(--success)' }}>SECURED</span> YOUR FIRST LOAD</div>
-            <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.8, maxWidth:380, margin:'0 auto 12px' }}>Dispatch and profit tracking activated.</div>
-            {qRecommendation && (
-              <div style={{ fontSize:13, color:'var(--accent)', fontWeight:600, marginBottom:24 }}>
-                {qRecommendation.origin} → {qRecommendation.dest} · ${qRecommendation.rate.toLocaleString()}
-              </div>
-            )}
-            <div style={{ display:'flex', gap:4, justifyContent:'center', marginBottom:28 }}>
+            <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:30, letterSpacing:2, marginBottom:8 }}>YOUR DISPATCH AI IS <span style={{ color:'var(--success)' }}>LIVE</span></div>
+            <div style={{ fontSize:14, color:'var(--muted)', lineHeight:1.8, maxWidth:380, margin:'0 auto 12px' }}>Q is online and ready to find your first load.</div>
+            <div style={{ fontSize:13, color:'var(--accent)', fontWeight:600, marginBottom:24 }}>
+              Head to the dashboard to start dispatching.
+            </div>
+            <div style={{ display:'flex', gap:4, justifyContent:'center', marginBottom:28, flexWrap:'wrap' }}>
               {['Dispatch Active', 'Invoicing Ready', 'Compliance On', 'AI Monitoring'].map(f => (
                 <span key={f} style={{ padding:'4px 10px', borderRadius:6, background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.15)', fontSize:10, fontWeight:600, color:'var(--success)' }}>
                   <Ic icon={CheckCircle} size={9} style={{ verticalAlign:'middle', marginRight:3 }} />{f}
@@ -405,7 +367,7 @@ export function OnboardingWizard({ onComplete }) {
               ))}
             </div>
             <button className="btn btn-primary" style={{ padding:'16px 48px', fontSize:15, fontWeight:700 }}
-              onClick={async () => { await markOnboardingComplete(); showToast('', 'Q Active', 'Your system is live — first load secured'); onComplete('loads') }}>
+              onClick={async () => { await markOnboardingComplete(); showToast('', 'Q Active', 'Your dispatch AI is live'); onComplete() }}>
               Go to Dashboard <Ic icon={ArrowRight} size={16} style={{ marginLeft:6 }} />
             </button>
           </div>

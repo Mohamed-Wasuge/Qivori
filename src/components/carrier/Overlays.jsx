@@ -558,7 +558,7 @@ export function QuickActions({ onTabChange }) {
   const [open, setOpen] = useState(false)
 
   const actions = [
-    { icon: FileText, label: 'Log Rate Con',      color: 'var(--accent)',  onClick: () => { onTabChange('loads'); setOpen(false); showToast('', 'Loads', 'Drop a rate confirmation to log a new load') } },
+    { icon: FileText, label: 'Add Load',           color: 'var(--accent)',  onClick: () => { onTabChange('loads'); setOpen(false); showToast('', 'Loads', 'Drop a rate confirmation to log a new load') } },
     { icon: Fuel, label: 'Add Expense',        color: 'var(--warning)', onClick: () => { onTabChange('financials'); setOpen(false) } },
     { icon: Package, label: 'Update Load Status', color: 'var(--accent2)', onClick: () => { onTabChange('loads'); setOpen(false); showToast('', 'Loads', 'Drag a load card to update its status') } },
     { icon: Truck, label: 'Assign Driver',      color: 'var(--accent3)', onClick: () => { onTabChange('loads'); setOpen(false); showToast('', 'Loads', 'Click a load card to assign a driver') } },

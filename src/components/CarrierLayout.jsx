@@ -5,7 +5,7 @@ import {
   Search, Bell, Moon, Eye, Zap, Wrench, CreditCard, BarChart2, AlertTriangle,
   TrendingUp, TrendingDown, ChevronLeft, ClipboardList, CheckCircle, Map, DollarSign, Droplets, FileCheck, Star, UserPlus,
   User, Building2, Plug, Palette, Scale, Package, MapPin, Smartphone, FileText, AlertCircle, Fuel,
-  Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2, Target, Route, FlaskConical
+  Clock, Plus, CloudSun, Activity, Radio, ArrowUpRight, ArrowDownRight, Bot, Sun, Sunrise, Globe, RefreshCw, Link2, Target, Route, FlaskConical, Sparkles
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useSubscription } from '../hooks/useSubscription'
@@ -1957,10 +1957,18 @@ function CarrierLayoutInner() {
 
       {/* Demo banner */}
       {demoMode && (
-        <div style={{ background:'linear-gradient(90deg, #f0a500, #e09000)', padding:'8px 16px', display:'flex', alignItems:'center', justifyContent:'center', gap:16, flexShrink:0 }}>
-          <span style={{ fontSize:13, fontWeight:700, color:'#000' }}>You're in demo mode — Sign up for your 14-day free trial, no credit card required</span>
-          <button onClick={goToLogin} style={{ background:'#000', color:'#f0a500', border:'none', borderRadius:8, padding:'6px 16px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
-            Start Free Trial
+        <div style={{ background:'linear-gradient(90deg, #f0a500, #e09000)', padding:'10px 20px', display:'flex', alignItems:'center', justifyContent:'center', gap:16, flexShrink:0, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(0,0,0,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Sparkles size={13} color="#000" />
+            </div>
+            <span style={{ fontSize:13, fontWeight:700, color:'#000' }}>You're exploring demo mode</span>
+          </div>
+          <span style={{ fontSize:12, color:'rgba(0,0,0,0.7)' }}>14-day free trial, no credit card required</span>
+          <button onClick={goToLogin} style={{ background:'#000', color:'#f0a500', border:'none', borderRadius:10, padding:'8px 24px', fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", letterSpacing:'0.3px', boxShadow:'0 2px 8px rgba(0,0,0,0.3)', transition:'transform 0.15s' }}
+            onMouseOver={e => e.currentTarget.style.transform='scale(1.05)'}
+            onMouseOut={e => e.currentTarget.style.transform='scale(1)'}>
+            Create Real Account
           </button>
         </div>
       )}
@@ -2400,6 +2408,13 @@ function CarrierLayoutInner() {
 
           {/* Bottom: Language toggle + Log Out */}
           <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border)', flexShrink:0, display:'flex', flexDirection:'column', gap:6 }}>
+            {demoMode && (
+              <button onClick={goToLogin} style={{ width:'100%', padding:'10px', background:'linear-gradient(135deg, #f0a500, #e09000)', border:'none', borderRadius:10, color:'#000', fontSize:12, fontWeight:800, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", marginBottom:4, transition:'transform 0.15s, box-shadow 0.15s', boxShadow:'0 2px 8px rgba(240,165,0,0.3)' }}
+                onMouseOver={e => { e.currentTarget.style.transform='scale(1.03)'; e.currentTarget.style.boxShadow='0 4px 12px rgba(240,165,0,0.5)' }}
+                onMouseOut={e => { e.currentTarget.style.transform='scale(1)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(240,165,0,0.3)' }}>
+                Create Real Account
+              </button>
+            )}
             <div style={{ display:'flex', justifyContent:'center' }}>
               <LanguageToggle />
             </div>

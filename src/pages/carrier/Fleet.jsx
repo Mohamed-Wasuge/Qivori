@@ -656,9 +656,9 @@ export function CarrierFleet() {
           <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.25)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' }}>
             <Truck size={26} color="var(--accent)" />
           </div>
-          <div style={{ fontSize:15, fontWeight:700, marginBottom:8 }}>No vehicles added yet</div>
+          <div style={{ fontSize:15, fontWeight:700, marginBottom:8 }}>No trucks added yet</div>
           <div style={{ fontSize:13, color:'var(--muted)', lineHeight:1.6, maxWidth:300, margin:'0 auto' }}>
-            Add your first vehicle to see your fleet overview here.
+            Add your first truck to see your fleet overview here.
           </div>
         </div>
       </div>
@@ -879,7 +879,7 @@ export function FuelOptimizer() {
                   </div>
                 )
               }) : (
-                <div style={{ textAlign:'center', color:'var(--muted)', fontSize:13, padding:16 }}>No vehicles added yet.</div>
+                <div style={{ textAlign:'center', color:'var(--muted)', fontSize:13, padding:16 }}>No trucks added yet.</div>
               )}
             </div>
           </div>

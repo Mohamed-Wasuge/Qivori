@@ -1326,7 +1326,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   </div>
                 </div>
               )) : (
-                <div style={{ padding:'24px 18px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet — add drivers in the Drivers tab to track HOS</div>
+                <div style={{ padding:'24px 18px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No drivers yet — add drivers in the Drivers tab to track Hours of Service (HOS)</div>
               )}
             </div>
 
@@ -1347,7 +1347,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                   </div>
                 )
               }) : (
-                <div style={{ padding:'24px 16px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No HOS events yet — data appears when ELD syncs or loads go In Transit</div>
+                <div style={{ padding:'24px 16px', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No Hours of Service (HOS) events yet — data appears when ELD syncs or loads go In Transit</div>
               )}
             </div>
           </>
@@ -1873,7 +1873,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
                 {!vehDocsLoaded ? (
                   <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>Loading vehicle documents...</div>
                 ) : vehicles.length === 0 ? (
-                  <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No vehicles in fleet — add vehicles in Fleet Manager first</div>
+                  <div style={{ padding:24, textAlign:'center', color:'var(--muted)', fontSize:13 }}>No trucks in fleet — add trucks in Fleet Manager first</div>
                 ) : (
                   <div style={{ overflowX:'auto' }}>
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>

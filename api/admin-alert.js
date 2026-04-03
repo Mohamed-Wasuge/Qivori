@@ -12,7 +12,8 @@ export default async function handler(req) {
 
   // Admin-only or system calls with service key
   const { user } = await verifyAuth(req)
-  const isServiceKey = req.headers.get('x-service-key') === process.env.SUPABASE_SERVICE_KEY
+  const svcKey = process.env.SUPABASE_SERVICE_KEY
+  const isServiceKey = svcKey && req.headers.get('x-service-key') === svcKey
 
   if (!user && !isServiceKey) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })

@@ -226,28 +226,22 @@ export default function LandingPage({ onGetStarted }) {
   }
 
   return (
-    <div style={{ background: 'var(--bg)', color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", overflowY: 'auto', height: '100dvh', position: 'fixed', inset: 0, zIndex: 10, WebkitOverflowScrolling: 'touch' }}>
+    <div style={{ background: '#0B0F14', color: '#fff', fontFamily: "'DM Sans', sans-serif", overflowY: 'auto', height: '100dvh', position: 'fixed', inset: 0, zIndex: 10, WebkitOverflowScrolling: 'touch' }}>
 
       {/* ── STYLES ────────────────────────────────────────────────────── */}
       <style>{`
         .lp-nav-links { display: flex; align-items: center; gap: 28px; }
         .lp-mob-toggle { display: none !important; }
         .lp-mob-menu { display: none; }
-        @keyframes heroGlow { 0%,100%{opacity:0.4;} 50%{opacity:0.7;} }
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes slideIn { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes subtlePulse { 0%,100%{box-shadow:0 0 0 0 rgba(240,165,0,0.2)} 50%{box-shadow:0 0 0 8px rgba(240,165,0,0)} }
-        .lp-feature-card { transition: all 0.3s ease; }
-        .lp-feature-card:hover { transform: translateY(-6px); box-shadow: 0 20px 60px rgba(0,0,0,0.3); border-color: rgba(240,165,0,0.3) !important; }
         .lp-cta-btn { transition: all 0.2s ease; }
-        .lp-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(240,165,0,0.4) !important; }
-        .lp-ghost-btn { transition: all 0.2s ease; }
-        .lp-ghost-btn:hover { background: rgba(255,255,255,0.08) !important; border-color: rgba(255,255,255,0.25) !important; }
+        .lp-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 48px rgba(240,165,0,0.35) !important; }
+        .lp-feature-card { transition: all 0.3s ease; }
+        .lp-feature-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,0.4); border-color: rgba(240,165,0,0.2) !important; }
         .lp-nav-link { position: relative; }
-        .lp-nav-link::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 0; height: 2px; background: var(--accent); transition: width 0.2s; }
+        .lp-nav-link::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 0; height: 2px; background: #f0a500; transition: width 0.2s; }
         .lp-nav-link:hover::after { width: 100%; }
-        .lp-plan-card { transition: all 0.25s ease; }
-        .lp-plan-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,0.3); }
+        .lp-step-card { transition: all 0.25s ease; }
+        .lp-step-card:hover { border-color: rgba(240,165,0,0.25) !important; background: rgba(240,165,0,0.03) !important; }
         @media (max-width: 780px) {
           .lp-nav { padding: 0 16px !important; }
           .lp-nav-links { display: none !important; }
@@ -255,256 +249,251 @@ export default function LandingPage({ onGetStarted }) {
           .lp-mob-menu {
             display: flex; flex-direction: column; gap: 8px;
             position: absolute; top: 64px; left: 0; right: 0;
-            background: rgba(7,9,14,0.98); border-bottom: 1px solid var(--border);
+            background: rgba(11,15,20,0.98); border-bottom: 1px solid rgba(255,255,255,0.06);
             padding: 20px; z-index: 99; backdrop-filter: blur(16px);
           }
-          .lp-mob-menu a { font-size: 15px; color: var(--muted); text-decoration: none; padding: 12px 0; border-bottom: 1px solid var(--border); }
+          .lp-mob-menu a { font-size: 15px; color: rgba(255,255,255,0.5); text-decoration: none; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
           .lp-mob-menu .lp-mob-btns { display: flex; gap: 10px; margin-top: 12px; }
           .lp-mob-menu .lp-mob-btns button { flex: 1; }
-          .lp-hero { padding: 60px 20px 50px !important; }
-          .lp-hero h1 { font-size: 42px !important; }
-          .lp-hero p { font-size: 15px !important; }
           .lp-hero-grid { grid-template-columns: 1fr !important; text-align: center !important; }
-          .lp-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .lp-section { padding: 50px 20px !important; }
-          .lp-pain-row { grid-template-columns: 1fr !important; gap: 8px !important; }
-          .lp-pain-arrow { display: none !important; }
-          .lp-features-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .lp-dat-grid { grid-template-columns: 1fr !important; padding: 28px 20px !important; }
-          .lp-dat-heading { font-size: 30px !important; }
-          .lp-pricing-grid { grid-template-columns: repeat(2, 1fr) !important; max-width: 100% !important; }
-          .lp-savings-grid { grid-template-columns: 1fr !important; max-width: 360px !important; margin: 0 auto !important; }
-          .lp-compare-table > div { grid-template-columns: 1.5fr 1fr 1fr 1fr !important; }
-          .lp-compare-table > div > div { padding: 10px 8px !important; font-size: 11px !important; }
-          .lp-compare-stats { grid-template-columns: 1fr !important; }
-          .lp-ai-grid { grid-template-columns: 1fr !important; }
-          .lp-how-grid { grid-template-columns: 1fr !important; }
-          .lp-testimonials-grid { grid-template-columns: 1fr 1fr !important; }
-          .lp-section-heading { font-size: 32px !important; }
-          .lp-cta-heading { font-size: 36px !important; }
+          .lp-hero-left { align-items: center !important; }
+          .lp-hero { padding: 80px 20px 60px !important; }
+          .lp-section { padding: 60px 20px !important; }
+          .lp-features-grid { grid-template-columns: 1fr !important; }
+          .lp-steps-grid { grid-template-columns: 1fr !important; }
+          .lp-compare-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .lp-preview-row { flex-direction: column !important; }
+          .lp-preview-card { min-width: 0 !important; }
+          .lp-section-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
-          .lp-video-tags { display: none !important; }
         }
         @media (max-width: 480px) {
-          .lp-hero h1 { font-size: 32px !important; }
-          .lp-features-grid { grid-template-columns: 1fr !important; }
-          .lp-stats-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
-          .lp-pricing-grid { grid-template-columns: 1fr !important; }
-          .lp-testimonials-grid { grid-template-columns: 1fr !important; }
+          .lp-hero h1 { font-size: 36px !important; }
+          .lp-section-heading { font-size: 30px !important; }
         }
       `}</style>
 
       {/* ── NAV ───────────────────────────────────────────────────────── */}
-      <nav className="lp-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(7,9,14,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', padding: '0 48px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav className="lp-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(11,15,20,0.9)', borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', padding: '0 48px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif" }}><span style={{ color: 'var(--accent)' }}>QI</span><span style={{ color: '#fff' }}>VORI</span></span><span style={{ marginLeft: 10, padding: '3px 8px', background: 'var(--accent2)', borderRadius: 6, fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 1 }}>AI</span>
+          <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif" }}><span style={{ color: '#f0a500' }}>QI</span><span style={{ color: '#fff' }}>VORI</span></span><span style={{ marginLeft: 10, padding: '3px 8px', background: 'rgba(240,165,0,0.15)', borderRadius: 6, fontSize: 10, fontWeight: 800, color: '#f0a500', letterSpacing: 1 }}>AI</span>
         </div>
 
         <button className="lp-mob-toggle" onClick={() => setMenuOpen(!menuOpen)}
-          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', color: 'var(--text)', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>
+          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 12px', color: '#fff', fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>
           {menuOpen ? '✕' : '☰'}
         </button>
 
         <div className="lp-nav-links">
           {[
-            { key: 'landing.navFeatures', href: '#features' },
-            { key: 'landing.navHowItWorks', href: '#how-it-works' },
-            { key: 'landing.navPricing', href: '#pricing' },
+            { label: 'Features', href: '#features' },
+            { label: 'How It Works', href: '#how-it-works' },
+            { label: 'Pricing', href: '#pricing' },
           ].map(item => (
-            <a key={item.key} href={item.href} className="lp-nav-link"
-              style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none', fontWeight: 500, transition: 'color 0.2s' }}
-              onMouseOver={e => e.target.style.color = 'var(--text)'}
-              onMouseOut={e => e.target.style.color = 'var(--muted)'}>
-              {t(item.key)}
+            <a key={item.label} href={item.href} className="lp-nav-link"
+              style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontWeight: 500, transition: 'color 0.2s' }}
+              onMouseOver={e => e.target.style.color = '#fff'}
+              onMouseOut={e => e.target.style.color = 'rgba(255,255,255,0.5)'}>
+              {item.label}
             </a>
           ))}
-          <a href="#/loads" className="lp-nav-link"
-            style={{ fontSize: 13, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600, transition: 'color 0.2s' }}>
-            {t('landing.browseLoads')}
-          </a>
           <button onClick={onGetStarted}
-            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 18px', color: 'var(--text)', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600, transition: 'all 0.2s' }}>
-            {t('landing.signIn')}
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+            Sign In
           </button>
-          <button onClick={handleTry}
-            style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 10, padding: '9px 22px', color: '#000', fontSize: 13, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", fontWeight: 800, letterSpacing: 1, boxShadow: '0 4px 16px rgba(240,165,0,0.3)' }}>
+          <button className="lp-cta-btn" onClick={handleTry}
+            style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 10, padding: '9px 22px', color: '#000', fontSize: 13, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", fontWeight: 800, letterSpacing: 1, boxShadow: '0 4px 16px rgba(240,165,0,0.25)' }}>
             START FREE TRIAL
           </button>
         </div>
 
         {menuOpen && (
           <div className="lp-mob-menu">
-            {[
-              { key: 'landing.navFeatures', href: '#features' },
-              { key: 'landing.navHowItWorks', href: '#how-it-works' },
-              { key: 'landing.navPricing', href: '#pricing' },
-            ].map(item => (
-              <a key={item.key} href={item.href} onClick={() => setMenuOpen(false)}>{t(item.key)}</a>
-            ))}
-            <a href="#/loads" onClick={() => setMenuOpen(false)} style={{ color: 'var(--accent) !important', fontWeight: 600 }}>{t('landing.browseLoads')}</a>
+            <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
+            <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How It Works</a>
+            <a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a>
             <div className="lp-mob-btns">
-              <button onClick={onGetStarted} style={{ padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>{t('landing.signIn')}</button>
-              <button onClick={handleTry} style={{ padding: '12px', background: 'var(--accent)', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>START FREE TRIAL</button>
+              <button onClick={onGetStarted} style={{ padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Sign In</button>
+              <button onClick={handleTry} style={{ padding: '12px', background: '#f0a500', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>START FREE TRIAL</button>
             </div>
           </div>
         )}
       </nav>
 
-      {/* ── HERO ──────────────────────────────────────────────────────── */}
-      <section className="lp-hero" style={{ position: 'relative', padding: '160px 48px 120px', maxWidth: 800, margin: '0 auto', textAlign: 'center', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '-40%', left: '50%', transform: 'translateX(-50%)', width: 1000, height: 1000, borderRadius: '50%', background: 'radial-gradient(circle, rgba(240,165,0,0.03) 0%, transparent 55%)', pointerEvents: 'none' }} />
+      {/* ── HERO — split layout with dashboard visual ──────────────── */}
+      <section className="lp-hero" style={{ padding: '120px 48px 100px', maxWidth: 1100, margin: '0 auto' }}>
+        <div className="lp-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+          {/* LEFT — copy */}
+          <div className="lp-hero-left" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <FadeIn>
+              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 64, letterSpacing: 3, lineHeight: 1, marginBottom: 24, color: '#fff' }}>
+                Your Dispatcher<br />Is Now <span style={{ color: '#f0a500' }}>AI.</span>
+              </h1>
+            </FadeIn>
+            <FadeIn delay={0.1}>
+              <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 12, maxWidth: 440 }}>
+                Q finds loads, calculates real profit, negotiates rates, and runs your operation — automatically.
+              </p>
+              <p style={{ fontSize: 15, color: '#f0a500', fontWeight: 600, marginBottom: 40 }}>
+                More money. Less stress. No extra apps.
+              </p>
+            </FadeIn>
+            <FadeIn delay={0.2}>
+              <button className="lp-cta-btn" onClick={handleTry}
+                style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '18px 48px', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.25)', letterSpacing: 1.5 }}>
+                START FREE TRIAL
+              </button>
+              <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>14-day free trial &middot; No credit card required</p>
+            </FadeIn>
+          </div>
 
-        <FadeIn>
-          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 84, letterSpacing: 4, lineHeight: 0.95, marginBottom: 32, color: '#fff' }}>
-            YOUR DISPATCHER<br />IS NOW <span style={{ color: 'var(--accent)' }}>AI.</span>
-          </h1>
-        </FadeIn>
+          {/* RIGHT — dashboard visual */}
+          <FadeIn delay={0.15}>
+            <div style={{ background: '#0e1218', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 0, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
+              {/* Browser chrome */}
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
+                </div>
+                <div style={{ flex: 1, marginLeft: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>qivori.com</div>
+              </div>
 
-        <FadeIn delay={0.1}>
-          <p style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, maxWidth: 560, margin: '0 auto 16px', fontWeight: 400 }}>
-            Q finds loads, calculates real profit, negotiates rates, and runs your operation — automatically.
-          </p>
-          <p style={{ fontSize: 16, color: 'var(--accent)', fontWeight: 600, marginBottom: 48 }}>
-            More money. Less stress. No extra apps.
-          </p>
-        </FadeIn>
+              {/* Dashboard content */}
+              <div style={{ padding: '20px 20px 24px' }}>
+                {/* Load card */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '16px 20px', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Dallas, TX → Houston, TX</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '3px 8px', borderRadius: 6 }}>HIGH PROFIT</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 24 }}>
+                    <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Rate</div><div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>$2,400</div></div>
+                    <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Miles</div><div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>1,200</div></div>
+                    <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Profit</div><div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>$1,050</div></div>
+                  </div>
+                </div>
 
-        <FadeIn delay={0.2}>
-          <button className="lp-cta-btn" onClick={handleTry}
-            style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '20px 64px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.3)', letterSpacing: 2 }}>
-            START FREE TRIAL
-          </button>
-          <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 500 }}>14-day free trial &middot; No credit card required</p>
-        </FadeIn>
+                {/* AI Decision */}
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>AI Decision</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#22c55e', letterSpacing: 0.5 }}>ACCEPT</div>
+                  <div style={{ flex: 1, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'rgba(240,165,0,0.5)', letterSpacing: 0.5 }}>NEGOTIATE</div>
+                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'rgba(239,68,68,0.4)', letterSpacing: 0.5 }}>REJECT</div>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
       </section>
 
       {/* ── PROBLEM ──────────────────────────────────────────────────── */}
-      <section id="how-it-works" className="lp-section" style={{ padding: '120px 40px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <section className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <FadeIn>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 48, textAlign: 'center', color: '#fff' }}>
-              YOU'RE NOT RUNNING<br />YOUR BUSINESS.<br /><span style={{ color: 'var(--accent)' }}>YOU'RE CHASING IT.</span>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 48, textAlign: 'center' }}>
+              You're not running<br />your business.<br /><span style={{ color: '#f0a500' }}>You're chasing it.</span>
             </h2>
           </FadeIn>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 48 }}>
-            {[
-              'Checking load boards all day',
-              'Calling brokers nonstop',
-              'Tracking everything manually',
-              'Not knowing your real profit',
-            ].map((item, i) => (
+          <div style={{ marginBottom: 48 }}>
+            {['Checking load boards all day', 'Calling brokers nonstop', 'Tracking everything manually', 'Not knowing your real profit'].map((item, i) => (
               <FadeIn key={i} delay={i * 0.05}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '18px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ color: 'rgba(239,68,68,0.5)', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>&#x2715;</span>
-                  <span style={{ fontSize: 17, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>{item}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <Ic icon={X} size={14} color="rgba(239,68,68,0.5)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 16, color: 'rgba(255,255,255,0.5)' }}>{item}</span>
                 </div>
               </FadeIn>
             ))}
           </div>
 
           <FadeIn delay={0.25}>
-            <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 1.7 }}>
-              You don't need another tool.<br />
-              <span style={{ color: '#fff', fontWeight: 700 }}>You need control.</span>
+            <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.45)', textAlign: 'center', lineHeight: 1.7 }}>
+              You don't need another tool.<br /><span style={{ color: '#fff', fontWeight: 700 }}>You need control.</span>
             </p>
           </FadeIn>
         </div>
       </section>
 
       {/* ── SOLUTION ──────────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '120px 40px', background: 'rgba(240,165,0,0.02)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <section className="lp-section" style={{ padding: '100px 40px', background: 'rgba(240,165,0,0.015)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <FadeIn>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 48, textAlign: 'center', color: '#fff' }}>
-              Q RUNS YOUR<br />OPERATION <span style={{ color: 'var(--accent)' }}>FOR YOU.</span>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 48, textAlign: 'center' }}>
+              Q runs your<br />operation <span style={{ color: '#f0a500' }}>for you.</span>
             </h2>
           </FadeIn>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 48 }}>
-            {[
-              'Finds the best loads',
-              'Calculates real profit (after fuel, not guesses)',
-              'Decides what to take, negotiate, or reject',
-              'Tracks everything automatically',
-            ].map((item, i) => (
+          <div style={{ marginBottom: 48 }}>
+            {['Finds the best loads', 'Calculates real profit (after fuel, not guesses)', 'Decides what to take, negotiate, or reject', 'Tracks everything automatically'].map((item, i) => (
               <FadeIn key={i} delay={i * 0.05}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '18px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <Ic icon={Check} size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 17, color: 'var(--text)', fontWeight: 500 }}>{item}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <Ic icon={Check} size={16} color="#f0a500" style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 16, color: '#fff', fontWeight: 500 }}>{item}</span>
                 </div>
               </FadeIn>
             ))}
           </div>
 
           <FadeIn delay={0.25}>
-            <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 1.7 }}>
-              You focus on driving.<br />
-              <span style={{ color: 'var(--accent)', fontWeight: 700 }}>Q handles the rest.</span>
+            <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.45)', textAlign: 'center', lineHeight: 1.7 }}>
+              You focus on driving.<br /><span style={{ color: '#f0a500', fontWeight: 700 }}>Q handles the rest.</span>
             </p>
           </FadeIn>
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ──────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '120px 40px' }}>
-        <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      {/* ── HOW IT WORKS — 5 horizontal cards ─────────────────────── */}
+      <section id="how-it-works" className="lp-section" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <FadeIn>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 16, textAlign: 'center' }}>HOW IT WORKS</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, textAlign: 'center', marginBottom: 56 }}>
-              FROM LOAD TO INVOICE.<br />AUTOMATICALLY.
-            </h2>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 2, marginBottom: 12, textAlign: 'center' }}>HOW IT WORKS</p>
           </FadeIn>
 
-          {[
-            { step: '01', text: 'Q scans available loads' },
-            { step: '02', text: 'Calculates profit per load' },
-            { step: '03', text: 'Accepts high-profit loads, negotiates mid-range, rejects bad ones' },
-            { step: '04', text: 'Dispatches and tracks automatically' },
-            { step: '05', text: 'Generates invoice when delivered' },
-          ].map((item, i) => (
-            <FadeIn key={i} delay={i * 0.06}>
-              <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', padding: '24px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: 'var(--accent)', lineHeight: 1, flexShrink: 0, minWidth: 40 }}>{item.step}</span>
-                <span style={{ fontSize: 17, color: 'var(--text)', fontWeight: 500, lineHeight: 1.5, paddingTop: 4 }}>{item.text}</span>
-              </div>
-            </FadeIn>
-          ))}
+          <div className="lp-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginTop: 48 }}>
+            {[
+              { step: '1', text: 'Q scans available loads' },
+              { step: '2', text: 'Calculates profit' },
+              { step: '3', text: 'Decides: accept, negotiate, or reject' },
+              { step: '4', text: 'Dispatches and tracks' },
+              { step: '5', text: 'Generates invoice' },
+            ].map((item, i) => (
+              <FadeIn key={i} delay={i * 0.06}>
+                <div className="lp-step-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '28px 20px', textAlign: 'center', height: '100%' }}>
+                  <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 36, color: '#f0a500', marginBottom: 12, lineHeight: 1 }}>{item.step}</div>
+                  <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>{item.text}</div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
 
           <FadeIn delay={0.35}>
-            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 40 }}>
-              No spreadsheets. No switching apps.
-            </p>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 32 }}>No spreadsheets. No switching apps.</p>
           </FadeIn>
         </div>
       </section>
 
-      {/* ── FEATURES (OUTCOMES) ────────────────────────────────────────── */}
-      <section id="features" className="lp-section" style={{ padding: '120px 40px', background: 'rgba(255,255,255,0.015)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <FadeIn>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 16, textAlign: 'center' }}>WHAT Q DOES</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 64, textAlign: 'center' }}>
-              OUTCOMES, NOT FEATURES.
-            </h2>
-          </FadeIn>
-
-          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+      {/* ── FEATURES — 2-column card grid ──────────────────────────── */}
+      <section id="features" className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
             {[
               { title: 'Smart Dispatch', desc: 'Q doesn\'t just show loads — it picks the right ones.', icon: Truck },
-              { title: 'Auto Invoicing', desc: 'Get paid faster. Invoices created automatically.', icon: Zap },
-              { title: 'Real Profit Tracking', desc: 'Know exactly what you make per load, driver, and lane.', icon: TrendingUp },
-              { title: 'Driver Management', desc: 'Assign, track, and communicate — all in one place.', icon: Users },
-              { title: 'IFTA & Compliance', desc: 'Handled in the background. No manual work.', icon: Shield },
-              { title: 'Fleet Operations', desc: 'Vehicles, maintenance, fuel, and expenses — one view.', icon: Truck },
+              { title: 'Auto Invoicing', desc: 'Invoices created automatically after delivery.', icon: Zap },
+              { title: 'Profit Tracking', desc: 'Know exactly what you make per load, driver, and lane.', icon: TrendingUp },
+              { title: 'Driver Management', desc: 'Assign and track drivers in one place.', icon: Users },
+              { title: 'IFTA & Compliance', desc: 'Handled automatically in the background.', icon: Shield },
             ].map((feat, i) => (
               <FadeIn key={feat.title} delay={i * 0.05}>
-                <div className="lp-feature-card" style={{ background: 'var(--bg)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '36px 28px' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                    <Ic icon={feat.icon} size={20} color="var(--accent)" />
+                <div className="lp-feature-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '28px 24px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Ic icon={feat.icon} size={18} color="#f0a500" />
                   </div>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{feat.title}</div>
-                  <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7 }}>{feat.desc}</div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{feat.title}</div>
+                    <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>{feat.desc}</div>
+                  </div>
                 </div>
               </FadeIn>
             ))}
@@ -512,19 +501,46 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
-      {/* ── TRUST / DIFFERENTIATION ─────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '120px 40px' }}>
-        <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+      {/* ── PRODUCT PREVIEW — wide dashboard mockup ───────────────── */}
+      <section className="lp-section" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <FadeIn>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1, marginBottom: 32, color: '#fff' }}>
-              THIS ISN'T<br />ANOTHER TMS.
-            </h2>
-            <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.45)', lineHeight: 1.8, marginBottom: 8 }}>
-              Most tools track your business.
-            </p>
-            <p style={{ fontSize: 22, color: 'var(--accent)', fontWeight: 700 }}>
-              Q runs it.
-            </p>
+            <div style={{ background: '#0e1218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.5)' }}>
+              {/* Browser bar */}
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
+                </div>
+                <div style={{ flex: 1, marginLeft: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>qivori.com/dashboard</div>
+              </div>
+
+              {/* Pipeline header */}
+              <div style={{ padding: '16px 24px 8px', display: 'flex', gap: 16 }}>
+                {['Booked', 'Dispatched', 'In Transit', 'Delivered'].map((s, i) => (
+                  <div key={s} style={{ fontSize: 11, fontWeight: 700, color: i === 2 ? '#f0a500' : 'rgba(255,255,255,0.3)', letterSpacing: 1, textTransform: 'uppercase', borderBottom: i === 2 ? '2px solid #f0a500' : '2px solid transparent', paddingBottom: 8 }}>{s}</div>
+                ))}
+              </div>
+
+              {/* Load rows */}
+              <div style={{ padding: '8px 24px 20px' }}>
+                {[
+                  { route: 'Chicago, IL → Detroit, MI', driver: 'Marcus J.', status: 'In Transit', profit: '$1,280', rpm: '$3.12/mi' },
+                  { route: 'Atlanta, GA → Miami, FL', driver: 'David R.', status: 'Dispatched', profit: '$890', rpm: '$2.85/mi' },
+                  { route: 'Dallas, TX → Houston, TX', driver: 'James K.', status: 'Delivered', profit: '$1,050', rpm: '$3.25/mi' },
+                ].map((load, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{load.route}</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{load.driver} &middot; {load.rpm}</div>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: load.status === 'Delivered' ? '#22c55e' : load.status === 'In Transit' ? '#f0a500' : 'rgba(255,255,255,0.4)', background: load.status === 'Delivered' ? 'rgba(34,197,94,0.08)' : load.status === 'In Transit' ? 'rgba(240,165,0,0.08)' : 'rgba(255,255,255,0.03)', padding: '4px 10px', borderRadius: 6, marginRight: 16 }}>{load.status}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#22c55e', minWidth: 70, textAlign: 'right' }}>{load.profit}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </FadeIn>
         </div>
       </section>
@@ -532,13 +548,13 @@ export default function LandingPage({ onGetStarted }) {
       {/* ── COMPARISON ──────────────────────────────────────────────── */}
       <section className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
-          <div className="lp-pain-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+          <div className="lp-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
             <FadeIn>
               <div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 2, color: 'rgba(255,255,255,0.3)', marginBottom: 24 }}>WITHOUT Q</div>
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 20 }}>WITHOUT Q</div>
                 {['Multiple apps', 'Manual calculations', 'Guessing profit', 'Wasted time'].map((item, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ color: 'rgba(239,68,68,0.4)', fontSize: 13 }}>&#x2715;</span>
+                    <Ic icon={X} size={14} color="rgba(239,68,68,0.4)" />
                     <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.35)' }}>{item}</span>
                   </div>
                 ))}
@@ -546,11 +562,11 @@ export default function LandingPage({ onGetStarted }) {
             </FadeIn>
             <FadeIn delay={0.1}>
               <div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 2, color: 'var(--accent)', marginBottom: 24 }}>WITH Q</div>
-                {['One system', 'AI decisions', 'Real profit clarity', 'Fully automated workflow'].map((item, i) => (
+                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, color: '#f0a500', marginBottom: 20 }}>WITH Q</div>
+                {['One system', 'AI decisions', 'Real profit clarity', 'Automated workflow'].map((item, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <Ic icon={Check} size={14} color="var(--accent)" />
-                    <span style={{ fontSize: 15, color: 'var(--text)', fontWeight: 600 }}>{item}</span>
+                    <Ic icon={Check} size={14} color="#f0a500" />
+                    <span style={{ fontSize: 15, color: '#fff', fontWeight: 600 }}>{item}</span>
                   </div>
                 ))}
               </div>
@@ -559,77 +575,69 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
-      {/* ── PRICING ───────────────────────────────────────────────────── */}
-      <section id="pricing" className="lp-section" style={{ padding: '120px 40px' }}>
-        <div style={{ maxWidth: 440, margin: '0 auto', textAlign: 'center' }}>
+      {/* ── DIFFERENTIATION ────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
           <FadeIn>
-            <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', letterSpacing: 2, marginBottom: 16 }}>PRICING</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 48 }}>
-              ONE PLAN. EVERYTHING.
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1, marginBottom: 28, color: '#fff' }}>
+              This isn't<br />another TMS.
             </h2>
-          </FadeIn>
-
-          <FadeIn delay={0.1}>
-            <div style={{ background: 'var(--bg)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '52px 36px 44px', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #e09000)' }} />
-
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 72, color: 'var(--accent)', lineHeight: 1 }}>$79</span>
-                <span style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>/mo</span>
-              </div>
-              <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.4)', marginBottom: 36, fontWeight: 500 }}>+ $39/mo per additional truck</div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, textAlign: 'left', marginBottom: 36 }}>
-                {[
-                  'AI dispatch', 'Auto invoicing',
-                  'IFTA reporting', 'Compliance center',
-                  'Fleet tracking', 'Driver management',
-                  'Expense tracking', 'P&L dashboard',
-                  'Document storage', 'Fuel optimizer',
-                ].map((f, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.7)', padding: '5px 0' }}>
-                    <Ic icon={Check} size={14} color="var(--accent)" />
-                    <span>{f}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
-                style={{
-                  width: '100%', padding: '18px 0', fontSize: 15, fontWeight: 800, borderRadius: 12, cursor: 'pointer',
-                  fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5,
-                  background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none',
-                  opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1,
-                  boxShadow: '0 4px 20px rgba(240,165,0,0.3)',
-                }}>
-                {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START FREE TRIAL'}
-              </button>
-            </div>
-          </FadeIn>
-
-          <FadeIn delay={0.15}>
-            <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>
-              No credit card required. Cancel anytime.
-            </p>
+            <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 8 }}>Most tools track your business.</p>
+            <p style={{ fontSize: 22, color: '#f0a500', fontWeight: 700 }}>Q runs it.</p>
           </FadeIn>
         </div>
       </section>
 
-      {/* ── BOTTOM CTA ─────────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '140px 40px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <FadeIn>
-          <div style={{ maxWidth: 560, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, letterSpacing: 3, lineHeight: 1, marginBottom: 20, color: '#fff' }}>
-              RUN YOUR ENTIRE<br />TRUCKING BUSINESS<br /><span style={{ color: 'var(--accent)' }}>WITH AI.</span>
+      {/* ── PRICING ───────────────────────────────────────────────────── */}
+      <section id="pricing" className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 420, margin: '0 auto', textAlign: 'center' }}>
+          <FadeIn>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 2, marginBottom: 12 }}>PRICING</p>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 40 }}>
+              One plan. Everything.
             </h2>
-            <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, marginBottom: 44 }}>
-              Set up in minutes. Start your first load today.
-            </p>
+          </FadeIn>
+
+          <FadeIn delay={0.1}>
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '48px 32px 40px', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #e09000)' }} />
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 68, color: '#f0a500', lineHeight: 1 }}>$79</span>
+                <span style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>/mo</span>
+              </div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginBottom: 32 }}>+ $39/mo per additional truck</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, textAlign: 'left', marginBottom: 32 }}>
+                {['AI dispatch', 'Auto invoicing', 'IFTA reporting', 'Compliance', 'Fleet tracking', 'Driver management', 'Expense tracking', 'P&L dashboard'].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.6)', padding: '5px 0' }}>
+                    <Ic icon={Check} size={13} color="#f0a500" /><span>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
+                style={{ width: '100%', padding: '16px 0', fontSize: 15, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' }}>
+                {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START FREE TRIAL'}
+              </button>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.15}>
+            <p style={{ marginTop: 16, fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>No credit card required. Cancel anytime.</p>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ── BOTTOM CTA ─────────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '120px 40px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <FadeIn>
+          <div style={{ maxWidth: 520, margin: '0 auto' }}>
+            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, letterSpacing: 3, lineHeight: 1, marginBottom: 20, color: '#fff' }}>
+              Run your entire<br />trucking business<br /><span style={{ color: '#f0a500' }}>with AI.</span>
+            </h2>
+            <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 40 }}>Set up in minutes. Start your first load today.</p>
             <button className="lp-cta-btn" onClick={handleTry}
-              style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '20px 64px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, boxShadow: '0 8px 32px rgba(240,165,0,0.3)' }}>
+              style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '18px 56px', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, boxShadow: '0 8px 32px rgba(240,165,0,0.25)' }}>
               START FREE TRIAL
             </button>
-            <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>No credit card required</p>
+            <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>No credit card required</p>
           </div>
         </FadeIn>
       </section>

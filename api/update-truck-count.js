@@ -111,8 +111,8 @@ export default async function handler(req) {
       body: JSON.stringify({ truck_count: totalTrucks }),
     })
 
-    // $199 first truck + $99 each additional
-    const monthlyTotal = 199 + Math.max(0, totalTrucks - 1) * 99
+    // $199 first truck + $79 each additional
+    const monthlyTotal = 199 + Math.max(0, totalTrucks - 1) * 79
     return Response.json({
       success: true,
       truckCount: totalTrucks,

@@ -9,6 +9,7 @@ import { apiFetch } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { Ic } from './shared'
 import { ActivityLog } from './ActivityLog'
+import { PLAN_DISPLAY } from '../../hooks/useSubscription'
 
 // Lazy-load Settings domain components
 const lazyN = (fn, name) => lazy(() => fn().then(m => ({ default: m[name] })))
@@ -55,7 +56,7 @@ export function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    tms_pro:          { name: 'TMS Pro',          price: '$99/mo + $49/additional truck', color: '#4d8ef0', tier: 0 },
+    tms_pro:          { name: 'TMS Pro',          price: '$79/mo + $39/additional truck', color: '#4d8ef0', tier: 0 },
     ai_dispatch:      { name: 'AI Dispatch',      price: '$199/mo + $79/additional truck', color: '#f0a500', tier: 1 },
     autonomous_fleet: { name: 'Autonomous Fleet',  price: '3% per load (AI books only)', color: '#00d4aa', tier: 2 },
     autopilot_ai:     { name: 'Autonomous Fleet',  price: '3% per load (AI books only)', color: '#00d4aa', tier: 2 },
@@ -223,13 +224,13 @@ export function SubscriptionSettings() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
         <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* TMS Pro — $99/mo */}
+          {/* TMS Pro — $79/mo */}
           <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(77,142,240,0.3)', background: 'rgba(77,142,240,0.04)' }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#4d8ef0', marginBottom: 2 }}>TMS Pro</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Core trucking management</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>$99</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo per truck · $49 each additional</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>${PLAN_DISPLAY.tms_pro.price}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo per truck · ${PLAN_DISPLAY.tms_pro.extraTruck} each additional</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {['Fleet & dispatch management', 'Invoicing & factoring', 'IFTA & compliance suite', 'Driver portal & scorecards',
@@ -247,8 +248,8 @@ export function SubscriptionSettings() {
             <div style={{ fontSize: 13, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>AI Dispatch</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Q assists, you approve</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>$199</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · $79 each additional</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>${PLAN_DISPLAY.ai_dispatch.price}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · ${PLAN_DISPLAY.ai_dispatch.extraTruck} each additional</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {['Everything in TMS Pro', 'AI load board & scoring', 'Rate analysis & lane intel', 'Broker risk intelligence',

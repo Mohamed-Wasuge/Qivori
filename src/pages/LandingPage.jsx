@@ -128,7 +128,7 @@ const Q_SYSTEM = [
 
 // Pricing — three plans
 const PRICING = {
-  tms_pro: { price: 99, additional: 49 },
+  tms_pro: { price: 79, additional: 39 },
   ai_dispatch: { price: 199, additional: 79 },
   autonomous_fleet: { percent: 3 },
 }
@@ -779,38 +779,39 @@ export default function LandingPage({ onGetStarted }) {
             <div style={{ marginBottom: 40 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 2, marginBottom: 10 }}>PRICING</div>
               <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, marginBottom: 14 }}>
-                PLANS THAT SCALE WITH YOU
+                SIMPLE, TRANSPARENT PRICING
               </h2>
               <p style={{ fontSize: 15, color: 'var(--muted)', maxWidth: 440, margin: '0 auto', lineHeight: 1.7 }}>
-                From basic TMS to AI-powered dispatch with built-in safety intelligence. Pick your level of automation — upgrade anytime.
+                Everything you need to run your trucking operation. One plan, one price — no hidden fees.
               </p>
             </div>
           </FadeIn>
 
           <FadeIn delay={0.1}>
             <div style={{
-              background: 'linear-gradient(135deg, rgba(240,165,0,0.06), rgba(240,165,0,0.02))',
-              border: '2px solid rgba(240,165,0,0.3)', borderRadius: 20, padding: '40px 32px', marginBottom: 24,
+              background: 'linear-gradient(135deg, rgba(77,142,240,0.06), rgba(77,142,240,0.02))',
+              border: '2px solid rgba(77,142,240,0.3)', borderRadius: 20, padding: '40px 32px', marginBottom: 24,
             }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--accent)', marginBottom: 6 }}>3 PLANS</div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>Starting at</span>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: 'var(--accent)', lineHeight: 1 }}>$99</span>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: '#4d8ef0', lineHeight: 1 }}>$79</span>
                 <span style={{ fontSize: 14, color: 'var(--muted)' }}>/month</span>
               </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>+ $39/mo each additional truck</div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 340, margin: '0 auto 28px', textAlign: 'left' }}>
                 {[
-                  { label: 'TMS Pro', desc: 'Full platform — loads, fleet, safety, compliance, invoicing', color: '#4d8ef0' },
-                  { label: 'AI Dispatch', desc: 'Q evaluates loads, predicts risk, highlights matches — you approve', color: '#f0a500' },
-                  { label: 'Autonomous Fleet', desc: 'AI-powered — Q evaluates, books approved loads, and dispatches safely', color: '#00d4aa' },
-                ].map((p, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{p.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.desc}</div>
-                    </div>
+                  'Fleet & dispatch management',
+                  'Invoicing & factoring',
+                  'IFTA & compliance suite',
+                  'Driver portal & scorecards',
+                  'Document management',
+                  'Fuel optimizer',
+                  'Expense tracking',
+                  'P&L dashboard',
+                ].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--text)' }}>
+                    <span style={{ color: '#4d8ef0', fontSize: 14, flexShrink: 0 }}>{'\u2713'}</span>
+                    <span>{f}</span>
                   </div>
                 ))}
               </div>
@@ -819,15 +820,15 @@ export default function LandingPage({ onGetStarted }) {
 
           {/* CTA */}
           <FadeIn delay={0.2}>
-            <button onClick={() => handleCheckout('autonomous_fleet')} disabled={checkoutLoading === 'autonomous_fleet'}
+            <button onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
               style={{
                 width: '100%', padding: '18px 0', fontSize: 17, fontWeight: 800, borderRadius: 14, cursor: 'pointer',
                 fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2,
-                background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none',
-                opacity: checkoutLoading === 'autonomous_fleet' ? 0.6 : 1,
-                boxShadow: '0 4px 20px rgba(240,165,0,0.3)', transition: 'all 0.2s',
+                background: 'linear-gradient(135deg, #4d8ef0, #3a6fd4)', color: '#fff', border: 'none',
+                opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1,
+                boxShadow: '0 4px 20px rgba(77,142,240,0.3)', transition: 'all 0.2s',
               }}>
-              {checkoutLoading === 'autonomous_fleet' ? 'Loading...' : 'START FREE TRIAL'}
+              {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START FREE TRIAL'}
             </button>
             <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: 'var(--muted)' }}>
               14-day free trial · No credit card · Cancel anytime
@@ -849,7 +850,7 @@ export default function LandingPage({ onGetStarted }) {
             { q: 'What exactly does Q do?', a: 'Q is an AI-powered TMS for trucking. It evaluates loads for profitability, predicts crash risk, monitors driver safety, negotiates rates, assigns drivers, tracks fleet, manages invoicing and compliance — automatically. It works alongside your existing load boards to help you make smarter, safer decisions.' },
             { q: 'How does Q improve fleet safety?', a: 'Q uses predictive AI to score crash risk for every driver before dispatch. It monitors HOS fatigue levels, weather conditions, vehicle maintenance, CSA compliance, and route hazards — blocking unsafe dispatches before they happen. Think of it as a safety co-pilot for your fleet.' },
             { q: 'Do I need to be tech-savvy?', a: 'No. Q is voice-first. Just talk to it. "Q, find me a load." "Q, what\'s my profit today?" It works like having an intelligent dispatcher on call 24/7.' },
-            { q: 'How does pricing work?', a: 'Three plans starting at $99/mo. All include a 14-day free trial, no credit card required. Sign up to see the full breakdown and pick the plan that fits your fleet.' },
+            { q: 'How does pricing work?', a: '$79/mo for your first truck, $39/mo for each additional truck. 14-day free trial, no credit card required. Everything included — fleet management, invoicing, IFTA, compliance, and more.' },
             { q: 'Does Q work with my load boards?', a: 'Yes. Q integrates with Truckstop, 123Loadboard, DAT, and more. It doesn\'t replace your load boards — it makes them more powerful by analyzing loads for profitability, safety risk, and optimal driver match.' },
             { q: 'Can I try it before paying?', a: '14-day free trial. No credit card required. Full access to every feature. Cancel anytime.' },
           ].map((item, i) => (

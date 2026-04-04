@@ -219,10 +219,10 @@ describe('Pricing Consistency', () => {
     expect(content).toMatch(/price:\s*199/)
   })
 
-  it('landing page contains base price 99 in plans config', () => {
+  it('landing page contains base price 79 in plans config', () => {
     const content = readSrc('src/pages/LandingPage.jsx')
     // Base plan price is in the plans config object
-    expect(content).toMatch(/price:\s*99/)
+    expect(content).toMatch(/price:\s*79/)
   })
 })
 

@@ -35,9 +35,9 @@ export default async function handler(req) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
 
-    // Plan prices: $199 first truck + $99 each additional
+    // Plan prices: $199 first truck + $79 each additional
     const FIRST_TRUCK_CENTS = 19900
-    const EXTRA_TRUCK_CENTS = 9900
+    const EXTRA_TRUCK_CENTS = 7900
 
     // Active subscribers
     const active = profiles.filter(p => ['active', 'trialing'].includes(p.subscription_status))
@@ -45,7 +45,7 @@ export default async function handler(req) {
     const trialing = profiles.filter(p => p.subscription_status === 'trialing')
     const cancelled = profiles.filter(p => p.subscription_status === 'canceled')
 
-    // MRR = $199 first truck + $99 each additional per paying carrier
+    // MRR = $199 first truck + $79 each additional per paying carrier
     const mrrCents = paying.reduce((sum, p) => {
       const trucks = parseInt(p.truck_count) || 1
       return sum + FIRST_TRUCK_CENTS + Math.max(0, trucks - 1) * EXTRA_TRUCK_CENTS

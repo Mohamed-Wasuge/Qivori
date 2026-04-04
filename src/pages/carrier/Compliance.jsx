@@ -954,7 +954,7 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
   const [fmcsaError, setFmcsaError] = useState('')
 
   // Fetch FMCSA data when DOT number is set
-  const fetchFMCSA = useCallback(async (dot) => {
+  const fetchFMCSA = useCallback(async (dot, { silent = false } = {}) => {
     if (!dot) return
     setFmcsaLoading(true)
     setFmcsaError('')
@@ -969,18 +969,18 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
       setFmcsaBasics(data.basics || [])
       setFmcsaInspections(data.inspections || null)
       localStorage.setItem('qivori_dot_number', dot)
-      showToast('', 'FMCSA Data Loaded', data.carrier?.legalName || dot)
+      if (!silent) showToast('', 'FMCSA Data Loaded', data.carrier?.legalName || dot)
     } catch (err) {
       setFmcsaError(err.message)
-      showToast('', 'FMCSA Error', err.message)
+      if (!silent) showToast('', 'FMCSA Error', err.message)
     } finally {
       setFmcsaLoading(false)
     }
   }, [showToast])
 
-  // Auto-fetch on mount if DOT saved
+  // Auto-fetch on mount if DOT saved — silent to avoid error toasts on page load
   useEffect(() => {
-    if (fmcsaDot && !fmcsaCarrier && !fmcsaLoading) fetchFMCSA(fmcsaDot)
+    if (fmcsaDot && !fmcsaCarrier && !fmcsaLoading) fetchFMCSA(fmcsaDot, { silent: true })
   }, []) // eslint-disable-line
 
   // Map FMCSA BASIC data to display format

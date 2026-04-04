@@ -2,7 +2,7 @@
  * AI Caller Agent — Initiates Twilio outbound calls to brokers
  * Triggered by driver tapping "Book It" or "Call the broker"
  * Uses Twilio REST API to place call, connects to call-handler.js for AI conversation
- * LOCKED TO: Qivori AI Dispatch plan ($199/mo + $99/truck) only
+ * LOCKED TO: Qivori AI Dispatch plan ($199/mo + $79/truck) only
  * Runtime: Vercel Edge
  */
 

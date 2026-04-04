@@ -233,8 +233,8 @@ describe('WORKFLOW: Invoice Creation', () => {
 // Simulates: Subscription checkout → validate plan → charge
 describe('WORKFLOW: Subscription Pricing', () => {
   const plans = [
-    { name: 'TMS Pro', price: 99, extra: 49, trucks: 3, expected: 99 + 2 * 49 },
-    { name: 'AI Dispatch Founder', price: 199, extra: 99, trucks: 5, expected: 199 + 4 * 99 },
+    { name: 'TMS Pro', price: 79, extra: 39, trucks: 3, expected: 79 + 2 * 39 },
+    { name: 'AI Dispatch Founder', price: 199, extra: 79, trucks: 5, expected: 199 + 4 * 79 },
     { name: 'AI Dispatch Regular', price: 299, extra: 149, trucks: 2, expected: 299 + 1 * 149 },
   ]
 

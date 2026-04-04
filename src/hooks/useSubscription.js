@@ -13,14 +13,14 @@ const PLAN_TIERS = {
 
 // Which plan tier is required for each gated feature
 const FEATURE_GATES = {
-  // Tier 0 — TMS Pro ($99/mo + $49/truck): manual management, no AI
+  // Tier 0 — TMS Pro ($79/mo + $39/truck): manual management, no AI
   invoicing:     0,
   ifta:          0,
   fleet:         0,
   compliance:    0,
   expenses:      0,
   drivers:       0,
-  // Tier 1 — AI Dispatch ($199/mo + $99/truck): AI assists, no voice, you approve
+  // Tier 1 — AI Dispatch ($199/mo + $79/truck): AI assists, no voice, you approve
   load_board:    1,
   ai_dispatch:   1,
   ai_scoring:    1,
@@ -39,11 +39,11 @@ const FEATURE_GATES = {
 }
 
 const PLAN_DISPLAY = {
-  tms_pro:          { name: 'TMS Pro',           price: 99,  extraTruck: 49, color: '#4d8ef0' },
-  ai_dispatch:      { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },
-  autonomous_fleet: { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#00d4aa' },
-  autopilot_ai:     { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#00d4aa' },  // legacy
-  autopilot:        { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy
+  tms_pro:          { name: 'TMS Pro',           price: 79,  extraTruck: 39, color: '#4d8ef0' },
+  ai_dispatch:      { name: 'Qivori AI Dispatch', price: 199, extraTruck: 79, color: '#f0a500' },
+  autonomous_fleet: { name: 'Qivori AI Dispatch', price: 199, extraTruck: 79, color: '#00d4aa' },
+  autopilot_ai:     { name: 'Qivori AI Dispatch', price: 199, extraTruck: 79, color: '#00d4aa' },  // legacy
+  autopilot:        { name: 'Qivori AI Dispatch', price: 199, extraTruck: 79, color: '#f0a500' },  // legacy
 }
 
 export function useSubscription() {

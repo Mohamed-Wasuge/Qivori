@@ -32,8 +32,8 @@ function guardError(message) {
 
 const VALID_PLANS = {
   // plan key -> [firstTruck, additionalTruck]
-  tms_pro:          [99, 49],
-  autonomous_fleet: [199, 99],   // founder pricing (first 100 carriers)
+  tms_pro:          [79, 39],
+  autonomous_fleet: [199, 79],   // founder pricing (first 100 carriers)
   regular:          [299, 149],
 };
 

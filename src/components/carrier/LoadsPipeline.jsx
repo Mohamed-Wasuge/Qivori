@@ -512,7 +512,7 @@ export function BillingTab() {
   const truckCount = vehicles.length || profile?.truck_count || 1
   const planName = 'Qivori AI Dispatch'
   const firstTruck = 199
-  const extraTruck = 99
+  const extraTruck = 79
   const totalMonthly = firstTruck + Math.max(0, truckCount - 1) * extraTruck
 
   const validPlans = ['autonomous_fleet', 'autopilot_ai', 'autopilot']

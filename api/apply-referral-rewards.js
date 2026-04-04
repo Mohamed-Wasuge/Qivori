@@ -7,13 +7,13 @@ const PLAN_PRICES = {
   autonomous_fleet: 19900,
   autopilot_ai: 19900,
   fleet: 19900,
-  tms_pro: 9900,
-  basic: 9900,
-  solo: 9900,
-  ai_dispatch: 14900,
-  pro: 14900,
-  growing: 14900,
-  autopilot: 14900,
+  tms_pro: 7900,
+  basic: 7900,
+  solo: 7900,
+  ai_dispatch: 19900,
+  pro: 19900,
+  growing: 19900,
+  autopilot: 19900,
 }
 
 /**

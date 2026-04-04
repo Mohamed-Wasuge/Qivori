@@ -2430,10 +2430,12 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
   const startVoiceCall = useCallback(async () => {
     if (inCall || callConnecting) return
+    // IMMEDIATELY block TTS — before any async work
+    inCallRef.current = true
     setCallConnecting(true)
     haptic('medium')
 
-    // Kill any playing TTS/audio so two Q's don't talk at once
+    // Kill ALL playing audio so two Q's never talk at once
     window.speechSynthesis?.cancel()
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = '' }
     document.querySelectorAll('audio').forEach(a => { a.pause(); a.src = '' })
@@ -2589,6 +2591,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       await pc.setRemoteDescription(answer)
 
     } catch (err) {
+      inCallRef.current = false
       setCallConnecting(false)
       setInCall(false)
       showToast('error', 'Call Failed', err.message || 'Could not connect')
@@ -2636,6 +2639,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       realtimeAudioRef.current.remove() // remove from DOM
       realtimeAudioRef.current = null
     }
+    inCallRef.current = false
     setInCall(false)
     setCallConnecting(false)
     setSpeaking(false)
@@ -2658,8 +2662,10 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     }
   }, [])
 
-  // AI TTS via OpenAI — for text chat responses only
+  // AI TTS via OpenAI — for text chat responses only (NEVER during voice calls)
   const speakWithAI = useCallback(async (text, onDone) => {
+    // Double-check: abort if a voice call started while we were queued
+    if (inCallRef.current) { onDone?.(); return }
     try {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 5000)
@@ -2671,6 +2677,8 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       })
       clearTimeout(timeout)
       if (!res.ok || res.status === 204) { onDone?.(); return }
+      // Check AGAIN after network round-trip — call may have started while waiting
+      if (inCallRef.current) { onDone?.(); return }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const audio = audioRef.current || new Audio()

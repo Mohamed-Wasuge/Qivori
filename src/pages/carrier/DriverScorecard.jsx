@@ -212,7 +212,7 @@ export function DriverSettlement() {
   const model = models[activeDriver] || driver.pay_model || 'percent'
   const modelVal = modelVals[activeDriver] ?? parseFloat(driver.pay_rate) ?? 28
   const driverDeductions = deductions[activeDriver] || []
-  const fuelRate = fuelCostPerMile || 0.22
+  const fuelRate = fuelCostPerMile || 0.55
 
   const mergedLoads = ctxLoads
     .filter(l => l.driver === driverName && (l.status === 'Delivered' || l.status === 'Invoiced'))

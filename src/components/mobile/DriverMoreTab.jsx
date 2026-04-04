@@ -20,7 +20,7 @@ function calcDriverPay(revenue, miles, driver) {
     if (driver.pay_model === 'permile') return (miles || 0) * rate
     if (driver.pay_model === 'flat') return rate
   }
-  return revenue * 0.28
+  return revenue * 0.28 // fallback — per-driver rate preferred
 }
 
 export default function DriverMoreTab() {

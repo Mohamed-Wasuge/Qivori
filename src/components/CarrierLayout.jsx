@@ -526,6 +526,11 @@ function FinancialsHub() {
   const overdueInvoices = unpaidInvoices.filter(i => i.dueDate && new Date(i.dueDate) < new Date())
   const overdueTotal = overdueInvoices.reduce((s, i) => s + (i.amount || 0), 0)
   const truckCount = Math.max((ctxDrivers || []).length, 1)
+  const avgPayPct = (() => {
+    const pctDrivers = (ctxDrivers || []).filter(d => d.pay_model === 'percent' && d.pay_rate)
+    if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
+    return 0.28 // fallback — per-driver rate preferred
+  })()
   const profitPerTruck = Math.round(netProfit / truckCount)
   const marginColor = margin >= 30 ? 'var(--success)' : margin >= 20 ? 'var(--warning,#f59e0b)' : 'var(--danger)'
 
@@ -706,7 +711,7 @@ function FinancialsHub() {
                     { label:'Gross Revenue', val:`$${totalRevenue.toLocaleString()}`, color:'var(--accent)' },
                     { label:'Total Expenses', val:`-$${totalExpenses.toLocaleString()}`, color:'var(--danger)' },
                     { label:'Fuel (est.)', val:`-$${Math.round((deliveredLoads||[]).reduce((s,l)=>s+(Number(l.miles)||0),0) * fuelCostPerMile).toLocaleString()}`, color:'var(--danger)' },
-                    { label:'Driver Pay (est.)', val:`-$${Math.round(totalRevenue * 0.28).toLocaleString()}`, color:'var(--danger)' },
+                    { label:'Driver Pay (est.)', val:`-$${Math.round(totalRevenue * avgPayPct).toLocaleString()}`, color:'var(--danger)' },
                   ].map((r, i, arr) => (
                     <div key={r.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
                       <span style={{ fontSize:13, color:'var(--text-secondary,#94a3b8)' }}>{r.label}</span>

@@ -819,7 +819,7 @@ export function BookedLoads() {
   }
 
   return (
-    <div style={{ padding: 20, paddingBottom: 60, overflowY: 'auto', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 20, paddingBottom: 60, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -1510,7 +1510,7 @@ export function BookedLoads() {
 
 export function DispatchTab() {
   return (
-    <div style={{ height: '100%', overflow: 'auto' }}>
+    <div style={{ paddingBottom: 40 }}>
       <BookedLoads />
     </div>
   )

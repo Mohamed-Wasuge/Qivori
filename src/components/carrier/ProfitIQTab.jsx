@@ -61,7 +61,7 @@ export function ProfitIQTab() {
   const [tab, setTab] = useState('Q Engine')
   const [marginTarget, setMarginTarget] = useState(30)
 
-  const fuelRate = fuelCostPerMile || 0.22
+  const fuelRate = fuelCostPerMile || 0.55
 
   // Helper: get per-driver pay
   const calcDriverPay = (driverName, gross, miles) => {
@@ -239,7 +239,7 @@ export function ProfitIQTab() {
   const qData = useMemo(() => {
     const truckCount = Math.max((ctxDrivers || []).length, 1)
     const vehicleCount = Math.max((vehicles || []).length, truckCount)
-    const fuelRate = fuelCostPerMile || 0.22
+    const fuelRate = fuelCostPerMile || 0.55
     const totalMi = completedLoads.reduce((s,l) => s + (parseFloat(l.miles)||0), 0)
 
     // Per-truck profit tracking
@@ -586,7 +586,7 @@ export function ProfitIQTab() {
               <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
                 <Fuel size={14} color="var(--warning)" />
                 <span style={{ fontSize:13, fontWeight:700 }}>Fuel Intelligence</span>
-                <span style={{ marginLeft:'auto', fontSize:10, padding:'2px 6px', background:'rgba(240,165,0,0.1)', color:'var(--accent)', borderRadius:5, fontWeight:700 }}>${(fuelCostPerMile||0.22).toFixed(2)}/mi</span>
+                <span style={{ marginLeft:'auto', fontSize:10, padding:'2px 6px', background:'rgba(240,165,0,0.1)', color:'var(--accent)', borderRadius:5, fontWeight:700 }}>${(fuelCostPerMile||0.55).toFixed(2)}/mi</span>
               </div>
               <div style={{ padding:14, display:'flex', flexDirection:'column', gap:10 }}>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:8 }}>

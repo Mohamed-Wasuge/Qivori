@@ -236,7 +236,6 @@ export function CarrierProvider({ children }) {
 
     async function init() {
       try {
-        console.log('[CarrierContext] Fetching data for user:', user.id)
         const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories, dbConsolidations, dbAiFees] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
@@ -249,7 +248,6 @@ export function CarrierProvider({ children }) {
           db.fetchAIFees(),
         ])
 
-        console.log('[CarrierContext] Loaded:', { loads: dbLoads.length, invoices: dbInvoices.length, expenses: dbExpenses.length })
         setLoads(dbLoads.map(normalizeLoad))
         setInvoices(dbInvoices.map(normalizeInvoice))
         setExpenses(dbExpenses.map(normalizeExpense))
@@ -580,7 +578,6 @@ export function CarrierProvider({ children }) {
             try {
               const dbInv = await db.createInvoice({ ...inv, load_id: dbLoadId })
               setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
-              console.log(`[Pilot] Invoice created: ${dbInv?.invoice_number} for load ${l.loadId || l.load_number} — $${inv.amount}`)
               // Audit log: invoice auto-created on delivery
               db.createAuditLog({
                 action: 'invoice_created',
@@ -613,7 +610,6 @@ export function CarrierProvider({ children }) {
             } catch (err) {
               console.error(`[Pilot] Invoice creation failed (attempt ${attempt}):`, err)
               if (attempt < 2) {
-                console.log(`[Pilot] Retrying invoice creation for load ${l.loadId || l.load_number}...`)
                 setTimeout(() => createInvoiceWithRetry(attempt + 1), 2000)
               } else {
                 // Final failure — alert admin
@@ -637,8 +633,6 @@ export function CarrierProvider({ children }) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loadId: dbLoadId }),
-          }).then(() => {
-            console.log(`[Pilot] Invoice email sent to broker for load ${l.loadId || l.load_number}`)
           }).catch(err => { console.error('[Pilot] Invoice email failed:', err) })
 
           // Q Intelligence — charge 3% AI fee on delivered load
@@ -656,11 +650,7 @@ export function CarrierProvider({ children }) {
                 broker: l.broker || l.broker_name,
                 featureUsed: 'dispatch',
               }),
-            }).then(r => r.json()).then(result => {
-              if (result.charged) {
-                console.log(`[Pilot] AI fee charged: $${result.feeAmount} for ${l.loadId || l.load_number}`)
-              }
-            }).catch(err => { console.error('[Pilot] AI fee charge failed:', err) })
+            }).then(r => r.json()).catch(err => { console.error('[Pilot] AI fee charge failed:', err) })
           }
         } else {
           const fakeInv = normalizeInvoice({
@@ -717,7 +707,6 @@ export function CarrierProvider({ children }) {
       }
       const warns = [cdl, med, avail].filter(c => c.status === 'warn')
       if (warns.length > 0) {
-        console.log(`[Compliance] Dispatch warnings for ${driverName}:`, warns.map(w => w.label))
       }
     }
 
@@ -889,7 +878,6 @@ export function CarrierProvider({ children }) {
       try {
         await db.updateLoad(load.id, dbUpdates)
         const teamLabel = coDriverName ? ` + ${coDriverName} (team)` : ''
-        console.log(`[Pilot] Driver assigned: ${driverName}${teamLabel} → load ${loadId}`)
         db.createAuditLog({
           action: 'driver_assigned',
           entity_type: 'load',

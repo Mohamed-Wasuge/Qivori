@@ -72,7 +72,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         else if (myDriver.pay_model === 'permile') pay = miles * rate
         else if (myDriver.pay_model === 'flat') pay = rate
       }
-      if (!pay) pay = rev * 0.28
+      if (!pay) pay = rev * 0.28 // fallback — per-driver rate preferred
       total += pay
       const d = new Date(l.delivery_date || l.created_at || 0)
       if (d >= weekStart) weekTotal += pay

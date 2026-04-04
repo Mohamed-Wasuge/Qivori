@@ -1157,7 +1157,7 @@ export function LaneIntel() {
   const laneAvgPayPct = useMemo(() => {
     const pctDrivers = laneDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28
+    return 0.28 // fallback — per-driver rate preferred
   }, [laneDrivers])
   const [selected, setSelected] = useState(null)
   const [sortBy, setSortBy] = useState('loads')
@@ -2194,7 +2194,7 @@ export function AILoadBoard() {
   const boardPayPct = useMemo(() => {
     const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28
+    return 0.28 // fallback — per-driver rate preferred
   }, [dbDrivers])
   const [filters, setFilters] = useState({ equip:'All', minRpm:'', sortBy:'score' })
   const [boardLoads, setBoardLoads] = useState(SAMPLE_BOARD_LOADS)

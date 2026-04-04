@@ -96,6 +96,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const [speaking, setSpeaking] = useState(false)
   const [handsFree, setHandsFree] = useState(false)
   const [inCall, setInCall] = useState(false)
+  const inCallRef = useRef(false) // ref mirror so speak() always sees live value
   const [callConnecting, setCallConnecting] = useState(false)
   const retellClientRef = useRef(null) // legacy — kept for safety
   const scrollRef = useRef(null)
@@ -2683,10 +2684,24 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   }, [])
 
   const speak = useCallback(async (text, onDone) => {
-    // Don't TTS if in a Retell call (Retell handles voice) or speaker is off
-    if (inCall || !speakerOn || !text) { onDone?.(); return }
+    // Don't TTS if in a realtime voice call or speaker is off
+    // Use ref instead of state so this always checks the LIVE value
+    if (inCallRef.current || !speakerOn || !text) { onDone?.(); return }
     speakWithAI(text, onDone)
-  }, [inCall, speakerOn, speakWithAI])
+  }, [speakerOn, speakWithAI])
+
+  // Keep inCallRef in sync with inCall state
+  useEffect(() => {
+    inCallRef.current = inCall
+    // When a voice call starts, kill any playing TTS immediately
+    if (inCall) {
+      window.speechSynthesis?.cancel()
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = '' }
+      document.querySelectorAll('audio').forEach(a => {
+        if (a !== realtimeAudioRef.current) { a.pause(); a.src = '' }
+      })
+    }
+  }, [inCall])
 
   // Stop speaking when speaker is toggled off
   useEffect(() => {

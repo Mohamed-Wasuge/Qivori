@@ -14,7 +14,7 @@ export default async function handler(req) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 
-  const apiKey = (process.env.OPENAI_API_KEY || '').trim()
+  const apiKey = (process.env.OPENAI_API_KEY || '').replace(/\\n/g, '').trim()
   if (!apiKey) {
     return Response.json({ error: 'Transcription not configured' }, { status: 500, headers: corsHeaders(req) })
   }

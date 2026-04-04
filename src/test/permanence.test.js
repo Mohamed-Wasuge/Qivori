@@ -483,11 +483,17 @@ describe('ENFORCED: Runtime Guards', () => {
     expect(content).toContain('validateStatusTransition')
   })
 
-  it('database.js validates load status transitions on update', () => {
+  it('database.js validates load status transitions on updateLoad', () => {
     const content = readSrc('src/lib/database.js')
-    // updateLoad must call validateStatusTransition
     const updateBlock = content.slice(content.indexOf('export async function updateLoad('), content.indexOf('export async function updateLoadByLoadId'))
     expect(updateBlock).toContain('validateStatusTransition')
+  })
+
+  it('database.js validates load status transitions on updateLoadByLoadId', () => {
+    const content = readSrc('src/lib/database.js')
+    const block = content.slice(content.indexOf('export async function updateLoadByLoadId'), content.indexOf('export async function deleteLoad'))
+    expect(block).toContain('validateStatusTransition')
+    expect(block).toContain('validateFinancialCalc')
   })
 
   it('database.js validates financial amounts on create', () => {

@@ -148,6 +148,16 @@ export async function updateLoad(id, updates) {
 }
 
 export async function updateLoadByLoadId(loadId, updates) {
+  // Runtime guard: validate status transitions (same as updateLoad)
+  if (updates.status) {
+    try {
+      const current = await safeSelect('loads', supabase.from('loads').select('status').eq('load_id', loadId).single())
+      if (current?.status) validateStatusTransition(current.status, updates.status)
+    } catch (err) {
+      if (err.message?.includes('PERMANENCE GUARD')) throw err
+    }
+  }
+  if (updates.rate !== undefined && updates.rate > 0) validateFinancialCalc(updates.rate, 'updateLoadByLoadId rate')
   const { data, error } = await safeMutate('updateLoadByLoadId',
     supabase.from('loads').update(updates).eq('load_id', loadId).select().single()
   )

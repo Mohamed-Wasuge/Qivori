@@ -74,10 +74,10 @@ describe('LOCKED: Financial Calculations', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('LOCKED: Pricing Model', () => {
-  it('useSubscription hook has correct founder pricing ($199 base, $99 additional)', () => {
+  it('useSubscription hook has correct TMS Pro pricing ($79 base, $39 additional)', () => {
     const content = readSrc('src/hooks/useSubscription.js')
-    expect(content).toMatch(/price:\s*199/)
-    expect(content).toMatch(/extraTruck:\s*99/)
+    expect(content).toMatch(/price:\s*79/)
+    expect(content).toMatch(/extraTruck:\s*39/)
   })
 
   it('useSubscription hook has correct regular pricing ($299 base, $149 additional)', () => {

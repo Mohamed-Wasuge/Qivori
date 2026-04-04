@@ -8,9 +8,9 @@ const PRICING_PLANS = [
     id: 'tms_pro',
     name: 'TMS Pro',
     sub: 'Core trucking management',
-    price: '$99',
+    price: '$79',
     period: '/mo',
-    extraTruck: '$49',
+    extraTruck: '$39',
     color: '#4d8ef0',
     icon: Zap,
     features: [

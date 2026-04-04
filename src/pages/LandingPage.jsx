@@ -789,15 +789,15 @@ export default function LandingPage({ onGetStarted }) {
             <div style={{ position: 'relative', padding: '28px 32px', background: '#FAFAFA', borderRadius: 16, border: '1px solid rgba(0,0,0,0.06)' }}>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 64, color: 'rgba(240,165,0,0.15)', lineHeight: 1, position: 'absolute', top: 12, left: 24 }}>"</div>
               <p style={{ fontSize: 17, color: 'rgba(26,26,26,0.6)', lineHeight: 1.8, textAlign: 'left', position: 'relative', zIndex: 1, margin: 0 }}>
-                I started Qivori because I lived the chaos. As an owner-operator, I spent more time on paperwork and phone calls than on the road. Every tool I tried solved one problem but created three more. So I built the system I wished existed — one AI that handles everything, from finding loads to generating invoices.
+                Qivori was born out of frustration. As an owner-operator, I spent more time on paperwork and phone calls than on the road. Every tool I tried solved one problem but created three more. So I built the system I wished existed — one AI that handles everything, from finding loads to generating invoices. This wasn't built in Silicon Valley. It was built from the cab.
               </p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20, justifyContent: 'flex-start' }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #f0a500, #e09000)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Ic icon={Truck} size={18} color="#000" />
                 </div>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Mohamed Wasuge</div>
-                  <div style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>Founder & CEO, Qivori AI</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Owner-Operator Turned Founder</div>
+                  <div style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>Qivori AI</div>
                 </div>
               </div>
             </div>
@@ -811,63 +811,36 @@ export default function LandingPage({ onGetStarted }) {
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12 }}>SIMPLE PRICING</p>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 36, color: '#1a1a1a' }}>
-              Two plans. No hidden fees.
+              One plan. Everything.
             </h2>
           </FadeIn>
-          <div className="lp-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
-            {/* TMS Pro */}
-            <FadeIn delay={0.05}>
-              <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 24, padding: '40px 28px 36px', position: 'relative', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(26,26,26,0.5)', letterSpacing: 1, marginBottom: 20 }}>TMS PRO</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: '#1a1a1a', lineHeight: 1 }}>$99</span>
-                  <span style={{ fontSize: 16, color: 'rgba(26,26,26,0.35)' }}>/mo</span>
+          <FadeIn delay={0.1}>
+            <div style={{ maxWidth: 420, margin: '0 auto', background: '#fff', border: '2px solid rgba(240,165,0,0.3)', borderRadius: 24, padding: '48px 32px 40px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 40px rgba(240,165,0,0.1)' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #e09000)' }} />
+              {founderCount < 100 && (
+                <div style={{ marginBottom: 20, padding: '6px 14px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, display: 'inline-block' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>FOUNDER PRICING · {100 - founderCount} SPOTS LEFT</span>
                 </div>
-                <div style={{ fontSize: 13, color: 'rgba(26,26,26,0.35)', marginBottom: 28 }}>+ $49/mo per additional truck</div>
-                <div style={{ textAlign: 'left', marginBottom: 28 }}>
-                  {['Load management', 'Invoicing', 'IFTA reporting', 'Expense tracking', 'Fleet tracking', 'Driver management'].map((f, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(26,26,26,0.6)', padding: '5px 0' }}>
-                      <Ic icon={Check} size={13} color="rgba(26,26,26,0.3)" /><span>{f}</span>
-                    </div>
-                  ))}
-                </div>
-                <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
-                  style={{ width: '100%', padding: '14px 0', fontSize: 14, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: '#1a1a1a', color: '#fff', border: 'none', opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1 }}>
-                  {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START FREE TRIAL'}
-                </button>
+              )}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 68, color: '#f0a500', lineHeight: 1 }}>$199</span>
+                <span style={{ fontSize: 18, color: 'rgba(26,26,26,0.35)' }}>/mo</span>
               </div>
-            </FadeIn>
-
-            {/* Autonomous Fleet — featured */}
-            <FadeIn delay={0.1}>
-              <div style={{ background: '#fff', border: '2px solid rgba(240,165,0,0.3)', borderRadius: 24, padding: '40px 28px 36px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 40px rgba(240,165,0,0.1)' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #e09000)' }} />
-                {founderCount < 100 && (
-                  <div style={{ marginBottom: 16, padding: '5px 12px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, display: 'inline-block' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>FOUNDER PRICING · {100 - founderCount} SPOTS LEFT</span>
+              <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.35)', marginBottom: 8 }}>+ $99/mo per additional truck</div>
+              <div style={{ fontSize: 13, color: 'rgba(26,26,26,0.2)', marginBottom: 28 }}><span style={{ textDecoration: 'line-through' }}>$299/mo</span> regular price</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, textAlign: 'left', marginBottom: 32 }}>
+                {['AI dispatch', 'Auto invoicing', 'IFTA reporting', 'Compliance', 'Fleet tracking', 'Driver management', 'Expense tracking', 'P&L dashboard'].map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(26,26,26,0.6)', padding: '5px 0' }}>
+                    <Ic icon={Check} size={13} color="#f0a500" /><span>{f}</span>
                   </div>
-                )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#f0a500', letterSpacing: 1, marginBottom: 20 }}>AUTONOMOUS FLEET</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, color: '#f0a500', lineHeight: 1 }}>$199</span>
-                  <span style={{ fontSize: 16, color: 'rgba(26,26,26,0.35)' }}>/mo</span>
-                </div>
-                <div style={{ fontSize: 13, color: 'rgba(26,26,26,0.35)', marginBottom: 6 }}>+ $99/mo per additional truck</div>
-                <div style={{ fontSize: 12, color: 'rgba(26,26,26,0.2)', marginBottom: 28 }}><span style={{ textDecoration: 'line-through' }}>$299/mo</span> regular price</div>
-                <div style={{ textAlign: 'left', marginBottom: 28 }}>
-                  {['Everything in TMS Pro', 'AI dispatch & load matching', 'Auto rate negotiation', 'Smart profit optimization', 'Autonomous broker calling', 'P&L dashboard & analytics'].map((f, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: i === 0 ? '#1a1a1a' : 'rgba(26,26,26,0.6)', fontWeight: i === 0 ? 700 : 400, padding: '5px 0' }}>
-                      <Ic icon={Check} size={13} color="#f0a500" /><span>{f}</span>
-                    </div>
-                  ))}
-                </div>
-                <button className="lp-cta-btn" onClick={() => handleCheckout('autonomous_fleet')} disabled={checkoutLoading === 'autonomous_fleet'}
-                  style={{ width: '100%', padding: '14px 0', fontSize: 14, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'autonomous_fleet' ? 0.6 : 1, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' }}>
-                  {checkoutLoading === 'autonomous_fleet' ? 'Loading...' : 'START FREE TRIAL'}
-                </button>
+                ))}
               </div>
-            </FadeIn>
-          </div>
+              <button className="lp-cta-btn" onClick={() => handleCheckout('autonomous_fleet')} disabled={checkoutLoading === 'autonomous_fleet'}
+                style={{ width: '100%', padding: '16px 0', fontSize: 15, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'autonomous_fleet' ? 0.6 : 1, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' }}>
+                {checkoutLoading === 'autonomous_fleet' ? 'Loading...' : 'START FREE TRIAL'}
+              </button>
+            </div>
+          </FadeIn>
           <FadeIn delay={0.15}>
             <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(26,26,26,0.3)' }}>14-day free trial · No credit card required · Cancel anytime</p>
           </FadeIn>

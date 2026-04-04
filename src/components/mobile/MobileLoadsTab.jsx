@@ -216,20 +216,49 @@ export default function MobileLoadsTab() {
   }
 
   // Handle rate con photo
+  // Compress images before sending to API — reduces upload size by ~70%
+  const compressImage = (file) => new Promise((resolve) => {
+    if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ base64: reader.result.split(',')[1], mediaType: 'application/pdf' })
+      reader.readAsDataURL(file)
+      return
+    }
+    // For Word docs and other non-image files, just read as-is
+    if (!file.type?.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ base64: reader.result.split(',')[1], mediaType: file.type || 'application/octet-stream' })
+      reader.readAsDataURL(file)
+      return
+    }
+    const img = new Image()
+    img.onload = () => {
+      const maxW = 1200
+      let w = img.width, h = img.height
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW }
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' })
+    }
+    img.onerror = () => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ base64: reader.result.split(',')[1], mediaType: file.type || 'image/jpeg' })
+      reader.readAsDataURL(file)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+
   const handleRateConPhoto = async (file) => {
     if (!file) return
     setScanning(true)
     try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result.split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const { base64, mediaType } = await compressImage(file)
       const res = await apiFetch('/api/parse-ratecon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file: base64, mediaType: file.type || 'image/jpeg' }),
+        body: JSON.stringify({ file: base64, mediaType }),
       })
       const parsed = await res.json()
       if (parsed.error) {

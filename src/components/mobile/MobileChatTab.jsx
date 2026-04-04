@@ -2459,26 +2459,41 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       realtimePcRef.current = pc
 
       // 3. Play remote audio (Q's voice)
-      // iOS Safari requires: element in DOM + user-gesture-initiated play
+      // iOS Safari requires: element in DOM + user-gesture-initiated play + playsinline
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
       audioEl.playsInline = true
       audioEl.setAttribute('playsinline', '')
       audioEl.setAttribute('webkit-playsinline', '')
-      audioEl.style.display = 'none'
+      audioEl.style.cssText = 'position:fixed;top:-9999px;left:-9999px;'
       document.body.appendChild(audioEl)
-      // Unlock audio on iOS by playing silent audio within this user gesture
-      audioEl.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dX///////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbDMJgoNAAAAAAAAAAAAAAAAAAAA/+MYxAALCAKkGABHAQA0AAANIAAAAABM'
-      await audioEl.play().catch(() => {})
-      audioEl.src = ''
+      // Unlock audio on iOS — must play within user gesture, then wait for it
+      try {
+        audioEl.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dX///////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbDMJgoNAAAAAAAAAAAAAAAAAAAA/+MYxAALCAKkGABHAQA0AAANIAAAAABM'
+        await audioEl.play()
+      } catch {
+        // iOS may reject even silent audio — that's ok, the gesture still unlocks
+      }
+      // Don't clear src — just pause. Clearing src on iOS can re-lock the audio context.
+      audioEl.pause()
+      audioEl.currentTime = 0
       realtimeAudioRef.current = audioEl
+
+      // Wire up remote audio track BEFORE getUserMedia so it's ready when audio arrives
       pc.ontrack = (e) => {
         audioEl.srcObject = e.streams[0]
         audioEl.play().catch(() => {})
       }
 
       // 4. Capture mic and add to peer connection
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        })
+      } catch (micErr) {
+        throw new Error('Microphone access denied — check your browser permissions')
+      }
       stream.getTracks().forEach(track => pc.addTrack(track, stream))
 
       // 5. Data channel for events
@@ -2545,10 +2560,17 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       setCallConnecting(false)
       setInCall(false)
       showToast('error', 'Call Failed', err.message || 'Could not connect')
-      // Cleanup on failure
+      // Full cleanup on failure — peer connection, audio element, mic tracks
       if (realtimePcRef.current) {
+        realtimePcRef.current.getSenders().forEach(s => { if (s.track) s.track.stop() })
         realtimePcRef.current.close()
         realtimePcRef.current = null
+      }
+      if (realtimeAudioRef.current) {
+        realtimeAudioRef.current.pause()
+        realtimeAudioRef.current.srcObject = null
+        realtimeAudioRef.current.remove()
+        realtimeAudioRef.current = null
       }
     }
   }, [inCall, callConnecting, driverName, buildContext, showToast])

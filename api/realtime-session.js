@@ -277,7 +277,7 @@ export default async function handler(req) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 
-  const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').replace(/\\n/g, '').trim()
+  const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').replace(/\\n|\n|\r/g, '').trim()
   if (!OPENAI_API_KEY) {
     return Response.json({ error: 'OpenAI not configured' }, { status: 500, headers: corsHeaders(req) })
   }

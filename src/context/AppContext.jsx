@@ -97,7 +97,7 @@ export function AppProvider({ children }) {
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toast, setToast] = useState({ show: false, icon: '', title: '', sub: '' })
-  const [theme, setThemeState] = useState(() => localStorage.getItem('fm_theme') || 'light')
+  const [theme, setThemeState] = useState(() => localStorage.getItem('fm_theme') || 'default')
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)

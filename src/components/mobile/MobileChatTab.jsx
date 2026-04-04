@@ -2459,7 +2459,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       realtimePcRef.current = pc
 
       // 3. Play remote audio (Q's voice)
-      // iOS Safari requires: element in DOM + user-gesture-initiated play + playsinline
+      // iOS Safari REQUIRES: element in DOM + user-gesture play + never pause before WebRTC audio arrives
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
       audioEl.playsInline = true
@@ -2467,22 +2467,45 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       audioEl.setAttribute('webkit-playsinline', '')
       audioEl.style.cssText = 'position:fixed;top:-9999px;left:-9999px;'
       document.body.appendChild(audioEl)
-      // Unlock audio on iOS — must play within user gesture, then wait for it
+
+      // Also unlock AudioContext (needed on some iOS versions)
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)()
+        if (ctx.state === 'suspended') await ctx.resume()
+        // Create a silent buffer and play it to fully unlock
+        const buf = ctx.createBuffer(1, 1, 22050)
+        const src = ctx.createBufferSource()
+        src.buffer = buf
+        src.connect(ctx.destination)
+        src.start(0)
+      } catch {}
+
+      // Unlock audio element — play silent audio and DO NOT pause/stop it.
+      // On iOS, pausing after unlock can re-lock the audio context.
+      // The silent clip is tiny — let it finish naturally.
       try {
         audioEl.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dX///////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbDMJgoNAAAAAAAAAAAAAAAAAAAA/+MYxAALCAKkGABHAQA0AAANIAAAAABM'
         await audioEl.play()
+        // Let it finish playing — don't pause, don't clear src
       } catch {
-        // iOS may reject even silent audio — that's ok, the gesture still unlocks
+        // iOS may reject — that's ok, the user gesture still helps
       }
-      // Don't clear src — just pause. Clearing src on iOS can re-lock the audio context.
-      audioEl.pause()
-      audioEl.currentTime = 0
       realtimeAudioRef.current = audioEl
 
       // Wire up remote audio track BEFORE getUserMedia so it's ready when audio arrives
       pc.ontrack = (e) => {
+        // Set the WebRTC stream as the source — replaces silent audio
         audioEl.srcObject = e.streams[0]
-        audioEl.play().catch(() => {})
+        // volume up in case anything muted it
+        audioEl.volume = 1.0
+        audioEl.muted = false
+        const playPromise = audioEl.play()
+        if (playPromise) {
+          playPromise.catch(() => {
+            // Last resort: try again after a short delay
+            setTimeout(() => audioEl.play().catch(() => {}), 100)
+          })
+        }
       }
 
       // 4. Capture mic and add to peer connection
@@ -2496,7 +2519,15 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       }
       stream.getTracks().forEach(track => pc.addTrack(track, stream))
 
-      // 5. Data channel for events
+      // 5. Monitor connection state for debugging
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          endVoiceCall()
+          setMessages(m => [...m, { role: 'assistant', content: 'Call dropped. Tap the phone icon to reconnect.' }])
+        }
+      }
+
+      // 6. Data channel for events
       const dc = pc.createDataChannel('oai-events')
       realtimeDcRef.current = dc
 
@@ -2536,7 +2567,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         setMessages(m => [...m, { role: 'assistant', content: 'Call ended. Tap the phone to call again or type below.' }])
       }
 
-      // 6. Create SDP offer and connect to OpenAI Realtime
+      // 7. Create SDP offer and connect to OpenAI Realtime
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 

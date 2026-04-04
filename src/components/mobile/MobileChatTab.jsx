@@ -2459,11 +2459,22 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       realtimePcRef.current = pc
 
       // 3. Play remote audio (Q's voice)
+      // iOS Safari requires: element in DOM + user-gesture-initiated play
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
+      audioEl.playsInline = true
+      audioEl.setAttribute('playsinline', '')
+      audioEl.setAttribute('webkit-playsinline', '')
+      audioEl.style.display = 'none'
+      document.body.appendChild(audioEl)
+      // Unlock audio on iOS by playing silent audio within this user gesture
+      audioEl.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbAAqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dX///////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAbDMJgoNAAAAAAAAAAAAAAAAAAAA/+MYxAALCAKkGABHAQA0AAANIAAAAABM'
+      await audioEl.play().catch(() => {})
+      audioEl.src = ''
       realtimeAudioRef.current = audioEl
       pc.ontrack = (e) => {
         audioEl.srcObject = e.streams[0]
+        audioEl.play().catch(() => {})
       }
 
       // 4. Capture mic and add to peer connection
@@ -2566,7 +2577,9 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       realtimePcRef.current = null
     }
     if (realtimeAudioRef.current) {
+      realtimeAudioRef.current.pause()
       realtimeAudioRef.current.srcObject = null
+      realtimeAudioRef.current.remove() // remove from DOM
       realtimeAudioRef.current = null
     }
     setInCall(false)

@@ -1,17 +1,20 @@
 import React from 'react'
 import { X, Zap, Lock, ArrowRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { useSubscription } from '../hooks/useSubscription'
 import { apiFetch } from '../lib/api'
 
-const PLAN_DETAILS = {
-  autonomous_fleet: { name: 'Q Platform', price: '$199/mo + $79/additional truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'Voice AI Assistant', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map & GPS', 'P&L Dashboard', 'ELD Integration', 'QuickBooks Sync', 'Driver Onboarding', 'Full Compliance Suite'] },
-  autopilot: { name: 'Q Platform', price: '$199/mo + $79/additional truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
-  autopilot_ai: { name: 'Q Platform', price: '$199/mo + $79/additional truck', features: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'] },
+const PLAN_FEATURES = {
+  autonomous_fleet: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'Voice AI Assistant', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map & GPS', 'P&L Dashboard', 'ELD Integration', 'QuickBooks Sync', 'Driver Onboarding', 'Full Compliance Suite'],
+  autopilot: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'],
+  autopilot_ai: ['AI Auto-Dispatch', 'Rate Con OCR Auto-Fill', 'AI Load Board', 'Invoicing & IFTA', 'Fleet Map', 'P&L Dashboard'],
 }
 
 export default function UpgradePrompt({ feature, requiredPlan, onClose }) {
   const { user, profile, showToast } = useApp()
-  const plan = PLAN_DETAILS[requiredPlan] || PLAN_DETAILS.autopilot
+  const { planName, planPrice, planExtraTruck } = useSubscription()
+  const features = PLAN_FEATURES[requiredPlan] || PLAN_FEATURES.autonomous_fleet
+  const priceLabel = planPrice ? `$${planPrice}/mo + $${planExtraTruck}/additional truck` : 'Contact us'
 
   const FEATURE_LABELS = {
     ai_dispatch: 'AI Auto-Dispatch',
@@ -78,17 +81,17 @@ export default function UpgradePrompt({ feature, requiredPlan, onClose }) {
             UPGRADE TO UNLOCK
           </div>
           <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
-            <strong style={{ color: 'var(--accent)' }}>{featureLabel}</strong> requires the <strong>{plan.name}</strong> plan
+            <strong style={{ color: 'var(--accent)' }}>{featureLabel}</strong> requires the <strong>{planName}</strong> plan
           </div>
         </div>
 
         {/* Features */}
         <div style={{ padding: '20px 24px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 12 }}>
-            {plan.name.toUpperCase()} INCLUDES
+            {planName.toUpperCase()} INCLUDES
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {plan.features.map(f => (
+            {features.map(f => (
               <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
                 <Zap size={14} color="var(--accent)" />
                 <span>{f}</span>
@@ -108,7 +111,7 @@ export default function UpgradePrompt({ feature, requiredPlan, onClose }) {
           }}
             onMouseOver={e => e.currentTarget.style.opacity = '0.9'}
             onMouseOut={e => e.currentTarget.style.opacity = '1'}>
-            Upgrade to {plan.name} — {plan.price}
+            Upgrade to {planName} — {priceLabel}
             <ArrowRight size={16} />
           </button>
           <button onClick={onClose} style={{

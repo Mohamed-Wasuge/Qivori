@@ -282,51 +282,58 @@ export function CarrierProvider({ children }) {
     init()
   }, [demoMode, authLoading, user])
 
-  // ─── Real-time subscriptions ──────────────────────────────────
+  // ─── Real-time subscriptions (debounced for 100+ truck fleets) ──
   useEffect(() => {
     if (demoMode || !useDb) return
 
     const channels = []
 
-    // Subscribe to loads changes
+    // Debounce helper — batches rapid realtime updates into single state changes
+    function createDebouncedHandler(setter, normalize, idField = 'id') {
+      let pending = { inserts: [], updates: [], deletes: [] }
+      let timer = null
+      return (payload) => {
+        if (payload.eventType === 'INSERT') pending.inserts.push(normalize(payload.new))
+        else if (payload.eventType === 'UPDATE') pending.updates.push(normalize(payload.new))
+        else if (payload.eventType === 'DELETE') pending.deletes.push(payload.old[idField])
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          const batch = { ...pending }
+          pending = { inserts: [], updates: [], deletes: [] }
+          setter(prev => {
+            let next = prev
+            if (batch.deletes.length) next = next.filter(item => !batch.deletes.includes(item[idField]))
+            if (batch.updates.length) {
+              const updateMap = new Map(batch.updates.map(u => [u[idField], u]))
+              next = next.map(item => updateMap.get(item[idField]) || item)
+            }
+            if (batch.inserts.length) {
+              const existingIds = new Set(next.map(item => item[idField]))
+              const newItems = batch.inserts.filter(item => !existingIds.has(item[idField]))
+              next = [...newItems, ...next]
+            }
+            return next
+          })
+        }, 300) // batch updates within 300ms window
+      }
+    }
+
+    const loadsHandler = createDebouncedHandler(setLoads, normalizeLoad)
+    const invoicesHandler = createDebouncedHandler(setInvoices, normalizeInvoice)
+    const expensesHandler = createDebouncedHandler(setExpenses, normalizeExpense)
+
     const loadsChannel = supabase.channel('realtime-loads')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'loads' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setLoads(prev => [normalizeLoad(payload.new), ...prev.filter(l => l.id !== payload.new.id)])
-        } else if (payload.eventType === 'UPDATE') {
-          setLoads(prev => prev.map(l => l.id === payload.new.id ? normalizeLoad(payload.new) : l))
-        } else if (payload.eventType === 'DELETE') {
-          setLoads(prev => prev.filter(l => l.id !== payload.old.id))
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'loads' }, loadsHandler)
       .subscribe()
     channels.push(loadsChannel)
 
-    // Subscribe to invoices changes
     const invoicesChannel = supabase.channel('realtime-invoices')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setInvoices(prev => [normalizeInvoice(payload.new), ...prev.filter(i => i.id !== payload.new.id)])
-        } else if (payload.eventType === 'UPDATE') {
-          setInvoices(prev => prev.map(i => i.id === payload.new.id ? normalizeInvoice(payload.new) : i))
-        } else if (payload.eventType === 'DELETE') {
-          setInvoices(prev => prev.filter(i => i.id !== payload.old.id))
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, invoicesHandler)
       .subscribe()
     channels.push(invoicesChannel)
 
-    // Subscribe to expenses changes
     const expensesChannel = supabase.channel('realtime-expenses')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setExpenses(prev => [normalizeExpense(payload.new), ...prev.filter(e => e.id !== payload.new.id)])
-        } else if (payload.eventType === 'UPDATE') {
-          setExpenses(prev => prev.map(e => e.id === payload.new.id ? normalizeExpense(payload.new) : e))
-        } else if (payload.eventType === 'DELETE') {
-          setExpenses(prev => prev.filter(e => e.id !== payload.old.id))
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, expensesHandler)
       .subscribe()
     channels.push(expensesChannel)
 
@@ -1272,6 +1279,17 @@ export function CarrierProvider({ children }) {
   const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0)
   const totalExpenses = visibleExpenses.reduce((s, e) => s + (e.amount || 0), 0)
 
+  // Pre-indexed driver map for O(1) lookups (scales to 100+ drivers)
+  const driverMap = useMemo(() => {
+    const map = new Map()
+    drivers.forEach(d => {
+      if (d.full_name) map.set(d.full_name, d)
+      if (d.name && d.name !== d.full_name) map.set(d.name, d)
+      if (d.id) map.set(d.id, d)
+    })
+    return map
+  }, [drivers])
+
   // Broker intelligence — score brokers from load + invoice history
   const brokerStats = useMemo(() => {
     const map = {}
@@ -1330,7 +1348,7 @@ export function CarrierProvider({ children }) {
       allLoads: loads, allInvoices: invoices, allExpenses: expenses,
       drivers, vehicles, company, checkCalls, qMemories, consolidations, aiFees,
       deliveredLoads, activeLoads, unpaidInvoices,
-      totalRevenue, totalExpenses, brokerStats, fuelCostPerMile, carrierMpg,
+      totalRevenue, totalExpenses, brokerStats, driverMap, fuelCostPerMile, carrierMpg,
       updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
       updateInvoiceStatus, addExpense, editExpense, removeExpense, removeInvoice,
       addDriver, editDriver, removeDriver,

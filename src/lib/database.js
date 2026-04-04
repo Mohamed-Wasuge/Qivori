@@ -37,10 +37,29 @@ function validateBeforeWrite(table, data, label) {
   }
 }
 
+// ─── Paginated fetch (scales to 100+ trucks) ────────────────
+// Supabase returns max 1000 rows per request. This fetches all pages.
+async function fetchAllPages(table, query, pageSize = 1000) {
+  let all = []
+  let from = 0
+  while (true) {
+    const { data, error } = await query.range(from, from + pageSize - 1)
+    if (error) {
+      console.warn(`[DB] fetchAllPages(${table}) page ${from} failed:`, error.message)
+      break
+    }
+    if (!data || data.length === 0) break
+    all = all.concat(data)
+    if (data.length < pageSize) break // last page
+    from += pageSize
+  }
+  return all
+}
+
 // ─── LOADS (uses actual schema: load_id, rate, broker_id, etc.) ──
 export async function fetchLoads() {
-  const data = await safeSelect('loads',
-    supabase.from('loads').select('*, load_stops(*)').order('created_at', { ascending: false }).limit(500)
+  const data = await fetchAllPages('loads',
+    supabase.from('loads').select('*, load_stops(*)').order('created_at', { ascending: false })
   )
   // Sort stops by sequence within each load
   if (data) {
@@ -179,8 +198,8 @@ export async function deleteLoad(id) {
 
 // ─── INVOICES ────────────────────────────────────────────────
 export async function fetchInvoices() {
-  const data = await safeSelect('invoices',
-    supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(500)
+  const data = await fetchAllPages('invoices',
+    supabase.from('invoices').select('*').order('created_at', { ascending: false })
   )
   return data || []
 }
@@ -214,8 +233,8 @@ export async function deleteInvoice(id) {
 
 // ─── EXPENSES ────────────────────────────────────────────────
 export async function fetchExpenses() {
-  const data = await safeSelect('expenses',
-    supabase.from('expenses').select('*').order('date', { ascending: false }).limit(500)
+  const data = await fetchAllPages('expenses',
+    supabase.from('expenses').select('*').order('date', { ascending: false })
   )
   return data || []
 }
@@ -287,8 +306,8 @@ export async function createCheckCall(loadId, call) {
 
 // ─── VEHICLES ────────────────────────────────────────────────
 export async function fetchVehicles() {
-  const data = await safeSelect('vehicles',
-    supabase.from('vehicles').select('*').order('created_at', { ascending: false }).limit(100)
+  const data = await fetchAllPages('vehicles',
+    supabase.from('vehicles').select('*').order('created_at', { ascending: false })
   )
   return data || []
 }
@@ -319,8 +338,8 @@ export async function deleteVehicle(id) {
 
 // ─── DRIVERS ─────────────────────────────────────────────────
 export async function fetchDrivers() {
-  const data = await safeSelect('drivers',
-    supabase.from('drivers').select('*').order('created_at', { ascending: false }).limit(100)
+  const data = await fetchAllPages('drivers',
+    supabase.from('drivers').select('*').order('created_at', { ascending: false })
   )
   return data || []
 }
@@ -877,7 +896,7 @@ export async function updateConsolidation(id, updates) {
 // ─── ELD / DVIR ─────────────────────────────────────────────
 export async function fetchDVIRs() {
   const data = await safeSelect('eld_dvirs',
-    supabase.from('eld_dvirs').select('*').order('submitted_at', { ascending: false }).limit(100)
+    supabase.from('eld_dvirs').select('*').order('submitted_at', { ascending: false }).limit(500)
   )
   return data || []
 }
@@ -901,7 +920,7 @@ export async function fetchELDConnections() {
 
 export async function fetchHOSLogs() {
   const data = await safeSelect('eld_hos_logs',
-    supabase.from('eld_hos_logs').select('*').order('start_time', { ascending: false }).limit(200)
+    supabase.from('eld_hos_logs').select('*').order('start_time', { ascending: false }).limit(1000)
   )
   return data || []
 }
@@ -916,7 +935,7 @@ export async function fetchELDVehicles() {
 // ─── Q AI FEES ────────────────────────────────────────────────
 export async function fetchAIFees() {
   const data = await safeSelect('q_ai_fees',
-    supabase.from('q_ai_fees').select('*').order('created_at', { ascending: false }).limit(200)
+    supabase.from('q_ai_fees').select('*').order('created_at', { ascending: false }).limit(1000)
   )
   return data || []
 }

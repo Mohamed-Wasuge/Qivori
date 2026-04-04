@@ -63,9 +63,19 @@ export function ProfitIQTab() {
 
   const fuelRate = fuelCostPerMile || 0.55
 
-  // Helper: get per-driver pay
+  // Pre-index drivers by name for O(1) lookup instead of O(n) .find() per load
+  const driverIndex = useMemo(() => {
+    const map = new Map()
+    ;(ctxDrivers || []).forEach(d => {
+      if (d.full_name) map.set(d.full_name, d)
+      if (d.name) map.set(d.name, d)
+    })
+    return map
+  }, [ctxDrivers])
+
+  // Helper: get per-driver pay (O(1) lookup via Map)
   const calcDriverPay = (driverName, gross, miles) => {
-    const driverRec = (ctxDrivers || []).find(d => (d.full_name || d.name) === driverName)
+    const driverRec = driverIndex.get(driverName)
     const model = driverRec?.pay_model || 'percent'
     const rate = parseFloat(driverRec?.pay_rate) || 50
     if (model === 'permile') return Math.round(miles * rate)
@@ -73,12 +83,12 @@ export function ProfitIQTab() {
     return Math.round(gross * (rate / 100))
   }
 
-  // ── computed base data ──────────────────────────────────────────────────────
-  const completedLoads = loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
-  const activeLoads    = loads.filter(l => !['Delivered','Invoiced'].includes(l.status))
+  // ── computed base data (memoized for 100+ truck performance) ────────────────
+  const completedLoads = useMemo(() => loads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced'), [loads])
+  const activeLoads    = useMemo(() => loads.filter(l => !['Delivered','Invoiced'].includes(l.status)), [loads])
 
   // Per-load profit: gross minus per-driver pay and real fuel cost
-  const loadProfit = completedLoads.map(l => {
+  const loadProfit = useMemo(() => completedLoads.map(l => {
     const gross      = l.gross || l.rate || 0
     const miles      = parseFloat(l.miles) || 0
     const driverPay  = calcDriverPay(l.driver, gross, miles)
@@ -90,7 +100,7 @@ export function ProfitIQTab() {
     const days       = estTransitDays(miles)
     const profitPerDay = net / days
     return { ...l, driverPay, fuelCost, net, margin: parseFloat(margin), rpm, profitPerMile, profitPerDay, days }
-  }).sort((a,b) => b.net - a.net)
+  }).sort((a,b) => b.net - a.net), [completedLoads, driverIndex, fuelRate])
 
   // Time-filtered profit: today + this week
   const todayProfit = useMemo(() => {

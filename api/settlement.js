@@ -166,6 +166,70 @@ export default async function handler(req){
       return json({ok:true,loadId,agreedRate,driverPay,carrierProfit,payModel,payRate,status:'settled'})
     }
 
+    // Batch settle multiple loads at once (100+ truck fleet support)
+    if(action==='batch_settle'){
+      const{items}=body // [{loadId, invoiceId, driverId, amount}, ...]
+      if(!Array.isArray(items)||items.length===0) return json({error:'items array required'},400)
+      if(items.length>200) return json({error:'Max 200 items per batch'},400)
+
+      // Pre-fetch all unique drivers in one query
+      const driverIds=[...new Set(items.map(i=>i.driverId).filter(Boolean))]
+      const driverMap={}
+      if(driverIds.length>0){
+        const dRes=await fetch(SUPABASE_URL+'/rest/v1/drivers?id=in.('+driverIds.join(',')+')'+'&select=id,full_name,email,pay_model,pay_rate',{headers:sb()})
+        const driverRows=await dRes.json()
+        if(Array.isArray(driverRows)) driverRows.forEach(d=>{driverMap[d.id]=d})
+      }
+
+      // Process all settlements in parallel batches of 20
+      const results=[]
+      const batchSize=20
+      for(let i=0;i<items.length;i+=batchSize){
+        const batch=items.slice(i,i+batchSize)
+        const batchResults=await Promise.allSettled(batch.map(async(item)=>{
+          const agreedRate=parseFloat(item.amount)||0
+          const driverRecord=driverMap[item.driverId]||null
+          let payModel='percent',payRate=28,driverPay=0
+
+          if(driverRecord?.pay_model&&driverRecord?.pay_rate){
+            payModel=driverRecord.pay_model
+            payRate=parseFloat(driverRecord.pay_rate)
+            if(payModel==='percent') driverPay=Math.round(agreedRate*(payRate/100)*100)/100
+            else if(payModel==='permile'){
+              const lRes=await fetch(SUPABASE_URL+'/rest/v1/loads?id=eq.'+item.loadId+'&select=miles&limit=1',{headers:sb()})
+              const ld=await lRes.json()
+              const miles=(Array.isArray(ld)&&ld[0])?parseFloat(ld[0].miles)||0:0
+              driverPay=Math.round(miles*payRate*100)/100
+            }else if(payModel==='flat') driverPay=Math.round(payRate*100)/100
+            else driverPay=Math.round(agreedRate*0.28*100)/100
+          }else{
+            driverPay=Math.round(agreedRate*0.28*100)/100
+          }
+          const carrierProfit=Math.round((agreedRate-driverPay)*100)/100
+
+          // Create settlement record
+          await fetch(SUPABASE_URL+'/rest/v1/settlements',{
+            method:'POST',headers:sb(),
+            body:JSON.stringify({load_id:item.loadId,invoice_id:item.invoiceId||null,driver_id:item.driverId||null,driver_pay:driverPay,agreed_rate:agreedRate,carrier_profit:carrierProfit,pay_model:payModel,pay_rate:payRate,payment_received_at:new Date().toISOString(),status:'settled',owner_id:user.id})
+          })
+          // Update invoice
+          if(item.invoiceId){
+            await fetch(SUPABASE_URL+'/rest/v1/invoices?id=eq.'+item.invoiceId,{
+              method:'PATCH',headers:sb(),body:JSON.stringify({status:'paid',paid_at:new Date().toISOString()})
+            })
+          }
+          return{loadId:item.loadId,driverPay,carrierProfit,status:'settled'}
+        }))
+        batchResults.forEach((r,idx)=>{
+          if(r.status==='fulfilled') results.push(r.value)
+          else results.push({loadId:batch[idx].loadId,error:r.reason?.message||'Failed',status:'failed'})
+        })
+      }
+      const settled=results.filter(r=>r.status==='settled')
+      const failed=results.filter(r=>r.status==='failed')
+      return json({ok:true,total:items.length,settled:settled.length,failed:failed.length,results})
+    }
+
     // Generate settlement report
     if(action==='generate_report'){
       const{startDate,endDate}=body

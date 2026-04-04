@@ -321,35 +321,35 @@ export default function LandingPage({ onGetStarted }) {
       </nav>
 
       {/* ── HERO — split layout with dashboard visual ──────────────── */}
-      <section className="lp-hero" style={{ padding: '120px 48px 100px', maxWidth: 1100, margin: '0 auto' }}>
-        <div className="lp-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+      <section className="lp-hero" style={{ padding: '100px 48px 72px', maxWidth: 1100, margin: '0 auto' }}>
+        <div className="lp-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 56, alignItems: 'center' }}>
           {/* LEFT — copy */}
           <div className="lp-hero-left" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <FadeIn>
-              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 64, letterSpacing: 3, lineHeight: 1, marginBottom: 24, color: '#fff' }}>
+              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 60, letterSpacing: 3, lineHeight: 1, marginBottom: 20, color: '#fff' }}>
                 Your Dispatcher<br />Is Now <span style={{ color: '#f0a500' }}>AI.</span>
               </h1>
             </FadeIn>
             <FadeIn delay={0.1}>
-              <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 12, maxWidth: 440 }}>
+              <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 10, maxWidth: 420 }}>
                 Q finds loads, calculates real profit, negotiates rates, and runs your operation — automatically.
               </p>
-              <p style={{ fontSize: 15, color: '#f0a500', fontWeight: 600, marginBottom: 40 }}>
+              <p style={{ fontSize: 14, color: '#f0a500', fontWeight: 600, marginBottom: 32 }}>
                 More money. Less stress. No extra apps.
               </p>
             </FadeIn>
             <FadeIn delay={0.2}>
               <button className="lp-cta-btn" onClick={handleTry}
-                style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '18px 48px', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.25)', letterSpacing: 1.5 }}>
+                style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '16px 44px', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.25)', letterSpacing: 1.5 }}>
                 START FREE TRIAL
               </button>
-              <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>14-day free trial &middot; No credit card required</p>
+              <p style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>14-day free trial &middot; No credit card required</p>
             </FadeIn>
           </div>
 
           {/* RIGHT — dashboard visual */}
           <FadeIn delay={0.15}>
-            <div style={{ background: '#0e1218', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 0, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
+            <div style={{ background: '#0e1218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 0, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
               {/* Browser chrome */}
               <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -361,26 +361,26 @@ export default function LandingPage({ onGetStarted }) {
               </div>
 
               {/* Dashboard content */}
-              <div style={{ padding: '20px 20px 24px' }}>
+              <div style={{ padding: '18px 18px 20px' }}>
                 {/* Load card */}
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '16px 20px', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 18px', marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Dallas, TX → Houston, TX</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '3px 8px', borderRadius: 6 }}>HIGH PROFIT</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '3px 8px', borderRadius: 6 }}>HIGH PROFIT</span>
                   </div>
                   <div style={{ display: 'flex', gap: 24 }}>
-                    <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Rate</div><div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>$2,400</div></div>
-                    <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Miles</div><div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>1,200</div></div>
-                    <div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Profit</div><div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>$1,050</div></div>
+                    <div><div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Rate</div><div style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>$2,400</div></div>
+                    <div><div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Miles</div><div style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>1,200</div></div>
+                    <div><div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Profit</div><div style={{ fontSize: 17, fontWeight: 800, color: '#22c55e' }}>$1,050</div></div>
                   </div>
                 </div>
 
                 {/* AI Decision */}
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 16 }}>AI Decision</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, marginTop: 14 }}>AI Decision</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#22c55e', letterSpacing: 0.5 }}>ACCEPT</div>
-                  <div style={{ flex: 1, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'rgba(240,165,0,0.5)', letterSpacing: 0.5 }}>NEGOTIATE</div>
-                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'rgba(239,68,68,0.4)', letterSpacing: 0.5 }}>REJECT</div>
+                  <div style={{ flex: 1, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#22c55e', letterSpacing: 0.5 }}>ACCEPT</div>
+                  <div style={{ flex: 1, background: 'rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 10, padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: 'rgba(240,165,0,0.5)', letterSpacing: 0.5 }}>NEGOTIATE</div>
+                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: 10, padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: 'rgba(239,68,68,0.4)', letterSpacing: 0.5 }}>REJECT</div>
                 </div>
               </div>
             </div>
@@ -388,8 +388,24 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
+      {/* ── TRUST SIGNALS ──────────────────────────────────────────── */}
+      <section style={{ borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(240,165,0,0.015)' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', padding: '28px 40px', display: 'flex', justifyContent: 'center', gap: 48, flexWrap: 'wrap' }}>
+          {[
+            'Designed for owner-operators and small fleets',
+            'Tracks real profit — not estimates',
+            'Runs your operation without extra tools',
+          ].map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#f0a500', flexShrink: 0 }} />
+              {item}
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── PROBLEM ──────────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <section className="lp-section" style={{ padding: '80px 40px' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <FadeIn>
             <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 48, textAlign: 'center' }}>
@@ -417,15 +433,15 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── SOLUTION ──────────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px', background: 'rgba(240,165,0,0.015)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <section className="lp-section" style={{ padding: '80px 40px', background: 'rgba(240,165,0,0.02)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <FadeIn>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 48, textAlign: 'center' }}>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, lineHeight: 1.05, marginBottom: 36, textAlign: 'center' }}>
               Q runs your<br />operation <span style={{ color: '#f0a500' }}>for you.</span>
             </h2>
           </FadeIn>
 
-          <div style={{ marginBottom: 48 }}>
+          <div style={{ marginBottom: 36 }}>
             {['Finds the best loads', 'Calculates real profit (after fuel, not guesses)', 'Decides what to take, negotiate, or reject', 'Tracks everything automatically'].map((item, i) => (
               <FadeIn key={i} delay={i * 0.05}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -445,13 +461,13 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── HOW IT WORKS — 5 horizontal cards ─────────────────────── */}
-      <section id="how-it-works" className="lp-section" style={{ padding: '100px 40px' }}>
+      <section id="how-it-works" className="lp-section" style={{ padding: '80px 40px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 2, marginBottom: 12, textAlign: 'center' }}>HOW IT WORKS</p>
           </FadeIn>
 
-          <div className="lp-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginTop: 48 }}>
+          <div className="lp-steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginTop: 36 }}>
             {[
               { step: '1', text: 'Q scans available loads' },
               { step: '2', text: 'Calculates profit' },
@@ -475,7 +491,7 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── FEATURES — 2-column card grid ──────────────────────────── */}
-      <section id="features" className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <section id="features" className="lp-section" style={{ padding: '80px 40px', background: 'rgba(240,165,0,0.015)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
           <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
             {[
@@ -502,7 +518,7 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── PRODUCT PREVIEW — wide dashboard mockup ───────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px' }}>
+      <section className="lp-section" style={{ padding: '80px 40px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <FadeIn>
             <div style={{ background: '#0e1218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.5)' }}>
@@ -546,7 +562,7 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── COMPARISON ──────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <section className="lp-section" style={{ padding: '80px 40px', background: 'rgba(240,165,0,0.02)', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
           <div className="lp-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
             <FadeIn>
@@ -576,24 +592,24 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── DIFFERENTIATION ────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px' }}>
+      <section className="lp-section" style={{ padding: '72px 40px' }}>
         <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
           <FadeIn>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1, marginBottom: 28, color: '#fff' }}>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 3, lineHeight: 1, marginBottom: 20, color: '#fff' }}>
               This isn't<br />another TMS.
             </h2>
-            <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 8 }}>Most tools track your business.</p>
-            <p style={{ fontSize: 22, color: '#f0a500', fontWeight: 700 }}>Q runs it.</p>
+            <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 8 }}>Most tools track your business.</p>
+            <p style={{ fontSize: 20, color: '#f0a500', fontWeight: 700 }}>Q runs it.</p>
           </FadeIn>
         </div>
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────── */}
-      <section id="pricing" className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <section id="pricing" className="lp-section" style={{ padding: '80px 40px', background: 'rgba(240,165,0,0.015)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ maxWidth: 420, margin: '0 auto', textAlign: 'center' }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 2, marginBottom: 12 }}>PRICING</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 40 }}>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 32 }}>
               One plan. Everything.
             </h2>
           </FadeIn>
@@ -626,15 +642,15 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── BOTTOM CTA ─────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '120px 40px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <section className="lp-section" style={{ padding: '100px 40px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <FadeIn>
           <div style={{ maxWidth: 520, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, letterSpacing: 3, lineHeight: 1, marginBottom: 20, color: '#fff' }}>
+            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1, marginBottom: 18, color: '#fff' }}>
               Run your entire<br />trucking business<br /><span style={{ color: '#f0a500' }}>with AI.</span>
             </h2>
-            <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 40 }}>Set up in minutes. Start your first load today.</p>
+            <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, marginBottom: 36 }}>Set up in minutes. Start your first load today.</p>
             <button className="lp-cta-btn" onClick={handleTry}
-              style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '18px 56px', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, boxShadow: '0 8px 32px rgba(240,165,0,0.25)' }}>
+              style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '18px 56px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, boxShadow: '0 12px 40px rgba(240,165,0,0.3)' }}>
               START FREE TRIAL
             </button>
             <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>No credit card required</p>

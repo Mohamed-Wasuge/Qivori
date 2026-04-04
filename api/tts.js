@@ -16,7 +16,7 @@ export default async function handler(req) {
 
   // Try ElevenLabs first, then OpenAI
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY
-  const openaiKey = process.env.OPENAI_API_KEY
+  const openaiKey = (process.env.OPENAI_API_KEY || '').trim()
 
   try {
     const { text } = await req.json()

@@ -277,7 +277,7 @@ export default async function handler(req) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+  const OPENAI_API_KEY = (process.env.OPENAI_API_KEY || '').trim()
   if (!OPENAI_API_KEY) {
     return Response.json({ error: 'OpenAI not configured' }, { status: 500, headers: corsHeaders(req) })
   }
@@ -295,7 +295,7 @@ export default async function handler(req) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview-2025-06-03',
+        model: 'gpt-4o-realtime-preview',
         voice: 'ash',
         modalities: ['audio', 'text'],
         instructions: `You are Q — the most advanced AI dispatcher in trucking. You are the brain behind Qivori, a platform that is replacing traditional dispatchers with AI. You're not a chatbot. You're the driver's business partner, dispatcher, accountant, compliance officer, and strategist — all in one.

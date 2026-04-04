@@ -2514,7 +2514,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      const sdpRes = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03', {
+      const sdpRes = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${client_secret}`,
@@ -4196,7 +4196,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
               style={{ width: 36, height: 36, borderRadius: '50%', background: 'none', border: '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}>
               <Ic icon={Plus} size={16} color="var(--muted)" />
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.heic" style={{ display: 'none' }}
               onChange={e => {
                 const file = e.target.files?.[0]
                 if (!file) return
@@ -4243,7 +4243,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       </div>
 
       {/* Hidden rate con file input */}
-      <input ref={rateConInputRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
+      <input ref={rateConInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.heic" style={{ display: 'none' }}
         onChange={e => {
           const file = e.target.files?.[0]
           if (file) handleRateConPhoto(file)

@@ -347,11 +347,11 @@ export default function MobileLoadsTab() {
               disabled={scanning}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
               <Ic icon={scanning ? Clock : ScanLine} size={14} color="#000" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Snap Rate Con'}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Upload Rate Con'}</span>
             </button>
           </>
         )}
-        <input ref={rateConRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
+        <input ref={rateConRef} type="file" accept="image/*,.pdf,.doc,.docx,.heic" style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleRateConPhoto(f); e.target.value = '' }} />
       </div>
 

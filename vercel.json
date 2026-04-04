@@ -66,6 +66,8 @@
     { "path": "/api/contract-expiry-alerts", "schedule": "0 8 * * 1" },
     { "path": "/api/lane-history-cron", "schedule": "0 2 * * 1" },
     { "path": "/api/carrier-score", "schedule": "0 3 * * 0" },
-    { "path": "/api/apply-referral-rewards", "schedule": "0 9 * * *" }
+    { "path": "/api/apply-referral-rewards", "schedule": "0 9 * * *" },
+    { "path": "/api/health-monitor", "schedule": "*/5 * * * *" },
+    { "path": "/api/auto-rollback", "schedule": "*/10 * * * *" }
   ]
 }

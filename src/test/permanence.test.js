@@ -298,7 +298,7 @@ describe('LOCKED: Database Safety', () => {
       .filter(f => f.startsWith('supabase-') && f.endsWith('.sql'))
 
     // System cache tables accessed only via service key don't need RLS
-    const rlsExempt = ['supabase-diesel-prices.sql', 'supabase-load-board-cache.sql']
+    const rlsExempt = ['supabase-diesel-prices.sql', 'supabase-load-board-cache.sql', 'supabase-health-log.sql']
 
     sqlFiles.forEach(f => {
       if (rlsExempt.includes(f)) return
@@ -439,5 +439,159 @@ describe('ENFORCED: Context Integrity', () => {
     const content = readSrc('src/context/CarrierContext.jsx')
     // Loads from Supabase have NUMERIC fields returned as strings
     expect(content).toMatch(/Number\(/)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════
+// 11. RUNTIME GUARDS — ENFORCED
+// ═══════════════════════════════════════════════════════════════
+
+describe('ENFORCED: Runtime Guards', () => {
+  it('runtimeGuards.js exports all guard functions', () => {
+    const content = readSrc('src/lib/runtimeGuards.js')
+    expect(content).toContain('export function validatePricing')
+    expect(content).toContain('export function validateDriverPay')
+    expect(content).toContain('export function validateFinancialCalc')
+    expect(content).toContain('export function validateStatusTransition')
+    expect(content).toContain('export function guardedUpdate')
+  })
+
+  it('runtimeGuards.js enforces correct pricing values', () => {
+    const content = readSrc('src/lib/runtimeGuards.js')
+    expect(content).toContain('199')
+    expect(content).toContain('99')
+    expect(content).toContain('299')
+    expect(content).toContain('149')
+  })
+
+  it('runtimeGuards.js validates all 8 load statuses', () => {
+    const content = readSrc('src/lib/runtimeGuards.js')
+    const statuses = ['Rate Con Received', 'Assigned to Driver', 'En Route to Pickup', 'Loaded', 'In Transit', 'Delivered', 'Invoiced', 'Paid']
+    statuses.forEach(s => expect(content, `Missing status: ${s}`).toContain(s))
+  })
+
+  it('runtimeGuards.js reports to Sentry in production', () => {
+    const content = readSrc('src/lib/runtimeGuards.js')
+    expect(content).toContain('SENTRY')
+    expect(content).toContain('captureException')
+  })
+
+  it('database.js imports runtime guards', () => {
+    const content = readSrc('src/lib/database.js')
+    expect(content).toContain("from './runtimeGuards'")
+    expect(content).toContain('validateFinancialCalc')
+    expect(content).toContain('validateStatusTransition')
+  })
+
+  it('database.js validates load status transitions on update', () => {
+    const content = readSrc('src/lib/database.js')
+    // updateLoad must call validateStatusTransition
+    const updateBlock = content.slice(content.indexOf('export async function updateLoad('), content.indexOf('export async function updateLoadByLoadId'))
+    expect(updateBlock).toContain('validateStatusTransition')
+  })
+
+  it('database.js validates financial amounts on create', () => {
+    const content = readSrc('src/lib/database.js')
+    expect(content).toContain("validateFinancialCalc(loadRate, 'createLoad rate')")
+    expect(content).toContain("validateFinancialCalc(Number(invoice.amount), 'createInvoice amount')")
+    expect(content).toContain("validateFinancialCalc(Number(expense.amount), 'createExpense amount')")
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════
+// 12. AUTO-ROLLBACK — ENFORCED
+// ═══════════════════════════════════════════════════════════════
+
+describe('ENFORCED: Auto-Rollback System', () => {
+  it('auto-rollback.js exists with edge runtime', () => {
+    const content = readSrc('api/auto-rollback.js')
+    expect(content).toContain("runtime: 'edge'")
+  })
+
+  it('auto-rollback.js has safe auth (no undefined === undefined)', () => {
+    const content = readSrc('api/auto-rollback.js')
+    expect(content).toContain('if (!authHeader && !serviceKey) return false')
+  })
+
+  it('auto-rollback.js has 1-hour cooldown', () => {
+    const content = readSrc('api/auto-rollback.js')
+    expect(content).toContain('ROLLBACK_COOLDOWN_MS')
+    expect(content).toContain('60 * 60 * 1000')
+  })
+
+  it('auto-rollback.js requires 2+ consecutive red checks', () => {
+    const content = readSrc('api/auto-rollback.js')
+    expect(content).toContain('CONSECUTIVE_RED_THRESHOLD')
+    expect(content).toMatch(/CONSECUTIVE_RED_THRESHOLD\s*=\s*2/)
+  })
+
+  it('auto-rollback.js sends admin alerts', () => {
+    const content = readSrc('api/auto-rollback.js')
+    expect(content).toContain('sendAdminEmail')
+    expect(content).toContain('sendAdminSMS')
+  })
+
+  it('auto-rollback.js gracefully handles missing VERCEL_TOKEN', () => {
+    const content = readSrc('api/auto-rollback.js')
+    expect(content).toContain("!vercelToken")
+    expect(content).toContain('cannot auto-rollback')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════
+// 13. HEALTH MONITORING — ENFORCED
+// ═══════════════════════════════════════════════════════════════
+
+describe('ENFORCED: Health Monitoring', () => {
+  it('health-monitor.js exists with edge runtime', () => {
+    const content = readSrc('api/health-monitor.js')
+    expect(content).toContain("runtime: 'edge'")
+  })
+
+  it('health-monitor.js performs all 6 check categories', () => {
+    const content = readSrc('api/health-monitor.js')
+    expect(content).toContain('checkDataIntegrity')
+    expect(content).toContain('checkStaleData')
+    expect(content).toContain('checkFinancialAnomalies')
+    expect(content).toContain('checkSecurityRLS')
+    expect(content).toContain('checkAPIEndpoints')
+    expect(content).toContain('checkErrorRate')
+  })
+
+  it('health-monitor.js has safe auth pattern', () => {
+    const content = readSrc('api/health-monitor.js')
+    expect(content).toContain('if (!auth) return false')
+    expect(content).toContain('SECRET && auth === SECRET')
+  })
+
+  it('health-monitor.js alerts on RED status', () => {
+    const content = readSrc('api/health-monitor.js')
+    expect(content).toContain('sendAdminEmail')
+    expect(content).toContain('sendAdminSMS')
+  })
+
+  it('health-monitor.js logs results to system_health_log', () => {
+    const content = readSrc('api/health-monitor.js')
+    expect(content).toContain('system_health_log')
+  })
+
+  it('vercel.json schedules health-monitor every 5 minutes', () => {
+    const content = readSrc('vercel.json')
+    expect(content).toContain('health-monitor')
+    expect(content).toContain('*/5 * * * *')
+  })
+
+  it('vercel.json schedules auto-rollback every 10 minutes', () => {
+    const content = readSrc('vercel.json')
+    expect(content).toContain('auto-rollback')
+    expect(content).toContain('*/10 * * * *')
+  })
+
+  it('system_health_log SQL migration exists', () => {
+    const content = readSrc('supabase-health-log.sql')
+    expect(content).toContain('system_health_log')
+    expect(content).toContain('overall_status')
+    expect(content).toContain('action')
+    expect(content).toContain('checks_snapshot')
   })
 })

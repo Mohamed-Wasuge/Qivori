@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { validateFinancialCalc, validateStatusTransition, guardedUpdate } from './runtimeGuards'
 
 // ─── Helpers ─────────────────────────────────────────────────
 async function getUserId() {
@@ -26,6 +27,16 @@ async function safeMutate(label, query) {
   return { data, error: null }
 }
 
+// ─── Runtime validation wrapper ─────────────────────────────
+function validateBeforeWrite(table, data, label) {
+  try {
+    guardedUpdate(table, data, label)
+  } catch (err) {
+    console.error(`[DB GUARD] ${label} blocked:`, err.message)
+    throw err
+  }
+}
+
 // ─── LOADS (uses actual schema: load_id, rate, broker_id, etc.) ──
 export async function fetchLoads() {
   const data = await safeSelect('loads',
@@ -45,6 +56,9 @@ export async function fetchLoads() {
 export async function createLoad(load) {
   const userId = await getUserId()
   if (!userId) throw new Error('Not authenticated — cannot create load')
+  // Runtime guard: validate rate is a sane financial value
+  const loadRate = parseFloat(load.rate) || parseFloat(load.gross_pay) || parseFloat(load.gross) || 0
+  if (loadRate > 0) validateFinancialCalc(loadRate, 'createLoad rate')
   const { data, error } = await safeMutate('createLoad',
     supabase.from('loads')
       .insert({
@@ -113,6 +127,19 @@ export async function createLoad(load) {
 }
 
 export async function updateLoad(id, updates) {
+  // Runtime guard: validate status transitions
+  if (updates.status) {
+    try {
+      // Fetch current status to validate transition
+      const current = await safeSelect('loads', supabase.from('loads').select('status').eq('id', id).single())
+      if (current?.status) validateStatusTransition(current.status, updates.status)
+    } catch (err) {
+      if (err.message?.includes('PERMANENCE GUARD')) throw err
+      // If fetch fails, allow the update (don't block on read errors)
+    }
+  }
+  // Runtime guard: validate financial fields
+  if (updates.rate !== undefined && updates.rate > 0) validateFinancialCalc(updates.rate, 'updateLoad rate')
   const { data, error } = await safeMutate('updateLoad',
     supabase.from('loads').update(updates).eq('id', id).select().single()
   )
@@ -151,6 +178,8 @@ export async function fetchInvoices() {
 export async function createInvoice(invoice) {
   const userId = await getUserId()
   if (!userId) throw new Error('Not authenticated — cannot create invoice')
+  // Runtime guard: validate invoice amount
+  if (invoice.amount !== undefined) validateFinancialCalc(Number(invoice.amount), 'createInvoice amount')
   const { data, error } = await safeMutate('createInvoice',
     supabase.from('invoices').insert({ ...invoice, owner_id: userId }).select().single()
   )
@@ -183,6 +212,8 @@ export async function fetchExpenses() {
 
 export async function createExpense(expense) {
   const userId = await getUserId()
+  // Runtime guard: validate expense amount
+  if (expense.amount !== undefined) validateFinancialCalc(Number(expense.amount), 'createExpense amount')
   const { data } = await safeMutate('createExpense',
     supabase.from('expenses').insert({ ...expense, owner_id: userId }).select().single()
   )

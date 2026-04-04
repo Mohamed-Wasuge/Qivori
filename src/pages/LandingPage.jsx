@@ -817,17 +817,14 @@ export default function LandingPage({ onGetStarted }) {
           <FadeIn delay={0.1}>
             <div style={{ maxWidth: 420, margin: '0 auto', background: '#fff', border: '2px solid rgba(240,165,0,0.3)', borderRadius: 24, padding: '48px 32px 40px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 40px rgba(240,165,0,0.1)' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #e09000)' }} />
-              {founderCount < 100 && (
-                <div style={{ marginBottom: 20, padding: '6px 14px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, display: 'inline-block' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>FOUNDER PRICING · {100 - founderCount} SPOTS LEFT</span>
-                </div>
-              )}
+              <div style={{ marginBottom: 20, padding: '6px 14px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, display: 'inline-block' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>EVERYTHING INCLUDED</span>
+              </div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 68, color: '#f0a500', lineHeight: 1 }}>$199</span>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 68, color: '#f0a500', lineHeight: 1 }}>$79</span>
                 <span style={{ fontSize: 18, color: 'rgba(26,26,26,0.35)' }}>/mo</span>
               </div>
-              <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.35)', marginBottom: 8 }}>+ $99/mo per additional truck</div>
-              <div style={{ fontSize: 13, color: 'rgba(26,26,26,0.2)', marginBottom: 28 }}><span style={{ textDecoration: 'line-through' }}>$299/mo</span> regular price</div>
+              <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.35)', marginBottom: 28 }}>+ $39/mo per additional truck</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, textAlign: 'left', marginBottom: 32 }}>
                 {['AI dispatch', 'Auto invoicing', 'IFTA reporting', 'Compliance', 'Fleet tracking', 'Driver management', 'Expense tracking', 'P&L dashboard'].map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(26,26,26,0.6)', padding: '5px 0' }}>
@@ -835,9 +832,9 @@ export default function LandingPage({ onGetStarted }) {
                   </div>
                 ))}
               </div>
-              <button className="lp-cta-btn" onClick={() => handleCheckout('autonomous_fleet')} disabled={checkoutLoading === 'autonomous_fleet'}
-                style={{ width: '100%', padding: '16px 0', fontSize: 15, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'autonomous_fleet' ? 0.6 : 1, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' }}>
-                {checkoutLoading === 'autonomous_fleet' ? 'Loading...' : 'START FREE TRIAL'}
+              <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
+                style={{ width: '100%', padding: '16px 0', fontSize: 15, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' }}>
+                {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START FREE TRIAL'}
               </button>
             </div>
           </FadeIn>

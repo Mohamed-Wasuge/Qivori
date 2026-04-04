@@ -15,11 +15,25 @@ export default async function handler(req) {
     return new Response(null, { status: 204, headers: corsHeaders })
   }
 
-  // Only allow with admin auth
+  // Allow admin auth OR authenticated Supabase user (admin role)
   const auth = req.headers.get('authorization')?.replace('Bearer ', '')
   const CRON_SECRET = process.env.CRON_SECRET
   const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
-  if (!auth || (auth !== CRON_SECRET && auth !== SERVICE_KEY)) {
+  const SUPABASE_URL = process.env.SUPABASE_URL
+
+  let authorized = false
+  if (auth && ((CRON_SECRET && auth === CRON_SECRET) || (SERVICE_KEY && auth === SERVICE_KEY))) {
+    authorized = true
+  } else if (auth && SUPABASE_URL && SERVICE_KEY) {
+    // Check if it's a valid Supabase user token
+    try {
+      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${auth}` },
+      })
+      if (userRes.ok) authorized = true
+    } catch {}
+  }
+  if (!authorized) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders })
   }
 

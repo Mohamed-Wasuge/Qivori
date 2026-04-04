@@ -1734,6 +1734,10 @@ function QOperationsHub() {
   const [simResults, setSimResults] = useState(null)
   const [loading, setLoading] = useState(true)
   const [simLoading, setSimLoading] = useState(false)
+  const [learningData, setLearningData] = useState(null)
+  const [learningLoading, setLearningLoading] = useState(false)
+  const [learningTestResults, setLearningTestResults] = useState(null)
+  const [feedbackResult, setFeedbackResult] = useState(null)
   const { drivers, vehicles, activeLoads } = useCarrier()
 
   const TABS = [
@@ -1744,6 +1748,7 @@ function QOperationsHub() {
     { id:'negotiations', label:'Negotiations' },
     { id:'comms', label:'Driver Comms' },
     { id:'simulation', label:'Simulation' },
+    { id:'learning', label:'Q Learning' },
     { id:'rules', label:'Rules' },
   ]
 
@@ -2124,6 +2129,248 @@ function QOperationsHub() {
                   <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={FlaskConical} size={24} color="var(--accent)" /></div>
                   <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>TEST YOUR Q BRAIN</div>
                   <div style={{ fontSize:12, color:'var(--muted)', maxWidth:360, margin:'0 auto', lineHeight:1.6 }}>Run 10 scenarios — profitable loads, trap loads, dead zones, negotiation candidates — and see how Q decides based on your rules.</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Q LEARNING TAB ── */}
+          {tab === 'learning' && (
+            <div style={{ padding:20, display:'flex', flexDirection:'column', gap:16 }}>
+              {/* Controls */}
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                <button className="btn btn-primary" style={{ fontSize:12, padding:'8px 18px' }} disabled={learningLoading}
+                  onClick={() => {
+                    setLearningLoading(true)
+                    apiFetch('/api/q-learning', { method:'POST', body: JSON.stringify({ action:'dashboard' }) })
+                      .then(d => { setLearningData(d); setLearningLoading(false) })
+                      .catch(() => setLearningLoading(false))
+                  }}>
+                  {learningLoading ? 'Loading...' : 'Load Learning Data'}
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 18px' }} disabled={learningLoading}
+                  onClick={() => {
+                    setLearningLoading(true)
+                    apiFetch('/api/q-learning', { method:'POST', body: JSON.stringify({ action:'run_feedback' }) })
+                      .then(d => { setFeedbackResult(d); setLearningLoading(false) })
+                      .catch(() => setLearningLoading(false))
+                  }}>
+                  Run Feedback Cycle
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 18px' }} disabled={learningLoading}
+                  onClick={() => {
+                    setLearningLoading(true)
+                    apiFetch('/api/q-learning', { method:'POST', body: JSON.stringify({ action:'daily_summary' }) })
+                      .then(d => { setFeedbackResult(d); setLearningLoading(false) })
+                      .catch(() => setLearningLoading(false))
+                  }}>
+                  Generate Daily Summary
+                </button>
+                <button className="btn btn-ghost" style={{ fontSize:12, padding:'8px 18px' }}
+                  onClick={() => {
+                    setLearningLoading(true)
+                    apiFetch('/api/q-learning-test', { method:'POST', body: JSON.stringify({ scenario:'all' }) })
+                      .then(d => { setLearningTestResults(d); setLearningLoading(false) })
+                      .catch(() => setLearningLoading(false))
+                  }}>
+                  Run Learning Tests
+                </button>
+              </div>
+
+              {/* Feedback cycle result */}
+              {feedbackResult && (
+                <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:8 }}>
+                    {feedbackResult.skipped ? 'Feedback Cycle Skipped' : feedbackResult.q_health_score != null ? 'Daily Summary' : 'Feedback Cycle Complete'}
+                  </div>
+                  {feedbackResult.skipped ? (
+                    <div style={{ fontSize:12, color:'var(--muted)' }}>{feedbackResult.reason}</div>
+                  ) : feedbackResult.q_health_score != null ? (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ display:'flex', gap:16, fontSize:11, color:'var(--muted)' }}>
+                        <span>Health: <b style={{ color:'var(--accent)' }}>{feedbackResult.q_health_score}%</b></span>
+                        <span>Accuracy: <b style={{ color:'var(--success)' }}>{feedbackResult.decision_accuracy_pct || '—'}%</b></span>
+                        <span>Decisions: <b style={{ color:'var(--text)' }}>{feedbackResult.total_decisions}</b></span>
+                        <span>Mistakes: <b style={{ color: feedbackResult.total_mistakes > 0 ? 'var(--danger)' : 'var(--muted)' }}>{feedbackResult.total_mistakes}</b></span>
+                        <span>Profit Δ: <b style={{ color: feedbackResult.profit_delta >= 0 ? 'var(--success)' : 'var(--danger)' }}>${feedbackResult.profit_delta}</b></span>
+                      </div>
+                      {feedbackResult.suggested_adjustments?.length > 0 && (
+                        <div>
+                          <div style={{ fontSize:11, fontWeight:600, color:'var(--accent)', marginBottom:4 }}>Suggested Adjustments:</div>
+                          {feedbackResult.suggested_adjustments.map((a, i) => (
+                            <div key={i} style={{ fontSize:11, color:'var(--muted)', padding:'4px 0' }}>
+                              {a.parameter}: {a.current} → {a.suggested} — {a.reason}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display:'flex', gap:16, fontSize:11, color:'var(--muted)' }}>
+                      <span>Outcomes analyzed: <b style={{ color:'var(--text)' }}>{feedbackResult.outcomes_analyzed}</b></span>
+                      <span>Mistakes processed: <b style={{ color:'var(--text)' }}>{feedbackResult.mistakes_processed}</b></span>
+                      <span>Adjustments: <b style={{ color:'var(--accent)' }}>{feedbackResult.adjustments?.length || 0}</b></span>
+                      <span>Auto-applied: <b style={{ color:'var(--text)' }}>{feedbackResult.auto_applied ? 'Yes' : 'No'}</b></span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Learning test results */}
+              {learningTestResults?.results && (
+                <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                  <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Learning Loop Test Results</div>
+                    <div style={{ display:'flex', gap:12 }}>
+                      <span style={{ fontSize:12, color:'var(--success)', fontWeight:700 }}>{learningTestResults.summary?.passed || 0} passed</span>
+                      <span style={{ fontSize:12, color:'var(--danger)', fontWeight:700 }}>{learningTestResults.summary?.failed || 0} failed</span>
+                    </div>
+                  </div>
+                  {learningTestResults.results.map((r, i) => (
+                    <div key={i} style={{ padding:'12px 16px', borderBottom: i < learningTestResults.results.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', display:'flex', alignItems:'center', gap:8 }}>
+                          <span>{r.passed ? '✅' : '❌'}</span> {r.name}
+                        </div>
+                        <span style={{ fontSize:10, color: r.result === 'good' ? '#86efac' : r.result === 'bad' ? '#fca5a5' : r.result === 'missed_opportunity' ? '#fcd34d' : 'var(--muted)',
+                          padding:'2px 8px', borderRadius:6, background: r.result === 'good' ? 'rgba(34,197,94,0.15)' : r.result === 'bad' ? 'rgba(239,68,68,0.15)' : r.result === 'missed_opportunity' ? 'rgba(245,158,11,0.15)' : 'rgba(128,128,128,0.15)',
+                          fontWeight:700, textTransform:'uppercase' }}>{r.result}</span>
+                      </div>
+                      <div style={{ fontSize:11, color:'var(--muted)', marginBottom:4 }}>{r.description}</div>
+                      <div style={{ display:'flex', gap:12, fontSize:10, color:'var(--muted)' }}>
+                        <span>{r.load?.lane}</span>
+                        <span>Expected: ${r.load?.expectedProfit} → Actual: ${r.load?.actualProfit}</span>
+                        <span>Δ${r.profitDelta}</span>
+                        <span>Mistakes: {r.mistakesDetected}</span>
+                      </div>
+                      {r.mistakes?.length > 0 && (
+                        <div style={{ marginTop:4, display:'flex', gap:6, flexWrap:'wrap' }}>
+                          {r.mistakes.map((m, j) => (
+                            <span key={j} style={{ fontSize:9, padding:'2px 6px', borderRadius:4, background:'rgba(239,68,68,0.1)', color:'#fca5a5', fontWeight:600 }}>
+                              {m.type.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Learning dashboard data */}
+              {learningData?.ok && (
+                <>
+                  {/* Stats cards */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:10 }}>
+                    {[
+                      { label:'Total Outcomes', val: learningData.stats?.totalOutcomes || 0, color:'var(--accent)' },
+                      { label:'Good Decisions', val: learningData.stats?.goodOutcomes || 0, color:'var(--success)' },
+                      { label:'Bad Decisions', val: learningData.stats?.badOutcomes || 0, color:'var(--danger)' },
+                      { label:'Accuracy', val: learningData.stats?.accuracy != null ? `${learningData.stats.accuracy}%` : '—', color:'var(--accent3,#3b82f6)' },
+                    ].map(c => (
+                      <div key={c.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 12px', textAlign:'center' }}>
+                        <div style={{ fontSize:20, fontWeight:800, color:c.color, fontFamily:"'DM Sans',sans-serif" }}>{c.val}</div>
+                        <div style={{ fontSize:9, color:'var(--muted)', textTransform:'uppercase', letterSpacing:0.6 }}>{c.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Recent mistakes */}
+                  {learningData.recentMistakes?.length > 0 && (
+                    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                      <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                        Recent Mistakes
+                      </div>
+                      {learningData.recentMistakes.slice(0, 8).map((m, i) => (
+                        <div key={i} style={{ padding:'10px 16px', borderBottom: i < 7 ? '1px solid var(--border)' : 'none', fontSize:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <span style={{ padding:'2px 6px', borderRadius:4, fontSize:9, fontWeight:700, textTransform:'uppercase',
+                              background: m.severity === 'critical' ? 'rgba(239,68,68,0.15)' : m.severity === 'high' ? 'rgba(245,158,11,0.15)' : 'rgba(59,130,246,0.15)',
+                              color: m.severity === 'critical' ? '#fca5a5' : m.severity === 'high' ? '#fcd34d' : '#93c5fd' }}>{m.severity}</span>
+                            <span style={{ color:'var(--muted)' }}>{m.description?.substring(0, 80)}</span>
+                          </div>
+                          {m.impact_dollars != null && <span style={{ color:'var(--danger)', fontWeight:600 }}>${Math.round(m.impact_dollars)}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Recent adjustments */}
+                  {learningData.recentAdjustments?.length > 0 && (
+                    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                      <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                        Recent Adjustments
+                      </div>
+                      {learningData.recentAdjustments.slice(0, 5).map((a, i) => (
+                        <div key={i} style={{ padding:'10px 16px', borderBottom: i < 4 ? '1px solid var(--border)' : 'none', fontSize:12 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:2 }}>
+                            <span style={{ fontWeight:600, color:'var(--text)' }}>{a.parameter}</span>
+                            <span style={{ color:'var(--accent)', fontWeight:700 }}>{a.old_value} → {a.new_value}</span>
+                          </div>
+                          <div style={{ fontSize:11, color:'var(--muted)' }}>{a.reason}</div>
+                          {a.guardrail_hit && <div style={{ fontSize:10, color:'var(--warning,#f59e0b)', marginTop:2 }}>Guardrail: {a.guardrail_hit}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Top lanes */}
+                  {learningData.topLanes?.length > 0 && (
+                    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                      <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                        Lane Intelligence
+                      </div>
+                      {learningData.topLanes.slice(0, 8).map((l, i) => (
+                        <div key={i} style={{ padding:'10px 16px', borderBottom: i < 7 ? '1px solid var(--border)' : 'none', fontSize:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div>
+                            <span style={{ fontWeight:600, color:'var(--text)' }}>{l.lane}</span>
+                            <span style={{ fontSize:10, color:'var(--muted)', marginLeft:8 }}>{l.total_loads} loads</span>
+                          </div>
+                          <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+                            <span style={{ fontSize:11, color:'var(--muted)' }}>RPM: ${l.avg_rpm}</span>
+                            <span style={{ padding:'2px 8px', borderRadius:6, fontSize:9, fontWeight:700, textTransform:'uppercase',
+                              background: l.quality === 'hot_market' ? 'rgba(34,197,94,0.15)' : l.quality === 'dead_zone' ? 'rgba(239,68,68,0.15)' : 'rgba(128,128,128,0.15)',
+                              color: l.quality === 'hot_market' ? '#86efac' : l.quality === 'dead_zone' ? '#fca5a5' : 'var(--muted)' }}>{l.quality?.replace('_',' ')}</span>
+                            <span style={{ fontSize:10, color:'var(--accent)' }}>{l.confidence_score}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Top brokers */}
+                  {learningData.topBrokers?.length > 0 && (
+                    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                      <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                        Broker Reliability
+                      </div>
+                      {learningData.topBrokers.slice(0, 8).map((b, i) => (
+                        <div key={i} style={{ padding:'10px 16px', borderBottom: i < 7 ? '1px solid var(--border)' : 'none', fontSize:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div>
+                            <span style={{ fontWeight:600, color:'var(--text)' }}>{b.broker_name}</span>
+                            <span style={{ fontSize:10, color:'var(--muted)', marginLeft:8 }}>{b.total_loads} loads</span>
+                          </div>
+                          <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+                            <span style={{ padding:'2px 8px', borderRadius:6, fontSize:9, fontWeight:700, textTransform:'uppercase',
+                              background: b.reliability_tier === 'excellent' ? 'rgba(34,197,94,0.15)' : b.reliability_tier === 'poor' || b.reliability_tier === 'blacklist' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                              color: b.reliability_tier === 'excellent' ? '#86efac' : b.reliability_tier === 'poor' || b.reliability_tier === 'blacklist' ? '#fca5a5' : '#fcd34d' }}>{b.reliability_tier}</span>
+                            <span style={{ fontSize:10, color:'var(--accent)' }}>{b.reliability_score}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Empty state */}
+              {!learningData && !learningTestResults && !feedbackResult && (
+                <div style={{ padding:'30px 20px', textAlign:'center', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12 }}>
+                  <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={TrendingUp} size={24} color="var(--accent)" /></div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>Q LEARNS FROM EVERY LOAD</div>
+                  <div style={{ fontSize:12, color:'var(--muted)', maxWidth:400, margin:'0 auto', lineHeight:1.6 }}>
+                    Track outcomes, detect mistakes, adjust scoring weights, and build lane/broker intelligence — all with guardrails. Click "Load Learning Data" to see what Q has learned, or "Run Learning Tests" to validate the feedback loop.
+                  </div>
                 </div>
               )}
             </div>

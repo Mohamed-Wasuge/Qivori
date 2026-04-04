@@ -18,6 +18,7 @@ import {
   getCarrierSettings, explainDecision,
   withRetry, QError,
 } from './_lib/q-engine.js'
+import { processLoadOutcome } from './_lib/q-learning.js'
 
 export const config = { runtime: 'edge' }
 
@@ -77,8 +78,8 @@ async function processLoad(user, body) {
     })
 
     // ── Step 2: Evaluate with decision engine ─────────────────────────────
-    log('evaluate', 'Running decision engine')
-    const evaluation = evaluateLoad(normalized, settings)
+    log('evaluate', 'Running decision engine with learned intelligence')
+    const evaluation = await evaluateLoadWithIntel(normalized, settings, user.id)
     const explanation = explainDecision(evaluation.decision, evaluation.metrics, settings)
 
     // Store decision
@@ -342,12 +343,24 @@ async function advanceStatus(user, body) {
   if (newStatus === 'Delivered') {
     const settings = await getCarrierSettings(user.id)
     if (settings.autoInvoiceOnDelivery) {
-      // Invoice creation handled by existing CarrierContext auto-invoice logic
       await logEvent(user.id, loadId, 'invoice_created', {
         actor: 'ai',
         notes: 'Auto-invoice triggered on delivery',
       })
     }
+
+    // ── Q Learning: Record outcome when load is delivered ──
+    await recordOutcomeFromLoad(user.id, load, settings).catch(err =>
+      console.error('[q-orchestrator] Outcome recording failed (non-blocking):', err.message)
+    )
+  }
+
+  // Also record outcome on Paid if not already recorded on Delivered
+  if (newStatus === 'Paid') {
+    const settings = await getCarrierSettings(user.id)
+    await recordOutcomeFromLoad(user.id, load, settings).catch(err =>
+      console.error('[q-orchestrator] Outcome recording on Paid failed (non-blocking):', err.message)
+    )
   }
 
   return json({ ok: true, loadId, oldStatus, newStatus })
@@ -496,7 +509,24 @@ function extractState(location) {
   return stateMatch ? stateMatch[1] : ''
 }
 
-function evaluateLoad(load, settings) {
+async function evaluateLoadWithIntel(load, settings, ownerId) {
+  // Fetch learned lane and broker data (non-blocking — falls back to static logic)
+  let laneIntel = null
+  let brokerIntel = null
+  try {
+    const lane = `${load.origin} → ${load.dest}`
+    const [lanes, brokers] = await Promise.all([
+      sbQuery('lane_performance', `owner_id=eq.${ownerId}&lane=eq.${encodeURIComponent(lane)}&limit=1`).catch(() => []),
+      load.broker ? sbQuery('broker_performance', `owner_id=eq.${ownerId}&broker_name=eq.${encodeURIComponent(load.broker)}&limit=1`).catch(() => []) : Promise.resolve([]),
+    ])
+    laneIntel = lanes?.[0] || null
+    brokerIntel = brokers?.[0] || null
+  } catch { /* proceed without intel */ }
+
+  return evaluateLoad(load, settings, laneIntel, brokerIntel)
+}
+
+function evaluateLoad(load, settings, laneIntel, brokerIntel) {
   const rpm = load.miles > 0 ? load.gross / load.miles : 0
   const fuelCost = (load.miles + load.deadheadMiles) * settings.fuelCostPerMile
   const totalProfit = load.gross - fuelCost
@@ -504,13 +534,38 @@ function evaluateLoad(load, settings) {
   const profitPerMile = load.miles > 0 ? totalProfit / load.miles : 0
   const deadheadPct = load.miles > 0 ? (load.deadheadMiles / load.miles) * 100 : 0
 
-  // Dead zone check
+  // Dead zone check — use learned data if available, fall back to static list
   const DEAD_ZONES = ['laredo', 'el paso', 'mcallen', 'brownsville', 'nogales', 'sweetwater', 'lubbock', 'amarillo', 'midland', 'odessa']
-  const isDeadZone = DEAD_ZONES.some(z => (load.dest || '').toLowerCase().includes(z))
+  let isDeadZone = DEAD_ZONES.some(z => (load.dest || '').toLowerCase().includes(z))
 
-  // Hot market check
+  // Hot market check — use learned data if available, fall back to static list
   const HOT_MARKETS = ['dallas', 'houston', 'atlanta', 'chicago', 'los angeles', 'memphis', 'indianapolis', 'columbus', 'nashville', 'charlotte']
-  const isHotMarket = HOT_MARKETS.some(z => (load.dest || '').toLowerCase().includes(z))
+  let isHotMarket = HOT_MARKETS.some(z => (load.dest || '').toLowerCase().includes(z))
+
+  // Override with learned lane intelligence (if we have enough data)
+  let laneConfidence = null
+  if (laneIntel && laneIntel.total_loads >= 3) {
+    laneConfidence = laneIntel.confidence_score
+    if (laneIntel.quality === 'dead_zone') isDeadZone = true
+    if (laneIntel.quality === 'hot_market') isHotMarket = true
+    // If lane was learned as neutral but static says dead/hot, lane intel wins with enough data
+    if (laneIntel.total_loads >= 5 && laneIntel.quality === 'neutral') {
+      isDeadZone = false
+      isHotMarket = false
+    }
+  }
+
+  // Broker reliability check
+  let brokerReliability = 'unknown'
+  let brokerPenalty = 0
+  if (brokerIntel && brokerIntel.total_loads >= 2) {
+    brokerReliability = brokerIntel.reliability_tier
+    // Penalize unreliable brokers
+    if (brokerIntel.reliability_tier === 'poor') brokerPenalty = 10
+    if (brokerIntel.reliability_tier === 'blacklist') brokerPenalty = 25
+    // Reward reliable brokers
+    if (brokerIntel.reliability_tier === 'excellent') brokerPenalty = -5
+  }
 
   // Reload probability
   const RELOAD_HUBS = { dallas: 95, houston: 93, atlanta: 92, chicago: 94, memphis: 88, indianapolis: 85, columbus: 82, nashville: 80, charlotte: 78 }
@@ -539,6 +594,9 @@ function evaluateLoad(load, settings) {
     reloadProbability,
     isTrapLoad,
     isLightLoad,
+    laneConfidence,
+    brokerReliability,
+    brokerPenalty,
   }
 
   // ── Decision logic ──────────────────────────────────────────────────────
@@ -556,6 +614,8 @@ function evaluateLoad(load, settings) {
     confidence = Math.min(95, 60 + Math.round((totalProfit / settings.autoAcceptAbove) * 20))
     if (isHotMarket) confidence = Math.min(95, confidence + 5)
     if (isLightLoad) confidence = Math.min(95, confidence + 3)
+    // Boost from learned lane confidence
+    if (laneConfidence && laneConfidence >= 75) confidence = Math.min(95, confidence + 3)
   }
   // Negotiate zone
   else if (totalProfit >= settings.autoRejectBelow && rpm >= settings.minRpm * 0.8) {
@@ -585,6 +645,15 @@ function evaluateLoad(load, settings) {
     if (totalProfit < settings.autoAcceptAbove) {
       decision = 'negotiate'
       confidence = Math.max(35, confidence - 10)
+    }
+  }
+
+  // Override: broker reliability penalty (learned)
+  if (brokerPenalty > 0 && decision !== 'reject') {
+    confidence = Math.max(30, confidence - brokerPenalty)
+    // Blacklisted brokers force downgrade
+    if (brokerReliability === 'blacklist' && decision === 'auto_book') {
+      decision = 'negotiate'
     }
   }
 
@@ -662,6 +731,109 @@ async function bookLoad(user, load, loadId, truck, decision, settings) {
     driverId: truck.driver_id,
     driver: loadData.driver,
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Q LEARNING INTEGRATION — Auto-record outcome from load data
+// ═══════════════════════════════════════════════════════════════════════════════
+async function recordOutcomeFromLoad(ownerId, load, settings) {
+  const loadId = load.load_number || load.id
+
+  // Check if outcome already recorded for this load
+  const existing = await sbQuery('load_outcomes', `owner_id=eq.${ownerId}&load_id=eq.${loadId}&limit=1`).catch(() => [])
+  if (existing?.length > 0) return // already recorded
+
+  // Get the dispatch decision if one exists
+  let decision = null
+  if (load.dispatch_decision_id) {
+    const decisions = await sbQuery('dispatch_decisions', `id=eq.${load.dispatch_decision_id}`).catch(() => [])
+    decision = decisions?.[0]
+  } else {
+    // Try to find by load_id
+    const decisions = await sbQuery('dispatch_decisions', `owner_id=eq.${ownerId}&load_id=eq.${loadId}&order=created_at.desc&limit=1`).catch(() => [])
+    decision = decisions?.[0]
+  }
+
+  // Calculate actual metrics from load data
+  const gross = parseFloat(load.gross || load.total_rate || load.rate || 0)
+  const miles = parseInt(load.miles || load.loaded_miles || 0)
+  const deadhead = parseInt(load.deadhead_miles || load.deadhead || 0)
+  const fuelCost = (miles + deadhead) * (settings.fuelCostPerMile || 0.55)
+  const actualProfit = gross - fuelCost
+  const actualRpm = miles > 0 ? gross / miles : 0
+
+  // Calculate days held
+  const pickupDate = load.pickup_date || load.picked_up_at || load.dispatched_at
+  const deliveryDate = load.delivered_at || new Date().toISOString()
+  let daysHeld = 1
+  if (pickupDate && deliveryDate) {
+    daysHeld = Math.max(1, Math.ceil((new Date(deliveryDate) - new Date(pickupDate)) / 86400000))
+  }
+
+  // Extract expected values from decision if available
+  const metrics = decision?.metrics || {}
+  const expectedProfit = metrics.totalProfit || null
+  const expectedRpm = metrics.rpm || null
+  const expectedFuelCost = metrics.fuelCost || null
+  const expectedDeadhead = metrics.deadheadMiles || null
+
+  // Determine lane quality from decision metrics
+  let expectedLaneQuality = null
+  if (metrics.isHotMarket) expectedLaneQuality = 'hot_market'
+  else if (metrics.isDeadZone) expectedLaneQuality = 'dead_zone'
+  else expectedLaneQuality = 'neutral'
+
+  // Get negotiation data if exists
+  let negoData = {}
+  if (load.negotiation_session_id) {
+    const sessions = await sbQuery('negotiation_sessions', `id=eq.${load.negotiation_session_id}`).catch(() => [])
+    const session = sessions?.[0]
+    if (session) {
+      negoData = {
+        negotiationAttempted: true,
+        negotiationInitial: session.initial_offer,
+        negotiationTarget: session.target_rate,
+        negotiationFinal: session.final_rate,
+        negotiationRounds: session.counter_rounds,
+        negotiationSuccess: session.status === 'ACCEPTED',
+      }
+    }
+  }
+
+  const origin = load.origin || load.pickup_city || ''
+  const dest = load.dest || load.destination || load.delivery_city || ''
+
+  await processLoadOutcome(ownerId, {
+    loadId,
+    origin, destination: dest,
+    originState: extractState(origin), destState: extractState(dest),
+    lane: `${origin} → ${dest}`,
+    miles, equipment: load.equipment_type || load.equipment || 'Dry Van',
+    broker: load.broker || load.broker_name || '',
+    driverId: load.driver_id || null,
+    vehicleId: load.vehicle_id || null,
+    actualProfit: Math.round(actualProfit),
+    actualRpm: Math.round(actualRpm * 100) / 100,
+    actualFuelCost: Math.round(fuelCost),
+    actualDeadheadMiles: deadhead,
+    actualDaysHeld: daysHeld,
+    brokerPaidOnTime: load.paid_at ? true : null, // will be null until Paid status
+    brokerChangedRate: false, // can be updated later
+    detentionHours: parseFloat(load.detention_hours || 0),
+    completedAt: deliveryDate,
+    ...negoData,
+  }, {
+    decisionType: decision?.decision || (load.dispatch_method === 'auto_booked' ? 'auto_book' : 'accept'),
+    confidence: decision?.confidence || 50,
+    expectedProfit, expectedRpm, expectedFuelCost,
+    expectedDeadheadMiles: expectedDeadhead,
+    expectedLaneQuality,
+    expectedBrokerReliability: null, // will improve as broker_performance fills
+    decisionId: decision?.id || null,
+    decidedAt: decision?.created_at || null,
+    ...negoData,
+  })
 }
 
 

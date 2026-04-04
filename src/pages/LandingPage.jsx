@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { trackDemoRequest, trackDemoEnter, trackCheckout } from '../lib/analytics'
 import { useTranslation } from '../lib/i18n'
-import { TrendingUp, Truck, Zap, Check, X, Mail, Users, Shield } from 'lucide-react'
+import { TrendingUp, Truck, Zap, Check, X, Mail, Users, Shield, Send } from 'lucide-react'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 

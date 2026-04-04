@@ -521,7 +521,7 @@ export function Settings() {
           <div className="panel-header"><div className="panel-title"><Ic icon={CreditCard} size={14} /> Subscription Plans</div></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { name: 'Qivori AI', price: 'Plans from $79/mo', users: planCount + ' users', color: '#f0a500' },
+              { name: 'Qivori AI', price: 'Plans from $99/mo', users: planCount + ' users', color: '#f0a500' },
             ].map(p => (
               <div key={p.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'var(--surface2)', borderRadius: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

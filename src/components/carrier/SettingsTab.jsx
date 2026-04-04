@@ -56,11 +56,11 @@ export function SubscriptionSettings() {
   }, [demoMode, profile])
 
   const PLAN_INFO = {
-    tms_pro:          { name: 'TMS Pro',          price: '$79/mo + $39/additional truck', color: '#4d8ef0', tier: 0 },
-    ai_dispatch:      { name: 'AI Dispatch',      price: '$199/mo + $79/additional truck', color: '#f0a500', tier: 1 },
-    autonomous_fleet: { name: 'Autonomous Fleet',  price: '3% per load (AI books only)', color: '#00d4aa', tier: 2 },
-    autopilot_ai:     { name: 'Autonomous Fleet',  price: '3% per load (AI books only)', color: '#00d4aa', tier: 2 },
-    autopilot:        { name: 'AI Dispatch',      price: '$199/mo + $79/additional truck', color: '#f0a500', tier: 1 },
+    tms_pro:          { name: 'TMS Pro',          price: '$99/mo + $49/additional truck', color: '#4d8ef0', tier: 0 },
+    ai_dispatch:      { name: 'AI Dispatch',      price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 1 },
+    autonomous_fleet: { name: 'Autonomous Fleet',  price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 2 },
+    autopilot_ai:     { name: 'Autonomous Fleet',  price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 2 },
+    autopilot:        { name: 'AI Dispatch',      price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 1 },
   }
 
   // Q Intelligence — AI usage metrics from real q_ai_fees table
@@ -224,7 +224,7 @@ export function SubscriptionSettings() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
         <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* TMS Pro — $79/mo */}
+          {/* TMS Pro — $99/mo */}
           <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(77,142,240,0.3)', background: 'rgba(77,142,240,0.04)' }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#4d8ef0', marginBottom: 2 }}>TMS Pro</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Core trucking management</div>
@@ -397,8 +397,8 @@ export function SubscriptionSettings() {
               </div>
               {truckPicker.trucks > 1 && (
                 <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $79</span>
-                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 79).toLocaleString()}/mo</span>
+                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} × $99</span>
+                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 99).toLocaleString()}/mo</span>
                 </div>
               )}
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>

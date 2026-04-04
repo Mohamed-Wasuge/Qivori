@@ -38,7 +38,7 @@ export function ActionBadge({ action }) {
     get_gps: 'Getting location...',
     call_broker: 'Calling broker',
     navigate: `Opening ${action.to}`,
-    snap_ratecon: 'Snap Rate Con',
+    snap_ratecon: 'Upload Rate Con',
     upload_doc: `Upload ${action.doc_type || 'Document'}`,
     update_load_status: `Load → ${action.status}`,
     book_load: `Booked: ${action.origin} → ${action.destination || action.dest}`,

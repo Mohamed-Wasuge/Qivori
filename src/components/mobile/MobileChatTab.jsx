@@ -3628,7 +3628,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
   // Quick action chips
   const quickActions = [
-    { icon: ScanLine, label: 'Snap Rate Con', msg: '__snap_ratecon__' },
+    { icon: ScanLine, label: 'Upload Rate Con', msg: '__snap_ratecon__' },
     { icon: Truck, label: 'Find Loads', msg: 'Find me the best available loads right now' },
     { icon: Navigation, label: 'Check In', msg: 'Submit a check call with my GPS location' },
     { icon: MapPin, label: 'At Pickup', msg: "I'm at the pickup location" },

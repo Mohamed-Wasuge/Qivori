@@ -2407,7 +2407,7 @@ export function CashFlowForecaster() {
 
 // ─── 1. P&L Dashboard ────────────────────────────────────────────────────────
 export function PLDashboard() {
-  const { loads, expenses } = useCarrier()
+  const { loads, expenses, drivers, fuelCostPerMile } = useCarrier()
   const now = new Date()
   const [selMonth, setSelMonth] = useState(now.getMonth())
   const [selYear, setSelYear] = useState(now.getFullYear())
@@ -2487,7 +2487,35 @@ export function PLDashboard() {
   }, [showPicker])
 
   const revenue = useMemo(() => periodLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0), [periodLoads])
-  const totalExp = useMemo(() => periodExpenses.reduce((s, e) => s + (e.amount || 0), 0), [periodExpenses])
+  const loggedExp = useMemo(() => periodExpenses.reduce((s, e) => s + (e.amount || 0), 0), [periodExpenses])
+
+  // Auto-estimate costs from loads when no expenses are logged
+  const estimatedCosts = useMemo(() => {
+    const fuelRate = fuelCostPerMile || 0.55
+    let estFuel = 0, estDriverPay = 0, estOther = 0
+    periodLoads.forEach(l => {
+      const miles = Number(l.miles) || 0
+      const gross = l.gross || l.rate || 0
+      // Fuel: miles × fuel cost per mile
+      estFuel += miles * fuelRate
+      // Driver pay: check driver's pay model
+      const drv = drivers.find(d => d.full_name === l.driver || d.id === l.driver_id)
+      if (drv && drv.pay_rate) {
+        if (drv.pay_model === 'percent') estDriverPay += gross * (Number(drv.pay_rate) / 100)
+        else if (drv.pay_model === 'permile') estDriverPay += miles * Number(drv.pay_rate)
+        else if (drv.pay_model === 'flat') estDriverPay += Number(drv.pay_rate)
+      } else {
+        // Default estimate: 28% of gross for driver pay
+        estDriverPay += gross * 0.28
+      }
+      // Other operating costs estimate: ~5% of gross (insurance, maintenance, etc.)
+      estOther += gross * 0.05
+    })
+    return { fuel: Math.round(estFuel), driverPay: Math.round(estDriverPay), other: Math.round(estOther), total: Math.round(estFuel + estDriverPay + estOther) }
+  }, [periodLoads, drivers, fuelCostPerMile])
+
+  const hasLoggedExpenses = loggedExp > 0
+  const totalExp = hasLoggedExpenses ? loggedExp : estimatedCosts.total
   const net = revenue - totalExp
   const margin = revenue > 0 ? ((net / revenue) * 100).toFixed(1) : '0.0'
 
@@ -2507,13 +2535,21 @@ export function PLDashboard() {
   }, [periodLoads, breakdown])
 
   const expCats = useMemo(() => {
-    const map = {}
-    periodExpenses.forEach(e => {
-      if (!map[e.cat]) map[e.cat] = 0
-      map[e.cat] += e.amount
-    })
-    return Object.entries(map).sort((a,b) => b[1] - a[1])
-  }, [periodExpenses])
+    if (hasLoggedExpenses) {
+      const map = {}
+      periodExpenses.forEach(e => {
+        if (!map[e.cat]) map[e.cat] = 0
+        map[e.cat] += e.amount
+      })
+      return Object.entries(map).sort((a,b) => b[1] - a[1])
+    }
+    // Show estimated cost breakdown when no logged expenses
+    const cats = []
+    if (estimatedCosts.fuel > 0) cats.push(['Fuel (est.)', estimatedCosts.fuel])
+    if (estimatedCosts.driverPay > 0) cats.push(['Driver Pay (est.)', estimatedCosts.driverPay])
+    if (estimatedCosts.other > 0) cats.push(['Operating (est.)', estimatedCosts.other])
+    return cats.sort((a,b) => b[1] - a[1])
+  }, [periodExpenses, hasLoggedExpenses, estimatedCosts])
 
   const maxRev = breakdownData.length ? Math.max(...breakdownData.map(d => d.rev)) : 1
 
@@ -2614,7 +2650,7 @@ export function PLDashboard() {
       <div style={S.grid(4)}>
         {[
           { label:'WHAT YOU EARNED', val:`$${revenue.toLocaleString()}`, color:'var(--accent)', icon: DollarSign },
-          { label:'WHAT IT COST', val:`$${totalExp.toLocaleString()}`, color:'var(--danger)', icon: TrendingDown },
+          { label: hasLoggedExpenses ? 'WHAT IT COST' : 'EST. COSTS', val:`$${totalExp.toLocaleString()}`, color:'var(--danger)', icon: TrendingDown },
           { label:'WHAT YOU KEPT', val:`$${net.toLocaleString()}`, color: net>=0 ? 'var(--success)' : 'var(--danger)', icon: BarChart2 },
           { label:'NET MARGIN', val:`${margin}%`, color: parseFloat(margin)>=20 ? 'var(--success)' : 'var(--warning)', icon: TrendingUp },
         ].map(k => (

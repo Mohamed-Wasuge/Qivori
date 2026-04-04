@@ -37,7 +37,7 @@ export default async function handler(req) {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: 'https://qivori.com/api/motive-callback',
+        redirect_uri: 'https://www.qivori.com/api/motive-callback',
         client_id: MOTIVE_CLIENT_ID,
         client_secret: MOTIVE_CLIENT_SECRET,
       }),

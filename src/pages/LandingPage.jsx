@@ -416,30 +416,53 @@ export default function LandingPage({ onGetStarted }) {
         .lp-fin-weekly { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 12px 14px; }
 
         @media (max-width: 768px) {
-          /* Command Center — stack vertically, hide right panel */
+          /* Command Center — just show map, hide side panels */
           .lp-cc-body { flex-direction: column !important; }
-          .lp-cc-left { width: 100% !important; border-right: none !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
-          .lp-cc-map { min-height: 180px !important; }
+          .lp-cc-left { display: none !important; }
+          .lp-cc-map { min-height: 220px !important; }
           .lp-cc-right { display: none !important; }
 
-          /* Dispatch — stack vertically */
+          /* Dispatch — stack, hide broker card */
           .lp-dispatch-body { flex-direction: column !important; }
           .lp-dispatch-left { border-right: none !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
+          .lp-dispatch-broker { display: none !important; }
 
-          /* Financials — 2×2 grid */
+          /* Financials — 2×2, hide weekly/pipeline detail */
           .lp-fin-metrics { grid-template-columns: 1fr 1fr !important; }
-          .lp-fin-split { grid-template-columns: 1fr !important; }
-          .lp-fin-weekly { grid-template-columns: 1fr !important; }
+          .lp-fin-split { display: none !important; }
+          .lp-fin-weekly { display: none !important; }
+          .lp-fin-briefing { padding: 10px 14px !important; }
 
-          /* Rate check — hide overflow tabs, stack profit row */
-          .lp-rate-tabs { overflow-x: auto !important; scrollbar-width: none !important; -webkit-overflow-scrolling: touch !important; }
-          .lp-rate-tabs::-webkit-scrollbar { display: none; }
+          /* Rate check — hide tabs + counter script, keep factors + donut */
+          .lp-rate-tabs { display: none !important; }
           .lp-rate-profit-row { flex-direction: column !important; align-items: center !important; }
           .lp-rate-donut { width: 80px !important; height: 80px !important; }
           .lp-rate-counter-btns { grid-template-columns: 1fr !important; }
+          .lp-rate-counter-section { display: none !important; }
 
           /* Q Recommendation — 2×2 grid */
           .lp-rec-metrics { grid-template-columns: 1fr 1fr !important; }
+
+          /* Pipeline — vertical on mobile */
+          .lp-pipeline-cols {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 12px !important;
+            overflow-x: visible !important;
+          }
+          .lp-pipeline-cols > div { min-width: 0 !important; }
+          .lp-pipeline-hide-mobile { display: none !important; }
+
+          /* Back office grid — always single column */
+          .lp-back-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
+
+          /* Scale up cinematic mockups on mobile for readability */
+          .lp-cinematic-card { transform: none !important; }
+
+          /* Hide CC bottom status bar on mobile — too cramped */
+          .lp-cc-status-bar { display: none !important; }
+
+          /* Feature section — tighter padding */
+          .lp-feature-row { padding: 36px 16px !important; gap: 20px !important; }
         }
 
         .lp-trust-section { padding: 32px 20px; text-align: center; overflow: hidden; }
@@ -967,7 +990,7 @@ export default function LandingPage({ onGetStarted }) {
                       </div>
 
                       {/* Bottom — Live status bar */}
-                      <div style={{ padding: '6px 14px', borderTop: '1px solid rgba(0,0,0,0.05)', background: 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                      <div className="lp-cc-status-bar" style={{ padding: '6px 14px', borderTop: '1px solid rgba(0,0,0,0.05)', background: 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                         <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', animation: 'lp-pulse 2s infinite', flexShrink: 0 }} />
                         <span style={{ fontSize: 8, color: 'rgba(26,26,46,0.4)', whiteSpace: 'nowrap' }}>Unit 1</span>
                         <span style={{ fontSize: 8, fontWeight: 600, color: '#1a1a2e', whiteSpace: 'nowrap' }}>David</span>
@@ -1057,7 +1080,7 @@ export default function LandingPage({ onGetStarted }) {
 
                           {/* Broker card — slides in phase 2+ */}
                           {dispatchPhase >= 2 && (
-                            <div style={{ marginTop: 10, padding: '10px', background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 8, animation: 'lp-card-enter 0.5s ease-out' }}>
+                            <div className="lp-dispatch-broker" style={{ marginTop: 10, padding: '10px', background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 8, animation: 'lp-card-enter 0.5s ease-out' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>C.H. Robinson <span style={{ fontSize: 8, fontWeight: 600, color: '#d4910a', marginLeft: 4 }}>B</span></div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 8 }}>
                                 {[
@@ -1170,7 +1193,7 @@ export default function LandingPage({ onGetStarted }) {
                         </div>
 
                         {/* Counter-Offer Script */}
-                        <div style={{ opacity: ratePhase >= 3 ? 1 : 0.2, transition: 'opacity 0.6s' }}>
+                        <div className="lp-rate-counter-section" style={{ opacity: ratePhase >= 3 ? 1 : 0.2, transition: 'opacity 0.6s' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(26,26,46,0.4)', letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
                               <Ic icon={FileText} size={10} color="rgba(26,26,46,0.3)" />
@@ -1251,7 +1274,7 @@ export default function LandingPage({ onGetStarted }) {
                       </div>
 
                       {/* Q Daily Briefing — animated alert */}
-                      <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                      <div className="lp-fin-briefing" style={{ padding: '10px 14px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                           <div style={{ width: 18, height: 18, borderRadius: 5, background: 'linear-gradient(135deg, #d4910a, #f0a500)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, color: '#fff', fontFamily: "'Bebas Neue',sans-serif" }}>Q</div>
                           <span style={{ fontSize: 9, fontWeight: 700, color: '#d4910a', letterSpacing: 1 }}>Q DAILY BRIEFING</span>
@@ -1394,8 +1417,10 @@ export default function LandingPage({ onGetStarted }) {
                     const staticLoad = staticLoads[ci]
                     const cardCount = (staticLoad ? 1 : 0) + (hasMovingCard ? 1 : 0)
                     const isActive = hasMovingCard
+                    // On mobile: show Booked(0), In Transit(2), Paid(5) — hide others
+                    const hideOnMobile = ci === 1 || ci === 3 || ci === 4
                     return (
-                      <div key={ci} style={{ minWidth: 130 }}>
+                      <div key={ci} className={hideOnMobile ? 'lp-pipeline-hide-mobile' : ''} style={{ minWidth: 130 }}>
                         {/* Column header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingBottom: 6, borderBottom: `2px solid ${isActive ? col.color : 'rgba(0,0,0,0.06)'}`, transition: 'border-color 0.4s' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

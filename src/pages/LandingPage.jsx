@@ -397,6 +397,50 @@ export default function LandingPage({ onGetStarted }) {
           .lp-stats-grid { grid-template-columns: 1fr 1fr !important; }
         }
 
+        /* ── Cinematic mobile overrides ── */
+        .lp-cc-body { display: flex; }
+        .lp-cc-left { width: 30%; border-right: 1px solid rgba(0,0,0,0.05); padding: 10px 12px; flex-shrink: 0; }
+        .lp-cc-map { flex: 1; padding: 10px; position: relative; min-height: 200px; }
+        .lp-cc-right { width: 28%; border-left: 1px solid rgba(0,0,0,0.05); padding: 10px 12px; flex-shrink: 0; }
+        .lp-dispatch-body { display: flex; }
+        .lp-dispatch-left { flex: 1; border-right: 1px solid rgba(0,0,0,0.05); padding: 12px 14px; }
+        .lp-dispatch-right { flex: 1.3; padding: 12px 14px; }
+        .lp-fin-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .lp-fin-split { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .lp-rate-tabs { display: flex; gap: 16; overflow: hidden; }
+        .lp-rate-profit-row { display: flex; gap: 12; }
+        .lp-rate-donut { width: 64px; height: 64px; flex-shrink: 0; }
+        .lp-rate-counter-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6; }
+        .lp-rec-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8; margin-top: 12; }
+        .lp-fin-weekly { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 12px 14px; }
+
+        @media (max-width: 768px) {
+          /* Command Center — stack vertically, hide right panel */
+          .lp-cc-body { flex-direction: column !important; }
+          .lp-cc-left { width: 100% !important; border-right: none !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
+          .lp-cc-map { min-height: 180px !important; }
+          .lp-cc-right { display: none !important; }
+
+          /* Dispatch — stack vertically */
+          .lp-dispatch-body { flex-direction: column !important; }
+          .lp-dispatch-left { border-right: none !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
+
+          /* Financials — 2×2 grid */
+          .lp-fin-metrics { grid-template-columns: 1fr 1fr !important; }
+          .lp-fin-split { grid-template-columns: 1fr !important; }
+          .lp-fin-weekly { grid-template-columns: 1fr !important; }
+
+          /* Rate check — hide overflow tabs, stack profit row */
+          .lp-rate-tabs { overflow-x: auto !important; scrollbar-width: none !important; -webkit-overflow-scrolling: touch !important; }
+          .lp-rate-tabs::-webkit-scrollbar { display: none; }
+          .lp-rate-profit-row { flex-direction: column !important; align-items: center !important; }
+          .lp-rate-donut { width: 80px !important; height: 80px !important; }
+          .lp-rate-counter-btns { grid-template-columns: 1fr !important; }
+
+          /* Q Recommendation — 2×2 grid */
+          .lp-rec-metrics { grid-template-columns: 1fr 1fr !important; }
+        }
+
         .lp-trust-section { padding: 32px 20px; text-align: center; overflow: hidden; }
         .lp-trust-title {
           font-family: 'Bebas Neue', sans-serif; font-size: 22px;
@@ -785,9 +829,9 @@ export default function LandingPage({ onGetStarted }) {
                         <span style={{ fontSize: 9, color: 'rgba(26,26,46,0.3)' }}>Command Center</span>
                       </div>
 
-                      <div style={{ display: 'flex' }}>
+                      <div className="lp-cc-body">
                         {/* Left panel — Dispatch Queue + Fleet Status */}
-                        <div style={{ width: '30%', borderRight: '1px solid rgba(0,0,0,0.05)', padding: '10px 12px', flexShrink: 0 }}>
+                        <div className="lp-cc-left">
                           {/* Dispatch Queue */}
                           <div style={{ fontSize: 8, fontWeight: 700, color: '#d4910a', letterSpacing: 1.5, marginBottom: 6 }}>DISPATCH QUEUE</div>
                           <div style={{ display: 'flex', gap: 3, marginBottom: 10 }}>
@@ -831,7 +875,7 @@ export default function LandingPage({ onGetStarted }) {
                         </div>
 
                         {/* Center — Map */}
-                        <div style={{ flex: 1, padding: '10px', position: 'relative', minHeight: 200 }}>
+                        <div className="lp-cc-map">
                           {/* Map background */}
                           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #e8e4d8 0%, #d4cfc2 50%, #e0dbd0 100%)', borderRadius: 0, overflow: 'hidden' }}>
                             {/* Grid lines for map feel */}
@@ -873,7 +917,7 @@ export default function LandingPage({ onGetStarted }) {
                         </div>
 
                         {/* Right panel — Driver + HOS + Active Load */}
-                        <div style={{ width: '28%', borderLeft: '1px solid rgba(0,0,0,0.05)', padding: '10px 12px', flexShrink: 0 }}>
+                        <div className="lp-cc-right">
                           {/* Driver card */}
                           <div style={{ textAlign: 'center', marginBottom: 10 }}>
                             <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #d4910a, #f0a500)', margin: '0 auto 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>D</div>
@@ -949,9 +993,9 @@ export default function LandingPage({ onGetStarted }) {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex' }}>
+                      <div className="lp-dispatch-body">
                         {/* Left — Load list */}
-                        <div style={{ flex: 1, borderRight: '1px solid rgba(0,0,0,0.05)', padding: '12px 14px' }}>
+                        <div className="lp-dispatch-left">
                           <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(26,26,46,0.35)', letterSpacing: 1, marginBottom: 8 }}>LOADS READY FOR DISPATCH <span style={{ color: '#d4910a', marginLeft: 4 }}>2</span></div>
 
                           {/* Load cards */}
@@ -971,7 +1015,7 @@ export default function LandingPage({ onGetStarted }) {
                         </div>
 
                         {/* Right — Selected load detail + broker card */}
-                        <div style={{ flex: 1.3, padding: '12px 14px' }}>
+                        <div className="lp-dispatch-right">
                           {/* Selected load detail */}
                           <div style={{ opacity: dispatchPhase >= 1 ? 1 : 0.3, transition: 'opacity 0.5s' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1057,7 +1101,7 @@ export default function LandingPage({ onGetStarted }) {
                       </div>
 
                       {/* Tab bar */}
-                      <div style={{ padding: '0 18px', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', gap: 16, overflow: 'hidden' }}>
+                      <div className="lp-rate-tabs" style={{ padding: '0 18px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                         {['Pipeline', 'Q Dispatch', 'List View', 'Dispatch Board', 'Check Calls', 'Command Center', 'Lane Intel', 'Rate Check'].map((tab, ti) => (
                           <span key={ti} style={{ fontSize: 10, padding: '10px 0', color: ti === 7 ? '#d4910a' : 'rgba(26,26,46,0.35)', borderBottom: ti === 7 ? '2px solid #d4910a' : '2px solid transparent', fontWeight: ti === 7 ? 700 : 400, whiteSpace: 'nowrap' }}>{tab}</span>
                         ))}
@@ -1093,9 +1137,9 @@ export default function LandingPage({ onGetStarted }) {
                         {/* Profit Breakdown */}
                         <div style={{ marginBottom: 14, opacity: ratePhase >= 2 ? 1 : 0.3, transition: 'opacity 0.5s' }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(26,26,46,0.4)', letterSpacing: 1, marginBottom: 8 }}>$ Profit Breakdown</div>
-                          <div style={{ display: 'flex', gap: 12 }}>
+                          <div className="lp-rate-profit-row">
                             {/* Donut placeholder */}
-                            <div style={{ width: 64, height: 64, borderRadius: '50%', background: `conic-gradient(#22c55e 0% ${Math.round(55 * Math.min(rateCosts, 100) / 100)}%, #3b82f6 ${Math.round(55 * Math.min(rateCosts, 100) / 100)}% ${Math.round(70 * Math.min(rateCosts, 100) / 100)}%, #f59e0b ${Math.round(70 * Math.min(rateCosts, 100) / 100)}% ${Math.round(82 * Math.min(rateCosts, 100) / 100)}%, #8b5cf6 ${Math.round(82 * Math.min(rateCosts, 100) / 100)}% ${Math.round(90 * Math.min(rateCosts, 100) / 100)}%, #ec4899 ${Math.round(90 * Math.min(rateCosts, 100) / 100)}% 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.3s' }}>
+                            <div className="lp-rate-donut" style={{ borderRadius: '50%', background: `conic-gradient(#22c55e 0% ${Math.round(55 * Math.min(rateCosts, 100) / 100)}%, #3b82f6 ${Math.round(55 * Math.min(rateCosts, 100) / 100)}% ${Math.round(70 * Math.min(rateCosts, 100) / 100)}%, #f59e0b ${Math.round(70 * Math.min(rateCosts, 100) / 100)}% ${Math.round(82 * Math.min(rateCosts, 100) / 100)}%, #8b5cf6 ${Math.round(82 * Math.min(rateCosts, 100) / 100)}% ${Math.round(90 * Math.min(rateCosts, 100) / 100)}%, #ec4899 ${Math.round(90 * Math.min(rateCosts, 100) / 100)}% 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.3s' }}>
                               <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fafaf8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: '#1a1a2e', fontFamily: "'Bebas Neue',sans-serif" }}>${Math.round(1600 * Math.min(rateCosts, 100) / 100).toLocaleString()}</div>
                                 <div style={{ fontSize: 6, color: 'rgba(26,26,46,0.3)' }}>NET</div>
@@ -1136,7 +1180,7 @@ export default function LandingPage({ onGetStarted }) {
                           <div style={{ padding: '10px 12px', background: 'rgba(212,145,10,0.03)', border: '1px solid rgba(212,145,10,0.1)', borderRadius: 8, fontSize: 9, color: 'rgba(26,26,46,0.55)', lineHeight: 1.6, fontStyle: 'italic' }}>
                             "Hi, this is [Name] regarding your Memphis to Houston flatbed load. Market rates are running <span style={{ fontWeight: 700, color: '#1a1a2e' }}>$3.10/mi</span> average, and you're offering <span style={{ fontWeight: 700, color: '#1a1a2e' }}>$5.46</span> which is competitive. Could we bump it to <span style={{ fontWeight: 700, color: '#22c55e' }}>$5.61 per mile</span> at <span style={{ fontWeight: 700, color: '#22c55e' }}>$3,287 total</span>?"
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 8 }}>
+                          <div className="lp-rate-counter-btns" style={{ marginTop: 8 }}>
                             <div style={{ padding: '6px 0', borderRadius: 6, textAlign: 'center', fontSize: 10, fontWeight: 700, background: 'linear-gradient(135deg, #d4910a, #f0a500)', color: '#fff' }}>Copy Counter Script</div>
                             <div style={{ padding: '6px 0', borderRadius: 6, textAlign: 'center', fontSize: 10, fontWeight: 600, background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.08)', color: 'rgba(26,26,46,0.5)' }}>Call Broker</div>
                           </div>
@@ -1155,7 +1199,7 @@ export default function LandingPage({ onGetStarted }) {
                       </div>
 
                       {/* Revenue / Profit / Fuel / Unpaid row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                      <div className="lp-fin-metrics">
                         {[
                           { label: 'REVENUE', value: `$${Math.round(18400 * Math.min(finAnim, 100) / 100).toLocaleString()}`, color: '#22c55e', sub: 'This week' },
                           { label: 'PROFIT', value: `$${Math.round(6847 * Math.min(finAnim, 100) / 100).toLocaleString()}`, color: '#22c55e', sub: 'After all costs' },
@@ -1171,7 +1215,7 @@ export default function LandingPage({ onGetStarted }) {
                       </div>
 
                       {/* Pipeline mini + Activity Log */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                      <div className="lp-fin-split">
                         <div style={{ padding: '12px 14px', borderRight: '1px solid rgba(0,0,0,0.04)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
                             <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#d4910a' }} />
@@ -1226,7 +1270,7 @@ export default function LandingPage({ onGetStarted }) {
                       </div>
 
                       {/* Weekly Report / Goal */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, padding: '12px 14px' }}>
+                      <div className="lp-fin-weekly">
                         <div style={{ paddingRight: 12, borderRight: '1px solid rgba(0,0,0,0.04)' }}>
                           <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(26,26,46,0.4)', letterSpacing: 1, marginBottom: 6 }}>WEEKLY REPORT</div>
                           {[
@@ -1309,7 +1353,7 @@ export default function LandingPage({ onGetStarted }) {
                 </div>
               </div>
               {/* Profit metrics */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 12 }}>
+              <div className="lp-rec-metrics">
                 {[
                   { label: 'EST. PROFIT', value: `$${Math.round(732 * Math.min(profitAnim, 100) / 100)}`, color: '#22c55e' },
                   { label: 'PROFIT/MI', value: `$${(2.93 * Math.min(profitAnim, 100) / 100).toFixed(2)}`, color: '#1a1a2e' },

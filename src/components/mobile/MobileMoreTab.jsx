@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck } from 'lucide-react'
+import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck, X } from 'lucide-react'
 import { Ic, haptic } from './shared'
 import { apiFetch } from '../../lib/api'
 import MobileIFTATab from './MobileIFTATab'
@@ -58,7 +58,7 @@ const MENU_ITEMS = [
   { id: 'help', label: 'Help & Support', sub: 'Get help from the team', icon: HelpCircle, color: 'var(--accent2)' },
 ]
 
-export default function MobileMoreTab({ onNavigate }) {
+export default function MobileMoreTab({ onNavigate, onClose }) {
   const { logout, user, profile } = useApp()
   const ctx = useCarrier() || {}
   const drivers = ctx.drivers || []
@@ -317,6 +317,16 @@ export default function MobileMoreTab({ onNavigate }) {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+      {/* Close header when used as slide-in panel */}
+      {onClose && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5 }}>SETTINGS</span>
+          <button onClick={() => { haptic(); onClose() }}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={16} color="var(--muted)" />
+          </button>
+        </div>
+      )}
       {/* Profile header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
         <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

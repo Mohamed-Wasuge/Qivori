@@ -1,8 +1,8 @@
-import { useState, useCallback, lazy, Suspense } from 'react'
+import { useState, useCallback, useRef, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
-import { Home, Package, DollarSign, MoreHorizontal, X, Clock, Wallet, Sparkles } from 'lucide-react'
+import { Package, DollarSign, X, Clock, Settings, Sparkles } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic } from './shared'
 
 // Lazy-load all tabs — only loads the tab JS when first rendered
@@ -27,20 +27,6 @@ const TabLoader = () => (
   </div>
 )
 
-const TABS = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'loads', label: 'Loads', icon: Package },
-  { id: 'money', label: 'Money', icon: DollarSign },
-  { id: 'more', label: 'More', icon: MoreHorizontal },
-]
-
-const DRIVER_TABS = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'loads', label: 'My Loads', icon: Package },
-  { id: 'pay', label: 'Pay', icon: Wallet },
-  { id: 'more', label: 'More', icon: MoreHorizontal },
-]
-
 export default function MobileShell() {
   const { logout, user, profile, demoMode, showToast, isDriver, goToLogin } = useApp()
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
@@ -51,19 +37,33 @@ export default function MobileShell() {
   const unpaidInvoices = ctx.unpaidInvoices || []
   const qState = getQSystemState(ctx)
 
-  const [activeTab, setActiveTab] = useState('home')
+  const [activeTab, setActiveTab] = useState('loads')
   const [moneySubTab, setMoneySubTab] = useState(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInitMsg, setChatInitMsg] = useState(null)
   const [qGreetingForChat, setQGreetingForChat] = useState(null)
   const [chatAutoCall, setChatAutoCall] = useState(false)
-  const [qOverlayState, setQOverlayState] = useState('idle') // idle | listening | analyzing | speaking
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsClosing, setSettingsClosing] = useState(false)
+
+  // Q center button long-press
+  const longPressTimer = useRef(null)
+  const [qPressed, setQPressed] = useState(false)
 
   const handleNavigate = useCallback((tab, extra) => {
     if (tab === 'chat') {
       setChatInitMsg(extra || null)
       setChatAutoCall(false)
       setChatOpen(true)
+      return
+    }
+    // Map old tab IDs to new structure
+    if (tab === 'home') {
+      setActiveTab('loads')
+      return
+    }
+    if (tab === 'more') {
+      setSettingsOpen(true)
       return
     }
     if (tab === 'money' && extra === 'expenses') {
@@ -75,7 +75,7 @@ export default function MobileShell() {
   }, [])
 
   const openQ = useCallback((msg, greeting, startCall) => {
-    // Stop any playing audio (home screen greeting) before opening Q
+    // Stop any playing audio before opening Q
     document.querySelectorAll('audio').forEach(a => { a.pause(); a.src = '' })
     window.speechSynthesis?.cancel()
     setChatInitMsg(msg || null)
@@ -85,7 +85,36 @@ export default function MobileShell() {
     if (msg) setTimeout(() => setChatInitMsg(null), 500)
   }, [])
 
-  const firstName = (profile?.full_name || user?.user_metadata?.full_name || 'Driver').split(' ')[0]
+  const closeSettings = useCallback(() => {
+    setSettingsClosing(true)
+    setTimeout(() => {
+      setSettingsOpen(false)
+      setSettingsClosing(false)
+    }, 250)
+  }, [])
+
+  // Q center button handlers
+  const onQTouchStart = () => {
+    setQPressed(true)
+    longPressTimer.current = setTimeout(() => {
+      haptic('medium')
+      openQ(null, null, true) // long press = voice call
+    }, 500)
+  }
+  const onQTouchEnd = () => {
+    setQPressed(false)
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+  const onQClick = () => {
+    // Only fires if long press didn't trigger
+    if (!chatOpen) {
+      haptic('light')
+      openQ(null, null, false) // tap = chat
+    }
+  }
 
   return (
     <div style={{ height: '100dvh', width: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden' }}>
@@ -162,10 +191,16 @@ export default function MobileShell() {
       <div style={{ height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
         <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span></span>
         <div style={{ flex: 1 }} />
+        {/* Q status indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: `${qState.color}10`, borderRadius: 20 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color }} />
           <span style={{ fontSize: 9, color: qState.color, fontWeight: 700, letterSpacing: 0.3 }}>{qState.label}</span>
         </div>
+        {/* Gear icon → settings */}
+        <button onClick={() => { haptic(); setSettingsOpen(true) }}
+          style={{ width: 32, height: 32, borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Ic icon={Settings} size={18} color="var(--muted)" />
+        </button>
       </div>
 
       {/* ── TAB CONTENT ── */}
@@ -173,50 +208,46 @@ export default function MobileShell() {
         <Suspense fallback={<TabLoader />}>
           {isDriver ? (
             <>
-              {/* DRIVER TABS */}
-              {activeTab === 'home' && <DriverHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />}
+              {/* Driver: Loads = MobileLoadsTab (shared), Money = DriverPayTab */}
               {activeTab === 'loads' && <MobileLoadsTab />}
-              {activeTab === 'pay' && <DriverPayTab />}
-              {activeTab === 'more' && <DriverMoreTab />}
+              {activeTab === 'money' && <DriverPayTab />}
             </>
           ) : (
             <>
-              {/* OWNER/ADMIN TABS */}
-              {activeTab === 'home' && <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openQ} />}
               {activeTab === 'loads' && <MobileLoadsTab />}
               {activeTab === 'money' && <MobileMoneyTab initialSubTab={moneySubTab} />}
-              {activeTab === 'more' && <MobileMoreTab onNavigate={(tab) => setActiveTab(tab)} />}
             </>
           )}
         </Suspense>
       </div>
 
-      {/* ── FLOATING Q BUTTON ── */}
-      {!chatOpen && (
-        <button
-          onClick={() => openQ(null, null, true)}
-          style={{
-            position: 'fixed', bottom: `calc(68px + env(safe-area-inset-bottom, 0px))`, right: 16, zIndex: 100,
-            width: 48, height: 48, borderRadius: '50%',
-            background: qState.state === 'alert' ? 'var(--danger)' : 'var(--accent)',
-            border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 12px rgba(240,165,0,0.2)',
-            animation: 'fabPop 0.3s ease',
-            transition: 'transform 0.15s ease, background 0.3s ease',
-          }}
-        >
-          <span style={{
-            fontFamily: "'Bebas Neue',sans-serif", fontSize: 22,
-            color: qState.state === 'alert' ? '#fff' : '#000', fontWeight: 800, lineHeight: 1,
-          }}>Q</span>
-        </button>
+      {/* ── SETTINGS SLIDE-IN PANEL ── */}
+      {settingsOpen && (
+        <>
+          <div onClick={closeSettings} style={{
+            position: 'fixed', inset: 0, zIndex: 299,
+            background: 'rgba(0,0,0,0.4)',
+            animation: settingsClosing ? 'qOverlayDim 0.25s ease reverse' : 'qOverlayDim 0.25s ease',
+          }} />
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, width: '85%', maxWidth: 380,
+            zIndex: 300, background: 'var(--bg)', display: 'flex', flexDirection: 'column',
+            animation: settingsClosing ? 'settingsSlideOut 0.25s ease forwards' : 'settingsSlideIn 0.25s ease',
+            boxShadow: '-4px 0 20px rgba(0,0,0,0.3)',
+          }}>
+            <Suspense fallback={<TabLoader />}>
+              {isDriver
+                ? <DriverMoreTab onClose={closeSettings} />
+                : <MobileMoreTab onNavigate={handleNavigate} onClose={closeSettings} />
+              }
+            </Suspense>
+          </div>
+        </>
       )}
 
-      {/* ── Q CHAT OVERLAY — premium slide-up with dimmed backdrop ── */}
+      {/* ── Q CHAT OVERLAY ── */}
       {chatOpen && (
         <>
-          {/* Backdrop dim */}
           <div style={{
             position: 'fixed', inset: 0, zIndex: 199,
             background: 'rgba(0,0,0,0.5)',
@@ -228,7 +259,6 @@ export default function MobileShell() {
             background: 'var(--bg)',
             animation: 'qOverlayIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
           }}>
-            {/* Overlay header — live Q state */}
             <div style={{
               flexShrink: 0, display: 'flex', alignItems: 'center',
               padding: '0 16px', gap: 12, background: 'var(--surface)',
@@ -259,8 +289,6 @@ export default function MobileShell() {
                 <Ic icon={X} size={18} color="var(--muted)" />
               </button>
             </div>
-
-            {/* Chat content */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay autoCall={chatAutoCall} />
             </div>
@@ -268,7 +296,7 @@ export default function MobileShell() {
         </>
       )}
 
-      {/* ── BOTTOM TAB BAR ── */}
+      {/* ── BOTTOM NAV: [Loads] [Q] [Money] ── */}
       <div style={{
         flexShrink: 0,
         minHeight: 56,
@@ -276,50 +304,106 @@ export default function MobileShell() {
         borderTop: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-around',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        position: 'relative',
       }}>
-        {(isDriver ? DRIVER_TABS : TABS).map(tab => {
-          const isActive = activeTab === tab.id
-          const badge = tab.id === 'loads' && activeLoads.length > 0 ? activeLoads.length
-            : tab.id === 'money' && unpaidInvoices.length > 0 ? unpaidInvoices.length
-            : null
-          return (
-            <button key={tab.id} onClick={() => { haptic('light'); setActiveTab(tab.id); setMoneySubTab(null) }}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                padding: '10px 16px', position: 'relative',
-                transition: 'all 0.2s ease',
-              }}>
-              <div style={{ position: 'relative', transform: isActive ? 'scale(1)' : 'scale(0.95)', transition: 'all 0.15s ease' }}>
-                <Ic icon={tab.icon} size={20}
-                  color={isActive ? 'var(--accent)' : 'var(--muted)'}
-                  strokeWidth={isActive ? 2.5 : 1.5}
-                />
-                {badge && (
-                  <span style={{
-                    position: 'absolute', top: -4, right: -8,
-                    fontSize: 8, fontWeight: 800, background: 'var(--danger)', color: '#fff',
-                    borderRadius: 10, padding: '1px 4px', minWidth: 14, textAlign: 'center',
-                    lineHeight: '12px',
-                  }}>{badge}</span>
-                )}
-              </div>
+        {/* Loads tab — left 40% */}
+        <button onClick={() => { haptic('light'); setActiveTab('loads'); setMoneySubTab(null) }}
+          style={{
+            flex: 2, background: 'none', border: 'none', cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            padding: '10px 0', position: 'relative',
+          }}>
+          <div style={{ position: 'relative' }}>
+            <Ic icon={Package} size={20}
+              color={activeTab === 'loads' ? 'var(--accent)' : 'var(--muted)'}
+              strokeWidth={activeTab === 'loads' ? 2.5 : 1.5}
+            />
+            {activeLoads.length > 0 && (
               <span style={{
-                fontSize: 9, fontWeight: isActive ? 800 : 600,
-                color: isActive ? 'var(--accent)' : 'var(--muted)',
-                letterSpacing: isActive ? 0.5 : 0,
-              }}>{tab.label}</span>
-              {isActive && (
-                <div style={{
-                  position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                  width: 20, height: 2, borderRadius: 1, background: 'var(--accent)',
-                }} />
-              )}
-            </button>
-          )
-        })}
+                position: 'absolute', top: -4, right: -8,
+                fontSize: 8, fontWeight: 800, background: 'var(--danger)', color: '#fff',
+                borderRadius: 10, padding: '1px 4px', minWidth: 14, textAlign: 'center',
+                lineHeight: '12px',
+              }}>{activeLoads.length}</span>
+            )}
+          </div>
+          <span style={{
+            fontSize: 9, fontWeight: activeTab === 'loads' ? 800 : 600,
+            color: activeTab === 'loads' ? 'var(--accent)' : 'var(--muted)',
+            letterSpacing: activeTab === 'loads' ? 0.5 : 0,
+          }}>Loads</span>
+          {activeTab === 'loads' && (
+            <div style={{
+              position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+              width: 20, height: 2, borderRadius: 1, background: 'var(--accent)',
+            }} />
+          )}
+        </button>
+
+        {/* Q Center Button — overlapping gold circle */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
+          <button
+            onTouchStart={onQTouchStart}
+            onTouchEnd={onQTouchEnd}
+            onMouseDown={onQTouchStart}
+            onMouseUp={onQTouchEnd}
+            onClick={onQClick}
+            style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: qState.state === 'alert' ? 'var(--danger)' : 'var(--accent)',
+              border: '3px solid var(--bg)',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'absolute', top: -20,
+              boxShadow: '0 4px 20px rgba(240,165,0,0.4)',
+              animation: qState.state === 'alert' ? 'qCenterPulse 2s ease-in-out infinite' : 'none',
+              transform: qPressed ? 'scale(0.92)' : 'scale(1)',
+              transition: 'transform 0.1s ease',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span style={{
+              fontFamily: "'Bebas Neue',sans-serif", fontSize: 24,
+              color: qState.state === 'alert' ? '#fff' : '#000',
+              fontWeight: 800, lineHeight: 1,
+            }}>Q</span>
+          </button>
+        </div>
+
+        {/* Money tab — right 40% */}
+        <button onClick={() => { haptic('light'); setActiveTab('money'); setMoneySubTab(null) }}
+          style={{
+            flex: 2, background: 'none', border: 'none', cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            padding: '10px 0', position: 'relative',
+          }}>
+          <div style={{ position: 'relative' }}>
+            <Ic icon={DollarSign} size={20}
+              color={activeTab === 'money' ? 'var(--accent)' : 'var(--muted)'}
+              strokeWidth={activeTab === 'money' ? 2.5 : 1.5}
+            />
+            {unpaidInvoices.length > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -8,
+                fontSize: 8, fontWeight: 800, background: 'var(--danger)', color: '#fff',
+                borderRadius: 10, padding: '1px 4px', minWidth: 14, textAlign: 'center',
+                lineHeight: '12px',
+              }}>{unpaidInvoices.length}</span>
+            )}
+          </div>
+          <span style={{
+            fontSize: 9, fontWeight: activeTab === 'money' ? 800 : 600,
+            color: activeTab === 'money' ? 'var(--accent)' : 'var(--muted)',
+            letterSpacing: activeTab === 'money' ? 0.5 : 0,
+          }}>Money</span>
+          {activeTab === 'money' && (
+            <div style={{
+              position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+              width: 20, height: 2, borderRadius: 1, background: 'var(--accent)',
+            }} />
+          )}
+        </button>
       </div>
 
       <style>{mobileAnimations + `

@@ -23,7 +23,7 @@ function calcDriverPay(revenue, miles, driver) {
   return revenue * 0.28 // fallback — per-driver rate preferred
 }
 
-export default function DriverMoreTab() {
+export default function DriverMoreTab({ onClose }) {
   const { logout, user, profile } = useApp()
   const ctx = useCarrier() || {}
   const drivers = ctx.drivers || []
@@ -294,6 +294,17 @@ export default function DriverMoreTab() {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+
+      {/* Close header when used as slide-in panel */}
+      {onClose && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5 }}>SETTINGS</span>
+          <button onClick={() => { haptic(); onClose() }}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={16} color="var(--muted)" />
+          </button>
+        </div>
+      )}
 
       {/* Driver profile header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, animation: 'fadeInUp 0.3s ease' }}>

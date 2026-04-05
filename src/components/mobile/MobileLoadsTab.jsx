@@ -45,7 +45,6 @@ function DetentionTimer({ loadId, locationType }) {
   const charge = Math.round(billable * RATE)
 
   const stopDetention = () => {
-    // Persist detention to database before clearing localStorage
     const saved = localStorage.getItem(`detention_${loadId}`)
     if (saved && elapsed > 0) {
       const startTime = new Date(parseInt(saved)).toISOString()
@@ -104,8 +103,102 @@ function getLocation() {
   })
 }
 
-const STATUS_FILTERS = ['All', 'Booked', 'Dispatched', 'In Transit', 'Delivered', 'Invoiced', 'Paid']
 const STATUS_FLOW = ['Rate Con Received', 'Booked', 'Dispatched', 'En Route to Pickup', 'At Pickup', 'Loaded', 'In Transit', 'At Delivery', 'Delivered', 'Invoiced', 'Paid']
+
+// ── Context-aware action button label ──
+function getActionLabel(status) {
+  const s = (status || '').toLowerCase()
+  if (s === 'booked' || s === 'rate con received') return 'Dispatch'
+  if (s === 'dispatched' || s === 'en route to pickup') return 'Arrived at Pickup'
+  if (s === 'at pickup') return 'Loaded — Roll Out'
+  if (s === 'loaded' || s === 'in transit') return 'Arrived at Delivery'
+  if (s === 'at delivery') return 'Mark Delivered'
+  if (s === 'delivered') return 'Snap POD'
+  return null
+}
+
+// ── Swipeable Load Card ──
+function SwipeableLoadCard({ load, children, onSwipeRight, onSwipeLeft }) {
+  const cardRef = useRef(null)
+  const touchRef = useRef({ startX: 0, startY: 0, currentX: 0, swiping: false, direction: null })
+  const THRESHOLD = 80
+  const ACTIVATE_H = 15
+  const ACTIVATE_V = 10
+
+  const onTouchStart = (e) => {
+    const touch = e.touches[0]
+    touchRef.current = { startX: touch.clientX, startY: touch.clientY, currentX: 0, swiping: false, direction: null }
+  }
+
+  const onTouchMove = (e) => {
+    const touch = e.touches[0]
+    const ref = touchRef.current
+    const dx = touch.clientX - ref.startX
+    const dy = touch.clientY - ref.startY
+
+    // Determine direction if not yet locked
+    if (!ref.direction) {
+      if (Math.abs(dx) > ACTIVATE_H && Math.abs(dx) > Math.abs(dy)) {
+        ref.direction = 'horizontal'
+        ref.swiping = true
+      } else if (Math.abs(dy) > ACTIVATE_V) {
+        ref.direction = 'vertical'
+        return
+      } else {
+        return
+      }
+    }
+
+    if (ref.direction !== 'horizontal') return
+
+    ref.currentX = dx
+    if (cardRef.current) {
+      cardRef.current.style.transform = `translateX(${dx * 0.6}px)`
+      cardRef.current.style.transition = 'none'
+    }
+  }
+
+  const onTouchEnd = () => {
+    const ref = touchRef.current
+    if (cardRef.current) {
+      cardRef.current.style.transform = 'translateX(0)'
+      cardRef.current.style.transition = 'transform 0.25s ease'
+    }
+    if (!ref.swiping) return
+
+    if (ref.currentX > THRESHOLD && onSwipeRight) {
+      haptic('success')
+      onSwipeRight()
+    } else if (ref.currentX < -THRESHOLD && onSwipeLeft) {
+      haptic('light')
+      onSwipeLeft()
+    }
+    touchRef.current = { startX: 0, startY: 0, currentX: 0, swiping: false, direction: null }
+  }
+
+  return (
+    <div style={{ position: 'relative', marginBottom: 8 }}>
+      {/* Swipe indicators behind card */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 14, display: 'flex', overflow: 'hidden',
+      }}>
+        <div style={{ flex: 1, background: 'rgba(0,212,170,0.15)', display: 'flex', alignItems: 'center', paddingLeft: 16 }}>
+          <ArrowRight size={18} color="var(--success)" />
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', marginLeft: 6 }}>Advance</span>
+        </div>
+        <div style={{ flex: 1, background: 'rgba(77,142,240,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 16 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#4d8ef0', marginRight: 6 }}>Details</span>
+          <ChevronRight size={14} color="#4d8ef0" />
+        </div>
+      </div>
+      {/* Actual card */}
+      <div ref={cardRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        style={{ position: 'relative', zIndex: 1, background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export default function MobileLoadsTab() {
   const ctx = useCarrier() || {}
@@ -117,21 +210,30 @@ export default function MobileLoadsTab() {
   const addInvoice = ctx.addInvoice || (() => {})
   const updateInvoiceStatus = ctx.updateInvoiceStatus || (() => {})
   const advanceStop = ctx.advanceStop || (() => {})
-  const [filter, setFilter] = useState('All')
+  const [filter, setFilter] = useState('Active')
   const [expandedId, setExpandedId] = useState(null)
   const [scanning, setScanning] = useState(false)
   const rateConRef = useRef(null)
-  const [showAddLoad, setShowAddLoad] = useState(false)
-  const [newLoad, setNewLoad] = useState({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', shipper: '', consignee: '' })
-  const [uploadingDoc, setUploadingDoc] = useState(null) // { loadId, docType }
+  const [uploadingDoc, setUploadingDoc] = useState(null)
   const docInputRef = useRef(null)
-  const [loadDocs, setLoadDocs] = useState({}) // { loadId: [docs] }
+  const [loadDocs, setLoadDocs] = useState({})
 
-  // Delivered loads needing action (no invoice yet)
-  const deliveredNeedAction = loads.filter(l => {
-    const s = (l.status || '').toLowerCase()
-    return s === 'delivered' || s === 'at delivery'
-  })
+  // ── Hero: highest priority active load ──
+  const heroLoad = useMemo(() => {
+    // Priority: in-transit > at pickup/delivery > dispatched > booked
+    const priority = ['in transit', 'loaded', 'at delivery', 'at pickup', 'en route to pickup', 'dispatched', 'booked']
+    let best = null
+    let bestPriority = Infinity
+    for (const l of loads) {
+      const s = (l.status || '').toLowerCase()
+      const idx = priority.findIndex(p => s.includes(p) || s === p)
+      if (idx >= 0 && idx < bestPriority) {
+        best = l
+        bestPriority = idx
+      }
+    }
+    return best
+  }, [loads])
 
   // Check if load has invoice
   const loadHasInvoice = (load) => {
@@ -166,7 +268,7 @@ export default function MobileLoadsTab() {
     }
   }
 
-  // Quick factor — sends to factoring company
+  // Quick factor
   const quickFactor = async (load) => {
     const lid = load.id || load.load_id || load.loadId
     const inv = invoices.find(i => (i.load_id || i.loadId || i.load_number) === lid)
@@ -196,13 +298,20 @@ export default function MobileLoadsTab() {
     showToast?.('success', 'Factored!', `$${net.toLocaleString()} net — 24hr deposit`)
   }
 
-  const filtered = filter === 'All'
-    ? loads
-    : loads.filter(l => {
-        const s = (l.status || '').toLowerCase()
-        const f = filter.toLowerCase()
-        return s.includes(f) || (f === 'in transit' && (s.includes('loaded') || s.includes('en route')))
-      })
+  // ── Simplified filters: Active | Delivered | All ──
+  const FILTERS = ['Active', 'Delivered', 'All']
+  const filtered = useMemo(() => {
+    if (filter === 'All') return loads
+    if (filter === 'Active') return loads.filter(l => {
+      const s = (l.status || '').toLowerCase()
+      return !s.includes('delivered') && !s.includes('invoiced') && !s.includes('paid') && !s.includes('cancel')
+    })
+    if (filter === 'Delivered') return loads.filter(l => {
+      const s = (l.status || '').toLowerCase()
+      return s.includes('delivered') || s.includes('invoiced') || s.includes('paid')
+    })
+    return loads
+  }, [loads, filter])
 
   // Advance load to next status
   const advanceStatus = (load) => {
@@ -215,8 +324,7 @@ export default function MobileLoadsTab() {
     }
   }
 
-  // Handle rate con photo
-  // Compress images before sending to API — reduces upload size by ~70%
+  // Compress images before sending to API
   const compressImage = (file) => new Promise((resolve) => {
     if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
       const reader = new FileReader()
@@ -224,7 +332,6 @@ export default function MobileLoadsTab() {
       reader.readAsDataURL(file)
       return
     }
-    // For Word docs and other non-image files, just read as-is
     if (!file.type?.startsWith('image/')) {
       const reader = new FileReader()
       reader.onload = () => resolve({ base64: reader.result.split(',')[1], mediaType: file.type || 'application/octet-stream' })
@@ -293,34 +400,6 @@ export default function MobileLoadsTab() {
     }
   }
 
-  const saveNewLoad = async () => {
-    if (!newLoad.origin || !newLoad.destination) { showToast?.('error', 'Error', 'Origin and destination required'); return }
-    const miles = parseInt(newLoad.miles) || 0
-    const rate = parseFloat(newLoad.rate) || 0
-    await addLoad({
-      origin: newLoad.origin,
-      destination: newLoad.destination,
-      miles,
-      rate,
-      rate_per_mile: miles > 0 ? (rate / miles).toFixed(2) : 0,
-      equipment: newLoad.equipment,
-      broker_name: newLoad.broker,
-      weight: newLoad.weight,
-      commodity: newLoad.commodity,
-      pickup_date: newLoad.pickup,
-      delivery_date: newLoad.delivery,
-      reference_number: newLoad.refNum,
-      shipper_name: newLoad.shipper,
-      consignee_name: newLoad.consignee,
-      status: 'Booked',
-      load_type: 'FTL',
-    })
-    haptic('success')
-    showToast?.('success', 'Load Added', `${newLoad.origin} → ${newLoad.destination}`)
-    setNewLoad({ origin: '', destination: '', miles: '', rate: '', broker: '', equipment: 'Dry Van', pickup: '', delivery: '', weight: '', commodity: '', refNum: '', shipper: '', consignee: '' })
-    setShowAddLoad(false)
-  }
-
   const handleDocUpload = async (file, loadId, docType) => {
     if (!file) return
     setUploadingDoc({ loadId, docType })
@@ -334,7 +413,6 @@ export default function MobileLoadsTab() {
         file_path: result.path,
         file_size: file.size,
       })
-      // Update local doc state
       setLoadDocs(prev => ({
         ...prev,
         [loadId]: [...(prev[loadId] || []), { doc_type: docType, file_url: result.url, file_name: file.name }],
@@ -347,7 +425,6 @@ export default function MobileLoadsTab() {
     setUploadingDoc(null)
   }
 
-  // Fetch docs for expanded load
   const fetchLoadDocs = async (loadId) => {
     if (loadDocs[loadId]) return
     try {
@@ -359,167 +436,102 @@ export default function MobileLoadsTab() {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* Header */}
-      <div style={{ flexShrink: 0, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* ── HERO ACTIVE LOAD CARD ── */}
+      {heroLoad && !expandedId && (
+        <div style={{
+          margin: '12px 16px 8px', padding: '16px',
+          background: 'linear-gradient(135deg, var(--surface), rgba(240,165,0,0.04))',
+          border: '2px solid rgba(240,165,0,0.25)', borderRadius: 18,
+          animation: 'cardPop 0.4s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(heroLoad.status), animation: 'qStatusPulse 2s ease-in-out infinite' }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(heroLoad.status), letterSpacing: 0.5 }}>{heroLoad.status}</span>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace' }}>{heroLoad.load_id || heroLoad.loadId || ''}</span>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, marginBottom: 4 }}>
+            {heroLoad.origin || '?'} → {heroLoad.destination || heroLoad.dest || '?'}
+          </div>
+          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+            <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{fmt$(heroLoad.gross || heroLoad.rate)}</span>
+            {heroLoad.miles > 0 && <span>${((heroLoad.gross || heroLoad.rate || 0) / heroLoad.miles).toFixed(2)}/mi</span>}
+            {heroLoad.miles > 0 && <span>{heroLoad.miles} mi</span>}
+          </div>
+          {/* Context-aware action button */}
+          {(() => {
+            const label = getActionLabel(heroLoad.status)
+            if (!label) return null
+            const st = (heroLoad.status || '').toLowerCase()
+            // Special case: "Snap POD" for delivered loads
+            if (st === 'delivered') {
+              return (
+                <button onClick={() => {
+                  haptic()
+                  const inp = document.createElement('input')
+                  inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
+                  inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, heroLoad.id, 'POD') }
+                  inp.click()
+                }} style={{
+                  width: '100%', padding: '14px', background: '#8b5cf6', border: 'none', borderRadius: 12,
+                  cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                  <Ic icon={Camera} size={16} color="#fff" />
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Snap POD</span>
+                </button>
+              )
+            }
+            return (
+              <button onClick={() => advanceStatus(heroLoad)}
+                style={{
+                  width: '100%', padding: '14px', background: 'var(--accent)', border: 'none', borderRadius: 12,
+                  cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                <Ic icon={ArrowRight} size={16} color="#000" />
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#000' }}>{label}</span>
+              </button>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ── Header + Upload Rate Con ── */}
+      <div style={{ flexShrink: 0, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{isDriver ? 'MY LOADS' : 'LOADS'}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{isDriver ? 'MY LOADS' : 'LOADS'}</div>
           <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
         </div>
         {!isDriver && (
-          <>
-            <button onClick={() => { haptic(); setShowAddLoad(v => !v) }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-              <Ic icon={Plus} size={14} color="var(--accent)" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Add Load</span>
-            </button>
-            <button onClick={() => rateConRef.current?.click()}
-              disabled={scanning}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-              <Ic icon={scanning ? Clock : ScanLine} size={14} color="#000" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Upload Rate Con'}</span>
-            </button>
-          </>
+          <button onClick={() => rateConRef.current?.click()}
+            disabled={scanning}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+            <Ic icon={scanning ? Clock : ScanLine} size={14} color="#000" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Upload Rate Con'}</span>
+          </button>
         )}
         <input ref={rateConRef} type="file" accept="image/*,.pdf,.doc,.docx,.heic" style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleRateConPhoto(f); e.target.value = '' }} />
       </div>
 
-      {/* Status filter chips */}
-      <div style={{ flexShrink: 0, padding: '0 16px 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        {(isDriver ? STATUS_FILTERS.filter(s => s !== 'Invoiced' && s !== 'Paid') : STATUS_FILTERS).map(s => {
+      {/* ── Simplified filters: Active | Delivered | All ── */}
+      <div style={{ flexShrink: 0, padding: '0 16px 8px', display: 'flex', gap: 6 }}>
+        {FILTERS.map(s => {
           const isActive = filter === s
-          const count = s === 'All' ? loads.length : loads.filter(l => {
-            const st = (l.status || '').toLowerCase()
-            return st.includes(s.toLowerCase()) || (s === 'In Transit' && (st.includes('loaded') || st.includes('en route')))
-          }).length
+          const count = s === 'All' ? loads.length
+            : s === 'Active' ? loads.filter(l => { const st = (l.status || '').toLowerCase(); return !st.includes('delivered') && !st.includes('invoiced') && !st.includes('paid') && !st.includes('cancel') }).length
+            : loads.filter(l => { const st = (l.status || '').toLowerCase(); return st.includes('delivered') || st.includes('invoiced') || st.includes('paid') }).length
           return (
             <button key={s} onClick={() => { haptic(); setFilter(s) }}
-              style={{ padding: '6px 12px', borderRadius: 20, background: isActive ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, color: isActive ? '#000' : 'var(--text)', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans',sans-serif", flexShrink: 0, transition: 'all 0.15s ease' }}>
+              style={{ flex: 1, padding: '8px 12px', borderRadius: 20, background: isActive ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, color: isActive ? '#000' : 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease' }}>
               {s} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
             </button>
           )
         })}
       </div>
 
-      {/* ── GET PAID Banner — Delivered loads needing action (owners only) ── */}
-      {!isDriver && deliveredNeedAction.length > 0 && !showAddLoad && (
-        <div style={{
-          margin: '0 16px 8px', padding: '12px 14px',
-          background: 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(240,165,0,0.08))',
-          border: '1px solid rgba(139,92,246,0.25)', borderRadius: 14,
-          animation: 'fadeInUp 0.3s ease',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Ic icon={DollarSign} size={12} color="#fff" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#8b5cf6' }}>GET PAID</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                {deliveredNeedAction.length} load{deliveredNeedAction.length > 1 ? 's' : ''} delivered — upload docs & invoice
-              </div>
-            </div>
-          </div>
-          {deliveredNeedAction.slice(0, 3).map(load => {
-            const lid = load.id || load.load_id
-            const hasInv = loadHasInvoice(load)
-            const docs = loadDocs[load.id] || []
-            const hasBOL = docs.some(d => d.doc_type === 'BOL' || d.doc_type === 'Signed BOL') || load.bol_url || load.signed_bol_url
-            const hasPOD = docs.some(d => d.doc_type === 'POD') || load.pod_url
-            return (
-              <div key={lid} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
-                borderTop: '1px solid rgba(139,92,246,0.12)',
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {load.origin} → {load.destination || load.dest}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{fmt$(load.gross || load.rate)}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {!hasBOL && (
-                    <button onClick={() => { setExpandedId(lid); if (load.id) fetchLoadDocs(load.id) }}
-                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: 'rgba(240,165,0,0.12)', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 6, color: 'var(--accent)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                      BOL
-                    </button>
-                  )}
-                  {!hasPOD && (
-                    <button onClick={() => { setExpandedId(lid); if (load.id) fetchLoadDocs(load.id) }}
-                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: 'rgba(240,165,0,0.12)', border: '1px solid rgba(240,165,0,0.25)', borderRadius: 6, color: 'var(--accent)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                      POD
-                    </button>
-                  )}
-                  {!hasInv ? (
-                    <button onClick={() => generateInvoiceForLoad(load)}
-                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: '#8b5cf6', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                      Invoice
-                    </button>
-                  ) : (
-                    <button onClick={() => quickFactor(load)}
-                      style={{ padding: '4px 8px', fontSize: 9, fontWeight: 700, background: 'var(--success)', border: 'none', borderRadius: 6, color: '#000', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-                      Factor
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {showAddLoad && (
-        <div style={{ margin: '0 16px 10px', background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: '14px', animation: 'fadeInUp 0.3s ease' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>New Load</span>
-            <button onClick={() => setShowAddLoad(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-              <Ic icon={X} size={16} color="var(--muted)" />
-            </button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input placeholder="Origin (e.g. Dallas, TX)" value={newLoad.origin} onChange={e => setNewLoad(x => ({ ...x, origin: e.target.value }))}
-              style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input placeholder="Destination (e.g. Atlanta, GA)" value={newLoad.destination} onChange={e => setNewLoad(x => ({ ...x, destination: e.target.value }))}
-              style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input type="number" placeholder="Miles" value={newLoad.miles} onChange={e => setNewLoad(x => ({ ...x, miles: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <div>
-              <input type="number" placeholder="Rate ($)" value={newLoad.rate} onChange={e => setNewLoad(x => ({ ...x, rate: e.target.value }))}
-                style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }} />
-              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Total gross amount you'll receive</div>
-            </div>
-            <input placeholder="Broker" value={newLoad.broker} onChange={e => setNewLoad(x => ({ ...x, broker: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <div>
-              <select value={newLoad.equipment} onChange={e => setNewLoad(x => ({ ...x, equipment: e.target.value }))}
-                style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif", boxSizing: 'border-box' }}>
-                {['Dry Van', 'Reefer', 'Flatbed', 'Stepdeck', 'Power Only'].map(eq => <option key={eq} value={eq}>{eq}</option>)}
-              </select>
-              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>Trailer type needed for this load</div>
-            </div>
-            <input type="date" placeholder="Pickup" value={newLoad.pickup} onChange={e => setNewLoad(x => ({ ...x, pickup: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input type="date" placeholder="Delivery" value={newLoad.delivery} onChange={e => setNewLoad(x => ({ ...x, delivery: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input placeholder="Weight (lbs)" value={newLoad.weight} onChange={e => setNewLoad(x => ({ ...x, weight: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input placeholder="Ref #" value={newLoad.refNum} onChange={e => setNewLoad(x => ({ ...x, refNum: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input placeholder="Commodity" value={newLoad.commodity} onChange={e => setNewLoad(x => ({ ...x, commodity: e.target.value }))}
-              style={{ gridColumn: '1/3', padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input placeholder="Shipper name" value={newLoad.shipper} onChange={e => setNewLoad(x => ({ ...x, shipper: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-            <input placeholder="Consignee name" value={newLoad.consignee} onChange={e => setNewLoad(x => ({ ...x, consignee: e.target.value }))}
-              style={{ padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
-          </div>
-          <button onClick={saveNewLoad}
-            style={{ width: '100%', marginTop: 10, padding: '10px', background: 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>
-            Book Load
-          </button>
-        </div>
-      )}
-
-      {/* Load cards */}
+      {/* ── Load cards ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--muted)' }}>
@@ -527,7 +539,7 @@ export default function MobileLoadsTab() {
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, color: 'var(--accent)', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{isDriver ? 'No loads assigned yet' : 'No loads yet'}</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>{isDriver ? 'Your dispatcher will assign loads here. Ask Q if you have questions.' : 'Snap a rate con or let Q find your next load.'}</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>{isDriver ? 'Your dispatcher will assign loads here.' : 'Upload a rate con or let Q find your next load.'}</div>
           </div>
         )}
 
@@ -538,7 +550,12 @@ export default function MobileLoadsTab() {
           const nextStatus = canAdvance ? STATUS_FLOW[currentIdx + 1] : null
 
           return (
-            <div key={load.id || load.load_id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 8, overflow: 'hidden', animation: `fadeInUp 0.25s ease ${index * 0.04}s both`, transition: 'transform 0.15s ease' }}>
+            <SwipeableLoadCard
+              key={load.id || load.load_id}
+              load={load}
+              onSwipeRight={canAdvance ? () => advanceStatus(load) : undefined}
+              onSwipeLeft={() => { const newId = isExpanded ? null : (load.id || load.load_id); setExpandedId(newId); if (newId && load.id) fetchLoadDocs(load.id) }}
+            >
               {/* Card header */}
               <div onClick={() => { haptic(); const newId = isExpanded ? null : (load.id || load.load_id); setExpandedId(newId); if (newId && load.id) fetchLoadDocs(load.id) }}
                 style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -619,16 +636,12 @@ export default function MobileLoadsTab() {
                       haptic('success')
                       const loc = await getLocation()
                       const timestamp = new Date().toISOString()
-                      const updates = {
-                        [`${type}_checkin_time`]: timestamp,
-                      }
+                      const updates = { [`${type}_checkin_time`]: timestamp }
                       if (loc) {
                         updates[`${type}_checkin_lat`] = loc.lat
                         updates[`${type}_checkin_lng`] = loc.lng
                       }
-                      try {
-                        await db.updateLoad(load.id, updates)
-                      } catch {}
+                      try { await db.updateLoad(load.id, updates) } catch {}
                       if (type === 'pickup') {
                         updateLoadStatus(lid, 'At Pickup')
                         showToast?.('success', 'Checked In', `Arrived at pickup${loc ? ' · GPS recorded' : ''}`)
@@ -642,16 +655,12 @@ export default function MobileLoadsTab() {
                       haptic('success')
                       const loc = await getLocation()
                       const timestamp = new Date().toISOString()
-                      const updates = {
-                        [`${type}_checkout_time`]: timestamp,
-                      }
+                      const updates = { [`${type}_checkout_time`]: timestamp }
                       if (loc) {
                         updates[`${type}_checkout_lat`] = loc.lat
                         updates[`${type}_checkout_lng`] = loc.lng
                       }
-                      try {
-                        await db.updateLoad(load.id, updates)
-                      } catch {}
+                      try { await db.updateLoad(load.id, updates) } catch {}
                       if (type === 'pickup') {
                         updateLoadStatus(lid, 'Loaded')
                         showToast?.('success', 'Loaded', 'Marked loaded — heading to delivery')
@@ -785,7 +794,6 @@ export default function MobileLoadsTab() {
                               <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>Mark Delivered</span>
                             </button>
                           </div>
-                          {/* Lumper receipt */}
                           <button onClick={() => {
                             const inp = document.createElement('input')
                             inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
@@ -941,7 +949,6 @@ export default function MobileLoadsTab() {
                           </div>
                           <span style={{ fontSize: 11, fontWeight: 800, color: '#8b5cf6', letterSpacing: 1 }}>GET PAID WORKFLOW</span>
                         </div>
-                        {/* Progress steps */}
                         <div style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
                           {steps.map((s, i) => (
                             <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -957,7 +964,6 @@ export default function MobileLoadsTab() {
                             </div>
                           ))}
                         </div>
-                        {/* Action buttons */}
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           {!hasBOL && (
                             <button onClick={() => {
@@ -1098,11 +1104,9 @@ export default function MobileLoadsTab() {
                     const s = (load.status || '').toLowerCase()
                     const isActive = s !== 'delivered' && s !== 'invoiced' && s !== 'paid' && s !== 'cancelled'
                     if (!isActive) return null
-                    // Determine navigation target
                     const navTarget = (s === 'en route to pickup' || s === 'dispatched' || s === 'rate con received' || s === 'assigned to driver')
                       ? (load.origin || '') : (load.destination || load.dest || '')
                     const encodedAddr = encodeURIComponent(navTarget)
-                    // Detect iOS vs Android for maps deep link
                     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
                     const mapsUrl = isIOS
                       ? `maps://maps.apple.com/?daddr=${encodedAddr}`
@@ -1142,7 +1146,7 @@ export default function MobileLoadsTab() {
                   })()}
                 </div>
               )}
-            </div>
+            </SwipeableLoadCard>
           )
         })}
 

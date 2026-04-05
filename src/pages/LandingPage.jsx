@@ -34,7 +34,7 @@ function FadeIn({ children, delay = 0, style = {} }) {
   const ref = useRef(null)
   const visible = useOnScreen(ref)
   return (
-    <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? 'none' : 'translateY(12px)', transition: `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`, willChange: 'opacity, transform', ...style }}>
+    <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? 'none' : 'translateY(12px)', transition: `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`, ...style }}>
       {children}
     </div>
   )
@@ -273,7 +273,7 @@ export default function LandingPage({ onGetStarted }) {
   ]
 
   return (
-    <div className="lp-root-container" style={{ background: '#ffffff', color: '#1a1a2e', fontFamily: "'DM Sans', sans-serif", overflowY: 'auto', height: '100%', minHeight: '100dvh', position: 'fixed', inset: 0, zIndex: 10, WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth', overscrollBehavior: 'none', '--bg': '#ffffff', '--surface': '#f8f8fa', '--text': '#1a1a2e', '--muted': 'rgba(26,26,46,0.5)', '--border': 'rgba(0,0,0,0.08)', '--accent': '#d4910a', '--accent2': 'rgba(212,145,10,0.1)', '--success': '#16a34a', '--danger': '#dc2626' }}>
+    <div className="lp-root-container" style={{ background: '#ffffff', color: '#1a1a2e', fontFamily: "'DM Sans', sans-serif", position: 'fixed', inset: 0, zIndex: 10, overflowY: 'scroll', overscrollBehavior: 'none', '--bg': '#ffffff', '--surface': '#f8f8fa', '--text': '#1a1a2e', '--muted': 'rgba(26,26,46,0.5)', '--border': 'rgba(0,0,0,0.08)', '--accent': '#d4910a', '--accent2': 'rgba(212,145,10,0.1)', '--success': '#16a34a', '--danger': '#dc2626' }}>
 
       <style>{`
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; box-sizing: border-box; }

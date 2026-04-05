@@ -2,8 +2,10 @@ import { useState, useCallback, useRef, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
+import useQLocation from '../../hooks/useQLocation'
 import { Package, DollarSign, X, Clock, Settings, Sparkles } from 'lucide-react'
-import { Ic, mobileAnimations, getQSystemState, haptic } from './shared'
+import { Ic, mobileAnimations, getQSystemState, haptic, fmt$ } from './shared'
+import * as db from '../../lib/database'
 
 // Lazy-load all tabs — only loads the tab JS when first rendered
 const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
@@ -14,6 +16,7 @@ const MobileChatTab = lazy(() => import('./MobileChatTab'))
 const DriverHomeTab = lazy(() => import('./DriverHomeTab'))
 const DriverPayTab = lazy(() => import('./DriverPayTab'))
 const DriverMoreTab = lazy(() => import('./DriverMoreTab'))
+const DVIROverlay = lazy(() => import('./DriverMoreTab').then(m => ({ default: m.DVIRInspection })))
 
 // Minimal loading spinner for tab suspense
 const TabLoader = () => (
@@ -45,6 +48,112 @@ export default function MobileShell() {
   const [chatAutoCall, setChatAutoCall] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsClosing, setSettingsClosing] = useState(false)
+
+  // DVIR overlay state
+  const [showDVIR, setShowDVIR] = useState(false)
+  const [dvirLoad, setDvirLoad] = useState(null)
+
+  // ── Q AUTONOMOUS LOCATION ENGINE ──
+  const qLocation = useQLocation({
+    activeLoads,
+    allLoads: ctx.loads || [],
+    enabled: activeLoads.length > 0,
+    companyAddress: ctx.company?.address || ctx.company?.city,
+
+    // Auto-arrival at pickup — Q checks driver in, advances status, announces
+    onArrivedAtPickup: useCallback((load, coords) => {
+      const lid = load.loadId || load.load_id || load.load_number || load.id
+      const shipperName = load.shipper_name || load.origin || 'shipper'
+      // Write GPS check-in to DB
+      db.updateLoad(load.id, {
+        pickup_checkin_time: new Date().toISOString(),
+        pickup_checkin_lat: coords.lat,
+        pickup_checkin_lng: coords.lng,
+      }).catch(() => {})
+      // Advance status
+      ctx.updateLoadStatus?.(lid, 'At Pickup')
+      haptic('success')
+      showToast?.('success', 'Q Auto Check-In', `Arrived at ${shipperName}`)
+      // Open Q with announcement
+      openQ(null, `Arrived at **${shipperName}**. Checking you in automatically. GPS recorded. Status → **At Pickup**.`)
+    }, [ctx, showToast]),
+
+    // Auto-arrival at delivery — same pattern
+    onArrivedAtDelivery: useCallback((load, coords) => {
+      const lid = load.loadId || load.load_id || load.load_number || load.id
+      const receiverName = load.consignee_name || load.destination || load.dest || 'receiver'
+      db.updateLoad(load.id, {
+        delivery_checkin_time: new Date().toISOString(),
+        delivery_checkin_lat: coords.lat,
+        delivery_checkin_lng: coords.lng,
+      }).catch(() => {})
+      ctx.updateLoadStatus?.(lid, 'At Delivery')
+      haptic('success')
+      showToast?.('success', 'Q Auto Check-In', `Arrived at ${receiverName}`)
+      openQ(null, `Arrived at **${receiverName}**. Checking you in. GPS recorded. Status → **At Delivery**. Snap your POD when unloaded.`)
+    }, [ctx, showToast]),
+
+    // Auto-departure from pickup — driver loaded and rolling out
+    onDepartedPickup: useCallback((load, coords) => {
+      const lid = load.loadId || load.load_id || load.load_number || load.id
+      const dest = load.destination || load.dest || '?'
+      db.updateLoad(load.id, {
+        pickup_checkout_time: new Date().toISOString(),
+        pickup_checkout_lat: coords.lat,
+        pickup_checkout_lng: coords.lng,
+      }).catch(() => {})
+      ctx.updateLoadStatus?.(lid, 'In Transit')
+      haptic('success')
+      showToast?.('', 'Q: Rolling Out', `In Transit → ${dest}`)
+      openQ(null, `Rolling out. Marked as **In Transit** → **${dest}**. ${load.miles ? `${load.miles} miles to delivery.` : ''} Drive safe.`)
+    }, [ctx, showToast]),
+
+    // Auto-departure from delivery — load delivered
+    onDepartedDelivery: useCallback((load, coords) => {
+      const lid = load.loadId || load.load_id || load.load_number || load.id
+      const status = (load.status || '').toLowerCase()
+      if (status !== 'delivered' && status !== 'at delivery') {
+        ctx.updateLoadStatus?.(lid, 'Delivered')
+      }
+      haptic('success')
+      showToast?.('success', 'Q: Load Delivered', 'Upload POD to get paid')
+      openQ(null, `Load delivered. Upload your **POD** and **BOL** so I can generate the invoice and get you paid.`)
+    }, [ctx, showToast]),
+
+    // Auto-detention — 2 hours at shipper/receiver
+    onDetentionStart: useCallback((load, locationType) => {
+      const locationName = locationType === 'pickup'
+        ? (load.shipper_name || load.origin || 'shipper')
+        : (load.consignee_name || load.destination || load.dest || 'receiver')
+      // Start detention timer (same localStorage pattern as DetentionTimer component)
+      if (!localStorage.getItem(`detention_${load.id}`)) {
+        // Set it to 2 hours ago since we just detected it now
+        localStorage.setItem(`detention_${load.id}`, String(Date.now() - 7_200_000))
+      }
+      haptic('heavy')
+      showToast?.('error', 'Detention Started', `2hr free time expired at ${locationName}`)
+      openQ(null, `**Detention started** at ${locationName}. Free time (2 hours) expired. Timer running at **$75/hr**. I'll track the charges automatically.`)
+    }, [showToast]),
+
+    // DVIR prompt — driver near yard with dispatched load
+    onNearYard: useCallback((load) => {
+      haptic('medium')
+      setDvirLoad(load)
+      setShowDVIR(true)
+      showToast?.('', 'Pre-Trip Required', 'Complete DVIR before departure')
+      openQ(null, `Pre-trip inspection required before departure. **DVIR checklist** is ready — complete it before rolling out to **${load.origin || '?'}**.`)
+    }, [showToast]),
+
+    // New load dispatched — Q announces it
+    onDispatchedLoad: useCallback((load) => {
+      const origin = load.origin || '?'
+      const dest = load.destination || load.dest || '?'
+      const rate = load.rate || load.gross || 0
+      haptic('success')
+      showToast?.('success', 'New Load Dispatched', `${origin} → ${dest}`)
+      openQ(null, `**New load dispatched.** ${origin} → ${dest}, **${fmt$(rate)}**${load.miles ? ` · ${load.miles} mi` : ''}. Navigate to pickup?`)
+    }, [showToast]),
+  })
 
   // Q center button long-press
   const longPressTimer = useRef(null)
@@ -259,6 +368,41 @@ export default function MobileShell() {
         </>
       )}
 
+      {/* ── DVIR PRE-TRIP OVERLAY ── */}
+      {showDVIR && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 250, background: 'var(--bg)',
+          display: 'flex', flexDirection: 'column', overflow: 'auto',
+          animation: 'qOverlayIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+        }}>
+          <div style={{
+            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 20px', borderBottom: '1px solid var(--border)',
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5 }}>PRE-TRIP INSPECTION</span>
+            <button onClick={() => { setShowDVIR(false); qLocation.dismissDVIR(dvirLoad?.id || dvirLoad?.load_id) }}
+              style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Ic icon={X} size={16} color="var(--muted)" />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Suspense fallback={<TabLoader />}>
+              <DVIROverlay
+                myDriver={isDriver ? (ctx.drivers || []).find(d => d.user_id === user?.id) || {} : {}}
+                vehicles={ctx.vehicles || []}
+                BackButton={() => (
+                  <button onClick={() => setShowDVIR(false)}
+                    style={{ padding: '8px 16px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans',sans-serif" }}>
+                    Done
+                  </button>
+                )}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
+
       {/* ── Q CHAT OVERLAY ── */}
       {chatOpen && (
         <>
@@ -304,7 +448,7 @@ export default function MobileShell() {
               </button>
             </div>
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay autoCall={chatAutoCall} />
+              <MobileChatTab onNavigate={(tab, extra) => { setChatOpen(false); handleNavigate(tab, extra) }} initialMessage={chatInitMsg} greetingContext={qGreetingForChat} isOverlay autoCall={chatAutoCall} qLocation={qLocation} />
             </div>
           </div>
         </>

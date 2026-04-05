@@ -56,7 +56,7 @@ function renderMarkdown(text) {
   return parts.length > 0 ? parts : text
 }
 
-export default function MobileChatTab({ onNavigate, initialMessage, greetingContext, isOverlay, autoCall }) {
+export default function MobileChatTab({ onNavigate, initialMessage, greetingContext, isOverlay, autoCall, qLocation }) {
   const { logout, showToast, subscription, user, profile } = useApp()
   const { language: currentLang, setLanguage } = useTranslation()
   const ctx = useCarrier() || {}
@@ -488,7 +488,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       if (proactiveTriggeredRef.current && proactiveLoadId === loadKey) return
       if (proactiveDismissedRef.current && Date.now() - proactiveDismissedRef.current < 30 * 60 * 1000) return
 
-      const coords = await getGPSCoords()
+      const coords = (qLocation?.lat && qLocation?.lng) ? { lat: qLocation.lat, lng: qLocation.lng } : await getGPSCoords()
       if (!coords) return
 
       const dest = inTransitLoad.destination || inTransitLoad.destination_city || ''

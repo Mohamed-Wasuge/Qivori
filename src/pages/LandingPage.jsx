@@ -421,7 +421,6 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-nav-links">
           {[
             { label: 'Features', href: '#features' },
-            { label: 'Pricing', href: '#pricing' },
           ].map(item => (
             <a key={item.label} href={item.href} className="lp-nav-link"
               style={{ fontSize: 13, color: 'rgba(26,26,26,0.5)', textDecoration: 'none', fontWeight: 500, transition: 'color 0.2s' }}
@@ -436,17 +435,16 @@ export default function LandingPage({ onGetStarted }) {
           </button>
           <button className="lp-cta-btn" onClick={handleTry}
             style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 10, padding: '9px 22px', color: '#000', fontSize: 13, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", fontWeight: 800, letterSpacing: 1, boxShadow: '0 4px 16px rgba(240,165,0,0.25)' }}>
-            START FREE TRIAL
+            GET STARTED
           </button>
         </div>
 
         {menuOpen && (
           <div className="lp-mob-menu">
             <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
-            <a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a>
             <div className="lp-mob-btns">
               <button onClick={onGetStarted} style={{ padding: '12px', background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 10, color: '#1a1a1a', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Sign In</button>
-              <button onClick={handleTry} style={{ padding: '12px', background: '#f0a500', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>START FREE TRIAL</button>
+              <button onClick={handleTry} style={{ padding: '12px', background: '#f0a500', border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>GET STARTED</button>
             </div>
           </div>
         )}
@@ -484,14 +482,14 @@ export default function LandingPage({ onGetStarted }) {
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button className="lp-cta-btn" onClick={handleTry}
                   style={{ background: 'linear-gradient(135deg, #f0a500, #d48e00)', border: 'none', borderRadius: 14, padding: '18px 48px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 12px 40px rgba(240,165,0,0.3)', letterSpacing: 2 }}>
-                  START FREE TRIAL
+                  GET STARTED
                 </button>
                 <button onClick={() => setVideoModal(true)}
                   style={{ background: 'rgba(255,255,255,0.8)', border: '2px solid rgba(26,26,26,0.1)', borderRadius: 14, padding: '16px 32px', color: '#1a1a1a', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', backdropFilter: 'blur(10px)' }}>
                   <Ic icon={Play} size={14} color="#f0a500" /> Watch Demo
                 </button>
               </div>
-              <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(26,26,26,0.3)', fontWeight: 500 }}>14-day free trial · No credit card required</p>
+              <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(26,26,26,0.3)', fontWeight: 500 }}>Free to try · No credit card required</p>
             </FadeIn>
           </div>
 
@@ -876,16 +874,16 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
-      {/* ── FEATURES + PRICING ─────────────────────────────────────── */}
+      {/* ── FEATURES ─────────────────────────────────────────────── */}
       <section id="features" className="lp-section lp-section-glow" style={{ padding: '100px 40px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>EVERYTHING INCLUDED</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 52, color: '#1a1a1a' }}>One Platform. One Price.</h2>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>FEATURES</p>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 52, color: '#1a1a1a' }}>Everything. One Platform.</h2>
           </FadeIn>
 
           {/* Features grid — compact 3-column */}
-          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 64 }}>
+          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {[
               { title: 'AI Dispatch', desc: 'Q picks loads based on your lanes, equipment, and profit targets.', icon: Truck, color: '#f0a500' },
               { title: 'Auto Invoicing', desc: 'Invoices created after delivery. Send, track, and factor instantly.', icon: Zap, color: '#22c55e' },
@@ -905,33 +903,6 @@ export default function LandingPage({ onGetStarted }) {
               </FadeIn>
             ))}
           </div>
-
-          {/* Pricing — inline, not its own section */}
-          <FadeIn delay={0.2}>
-            <div id="pricing" style={{ maxWidth: 520, margin: '0 auto', background: '#0a0a0e', borderRadius: 24, padding: '48px 40px', position: 'relative', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.15), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.12)' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #d48e00)' }} />
-              <div style={{ position: 'absolute', width: 300, height: 300, top: '-50%', right: '-10%', background: 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
-              <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 72, color: '#f0a500', lineHeight: 1 }}>$79</span>
-                  <span style={{ fontSize: 18, color: 'rgba(255,255,255,0.3)' }}>/mo</span>
-                </div>
-                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginBottom: 28 }}>+ $39/mo per additional truck</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, textAlign: 'left', marginBottom: 32 }}>
-                  {['AI dispatch', 'Auto invoicing', 'IFTA reporting', 'Compliance', 'Fleet tracking', 'Driver management', 'Expense tracking', 'P&L dashboard', 'Voice AI (Q)', 'Receipt scanning'].map((f, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.5)', padding: '5px 0' }}>
-                      <Ic icon={Check} size={13} color="#f0a500" /><span>{f}</span>
-                    </div>
-                  ))}
-                </div>
-                <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
-                  style={{ width: '100%', padding: '18px 0', fontSize: 16, fontWeight: 800, borderRadius: 14, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1, boxShadow: '0 12px 40px rgba(240,165,0,0.3)' }}>
-                  {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START 14-DAY FREE TRIAL'}
-                </button>
-                <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>No credit card required · Cancel anytime</p>
-              </div>
-            </div>
-          </FadeIn>
         </div>
       </section>
 
@@ -946,7 +917,7 @@ export default function LandingPage({ onGetStarted }) {
             <p style={{ fontSize: 19, color: 'rgba(26,26,26,0.45)', lineHeight: 1.7, marginBottom: 40 }}>Set up in minutes. Start your first load today.</p>
             <button className="lp-cta-btn" onClick={handleTry}
               style={{ background: 'linear-gradient(135deg, #f0a500, #d48e00)', border: 'none', borderRadius: 14, padding: '20px 64px', color: '#000', fontSize: 17, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, boxShadow: '0 16px 50px rgba(240,165,0,0.35)' }}>
-              START FREE TRIAL
+              GET STARTED
             </button>
             <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(26,26,26,0.25)', fontWeight: 500 }}>No credit card required</p>
           </div>
@@ -985,7 +956,6 @@ export default function LandingPage({ onGetStarted }) {
             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 14 }}>{t('landing.footerCompany')}</div>
             {[
               { key: 'landing.about', href: '#about' },
-              { key: 'landing.navPricing', href: '#pricing' },
               { key: 'landing.blog', href: '#/guides/ifta-reporting' },
               { key: 'landing.careers', href: 'mailto:hello@qivori.com' },
               { key: 'landing.contact', href: 'mailto:hello@qivori.com' },

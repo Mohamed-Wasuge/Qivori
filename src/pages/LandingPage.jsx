@@ -121,6 +121,20 @@ export default function LandingPage({ onGetStarted }) {
   const [demoSent, setDemoSent] = useState(false)
   const [demoError, setDemoError] = useState('')
 
+  // Q Simulator state for hero section
+  const [qStep, setQStep] = useState(0)
+  const [qFade, setQFade] = useState(true)
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setQFade(false)
+      setTimeout(() => {
+        setQStep(s => (s + 1) % 8)
+        setQFade(true)
+      }, 300)
+    }, 2500)
+    return () => clearInterval(iv)
+  }, [])
+
   // Close video modal on Escape key
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') setVideoModal(false) }
@@ -493,66 +507,68 @@ export default function LandingPage({ onGetStarted }) {
             </FadeIn>
           </div>
 
-          {/* RIGHT — Live Fleet Dashboard Mockup */}
+          {/* RIGHT — Cinematic Q Simulator */}
           <FadeIn delay={0.15}>
-            <div className="lp-mockup-card" style={{ background: '#0a0a0e', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.2), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.1)' }}>
-              {/* Browser chrome */}
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.03)' }}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
-                </div>
-                <div style={{ flex: 1, marginLeft: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>qivori.com/dashboard</div>
-              </div>
-              {/* Fleet header */}
-              <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px rgba(34,197,94,0.6)' }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1.5 }}>LIVE FLEET</span>
-                </div>
-                <div style={{ display: 'flex', gap: 16 }}>
-                  {[{ v: '8', l: 'On Load' }, { v: '$34.2K', l: 'This Week' }].map(s => (
-                    <div key={s.l} style={{ textAlign: 'center' }}>
-                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: '#f0a500', lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5 }}>{s.l}</div>
+            {(() => {
+              const qSteps = [
+                { label: 'Scanning', color: '#f0a500', title: 'Scanning 247 loads across 5 load boards...', sub: 'DAT · Truckstop · 123Loadboard · Direct · USPS', icon: '...' },
+                { label: 'Load Found', color: '#22c55e', title: 'Found: DAL \u2192 ATL \u00b7 1,300 mi \u00b7 $3,840 ($2.95/mi)', sub: 'Fuel: -$520 \u00b7 Driver: -$1,075 \u00b7 Net Profit: $2,245', icon: '\u2605' },
+                { label: 'Q Decision', color: '#22c55e', title: 'Q Decision: ACCEPT \u2713', sub: '94% confidence \u00b7 Rate is 18% above market', icon: '\u2713' },
+                { label: 'Dispatched', color: '#a855f7', title: 'Dispatched to Mike J. \u00b7 Unit 101', sub: 'Driver notified via SMS + app', icon: '\u279c' },
+                { label: 'In Transit', color: '#f0a500', title: 'GPS: In transit \u00b7 65% complete \u00b7 ETA 4:30 PM', sub: 'Dallas, TX \u2192 Atlanta, GA', icon: '\u25b6', hasProgress: true, progress: 65 },
+                { label: 'Delivered', color: '#22c55e', title: 'Arrived at delivery \u00b7 POD uploaded automatically', sub: 'Signed by: J. Martinez \u00b7 12:47 PM', icon: '\u2713' },
+                { label: 'Invoiced', color: '#00d4aa', title: 'Invoice #1847 sent to Summit Freight Co. \u00b7 $3,840', sub: 'Payment expected: Net 30', icon: '$' },
+                { label: 'Backhaul', color: '#3b82f6', title: 'Q found backhaul: ATL \u2192 MIA \u00b7 $2,190 \u00b7 $2.80/mi', sub: 'Your truck never sits empty.', icon: '\u21bb' },
+              ]
+              const step = qSteps[qStep]
+              return (
+                <div className="lp-mockup-card" style={{ background: '#0a0a0e', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.2), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.1)' }}>
+                  {/* Browser chrome */}
+                  <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.03)' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
                     </div>
-                  ))}
-                </div>
-              </div>
-              {/* Active loads pipeline */}
-              <div style={{ padding: '16px 20px' }}>
-                {[
-                  { route: 'DAL → ATL', rate: '$3,840', rpm: '$2.95/mi', status: 'In Transit', statusColor: '#22c55e', driver: 'Mike J.', truckColor: '#f0a500', progress: 65 },
-                  { route: 'CHI → MIA', rate: '$3,590', rpm: '$2.60/mi', status: 'Loaded', statusColor: '#00d4aa', driver: 'Carlos R.', truckColor: '#00d4aa', progress: 10 },
-                  { route: 'NYC → PHL', rate: '$680', rpm: '$7.00/mi', status: 'At Pickup', statusColor: '#4d8ef0', driver: 'James W.', truckColor: '#3498db', progress: 0 },
-                ].map((load, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, marginBottom: 8, background: i === 0 ? 'rgba(240,165,0,0.06)' : 'rgba(255,255,255,0.02)', border: i === 0 ? '1px solid rgba(240,165,0,0.15)' : '1px solid rgba(255,255,255,0.04)' }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: load.truckColor, boxShadow: `0 0 6px ${load.truckColor}60`, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{load.route}</span>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: load.statusColor, background: `${load.statusColor}15`, padding: '2px 8px', borderRadius: 4, letterSpacing: 0.5 }}>{load.status}</span>
+                    <div style={{ flex: 1, marginLeft: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>qivori.com/q-dispatch</div>
+                  </div>
+                  {/* Q header */}
+                  <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #f0a500, #d48e00)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: '#000', fontFamily: "'Bebas Neue',sans-serif" }}>Q</div>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>Q AUTONOMOUS DISPATCH</div>
+                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>Live simulation</div>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{load.driver} · {load.rpm}</span>
-                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#f0a500' }}>{load.rate}</span>
-                      </div>
-                      {load.progress > 0 && (
-                        <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, marginTop: 6, overflow: 'hidden' }}>
-                          <div style={{ width: `${load.progress}%`, height: '100%', background: load.truckColor, borderRadius: 1 }} />
+                    </div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: step.color, background: `${step.color}15`, padding: '3px 10px', borderRadius: 6, letterSpacing: 0.5 }}>{step.label.toUpperCase()}</div>
+                  </div>
+                  {/* Step content */}
+                  <div style={{ padding: '24px 20px', minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div style={{ opacity: qFade ? 1 : 0, transform: qFade ? 'translateY(0)' : 'translateY(8px)', transition: 'all 0.3s ease' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${step.color}18`, border: `1px solid ${step.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: step.color, flexShrink: 0, marginTop: 2 }}>{step.icon}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.4, marginBottom: 8 }}>{step.title}</div>
+                          <div style={{ fontSize: 12, color: step.color, fontWeight: 500, lineHeight: 1.5 }}>{step.sub}</div>
+                          {step.hasProgress && (
+                            <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginTop: 12, overflow: 'hidden' }}>
+                              <div style={{ width: `${step.progress}%`, height: '100%', background: `linear-gradient(90deg, ${step.color}, ${step.color}cc)`, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
-                ))}
-                {/* Q AI status bar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '10px 14px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: 10 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                  <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Q analyzed 247 loads · Auto-booked 3 · Saved $1,840 in negotiations</span>
+                  {/* Step dots */}
+                  <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {qSteps.map((_, i) => (
+                      <div key={i} style={{ width: i === qStep ? 18 : 6, height: 6, borderRadius: 3, background: i === qStep ? qSteps[qStep].color : 'rgba(255,255,255,0.1)', transition: 'all 0.3s ease' }} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </div>
+              )
+            })()}
           </FadeIn>
         </div>
       </section>

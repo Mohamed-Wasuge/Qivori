@@ -394,6 +394,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-hero { padding: 80px 20px 60px !important; }
           .lp-section { padding: 60px 20px !important; }
           .lp-features-grid { grid-template-columns: 1fr !important; }
+          .lp-pipeline-cols { grid-template-columns: repeat(2, 1fr) !important; }
           .lp-q-voice-grid { grid-template-columns: 1fr !important; }
           .lp-section-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
@@ -401,6 +402,7 @@ export default function LandingPage({ onGetStarted }) {
         @media (max-width: 480px) {
           .lp-hero h1 { font-size: 36px !important; }
           .lp-section-heading { font-size: 30px !important; }
+          .lp-pipeline-cols { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -642,6 +644,91 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
+      {/* ── LOAD PIPELINE ──────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '100px 48px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <FadeIn>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>THE PIPELINE</p>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 16, color: '#1a1a1a' }}>Every Load. Every Stage.</h2>
+            <p style={{ fontSize: 16, color: 'rgba(26,26,26,0.45)', textAlign: 'center', marginBottom: 52, maxWidth: 500, margin: '0 auto 52px' }}>From booking to invoice — Q moves your loads through every stage automatically.</p>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <div className="lp-mockup-card" style={{ background: '#0a0a0e', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.2), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.1)' }}>
+              {/* Pipeline tabs */}
+              <div style={{ padding: '14px 24px 0', display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
+                {[
+                  { label: 'Booked', count: 2, color: '#3b82f6', active: false },
+                  { label: 'Dispatched', count: 1, color: '#a855f7', active: false },
+                  { label: 'In Transit', count: 3, color: '#f0a500', active: true },
+                  { label: 'Delivered', count: 2, color: '#22c55e', active: false },
+                  { label: 'Invoiced', count: 4, color: '#00d4aa', active: false },
+                ].map(tab => (
+                  <div key={tab.label} style={{ padding: '10px 20px 14px', fontSize: 12, fontWeight: 700, color: tab.active ? '#f0a500' : 'rgba(255,255,255,0.25)', letterSpacing: 0.5, borderBottom: tab.active ? '2px solid #f0a500' : '2px solid transparent', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {tab.label}
+                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: tab.active ? 'rgba(240,165,0,0.15)' : 'rgba(255,255,255,0.04)', color: tab.active ? '#f0a500' : 'rgba(255,255,255,0.2)' }}>{tab.count}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Pipeline columns */}
+              <div className="lp-pipeline-cols" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, padding: '18px 20px 22px' }}>
+                {[
+                  { title: 'Booked', color: '#3b82f6', loads: [
+                    { route: 'PHX → LAX', rate: '$1,600', rpm: '$3.20/mi', driver: 'Open' },
+                    { route: 'SEA → PDX', rate: '$890', rpm: '$4.10/mi', driver: 'Open' },
+                  ]},
+                  { title: 'Dispatched', color: '#a855f7', loads: [
+                    { route: 'ATL → MIA', rate: '$2,100', rpm: '$2.80/mi', driver: 'Carlos R.' },
+                  ]},
+                  { title: 'In Transit', color: '#f0a500', loads: [
+                    { route: 'DAL → ATL', rate: '$3,840', rpm: '$2.95/mi', driver: 'Mike J.', progress: 65 },
+                    { route: 'CHI → DET', rate: '$1,890', rpm: '$6.75/mi', driver: 'Amir K.', progress: 40 },
+                    { route: 'DEN → LAX', rate: '$2,450', rpm: '$2.35/mi', driver: 'James W.', progress: 80 },
+                  ]},
+                  { title: 'Delivered', color: '#22c55e', loads: [
+                    { route: 'NYC → BOS', rate: '$1,450', rpm: '$4.80/mi', driver: 'Sarah M.' },
+                    { route: 'MEM → CHI', rate: '$1,720', rpm: '$3.10/mi', driver: 'David L.' },
+                  ]},
+                  { title: 'Invoiced', color: '#00d4aa', loads: [
+                    { route: 'MIA → ATL', rate: '$1,980', rpm: '$2.90/mi', inv: '#1845' },
+                    { route: 'HOU → DAL', rate: '$680', rpm: '$7.00/mi', inv: '#1846' },
+                    { route: 'LAX → PHX', rate: '$1,200', rpm: '$3.40/mi', inv: '#1847' },
+                    { route: 'BOS → NYC', rate: '$890', rpm: '$4.50/mi', inv: '#1848' },
+                  ]},
+                ].map(col => (
+                  <div key={col.title}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: col.color, textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: col.color }} />
+                      {col.title}
+                    </div>
+                    {col.loads.map((load, j) => (
+                      <div key={j} style={{ background: `${col.color}08`, borderLeft: `2px solid ${col.color}`, borderRadius: 8, padding: '8px 10px', marginBottom: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{load.route}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{load.driver || load.inv}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: col.color }}>{load.rate}</span>
+                        </div>
+                        {load.progress && (
+                          <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, marginTop: 5, overflow: 'hidden' }}>
+                            <div style={{ width: `${load.progress}%`, height: '100%', background: col.color, borderRadius: 1 }} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {/* Pipeline footer stats */}
+              <div style={{ padding: '12px 24px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)', display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Active: <strong style={{ color: '#f0a500' }}>12 loads</strong></span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Revenue: <strong style={{ color: '#22c55e' }}>$20,690</strong></span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Profit: <strong style={{ color: '#00d4aa' }}>$9,380</strong></span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginLeft: 'auto' }}>Q auto-dispatched <strong style={{ color: '#f0a500' }}>4 loads</strong> today</span>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* ── MEET Q — VOICE AI SECTION ──────────────────────────────── */}
       <section className="lp-section" style={{ padding: '100px 48px', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141a 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(240,165,0,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(240,165,0,0.02) 1px, transparent 1px)', backgroundSize: '60px 60px', pointerEvents: 'none' }} />
@@ -699,72 +786,61 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
-      {/* ── FEATURES ──────────────────────────────────────────────────── */}
+      {/* ── FEATURES + PRICING ─────────────────────────────────────── */}
       <section id="features" className="lp-section lp-section-glow" style={{ padding: '100px 40px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>FEATURES</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 56, color: '#1a1a1a' }}>Everything You Need</h2>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>EVERYTHING INCLUDED</p>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 52, color: '#1a1a1a' }}>One Platform. One Price.</h2>
           </FadeIn>
-          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
+
+          {/* Features grid — compact 3-column */}
+          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 64 }}>
             {[
-              { title: 'Smart Dispatch', desc: 'Q doesn\'t just show loads — it picks the right ones based on your lanes, equipment, and profit targets.', icon: Truck, color: '#f0a500' },
-              { title: 'Auto Invoicing', desc: 'Invoices created automatically after delivery. Send, track, and factor — all in one place.', icon: Zap, color: '#22c55e' },
-              { title: 'Profit Tracking', desc: 'Know exactly what you make per load, driver, and lane. Real numbers, not estimates.', icon: TrendingUp, color: '#3b82f6' },
-              { title: 'Driver Management', desc: 'Assign loads, track settlements, manage pay — per-driver or per-mile, your choice.', icon: Users, color: '#a855f7' },
-              { title: 'IFTA & Compliance', desc: 'Mileage tracking, fuel tax reports, and compliance alerts handled automatically.', icon: Shield, color: '#00d4aa' },
+              { title: 'AI Dispatch', desc: 'Q picks loads based on your lanes, equipment, and profit targets.', icon: Truck, color: '#f0a500' },
+              { title: 'Auto Invoicing', desc: 'Invoices created after delivery. Send, track, and factor instantly.', icon: Zap, color: '#22c55e' },
+              { title: 'Profit Tracking', desc: 'Real profit per load, driver, and lane. Not estimates — real numbers.', icon: TrendingUp, color: '#3b82f6' },
+              { title: 'Driver Management', desc: 'Assign loads, settlements, pay — percentage, per-mile, or flat.', icon: Users, color: '#a855f7' },
+              { title: 'IFTA & Compliance', desc: 'Mileage tracking, fuel tax reports, and alerts — automatic.', icon: Shield, color: '#00d4aa' },
+              { title: 'Fleet Tracking', desc: 'GPS tracking, geofence alerts, detention timers — real-time.', icon: Clock, color: '#e67e22' },
             ].map((feat, i) => (
-              <FadeIn key={feat.title} delay={i * 0.06}>
-                <div className="lp-feature-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 18, padding: '32px 28px', display: 'flex', gap: 18, alignItems: 'flex-start', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 14, background: `${feat.color}12`, border: `1px solid ${feat.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Ic icon={feat.icon} size={20} color={feat.color} />
+              <FadeIn key={feat.title} delay={i * 0.04}>
+                <div className="lp-feature-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 16, padding: '24px 22px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: `${feat.color}12`, border: `1px solid ${feat.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                    <Ic icon={feat.icon} size={18} color={feat.color} />
                   </div>
-                  <div>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{feat.title}</div>
-                    <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.5)', lineHeight: 1.65 }}>{feat.desc}</div>
-                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{feat.title}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(26,26,26,0.45)', lineHeight: 1.6 }}>{feat.desc}</div>
                 </div>
               </FadeIn>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* ── PRICING ───────────────────────────────────────────────────── */}
-      <section id="pricing" className="lp-section lp-section-glow" style={{ padding: '100px 40px' }}>
-        <div style={{ maxWidth: 820, margin: '0 auto', textAlign: 'center' }}>
-          <FadeIn>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12 }}>SIMPLE PRICING</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 3, marginBottom: 40, color: '#1a1a1a' }}>
-              One plan. Everything.
-            </h2>
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <div style={{ maxWidth: 440, margin: '0 auto', background: '#fff', border: '2px solid rgba(240,165,0,0.25)', borderRadius: 28, padding: '52px 36px 44px', position: 'relative', overflow: 'hidden', boxShadow: '0 20px 60px rgba(240,165,0,0.12), 0 0 0 1px rgba(240,165,0,0.05)' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, #f0a500, #d48e00)' }} />
-              <div style={{ marginBottom: 20, padding: '6px 14px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, display: 'inline-block' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>EVERYTHING INCLUDED</span>
+          {/* Pricing — inline, not its own section */}
+          <FadeIn delay={0.2}>
+            <div id="pricing" style={{ maxWidth: 520, margin: '0 auto', background: '#0a0a0e', borderRadius: 24, padding: '48px 40px', position: 'relative', overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.15), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.12)' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #d48e00)' }} />
+              <div style={{ position: 'absolute', width: 300, height: 300, top: '-50%', right: '-10%', background: 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+              <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 72, color: '#f0a500', lineHeight: 1 }}>$79</span>
+                  <span style={{ fontSize: 18, color: 'rgba(255,255,255,0.3)' }}>/mo</span>
+                </div>
+                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.3)', marginBottom: 28 }}>+ $39/mo per additional truck</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, textAlign: 'left', marginBottom: 32 }}>
+                  {['AI dispatch', 'Auto invoicing', 'IFTA reporting', 'Compliance', 'Fleet tracking', 'Driver management', 'Expense tracking', 'P&L dashboard', 'Voice AI (Q)', 'Receipt scanning'].map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(255,255,255,0.5)', padding: '5px 0' }}>
+                      <Ic icon={Check} size={13} color="#f0a500" /><span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
+                  style={{ width: '100%', padding: '18px 0', fontSize: 16, fontWeight: 800, borderRadius: 14, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1, boxShadow: '0 12px 40px rgba(240,165,0,0.3)' }}>
+                  {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START 14-DAY FREE TRIAL'}
+                </button>
+                <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>No credit card required · Cancel anytime</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 68, color: '#f0a500', lineHeight: 1 }}>$79</span>
-                <span style={{ fontSize: 18, color: 'rgba(26,26,26,0.35)' }}>/mo</span>
-              </div>
-              <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.35)', marginBottom: 28 }}>+ $39/mo per additional truck</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, textAlign: 'left', marginBottom: 32 }}>
-                {['AI dispatch', 'Auto invoicing', 'IFTA reporting', 'Compliance', 'Fleet tracking', 'Driver management', 'Expense tracking', 'P&L dashboard'].map((f, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'rgba(26,26,26,0.6)', padding: '5px 0' }}>
-                    <Ic icon={Check} size={13} color="#f0a500" /><span>{f}</span>
-                  </div>
-                ))}
-              </div>
-              <button className="lp-cta-btn" onClick={() => handleCheckout('tms_pro')} disabled={checkoutLoading === 'tms_pro'}
-                style={{ width: '100%', padding: '16px 0', fontSize: 15, fontWeight: 800, borderRadius: 12, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, background: 'linear-gradient(135deg, #f0a500, #e09000)', color: '#000', border: 'none', opacity: checkoutLoading === 'tms_pro' ? 0.6 : 1, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' }}>
-                {checkoutLoading === 'tms_pro' ? 'Loading...' : 'START FREE TRIAL'}
-              </button>
             </div>
-          </FadeIn>
-          <FadeIn delay={0.15}>
-            <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(26,26,26,0.3)' }}>14-day free trial · No credit card required · Cancel anytime</p>
           </FadeIn>
         </div>
       </section>

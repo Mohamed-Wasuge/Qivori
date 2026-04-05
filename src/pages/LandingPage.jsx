@@ -743,11 +743,11 @@ export default function LandingPage({ onGetStarted }) {
                 </div>
                 <div style={{ padding: '12px 18px' }}>
                   {[
-                    { inv: 'INV-1845', broker: 'TQL Logistics', route: 'MIA → ATL', amount: '$1,980', status: 'Sent', statusColor: '#f0a500' },
-                    { inv: 'INV-1846', broker: 'CH Robinson', route: 'HOU → DAL', amount: '$680', status: 'Paid', statusColor: '#22c55e' },
-                    { inv: 'INV-1847', broker: 'Echo Global', route: 'LAX → PHX', amount: '$1,200', status: 'Sent', statusColor: '#f0a500' },
-                    { inv: 'INV-1848', broker: 'Coyote Logistics', route: 'BOS → NYC', amount: '$890', status: 'Factored', statusColor: '#00d4aa' },
-                    { inv: 'INV-1844', broker: 'XPO Logistics', route: 'DAL → ATL', amount: '$3,840', status: 'Paid', statusColor: '#22c55e' },
+                    { inv: 'INV-1845', broker: 'Summit Freight Co.', route: 'MIA → ATL', amount: '$1,980', status: 'Sent', statusColor: '#f0a500' },
+                    { inv: 'INV-1846', broker: 'Apex Logistics', route: 'HOU → DAL', amount: '$680', status: 'Paid', statusColor: '#22c55e' },
+                    { inv: 'INV-1847', broker: 'Ridgeline Transport', route: 'LAX → PHX', amount: '$1,200', status: 'Sent', statusColor: '#f0a500' },
+                    { inv: 'INV-1848', broker: 'Ironhorse Brokerage', route: 'BOS → NYC', amount: '$890', status: 'Factored', statusColor: '#00d4aa' },
+                    { inv: 'INV-1844', broker: 'Northwind Freight', route: 'DAL → ATL', amount: '$3,840', status: 'Paid', statusColor: '#22c55e' },
                   ].map((inv, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                       <div style={{ width: 6, height: 6, borderRadius: '50%', background: inv.statusColor, flexShrink: 0 }} />
@@ -783,7 +783,7 @@ export default function LandingPage({ onGetStarted }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <div>
                       <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', marginBottom: 2 }}>Bill To</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>TQL Logistics</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Summit Freight Co.</div>
                       <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)' }}>Cincinnati, OH</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -795,7 +795,7 @@ export default function LandingPage({ onGetStarted }) {
                     {[
                       { label: 'Route', value: 'Miami, FL → Atlanta, GA' },
                       { label: 'Miles', value: '662 mi' },
-                      { label: 'Load #', value: 'TQL-482917' },
+                      { label: 'Load #', value: 'SMT-482917' },
                       { label: 'Driver', value: 'Sarah M. — Unit 312' },
                     ].map((row, i) => (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -863,7 +863,7 @@ export default function LandingPage({ onGetStarted }) {
                     { q: true, text: '✅ GPS check-in at shipper.\nStatus → At Pickup\nDock 7. Load time: 45 min.' },
                     { q: true, text: '💰 Delivered. POD uploaded.\nInvoice #1847 sent.\nDriver pay: $1,075.20' },
                     { q: false, text: 'Q, find backhaul from ATL' },
-                    { q: true, text: 'Best: ATL → MIA\n$2,190 · $2.80/mi\nBroker: TQL (A-rated)' },
+                    { q: true, text: 'Best: ATL → MIA\n$2,190 · $2.80/mi\nBroker: Apex (A-rated)' },
                   ].map((msg, i) => (
                     <div key={i} style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: 14, fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-line', alignSelf: msg.q ? 'flex-start' : 'flex-end', background: msg.q ? 'rgba(240,165,0,0.08)' : 'rgba(255,255,255,0.05)', border: msg.q ? '1px solid rgba(240,165,0,0.15)' : '1px solid rgba(255,255,255,0.08)', borderBottomLeftRadius: msg.q ? 4 : 14, borderBottomRightRadius: msg.q ? 14 : 4, color: 'rgba(255,255,255,0.85)' }}>
                       {msg.text}

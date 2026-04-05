@@ -5,7 +5,7 @@ import { TrendingUp, Zap, Check, X, Shield, Play, Clock, ChevronDown, ArrowRight
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
-// Animate elements on scroll
+// Animate elements on scroll (one-time fade in)
 function useOnScreen(ref) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -15,6 +15,19 @@ function useOnScreen(ref) {
     return () => obs.disconnect()
   }, [ref])
   return visible
+}
+
+// Track if a section is currently visible (starts/stops when entering/leaving viewport)
+function useSectionVisible() {
+  const ref = useRef(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    if (!ref.current) return
+    const obs = new IntersectionObserver(([e]) => setVisible(e.isIntersecting), { threshold: 0.01 })
+    obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [])
+  return [ref, visible]
 }
 
 function FadeIn({ children, delay = 0, style = {} }) {
@@ -38,71 +51,86 @@ export default function LandingPage({ onGetStarted }) {
   const [demoError, setDemoError] = useState('')
   const [faqOpen, setFaqOpen] = useState(null)
 
+  // ── Section visibility refs — animations only run when on-screen ──
+  const [qRef, qVisible] = useSectionVisible()
+  const [pipeRef, pipeVisible] = useSectionVisible()
+  const [featRef, featVisible] = useSectionVisible()
+  const [backRef, backVisible] = useSectionVisible()
+  const [mobileRef, mobileVisible] = useSectionVisible()
+
   // Q Simulator state
   const [qStep, setQStep] = useState(0)
   const [qFade, setQFade] = useState(true)
   useEffect(() => {
+    if (!qVisible) return
     const iv = setInterval(() => {
       setQFade(false)
       setTimeout(() => { setQStep(s => (s + 1) % 8); setQFade(true) }, 300)
     }, 2500)
     return () => clearInterval(iv)
-  }, [])
+  }, [qVisible])
 
   // Pipeline animation — card flows through stages
-  const [pipelineStep, setPipelineStep] = useState(0) // 0-5 = which column the active card is in
-  const [profitAnim, setProfitAnim] = useState(0) // 0-100 for counting up
+  const [pipelineStep, setPipelineStep] = useState(0)
+  const [profitAnim, setProfitAnim] = useState(0)
   useEffect(() => {
+    if (!pipeVisible) return
     const iv = setInterval(() => setPipelineStep(p => (p + 1) % 6), 1800)
     return () => clearInterval(iv)
-  }, [])
+  }, [pipeVisible])
   useEffect(() => {
+    if (!pipeVisible) return
     const iv = setInterval(() => setProfitAnim(p => p >= 100 ? 100 : p + 3), 50)
     return () => clearInterval(iv)
-  }, [])
-  // Reset profit counter when pipeline resets
+  }, [pipeVisible])
   useEffect(() => { if (pipelineStep === 0) setProfitAnim(0) }, [pipelineStep])
 
-  // Invoice/Factor animation — 4 phases: generating, sent, factoring, funded
+  // Invoice/Factor animation
   const [invoicePhase, setInvoicePhase] = useState(0)
   useEffect(() => {
+    if (!backVisible) return
     const durations = [2200, 1800, 2000, 2500]
     const timeout = setTimeout(() => setInvoicePhase(p => (p + 1) % 4), durations[invoicePhase])
     return () => clearTimeout(timeout)
-  }, [invoicePhase])
+  }, [invoicePhase, backVisible])
 
-  // EDI animation — 4 phases: tender in, auto-accept, status update, invoice
+  // EDI animation
   const [ediPhase, setEdiPhase] = useState(0)
   useEffect(() => {
+    if (!backVisible) return
     const durations = [2400, 2000, 2200, 2800]
     const timeout = setTimeout(() => setEdiPhase(p => (p + 1) % 4), durations[ediPhase])
     return () => clearTimeout(timeout)
-  }, [ediPhase])
+  }, [ediPhase, backVisible])
 
-  // Command Center animation — trucks moving, HOS ticking
-  const [ccTick, setCcTick] = useState(0) // 0-100 continuous
-  const [ccAlert, setCcAlert] = useState(0) // 0-2 which truck is highlighted
+  // Command Center animation
+  const [ccTick, setCcTick] = useState(0)
+  const [ccAlert, setCcAlert] = useState(0)
   useEffect(() => {
+    if (!featVisible) return
     const iv = setInterval(() => setCcTick(p => (p + 1) % 100), 120)
     return () => clearInterval(iv)
-  }, [])
+  }, [featVisible])
   useEffect(() => {
+    if (!featVisible) return
     const iv = setInterval(() => setCcAlert(p => (p + 1) % 3), 3000)
     return () => clearInterval(iv)
-  }, [])
+  }, [featVisible])
 
-  // AI Dispatch animation — 4 phases: scanning, load found, broker card, calling broker
+  // AI Dispatch animation
   const [dispatchPhase, setDispatchPhase] = useState(0)
   useEffect(() => {
+    if (!featVisible) return
     const durations = [2000, 2200, 2400, 3000]
     const timeout = setTimeout(() => setDispatchPhase(p => (p + 1) % 4), durations[dispatchPhase])
     return () => clearTimeout(timeout)
-  }, [dispatchPhase])
+  }, [dispatchPhase, featVisible])
 
-  // Rate Check animation — 4 phases: analyzing, factors scored, breakdown, counter-offer
+  // Rate Check animation
   const [ratePhase, setRatePhase] = useState(0)
-  const [rateCosts, setRateCosts] = useState(0) // 0-100 counter
+  const [rateCosts, setRateCosts] = useState(0)
   useEffect(() => {
+    if (!featVisible) return
     const durations = [2200, 2000, 2500, 3000]
     const timeout = setTimeout(() => {
       setRatePhase(p => {
@@ -112,58 +140,53 @@ export default function LandingPage({ onGetStarted }) {
       })
     }, durations[ratePhase])
     return () => clearTimeout(timeout)
-  }, [ratePhase])
+  }, [ratePhase, featVisible])
   useEffect(() => {
-    if (ratePhase >= 2) {
-      const iv = setInterval(() => setRateCosts(p => p >= 100 ? 100 : p + 4), 50)
-      return () => clearInterval(iv)
-    }
-  }, [ratePhase])
+    if (!featVisible || ratePhase < 2) return
+    const iv = setInterval(() => setRateCosts(p => p >= 100 ? 100 : p + 4), 50)
+    return () => clearInterval(iv)
+  }, [ratePhase, featVisible])
 
-  // Financial dashboard animation — profit counting up + briefing phases
-  const [finAnim, setFinAnim] = useState(0) // 0-100 counter
-  const [finAlert, setFinAlert] = useState(0) // 0-3 alert phases
+  // Financial dashboard animation
+  const [finAnim, setFinAnim] = useState(0)
+  const [finAlert, setFinAlert] = useState(0)
   useEffect(() => {
+    if (!featVisible) return
     const iv = setInterval(() => setFinAnim(p => p >= 100 ? 100 : p + 2), 60)
     return () => clearInterval(iv)
-  }, [])
+  }, [featVisible])
   useEffect(() => {
+    if (!featVisible) return
     const durations = [2500, 2000, 2200, 3000]
     const timeout = setTimeout(() => {
       setFinAlert(p => {
         const next = (p + 1) % 4
-        if (next === 0) setFinAnim(0) // reset counters on loop
+        if (next === 0) setFinAnim(0)
         return next
       })
     }, durations[finAlert])
     return () => clearTimeout(timeout)
-  }, [finAlert])
+  }, [finAlert, featVisible])
 
   // Mobile phone animations
-  const [scanPhase, setScanPhase] = useState(0) // 0=scanning, 1=analyzing, 2=done
-  const [dvirPhase, setDvirPhase] = useState(0) // 0=viewfinder, 1=scanning, 2=results
-  const [iftaBars, setIftaBars] = useState(0) // 0-100 percentage for bar growth
+  const [scanPhase, setScanPhase] = useState(0)
+  const [dvirPhase, setDvirPhase] = useState(0)
+  const [iftaBars, setIftaBars] = useState(0)
   useEffect(() => {
-    // BOL scan cycle: 2s scan, 1.5s analyze, 2s show result, restart
-    const iv = setInterval(() => {
-      setScanPhase(p => (p + 1) % 3)
-    }, 2000)
+    if (!mobileVisible) return
+    const iv = setInterval(() => setScanPhase(p => (p + 1) % 3), 2000)
     return () => clearInterval(iv)
-  }, [])
+  }, [mobileVisible])
   useEffect(() => {
-    // DVIR cycle offset by 700ms
-    const iv = setInterval(() => {
-      setDvirPhase(p => (p + 1) % 3)
-    }, 2200)
+    if (!mobileVisible) return
+    const iv = setInterval(() => setDvirPhase(p => (p + 1) % 3), 2200)
     return () => clearInterval(iv)
-  }, [])
+  }, [mobileVisible])
   useEffect(() => {
-    // IFTA bars grow animation
-    const iv = setInterval(() => {
-      setIftaBars(p => p >= 100 ? 0 : p + 2)
-    }, 80)
+    if (!mobileVisible) return
+    const iv = setInterval(() => setIftaBars(p => p >= 100 ? 0 : p + 2), 80)
     return () => clearInterval(iv)
-  }, [])
+  }, [mobileVisible])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -686,7 +709,7 @@ export default function LandingPage({ onGetStarted }) {
       {/* ═══════════════════════════════════════════════════════════
           HOW Q WORKS — Cinematic Q Simulator
       ═══════════════════════════════════════════════════════════ */}
-      <section id="how-it-works" style={{ padding: '72px 0', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141e 50%, #0a0a0e 100%)', position: 'relative', overflow: 'hidden' }}>
+      <section ref={qRef} id="how-it-works" style={{ padding: '72px 0', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141e 50%, #0a0a0e 100%)', position: 'relative', overflow: 'hidden' }}>
         {/* Ambient glow */}
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, height: 600, background: `radial-gradient(circle, ${qStep >= 4 ? 'rgba(34,197,94,0.08)' : 'rgba(212,145,10,0.08)'} 0%, transparent 70%)`, pointerEvents: 'none', transition: 'background 1s' }} />
 
@@ -819,7 +842,7 @@ export default function LandingPage({ onGetStarted }) {
       {/* ═══════════════════════════════════════════════════════════
           FEATURES — Alternating screenshot sections
       ═══════════════════════════════════════════════════════════ */}
-      <section id="features">
+      <section ref={featRef} id="features">
         {featureSections.map((f, i) => (
           <div key={i} style={{ borderTop: '1px solid rgba(0,0,0,0.04)', background: i % 2 === 0 ? '#fff' : '#f9f9fb' }}>
             <div className={`lp-feature-row lp-feature-row-${i % 2 === 0 ? 'normal' : 'reverse'}`}>
@@ -1336,14 +1359,14 @@ export default function LandingPage({ onGetStarted }) {
       {/* ═══════════════════════════════════════════════════════════
           FULL DASHBOARD — Pipeline + Fleet
       ═══════════════════════════════════════════════════════════ */}
-      <section style={{ padding: '64px 20px', borderTop: '1px solid rgba(0,0,0,0.04)', background: '#f9f9fb' }}>
+      <section ref={backRef} style={{ padding: '64px 20px', borderTop: '1px solid rgba(0,0,0,0.04)', background: '#f9f9fb' }}>
         <FadeIn>
           <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: 3, color: '#d4910a', textAlign: 'center', marginBottom: 12 }}>EVERYTHING ELSE Q HANDLES</p>
           <h2 className="lp-section-title" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, textAlign: 'center', margin: '0 0 8px', color: '#1a1a2e' }}>The Back Office That Runs Itself</h2>
           <p style={{ fontSize: 15, color: 'rgba(26,26,46,0.5)', textAlign: 'center', marginBottom: 48, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' }}>Compliance, IFTA, expenses, EDI, load pipeline — the stuff that eats your evenings. Q handles all of it so you don't have to.</p>
         </FadeIn>
         <FadeIn delay={0.15}>
-          <div style={{ maxWidth: 1100, margin: '0 auto', marginBottom: 24, background: '#fafaf8', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+          <div ref={pipeRef} style={{ maxWidth: 1100, margin: '0 auto', marginBottom: 24, background: '#fafaf8', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
             {/* ── Q Load Intelligence Header ── */}
             <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1650,7 +1673,7 @@ export default function LandingPage({ onGetStarted }) {
       {/* ═══════════════════════════════════════════════════════════
           Q MOBILE — Voice, Loads, DVIR
       ═══════════════════════════════════════════════════════════ */}
-      <section style={{ padding: '72px 0', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141e 50%, #0a0a0e 100%)', position: 'relative', overflow: 'hidden' }}>
+      <section ref={mobileRef} style={{ padding: '72px 0', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141e 50%, #0a0a0e 100%)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', width: 700, height: 500, background: 'radial-gradient(ellipse, rgba(212,145,10,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1 }}>

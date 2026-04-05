@@ -134,7 +134,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const reloadAlertShownRef = useRef({})
   const backhaulAlertShownRef = useRef({})
   const repositionAlertShownRef = useRef(false)
-  const weeklyTargetAlertShownRef = useRef(false)
+  const weeklyTargetAlertShownRef = useRef(!!sessionStorage.getItem('q_weekly_alert_shown'))
 
   // Auto-scroll to bottom with smooth behavior
   useEffect(() => {
@@ -747,6 +747,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     const expectedPct = (dayOfWeek / 6) * 100 // Linear pace
     if (pct < expectedPct * 0.7 && weekRevenue < target) {
       weeklyTargetAlertShownRef.current = true
+      sessionStorage.setItem('q_weekly_alert_shown', '1')
       const remaining = target - weekRevenue
       const daysLeft = Math.max(1, 6 - dayOfWeek)
       const avgLoadVal = dlvd.length > 0 ? dlvd.reduce((s, l) => s + Number(l.rate || l.gross || 0), 0) / dlvd.length : 1500
@@ -3881,18 +3882,18 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {activeLoads[0].origin} \u2192 {activeLoads[0].destination}
+                {activeLoads[0].origin} {'\u2192'} {activeLoads[0].destination}
               </div>
               <div style={{ fontSize: 10, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span>{activeLoads[0].load_id}</span>
-                <span>\u00b7</span>
+                <span>{'\u00b7'}</span>
                 <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{activeLoads[0].status}</span>
                 {activeLoads[0].delivery_date && <>
-                  <span>\u00b7</span>
+                  <span>{'\u00b7'}</span>
                   <span>Due {activeLoads[0].delivery_date}</span>
                 </>}
                 {activeLoads[0].miles && <>
-                  <span>\u00b7</span>
+                  <span>{'\u00b7'}</span>
                   <span>{activeLoads[0].miles} mi</span>
                 </>}
               </div>

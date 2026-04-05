@@ -315,6 +315,32 @@ export default function LandingPage({ onGetStarted }) {
           to { height: 36px; opacity: 1; }
         }
 
+        /* Truck dot pulse */
+        .lp-truck-dot {
+          animation: lpTruckPulse 2.5s ease-in-out infinite;
+        }
+        @keyframes lpTruckPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.3); }
+        }
+
+        /* Route dash animation */
+        .lp-route-dash {
+          animation: lpDashMove 3s linear infinite;
+        }
+        @keyframes lpDashMove {
+          to { stroke-dashoffset: -20; }
+        }
+
+        /* Live dot blink */
+        .lp-live-dot {
+          animation: lpBlink 1.5s infinite;
+        }
+        @keyframes lpBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+
         /* Floating particles (light) */
         .lp-particle {
           position: absolute;
@@ -551,6 +577,92 @@ export default function LandingPage({ onGetStarted }) {
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{stat.label}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── FLEET MAP ─────────────────────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <FadeIn>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>REAL-TIME TRACKING</p>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 52, color: '#1a1a1a' }}>Your Fleet. Live.</h2>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <div className="lp-mockup-card" style={{ background: '#0a0a0e', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.2), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.1)' }}>
+              {/* Map header */}
+              <div style={{ padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="lp-live-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px rgba(34,197,94,0.6)' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 1.5 }}>LIVE FLEET — 8 ON LOAD</span>
+                </div>
+                <div style={{ display: 'flex', gap: 20 }}>
+                  {[{ v: '10', l: 'Total' }, { v: '2', l: 'Available' }, { v: '$34.2K', l: 'This Week' }].map(s => (
+                    <div key={s.l} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, color: '#f0a500', lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5, textTransform: 'uppercase' }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Map area */}
+              <div style={{ position: 'relative', height: 420, background: 'linear-gradient(180deg, #0d1117 0%, #131720 100%)' }}>
+                {/* US outline shape — simplified SVG path */}
+                <svg viewBox="0 0 960 520" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.06 }}>
+                  <path d="M 180,100 L 200,80 280,75 350,70 420,68 500,70 580,72 650,80 720,90 780,100 820,120 840,140 850,180 860,220 850,260 840,300 800,340 760,360 720,370 680,380 640,390 600,400 560,410 520,420 480,410 440,400 400,390 360,380 320,370 280,360 240,350 200,340 180,320 160,280 150,240 148,200 150,160 160,130 Z" fill="none" stroke="rgba(240,165,0,0.3)" strokeWidth="1.5" />
+                </svg>
+
+                {/* City dots + labels */}
+                {[
+                  { name: 'SEA', top: '12%', left: '8%' },
+                  { name: 'DEN', top: '32%', left: '25%' },
+                  { name: 'LAX', top: '48%', left: '8%' },
+                  { name: 'DAL', top: '58%', left: '42%' },
+                  { name: 'CHI', top: '22%', left: '55%' },
+                  { name: 'MEM', top: '45%', left: '55%' },
+                  { name: 'ATL', top: '50%', left: '68%' },
+                  { name: 'MIA', top: '75%', left: '78%' },
+                  { name: 'NYC', top: '20%', left: '82%' },
+                  { name: 'PHL', top: '28%', left: '80%' },
+                ].map(city => (
+                  <div key={city.name}>
+                    <div style={{ position: 'absolute', top: city.top, left: city.left, width: 5, height: 5, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                    <div style={{ position: 'absolute', top: city.top, left: city.left, marginLeft: 10, marginTop: -3, fontSize: 9, color: 'rgba(255,255,255,0.25)', fontWeight: 600, letterSpacing: 0.5 }}>{city.name}</div>
+                  </div>
+                ))}
+
+                {/* Truck dots with pulse animation */}
+                {[
+                  { top: '35%', left: '50%', color: '#f0a500', name: 'Unit 101 — Mike J.', route: 'CHI → ATL · 718 mi', status: 'In Transit', statusColor: '#22c55e', showLabel: true },
+                  { top: '52%', left: '28%', color: '#00d4aa', name: 'Unit 205 — Carlos R.', route: 'DAL → LAX · 1,436 mi', status: 'Loaded', statusColor: '#00d4aa', showLabel: true },
+                  { top: '42%', left: '75%', color: '#3498db', name: 'Unit 312 — James W.', route: 'NYC → MIA · 1,280 mi', status: 'En Route', statusColor: '#3498db', showLabel: true },
+                  { top: '20%', left: '14%', color: '#9b59b6', name: 'Unit 408 — Amir K.', route: 'SEA → DEN · 1,321 mi', status: 'In Transit', statusColor: '#9b59b6', showLabel: false },
+                  { top: '40%', left: '60%', color: '#e74c3c', name: '', route: '', status: '', showLabel: false },
+                  { top: '30%', left: '38%', color: '#1abc9c', name: '', route: '', status: '', showLabel: false },
+                  { top: '55%', left: '62%', color: '#e67e22', name: '', route: '', status: '', showLabel: false },
+                  { top: '32%', left: '10%', color: '#6b7280', name: '', route: '', status: '', showLabel: false },
+                ].map((truck, i) => (
+                  <div key={i}>
+                    <div className="lp-truck-dot" style={{ position: 'absolute', top: truck.top, left: truck.left, width: 12, height: 12, borderRadius: '50%', background: truck.color, boxShadow: `0 0 12px ${truck.color}80`, zIndex: 3 }} />
+                    {truck.showLabel && (
+                      <div style={{ position: 'absolute', top: truck.top, left: truck.left, marginLeft: 18, marginTop: -12, zIndex: 4, background: 'rgba(10,10,14,0.92)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 10px', whiteSpace: 'nowrap', backdropFilter: 'blur(8px)' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: truck.color, marginBottom: 2 }}>🚛 {truck.name}</div>
+                        <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{truck.route}</div>
+                        <div style={{ display: 'inline-block', fontSize: 8, fontWeight: 700, color: truck.statusColor, background: `${truck.statusColor}15`, padding: '2px 6px', borderRadius: 3, marginTop: 3, letterSpacing: 0.5, textTransform: 'uppercase' }}>{truck.status}</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Route arcs */}
+                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', zIndex: 2 }}>
+                  <path d="M 528,92 Q 580,60 653,210" fill="none" stroke="rgba(240,165,0,0.25)" strokeWidth="1.5" strokeDasharray="6 4" className="lp-route-dash" />
+                  <path d="M 403,243 Q 250,150 77,202" fill="none" stroke="rgba(0,212,170,0.25)" strokeWidth="1.5" strokeDasharray="6 4" className="lp-route-dash" />
+                  <path d="M 787,84 Q 810,250 749,315" fill="none" stroke="rgba(52,152,219,0.25)" strokeWidth="1.5" strokeDasharray="6 4" className="lp-route-dash" />
+                  <path d="M 77,50 Q 150,30 240,134" fill="none" stroke="rgba(155,89,182,0.25)" strokeWidth="1.5" strokeDasharray="6 4" className="lp-route-dash" />
+                </svg>
+              </div>
+            </div>
+          </FadeIn>
         </div>
       </section>
 

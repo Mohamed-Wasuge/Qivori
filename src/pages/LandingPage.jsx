@@ -394,17 +394,13 @@ export default function LandingPage({ onGetStarted }) {
           .lp-hero { padding: 80px 20px 60px !important; }
           .lp-section { padding: 60px 20px !important; }
           .lp-features-grid { grid-template-columns: 1fr !important; }
-          .lp-steps-row { flex-direction: column !important; }
-          .lp-compare-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
           .lp-q-voice-grid { grid-template-columns: 1fr !important; }
-          .lp-kanban-cols { grid-template-columns: repeat(2, 1fr) !important; }
           .lp-section-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
         }
         @media (max-width: 480px) {
           .lp-hero h1 { font-size: 36px !important; }
           .lp-section-heading { font-size: 30px !important; }
-          .lp-kanban-cols { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -422,7 +418,6 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-nav-links">
           {[
             { label: 'Features', href: '#features' },
-            { label: 'How It Works', href: '#how-it-works' },
             { label: 'Pricing', href: '#pricing' },
           ].map(item => (
             <a key={item.label} href={item.href} className="lp-nav-link"
@@ -445,7 +440,6 @@ export default function LandingPage({ onGetStarted }) {
         {menuOpen && (
           <div className="lp-mob-menu">
             <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
-            <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How It Works</a>
             <a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a>
             <div className="lp-mob-btns">
               <button onClick={onGetStarted} style={{ padding: '12px', background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 10, color: '#1a1a1a', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Sign In</button>
@@ -562,24 +556,6 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
-      {/* ── LIVE STATS BAR ─────────────────────────────────────────── */}
-      <section style={{ background: '#0a0a0e', borderTop: '1px solid rgba(240,165,0,0.1)', borderBottom: '1px solid rgba(240,165,0,0.1)' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
-          {[
-            { value: '247', label: 'Loads Scanned Today', color: '#f0a500' },
-            { value: '$34.2K', label: 'Weekly Revenue', color: '#22c55e' },
-            { value: '$2.74', label: 'Avg Rate/Mile', color: '#00d4aa' },
-            { value: '94%', label: 'Q Confidence', color: '#4d8ef0' },
-            { value: '8', label: 'Trucks on Load', color: '#a855f7' },
-          ].map(stat => (
-            <div key={stat.label} style={{ textAlign: 'center', flex: 1, minWidth: 100 }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: stat.color, lineHeight: 1, marginBottom: 4 }}>{stat.value}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ── FLEET MAP ─────────────────────────────────────────────── */}
       <section className="lp-section" style={{ padding: '100px 40px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
@@ -662,227 +638,6 @@ export default function LandingPage({ onGetStarted }) {
                 </svg>
               </div>
             </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ── PROBLEM ──────────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px' }}>
-        <div style={{ maxWidth: 560, margin: '0 auto' }}>
-          <FadeIn>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1.05, marginBottom: 44, textAlign: 'center', color: '#1a1a1a' }}>
-              You're not running<br />your business.<br /><span style={{ color: '#f0a500' }}>You're chasing it.</span>
-            </h2>
-          </FadeIn>
-          <div style={{ marginBottom: 40 }}>
-            {['Checking load boards all day', 'Calling brokers nonstop', 'Tracking everything manually', 'Not knowing your real profit'].map((item, i) => (
-              <FadeIn key={i} delay={i * 0.05}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                  <Ic icon={X} size={14} color="rgba(239,68,68,0.5)" style={{ flexShrink: 0 }} />
-                  <span style={{ fontSize: 17, color: 'rgba(26,26,26,0.5)' }}>{item}</span>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-          <FadeIn delay={0.25}>
-            <p style={{ fontSize: 18, color: 'rgba(26,26,26,0.45)', textAlign: 'center', lineHeight: 1.7 }}>
-              You don't need another tool.<br /><span style={{ color: '#1a1a1a', fontWeight: 700 }}>You need control.</span>
-            </p>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ── WATCH Q WORK — 5-step visual walkthrough ────────────────── */}
-      <section id="how-it-works" className="lp-section" style={{ padding: '100px 48px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-          <FadeIn>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>HOW IT WORKS</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 72, color: '#1a1a1a' }}>Watch Q Work</h2>
-          </FadeIn>
-
-          {/* Step 1 */}
-          <div className="lp-steps-row" style={{ display: 'flex', gap: 48, alignItems: 'center', marginBottom: 64 }}>
-            <div className="lp-step-text" style={{ flex: 1 }}>
-              <FadeIn>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#f0a500' }}>1</div>
-                  <h3 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Q scans available loads</h3>
-                </div>
-                <p style={{ fontSize: 16, color: 'rgba(26,26,26,0.5)', lineHeight: 1.7, paddingLeft: 62, margin: 0 }}>Searches every load board and matches loads to your lanes, equipment, and preferences — in seconds.</p>
-              </FadeIn>
-            </div>
-            <div className="lp-step-mockup" style={{ flex: 1 }}>
-              <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-                  {[
-                    { route: 'Dallas, TX → Houston, TX', rate: '$2,400', miles: '240 mi', active: true },
-                    { route: 'Chicago, IL → Detroit, MI', rate: '$1,890', miles: '280 mi', active: false },
-                    { route: 'Atlanta, GA → Miami, FL', rate: '$2,100', miles: '660 mi', active: false },
-                  ].map((l, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 10, marginBottom: i < 2 ? 6 : 0, background: l.active ? 'rgba(240,165,0,0.06)' : 'transparent', border: l.active ? '1.5px solid rgba(240,165,0,0.25)' : '1.5px solid transparent' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: l.active ? '#1a1a1a' : 'rgba(26,26,26,0.4)' }}>{l.route}</span>
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: l.active ? '#f0a500' : 'rgba(26,26,26,0.3)' }}>{l.rate}</span>
-                        <span style={{ fontSize: 12, color: 'rgba(26,26,26,0.25)' }}>{l.miles}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </FadeIn>
-            </div>
-          </div>
-
-          {/* Step 2 — reversed */}
-          <div className="lp-steps-row" style={{ display: 'flex', gap: 48, alignItems: 'center', marginBottom: 64, flexDirection: 'row-reverse' }}>
-            <div className="lp-step-text" style={{ flex: 1 }}>
-              <FadeIn>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#f0a500' }}>2</div>
-                  <h3 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Calculates real profit</h3>
-                </div>
-                <p style={{ fontSize: 16, color: 'rgba(26,26,26,0.5)', lineHeight: 1.7, paddingLeft: 62, margin: 0 }}>Not revenue — actual profit. Q factors in fuel, driver pay, insurance, tolls, and deadhead miles.</p>
-              </FadeIn>
-            </div>
-            <div className="lp-step-mockup" style={{ flex: 1 }}>
-              <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', marginBottom: 14 }}>Profit Breakdown</div>
-                  {[
-                    { label: 'Load Rate', value: '$2,400', color: '#1a1a1a' },
-                    { label: 'Fuel Cost', value: '-$480', color: 'rgba(239,68,68,0.7)' },
-                    { label: 'Driver Pay (28%)', value: '-$672', color: 'rgba(239,68,68,0.7)' },
-                    { label: 'Insurance & Fees', value: '-$198', color: 'rgba(239,68,68,0.7)' },
-                  ].map((row, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 3 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
-                      <span style={{ fontSize: 14, color: 'rgba(26,26,26,0.5)' }}>{row.label}</span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: row.color }}>{row.value}</span>
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0 0', borderTop: '2px solid rgba(0,0,0,0.08)', marginTop: 8 }}>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>Net Profit</span>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: '#22c55e' }}>$1,050</span>
-                  </div>
-                </div>
-              </FadeIn>
-            </div>
-          </div>
-
-          {/* Step 3 */}
-          <div className="lp-steps-row" style={{ display: 'flex', gap: 48, alignItems: 'center', marginBottom: 64 }}>
-            <div className="lp-step-text" style={{ flex: 1 }}>
-              <FadeIn>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#f0a500' }}>3</div>
-                  <h3 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Decides: accept, negotiate, or reject</h3>
-                </div>
-                <p style={{ fontSize: 16, color: 'rgba(26,26,26,0.5)', lineHeight: 1.7, paddingLeft: 62, margin: 0 }}>Q doesn't just show options — it makes the call. Based on your history, market rates, and real margins.</p>
-              </FadeIn>
-            </div>
-            <div className="lp-step-mockup" style={{ flex: 1 }}>
-              <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    <div style={{ flex: 1, background: 'rgba(34,197,94,0.08)', border: '2px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#22c55e' }}>✓ ACCEPT</div>
-                    <div style={{ flex: 1, background: 'rgba(240,165,0,0.04)', border: '1px solid rgba(240,165,0,0.12)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'rgba(240,165,0,0.4)' }}>NEGOTIATE</div>
-                    <div style={{ flex: 1, background: 'rgba(239,68,68,0.03)', border: '1px solid rgba(239,68,68,0.1)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'rgba(239,68,68,0.3)' }}>REJECT</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.4)', fontWeight: 600 }}>Q Confidence</span>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: '#22c55e' }}>94%</span>
-                  </div>
-                  <div style={{ height: 6, background: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ width: '94%', height: '100%', background: 'linear-gradient(90deg, #22c55e, #16a34a)', borderRadius: 3 }} />
-                  </div>
-                </div>
-              </FadeIn>
-            </div>
-          </div>
-
-          {/* Step 4 — reversed */}
-          <div className="lp-steps-row" style={{ display: 'flex', gap: 48, alignItems: 'center', marginBottom: 64, flexDirection: 'row-reverse' }}>
-            <div className="lp-step-text" style={{ flex: 1 }}>
-              <FadeIn>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#f0a500' }}>4</div>
-                  <h3 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Dispatches and tracks</h3>
-                </div>
-                <p style={{ fontSize: 16, color: 'rgba(26,26,26,0.5)', lineHeight: 1.7, paddingLeft: 62, margin: 0 }}>Load accepted? Q assigns the driver, sends dispatch details, and tracks the shipment in real time.</p>
-              </FadeIn>
-            </div>
-            <div className="lp-step-mockup" style={{ flex: 1 }}>
-              <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Marcus Johnson</div>
-                      <div style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)', marginTop: 2 }}>Truck #4821 · Freightliner</div>
-                    </div>
-                    <div style={{ padding: '5px 12px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#f0a500' }}>IN TRANSIT</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f0a500', margin: '0 auto 4px' }} />
-                      <div style={{ fontSize: 10, color: 'rgba(26,26,26,0.4)' }}>DAL</div>
-                    </div>
-                    <div style={{ flex: 1, height: 2, background: 'rgba(0,0,0,0.08)', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '65%', top: -7, transform: 'translateX(-50%)' }}>
-                        <Ic icon={Truck} size={16} color="#f0a500" />
-                      </div>
-                      <div style={{ width: '65%', height: '100%', background: '#f0a500', borderRadius: 1 }} />
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid rgba(0,0,0,0.15)', margin: '0 auto 4px' }} />
-                      <div style={{ fontSize: 10, color: 'rgba(26,26,26,0.4)' }}>HOU</div>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-            </div>
-          </div>
-
-          {/* Step 5 */}
-          <div className="lp-steps-row" style={{ display: 'flex', gap: 48, alignItems: 'center' }}>
-            <div className="lp-step-text" style={{ flex: 1 }}>
-              <FadeIn>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#f0a500' }}>5</div>
-                  <h3 style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Generates invoice automatically</h3>
-                </div>
-                <p style={{ fontSize: 16, color: 'rgba(26,26,26,0.5)', lineHeight: 1.7, paddingLeft: 62, margin: 0 }}>Load delivered? Invoice created, sent, and tracked — with one-click factoring if you need cash fast.</p>
-              </FadeIn>
-            </div>
-            <div className="lp-step-mockup" style={{ flex: 1 }}>
-              <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Invoice</div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>INV-2024-0847</div>
-                    </div>
-                    <div style={{ padding: '5px 12px', background: 'rgba(34,197,94,0.08)', borderRadius: 8, fontSize: 11, fontWeight: 700, color: '#22c55e' }}>SENT</div>
-                  </div>
-                  <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 12 }}>
-                    {[
-                      { label: 'Broker', value: 'TQL Logistics' },
-                      { label: 'Route', value: 'Dallas → Houston' },
-                    ].map((row, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 13, color: 'rgba(26,26,26,0.4)' }}>{row.label}</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{row.value}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Total</span>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>$2,400.00</span>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-            </div>
-          </div>
-
-          <FadeIn delay={0.2}>
-            <p style={{ fontSize: 15, color: 'rgba(26,26,26,0.3)', textAlign: 'center', marginTop: 48 }}>No spreadsheets. No switching apps. One system.</p>
           </FadeIn>
         </div>
       </section>
@@ -972,143 +727,6 @@ export default function LandingPage({ onGetStarted }) {
               </FadeIn>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ── COMPARISON (dark section for contrast) ───────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 48px', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141a 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(240,165,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(240,165,0,0.03) 1px, transparent 1px)', backgroundSize: '60px 60px', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', width: 500, height: 500, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ maxWidth: 800, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <FadeIn>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 60, color: '#fff' }}>The Difference</h2>
-          </FadeIn>
-          <div className="lp-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48 }}>
-            <FadeIn>
-              <div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, color: 'rgba(255,255,255,0.25)', marginBottom: 24 }}>YOUR CURRENT WORKFLOW</div>
-                <div style={{ position: 'relative', height: 120, marginBottom: 24 }}>
-                  {[
-                    { name: 'DAT', rot: -3, top: 5, left: 0 },
-                    { name: 'Excel', rot: 2, top: 15, left: 60 },
-                    { name: 'QuickBooks', rot: -1, top: 35, left: 20 },
-                    { name: 'Calculator', rot: 3, top: 50, left: 80 },
-                    { name: 'Phone', rot: -2, top: 65, left: 40 },
-                    { name: 'Email', rot: 1, top: 80, left: 100 },
-                  ].map((app, i) => (
-                    <div key={i} style={{ position: 'absolute', top: app.top, left: app.left, transform: `rotate(${app.rot}deg)`, padding: '6px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.3)' }}>{app.name}</div>
-                  ))}
-                </div>
-                {['Multiple apps', 'Manual calculations', 'Guessing profit', 'Wasted time'].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <Ic icon={X} size={14} color="rgba(239,68,68,0.4)" />
-                    <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.35)' }}>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </FadeIn>
-            <FadeIn delay={0.1}>
-              <div>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2, color: '#f0a500', marginBottom: 24 }}>WITH QIVORI AI</div>
-                <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 14, marginBottom: 24 }}>
-                  {[
-                    { route: 'CHI → DET', profit: '$1,280', status: 'In Transit' },
-                    { route: 'ATL → MIA', profit: '$890', status: 'Dispatched' },
-                    { route: 'DAL → HOU', profit: '$1,050', status: 'Delivered' },
-                  ].map((l, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{l.route}</span>
-                      <span style={{ fontSize: 10, color: l.status === 'Delivered' ? '#22c55e' : l.status === 'In Transit' ? '#f0a500' : 'rgba(255,255,255,0.3)', fontWeight: 700 }}>{l.status}</span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: '#22c55e' }}>{l.profit}</span>
-                    </div>
-                  ))}
-                </div>
-                {['One system', 'AI decisions', 'Real profit clarity', 'Automated workflow'].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <Ic icon={Check} size={14} color="#f0a500" />
-                    <span style={{ fontSize: 15, color: '#fff', fontWeight: 600 }}>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </FadeIn>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PRODUCT SHOWCASE — Kanban Pipeline ────────────────────────── */}
-      <section className="lp-section lp-section-glow" style={{ padding: '100px 40px' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <FadeIn>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>YOUR COMMAND CENTER</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 52, color: '#1a1a1a' }}>Everything. One Dashboard.</h2>
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <div className="lp-mockup-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.1), 0 0 0 1px rgba(240,165,0,0.05)' }}>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: '#f8f8f8' }}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
-                </div>
-                <div style={{ flex: 1, marginLeft: 12, background: '#fff', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(0,0,0,0.35)', border: '1px solid rgba(0,0,0,0.06)' }}>qivori.com/dashboard</div>
-              </div>
-              <div style={{ padding: '14px 24px 0', display: 'flex', gap: 24, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                {['Booked', 'Dispatched', 'In Transit', 'Delivered', 'Invoiced'].map((tab, i) => (
-                  <div key={tab} style={{ fontSize: 12, fontWeight: 700, color: i === 2 ? '#f0a500' : 'rgba(26,26,26,0.3)', letterSpacing: 0.5, paddingBottom: 12, borderBottom: i === 2 ? '2px solid #f0a500' : '2px solid transparent' }}>{tab}</div>
-                ))}
-              </div>
-              <div className="lp-kanban-cols" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: '16px 20px 20px' }}>
-                {[
-                  { title: 'Booked', color: 'rgba(59,130,246,0.1)', borderColor: '#3b82f6', loads: [{ route: 'PHX → LAX', rate: '$1,600' }] },
-                  { title: 'Dispatched', color: 'rgba(168,85,247,0.08)', borderColor: '#a855f7', loads: [{ route: 'ATL → MIA', rate: '$2,100' }] },
-                  { title: 'In Transit', color: 'rgba(240,165,0,0.08)', borderColor: '#f0a500', loads: [{ route: 'CHI → DET', rate: '$1,890' }, { route: 'DAL → HOU', rate: '$2,400' }] },
-                  { title: 'Delivered', color: 'rgba(34,197,94,0.06)', borderColor: '#22c55e', loads: [{ route: 'NYC → BOS', rate: '$1,450' }] },
-                ].map((col) => (
-                  <div key={col.title}>
-                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1, color: 'rgba(26,26,26,0.35)', textTransform: 'uppercase', marginBottom: 8 }}>{col.title} <span style={{ color: 'rgba(26,26,26,0.2)' }}>({col.loads.length})</span></div>
-                    {col.loads.map((load, j) => (
-                      <div key={j} style={{ background: col.color, borderLeft: `3px solid ${col.borderColor}`, borderRadius: 8, padding: '10px 12px', marginBottom: 6 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 2 }}>{load.route}</div>
-                        <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.4)' }}>{load.rate}</div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: '12px 24px', borderTop: '1px solid rgba(0,0,0,0.06)', background: '#FAFAFA', display: 'flex', gap: 32 }}>
-                <span style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>Active Loads: <strong style={{ color: '#1a1a1a' }}>5</strong></span>
-                <span style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>Revenue: <strong style={{ color: '#1a1a1a' }}>$9,440</strong></span>
-                <span style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>Profit: <strong style={{ color: '#22c55e' }}>$4,270</strong></span>
-              </div>
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ── FOUNDER ──────────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '80px 40px', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
-          <FadeIn>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 20 }}>THE FOUNDER</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, letterSpacing: 2, marginBottom: 32, color: '#1a1a1a' }}>Built by a trucker,<br />for truckers.</h2>
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <div style={{ position: 'relative', padding: '28px 32px', background: '#FAFAFA', borderRadius: 16, border: '1px solid rgba(0,0,0,0.06)' }}>
-              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 64, color: 'rgba(240,165,0,0.15)', lineHeight: 1, position: 'absolute', top: 12, left: 24 }}>"</div>
-              <p style={{ fontSize: 17, color: 'rgba(26,26,26,0.6)', lineHeight: 1.8, textAlign: 'left', position: 'relative', zIndex: 1, margin: 0 }}>
-                Qivori was born out of frustration. As an owner-operator, I spent more time on paperwork and phone calls than on the road. Every tool I tried solved one problem but created three more. So I built the system I wished existed — one AI that handles everything, from finding loads to generating invoices. This wasn't built in Silicon Valley. It was built from the cab.
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20, justifyContent: 'flex-start' }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #f0a500, #e09000)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ic icon={Truck} size={18} color="#000" />
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Owner-Operator Turned Founder</div>
-                  <div style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>Qivori AI</div>
-                </div>
-              </div>
-            </div>
-          </FadeIn>
         </div>
       </section>
 
@@ -1224,6 +842,7 @@ export default function LandingPage({ onGetStarted }) {
         </div>
         <div style={{ maxWidth: 960, margin: '0 auto', paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('landing.footerCopyright')}</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Built from the cab, not Silicon Valley.</div>
         </div>
       </footer>
 

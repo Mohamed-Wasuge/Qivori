@@ -10,7 +10,7 @@ function useOnScreen(ref) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
     if (!ref.current) return
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true) }, { threshold: 0.15 })
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true) }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' })
     obs.observe(ref.current)
     return () => obs.disconnect()
   }, [ref])
@@ -21,7 +21,7 @@ function FadeIn({ children, delay = 0, style = {} }) {
   const ref = useRef(null)
   const visible = useOnScreen(ref)
   return (
-    <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(24px)', transition: `all 0.7s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`, ...style }}>
+    <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? 'none' : 'translateY(12px)', transition: `opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`, willChange: 'opacity, transform', ...style }}>
       {children}
     </div>
   )
@@ -325,6 +325,7 @@ export default function LandingPage({ onGetStarted }) {
         .lp-hero-left { max-width: 560px; }
         .lp-hero-right {
           position: relative; width: 100%; max-width: 500px; min-height: 280px;
+          display: none;
         }
         .lp-hero-float {
           border-radius: 14px; border: 1px solid rgba(255,255,255,0.1);
@@ -383,7 +384,7 @@ export default function LandingPage({ onGetStarted }) {
             padding: 0 40px 60px !important;
           }
           .lp-hero-left { flex: 1 !important; }
-          .lp-hero-right { flex: 1 !important; max-width: 520px !important; min-height: 400px !important; }
+          .lp-hero-right { display: block !important; flex: 1 !important; max-width: 520px !important; min-height: 400px !important; }
           .lp-hero-ctas { justify-content: flex-start !important; }
         }
 
@@ -539,14 +540,14 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3 }}>
           <span style={{ color: '#fff' }}>QIVORI</span><span style={{ color: '#f0a500' }}> AI</span>
         </div>
-        <div className="lp-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+        <div className="lp-nav-links" style={{ alignItems: 'center', gap: 32 }}>
           <a href="#features" style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontWeight: 500 }}>Features</a>
           <a href="#how-it-works" style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontWeight: 500 }}>How It Works</a>
           <a href="#faq" style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', textDecoration: 'none', fontWeight: 500 }}>FAQ</a>
           <button onClick={goToLogin} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 500, background: 'transparent', color: 'rgba(255,255,255,0.6)', border: 'none', cursor: 'pointer' }}>Sign In</button>
           <button onClick={goToLogin} className="lp-cta-primary" style={{ padding: '9px 20px', fontSize: 13, boxShadow: 'none' }}>Start Free Trial</button>
         </div>
-        <button className="lp-mob-toggle" onClick={() => setMenuOpen(!menuOpen)} style={{ display: 'none', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8, flexDirection: 'column', gap: 5 }}>
+        <button className="lp-mob-toggle" onClick={() => setMenuOpen(!menuOpen)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 8, flexDirection: 'column', gap: 5 }}>
           <span style={{ width: 22, height: 2, background: '#fff', borderRadius: 2, transition: '0.3s', transform: menuOpen ? 'rotate(45deg) translateY(7px)' : 'none' }} />
           <span style={{ width: 22, height: 2, background: '#fff', borderRadius: 2, opacity: menuOpen ? 0 : 1, transition: '0.3s' }} />
           <span style={{ width: 22, height: 2, background: '#fff', borderRadius: 2, transition: '0.3s', transform: menuOpen ? 'rotate(-45deg) translateY(-7px)' : 'none' }} />

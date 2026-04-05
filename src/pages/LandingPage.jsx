@@ -233,17 +233,117 @@ export default function LandingPage({ onGetStarted }) {
         .lp-nav-links { display: flex; align-items: center; gap: 28px; }
         .lp-mob-toggle { display: none !important; }
         .lp-mob-menu { display: none; }
-        .lp-cta-btn { transition: all 0.2s ease; position: relative; overflow: hidden; }
-        .lp-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 48px rgba(240,165,0,0.3) !important; }
-        .lp-cta-btn::after { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); transition: left 0.5s; }
+
+        /* Premium CTA button */
+        .lp-cta-btn {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative; overflow: hidden;
+        }
+        .lp-cta-btn:hover {
+          transform: translateY(-3px) scale(1.02);
+          box-shadow: 0 20px 60px rgba(240,165,0,0.35) !important;
+        }
+        .lp-cta-btn:active { transform: translateY(-1px) scale(0.98); }
+        .lp-cta-btn::after {
+          content: ''; position: absolute; top: 0; left: -100%;
+          width: 100%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+          transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         .lp-cta-btn:hover::after { left: 100%; }
-        .lp-feature-card { transition: all 0.3s ease; }
-        .lp-feature-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08) !important; border-color: rgba(240,165,0,0.3) !important; }
-        .lp-nav-link { position: relative; }
-        .lp-nav-link::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 0; height: 2px; background: #f0a500; transition: width 0.2s; }
+
+        /* Premium feature cards */
+        .lp-feature-card {
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+        }
+        .lp-feature-card:hover {
+          transform: translateY(-6px);
+          box-shadow: 0 20px 60px rgba(0,0,0,0.08), 0 0 0 1px rgba(240,165,0,0.2) !important;
+          border-color: rgba(240,165,0,0.25) !important;
+        }
+
+        /* Nav link underline */
+        .lp-nav-link { position: relative; transition: color 0.2s; }
+        .lp-nav-link::after {
+          content: ''; position: absolute; bottom: -2px; left: 0;
+          width: 0; height: 2px; background: #f0a500;
+          transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         .lp-nav-link:hover::after { width: 100%; }
-        .lp-mockup-card { transition: all 0.3s ease; }
-        .lp-mockup-card:hover { box-shadow: 0 20px 60px rgba(0,0,0,0.12) !important; }
+
+        /* Premium mockup cards */
+        .lp-mockup-card {
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .lp-mockup-card:hover {
+          box-shadow: 0 32px 80px rgba(0,0,0,0.12), 0 0 0 1px rgba(240,165,0,0.1) !important;
+          transform: translateY(-4px);
+        }
+
+        /* Hero background grid (light version of fb-ad) */
+        .lp-hero-bg {
+          position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+        }
+        .lp-hero-bg::before {
+          content: '';
+          position: absolute; inset: 0;
+          background-image:
+            linear-gradient(rgba(240,165,0,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(240,165,0,0.04) 1px, transparent 1px);
+          background-size: 60px 60px;
+          animation: lpGridMove 30s linear infinite;
+        }
+        .lp-hero-bg::after {
+          content: '';
+          position: absolute;
+          width: 600px; height: 600px;
+          top: 50%; left: 60%;
+          transform: translate(-50%, -50%);
+          background: radial-gradient(circle, rgba(240,165,0,0.06) 0%, transparent 70%);
+          animation: lpGlow 5s ease-in-out infinite alternate;
+        }
+        @keyframes lpGridMove { to { background-position: 60px 60px; } }
+        @keyframes lpGlow {
+          from { opacity: 0.5; transform: translate(-50%,-50%) scale(0.9); }
+          to { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
+        }
+
+        /* Floating particles (light) */
+        .lp-particle {
+          position: absolute;
+          width: 4px; height: 4px;
+          background: rgba(240,165,0,0.2);
+          border-radius: 50%;
+          animation: lpFloat 12s ease-in-out infinite;
+          pointer-events: none;
+        }
+        @keyframes lpFloat {
+          0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+          25% { opacity: 0.5; }
+          50% { transform: translateY(-100px) translateX(30px); opacity: 0.3; }
+          75% { opacity: 0.15; }
+        }
+
+        /* Section divider glow */
+        .lp-section-glow {
+          position: relative;
+        }
+        .lp-section-glow::before {
+          content: '';
+          position: absolute; top: -1px; left: 50%;
+          transform: translateX(-50%);
+          width: 200px; height: 2px;
+          background: linear-gradient(90deg, transparent, rgba(240,165,0,0.4), transparent);
+        }
+
+        /* Premium card glass effect (light) */
+        .lp-glass {
+          background: rgba(255,255,255,0.8) !important;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+
         @media (max-width: 780px) {
           .lp-nav { padding: 0 16px !important; }
           .lp-nav-links { display: none !important; }
@@ -276,7 +376,7 @@ export default function LandingPage({ onGetStarted }) {
       `}</style>
 
       {/* ── NAV ───────────────────────────────────────────────────────── */}
-      <nav className="lp-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(250,250,250,0.92)', borderBottom: '1px solid rgba(0,0,0,0.06)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', padding: '0 48px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav className="lp-nav" style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(250,250,250,0.88)', borderBottom: '1px solid rgba(0,0,0,0.05)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', padding: '0 48px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 1px 20px rgba(0,0,0,0.03)' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif" }}><span style={{ color: '#f0a500' }}>QI</span><span style={{ color: '#1a1a1a' }}>VORI</span></span><span style={{ marginLeft: 10, padding: '3px 8px', background: 'rgba(240,165,0,0.15)', borderRadius: 6, fontSize: 10, fontWeight: 800, color: '#f0a500', letterSpacing: 1 }}>AI</span>
         </div>
@@ -323,41 +423,51 @@ export default function LandingPage({ onGetStarted }) {
       </nav>
 
       {/* ── HERO ──────────────────────────────────────────────────────── */}
-      <section className="lp-hero" style={{ padding: '120px 48px 80px', maxWidth: 1100, margin: '0 auto' }}>
-        <div className="lp-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+      <section className="lp-hero" style={{ padding: '140px 48px 100px', maxWidth: 1100, margin: '0 auto', position: 'relative' }}>
+        {/* Cinematic background */}
+        <div className="lp-hero-bg" />
+        <div className="lp-particle" style={{ top: '20%', left: '8%', animationDelay: '0s' }} />
+        <div className="lp-particle" style={{ top: '60%', left: '85%', animationDelay: '2s' }} />
+        <div className="lp-particle" style={{ top: '40%', left: '45%', animationDelay: '4s' }} />
+        <div className="lp-particle" style={{ top: '75%', left: '25%', animationDelay: '6s' }} />
+
+        <div className="lp-hero-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center', position: 'relative', zIndex: 1 }}>
           <div className="lp-hero-left" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <FadeIn>
-              <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 20 }}>AI-POWERED TRUCKING TMS</p>
-              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 64, letterSpacing: 3, lineHeight: 1, marginBottom: 24, color: '#1a1a1a' }}>
-                Your Dispatcher<br />Is Now <span style={{ color: '#f0a500' }}>AI.</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.15)', borderRadius: 24, padding: '8px 18px', marginBottom: 24 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px rgba(34,197,94,0.5)' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 2 }}>AI-POWERED TRUCKING TMS</span>
+              </div>
+              <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 76, letterSpacing: 4, lineHeight: 0.95, marginBottom: 28, color: '#1a1a1a' }}>
+                YOUR DISPATCHER<br />IS NOW <span style={{ color: '#f0a500', textShadow: '0 0 40px rgba(240,165,0,0.15)' }}>AI.</span>
               </h1>
             </FadeIn>
             <FadeIn delay={0.1}>
-              <p style={{ fontSize: 18, color: 'rgba(26,26,26,0.55)', lineHeight: 1.7, marginBottom: 12, maxWidth: 440 }}>
+              <p style={{ fontSize: 19, color: 'rgba(26,26,26,0.55)', lineHeight: 1.7, marginBottom: 14, maxWidth: 460 }}>
                 Q finds loads, calculates real profit, negotiates rates, and runs your operation — automatically.
               </p>
-              <p style={{ fontSize: 15, color: '#f0a500', fontWeight: 600, marginBottom: 36 }}>
+              <p style={{ fontSize: 16, color: '#f0a500', fontWeight: 700, marginBottom: 40 }}>
                 More money. Less stress. No extra apps.
               </p>
             </FadeIn>
             <FadeIn delay={0.2}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button className="lp-cta-btn" onClick={handleTry}
-                  style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '16px 40px', color: '#000', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 8px 32px rgba(240,165,0,0.25)', letterSpacing: 1.5 }}>
+                  style={{ background: 'linear-gradient(135deg, #f0a500, #d48e00)', border: 'none', borderRadius: 14, padding: '18px 48px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", boxShadow: '0 12px 40px rgba(240,165,0,0.3)', letterSpacing: 2 }}>
                   START FREE TRIAL
                 </button>
                 <button onClick={() => setVideoModal(true)}
-                  style={{ background: 'none', border: '2px solid rgba(26,26,26,0.12)', borderRadius: 12, padding: '14px 28px', color: '#1a1a1a', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s' }}>
+                  style={{ background: 'rgba(255,255,255,0.8)', border: '2px solid rgba(26,26,26,0.1)', borderRadius: 14, padding: '16px 32px', color: '#1a1a1a', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)', backdropFilter: 'blur(10px)' }}>
                   <Ic icon={Play} size={14} color="#f0a500" /> Watch Demo
                 </button>
               </div>
-              <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(26,26,26,0.3)' }}>14-day free trial · No credit card required</p>
+              <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(26,26,26,0.3)', fontWeight: 500 }}>14-day free trial · No credit card required</p>
             </FadeIn>
           </div>
 
           {/* RIGHT — AI Load Analysis Mockup */}
           <FadeIn delay={0.15}>
-            <div className="lp-mockup-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}>
+            <div className="lp-mockup-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.1), 0 0 0 1px rgba(240,165,0,0.05)' }}>
               <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: '#f8f8f8' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
@@ -422,7 +532,7 @@ export default function LandingPage({ onGetStarted }) {
       <section className="lp-section" style={{ padding: '100px 40px' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <FadeIn>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, lineHeight: 1.05, marginBottom: 40, textAlign: 'center', color: '#1a1a1a' }}>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1.05, marginBottom: 44, textAlign: 'center', color: '#1a1a1a' }}>
               You're not running<br />your business.<br /><span style={{ color: '#f0a500' }}>You're chasing it.</span>
             </h2>
           </FadeIn>
@@ -449,7 +559,7 @@ export default function LandingPage({ onGetStarted }) {
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>HOW IT WORKS</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, textAlign: 'center', marginBottom: 72, color: '#1a1a1a' }}>Watch Q Work</h2>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 72, color: '#1a1a1a' }}>Watch Q Work</h2>
           </FadeIn>
 
           {/* Step 1 */}
@@ -465,7 +575,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
             <div className="lp-step-mockup" style={{ flex: 1 }}>
               <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
                   {[
                     { route: 'Dallas, TX → Houston, TX', rate: '$2,400', miles: '240 mi', active: true },
                     { route: 'Chicago, IL → Detroit, MI', rate: '$1,890', miles: '280 mi', active: false },
@@ -497,7 +607,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
             <div className="lp-step-mockup" style={{ flex: 1 }}>
               <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', marginBottom: 14 }}>Profit Breakdown</div>
                   {[
                     { label: 'Load Rate', value: '$2,400', color: '#1a1a1a' },
@@ -532,7 +642,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
             <div className="lp-step-mockup" style={{ flex: 1 }}>
               <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                     <div style={{ flex: 1, background: 'rgba(34,197,94,0.08)', border: '2px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#22c55e' }}>✓ ACCEPT</div>
                     <div style={{ flex: 1, background: 'rgba(240,165,0,0.04)', border: '1px solid rgba(240,165,0,0.12)', borderRadius: 10, padding: '12px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'rgba(240,165,0,0.4)' }}>NEGOTIATE</div>
@@ -563,7 +673,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
             <div className="lp-step-mockup" style={{ flex: 1 }}>
               <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Marcus Johnson</div>
@@ -605,7 +715,7 @@ export default function LandingPage({ onGetStarted }) {
             </div>
             <div className="lp-step-mockup" style={{ flex: 1 }}>
               <FadeIn delay={0.1}>
-                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                     <div>
                       <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Invoice</div>
@@ -640,28 +750,28 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── FEATURES ──────────────────────────────────────────────────── */}
-      <section id="features" className="lp-section" style={{ padding: '100px 40px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <section id="features" className="lp-section lp-section-glow" style={{ padding: '100px 40px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>FEATURES</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, textAlign: 'center', marginBottom: 48, color: '#1a1a1a' }}>Everything You Need</h2>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 56, color: '#1a1a1a' }}>Everything You Need</h2>
           </FadeIn>
-          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div className="lp-features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
             {[
-              { title: 'Smart Dispatch', desc: 'Q doesn\'t just show loads — it picks the right ones based on your lanes, equipment, and profit targets.', icon: Truck },
-              { title: 'Auto Invoicing', desc: 'Invoices created automatically after delivery. Send, track, and factor — all in one place.', icon: Zap },
-              { title: 'Profit Tracking', desc: 'Know exactly what you make per load, driver, and lane. Real numbers, not estimates.', icon: TrendingUp },
-              { title: 'Driver Management', desc: 'Assign loads, track settlements, manage pay — per-driver or per-mile, your choice.', icon: Users },
-              { title: 'IFTA & Compliance', desc: 'Mileage tracking, fuel tax reports, and compliance alerts handled automatically.', icon: Shield },
+              { title: 'Smart Dispatch', desc: 'Q doesn\'t just show loads — it picks the right ones based on your lanes, equipment, and profit targets.', icon: Truck, color: '#f0a500' },
+              { title: 'Auto Invoicing', desc: 'Invoices created automatically after delivery. Send, track, and factor — all in one place.', icon: Zap, color: '#22c55e' },
+              { title: 'Profit Tracking', desc: 'Know exactly what you make per load, driver, and lane. Real numbers, not estimates.', icon: TrendingUp, color: '#3b82f6' },
+              { title: 'Driver Management', desc: 'Assign loads, track settlements, manage pay — per-driver or per-mile, your choice.', icon: Users, color: '#a855f7' },
+              { title: 'IFTA & Compliance', desc: 'Mileage tracking, fuel tax reports, and compliance alerts handled automatically.', icon: Shield, color: '#00d4aa' },
             ].map((feat, i) => (
-              <FadeIn key={feat.title} delay={i * 0.05}>
-                <div className="lp-feature-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 16, padding: '28px 24px', display: 'flex', gap: 16, alignItems: 'flex-start', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Ic icon={feat.icon} size={18} color="#f0a500" />
+              <FadeIn key={feat.title} delay={i * 0.06}>
+                <div className="lp-feature-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 18, padding: '32px 28px', display: 'flex', gap: 18, alignItems: 'flex-start', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: `${feat.color}12`, border: `1px solid ${feat.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Ic icon={feat.icon} size={20} color={feat.color} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>{feat.title}</div>
-                    <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.5)', lineHeight: 1.6 }}>{feat.desc}</div>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{feat.title}</div>
+                    <div style={{ fontSize: 14, color: 'rgba(26,26,26,0.5)', lineHeight: 1.65 }}>{feat.desc}</div>
                   </div>
                 </div>
               </FadeIn>
@@ -671,10 +781,12 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── COMPARISON (dark section for contrast) ───────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 48px', background: '#0f1117', color: '#fff' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <section className="lp-section" style={{ padding: '100px 48px', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141a 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(240,165,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(240,165,0,0.03) 1px, transparent 1px)', backgroundSize: '60px 60px', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', width: 500, height: 500, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ maxWidth: 800, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <FadeIn>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, textAlign: 'center', marginBottom: 56, color: '#fff' }}>The Difference</h2>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 60, color: '#fff' }}>The Difference</h2>
           </FadeIn>
           <div className="lp-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48 }}>
             <FadeIn>
@@ -729,14 +841,14 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── PRODUCT SHOWCASE — Kanban Pipeline ────────────────────────── */}
-      <section className="lp-section" style={{ padding: '100px 40px' }}>
+      <section className="lp-section lp-section-glow" style={{ padding: '100px 40px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>YOUR COMMAND CENTER</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 2, textAlign: 'center', marginBottom: 48, color: '#1a1a1a' }}>Everything. One Dashboard.</h2>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, textAlign: 'center', marginBottom: 52, color: '#1a1a1a' }}>Everything. One Dashboard.</h2>
           </FadeIn>
           <FadeIn delay={0.1}>
-            <div className="lp-mockup-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.08)' }}>
+            <div className="lp-mockup-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.1), 0 0 0 1px rgba(240,165,0,0.05)' }}>
               <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: '#f8f8f8' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
@@ -806,17 +918,17 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────── */}
-      <section id="pricing" className="lp-section" style={{ padding: '100px 40px' }}>
+      <section id="pricing" className="lp-section lp-section-glow" style={{ padding: '100px 40px' }}>
         <div style={{ maxWidth: 820, margin: '0 auto', textAlign: 'center' }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12 }}>SIMPLE PRICING</p>
-            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 44, letterSpacing: 2, marginBottom: 36, color: '#1a1a1a' }}>
+            <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, letterSpacing: 3, marginBottom: 40, color: '#1a1a1a' }}>
               One plan. Everything.
             </h2>
           </FadeIn>
           <FadeIn delay={0.1}>
-            <div style={{ maxWidth: 420, margin: '0 auto', background: '#fff', border: '2px solid rgba(240,165,0,0.3)', borderRadius: 24, padding: '48px 32px 40px', position: 'relative', overflow: 'hidden', boxShadow: '0 8px 40px rgba(240,165,0,0.1)' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #f0a500, #e09000)' }} />
+            <div style={{ maxWidth: 440, margin: '0 auto', background: '#fff', border: '2px solid rgba(240,165,0,0.25)', borderRadius: 28, padding: '52px 36px 44px', position: 'relative', overflow: 'hidden', boxShadow: '0 20px 60px rgba(240,165,0,0.12), 0 0 0 1px rgba(240,165,0,0.05)' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg, #f0a500, #d48e00)' }} />
               <div style={{ marginBottom: 20, padding: '6px 14px', background: 'rgba(240,165,0,0.08)', borderRadius: 8, display: 'inline-block' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>EVERYTHING INCLUDED</span>
               </div>
@@ -845,18 +957,19 @@ export default function LandingPage({ onGetStarted }) {
       </section>
 
       {/* ── BOTTOM CTA ─────────────────────────────────────────────── */}
-      <section className="lp-section" style={{ padding: '120px 40px', textAlign: 'center', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+      <section className="lp-section" style={{ padding: '140px 40px', textAlign: 'center', background: '#fff', borderTop: '1px solid rgba(0,0,0,0.06)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 500, height: 500, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(240,165,0,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
         <FadeIn>
-          <div style={{ maxWidth: 520, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, lineHeight: 1, marginBottom: 18, color: '#1a1a1a' }}>
-              Run your entire<br />trucking business<br /><span style={{ color: '#f0a500' }}>with AI.</span>
+          <div style={{ maxWidth: 560, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 60, letterSpacing: 4, lineHeight: 0.95, marginBottom: 22, color: '#1a1a1a' }}>
+              RUN YOUR ENTIRE<br />TRUCKING BUSINESS<br /><span style={{ color: '#f0a500', textShadow: '0 0 40px rgba(240,165,0,0.15)' }}>WITH AI.</span>
             </h2>
-            <p style={{ fontSize: 18, color: 'rgba(26,26,26,0.45)', lineHeight: 1.7, marginBottom: 36 }}>Set up in minutes. Start your first load today.</p>
+            <p style={{ fontSize: 19, color: 'rgba(26,26,26,0.45)', lineHeight: 1.7, marginBottom: 40 }}>Set up in minutes. Start your first load today.</p>
             <button className="lp-cta-btn" onClick={handleTry}
-              style={{ background: 'linear-gradient(135deg, #f0a500, #e09000)', border: 'none', borderRadius: 12, padding: '18px 56px', color: '#000', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, boxShadow: '0 12px 40px rgba(240,165,0,0.3)' }}>
+              style={{ background: 'linear-gradient(135deg, #f0a500, #d48e00)', border: 'none', borderRadius: 14, padding: '20px 64px', color: '#000', fontSize: 17, fontWeight: 800, cursor: 'pointer', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 2, boxShadow: '0 16px 50px rgba(240,165,0,0.35)' }}>
               START FREE TRIAL
             </button>
-            <p style={{ marginTop: 14, fontSize: 12, color: 'rgba(26,26,26,0.25)' }}>No credit card required</p>
+            <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(26,26,26,0.25)', fontWeight: 500 }}>No credit card required</p>
           </div>
         </FadeIn>
       </section>
@@ -866,7 +979,7 @@ export default function LandingPage({ onGetStarted }) {
         <div className="lp-footer-grid" style={{ maxWidth: 960, margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 32 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif" }}><span style={{ color: 'var(--accent)' }}>QI</span><span style={{ color: '#fff' }}>VORI</span></span><span style={{ marginLeft: 10, padding: '3px 8px', background: 'var(--accent2)', borderRadius: 6, fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 1 }}>AI</span>
+              <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, fontFamily: "'Bebas Neue', sans-serif" }}><span style={{ color: 'var(--accent)' }}>QI</span><span style={{ color: '#1a1a1a' }}>VORI</span></span><span style={{ marginLeft: 10, padding: '3px 8px', background: 'rgba(240,165,0,0.1)', borderRadius: 6, fontSize: 10, fontWeight: 800, color: '#f0a500', letterSpacing: 1 }}>AI</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, maxWidth: 280 }}>
               {t('landing.footerDesc')}

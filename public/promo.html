@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qivori AI — The Future of Trucking Dispatch</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0e;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .video-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── SCENES ── */
+  .scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(1.05);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+    padding: 60px;
+  }
+  .scene.active {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .scene.exit {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  /* ── BACKGROUND EFFECTS ── */
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(240,165,0,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(240,165,0,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: gridMove 20s linear infinite;
+    z-index: 0;
+  }
+  @keyframes gridMove {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(60px, 60px); }
+  }
+
+  .bg-glow {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(240,165,0,0.12) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+    animation: pulseGlow 4s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  }
+
+  /* ── TYPOGRAPHY ── */
+  .hero-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(60px, 10vw, 140px);
+    letter-spacing: 4px;
+    color: #f0a500;
+    text-align: center;
+    line-height: 1;
+    text-shadow: 0 0 80px rgba(240,165,0,0.3);
+  }
+  .hero-sub {
+    font-size: clamp(18px, 2.5vw, 32px);
+    color: rgba(255,255,255,0.7);
+    text-align: center;
+    margin-top: 20px;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+  .hero-sub strong {
+    color: #f0a500;
+    font-weight: 800;
+  }
+
+  .scene-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(40px, 6vw, 80px);
+    color: #fff;
+    text-align: center;
+    letter-spacing: 3px;
+    line-height: 1.1;
+  }
+  .scene-title .accent {
+    color: #f0a500;
+  }
+
+  .scene-body {
+    font-size: clamp(16px, 2vw, 24px);
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    max-width: 700px;
+    margin-top: 24px;
+    line-height: 1.6;
+  }
+
+  /* ── FEATURE CARDS ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    max-width: 900px;
+    margin-top: 40px;
+  }
+  .feature-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(240,165,0,0.15);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: cardIn 0.6s ease forwards;
+  }
+  .feature-card:nth-child(1) { animation-delay: 0.3s; }
+  .feature-card:nth-child(2) { animation-delay: 0.5s; }
+  .feature-card:nth-child(3) { animation-delay: 0.7s; }
+  .feature-card:nth-child(4) { animation-delay: 0.9s; }
+  .feature-card:nth-child(5) { animation-delay: 1.1s; }
+  .feature-card:nth-child(6) { animation-delay: 1.3s; }
+  @keyframes cardIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .feature-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+  .feature-label {
+    font-weight: 800;
+    font-size: 15px;
+    color: #f0a500;
+    letter-spacing: 0.5px;
+  }
+  .feature-desc {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
+  /* ── STAT BAR ── */
+  .stats-row {
+    display: flex;
+    gap: 60px;
+    margin-top: 50px;
+  }
+  .stat {
+    text-align: center;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards;
+  }
+  .stat:nth-child(1) { animation-delay: 0.4s; }
+  .stat:nth-child(2) { animation-delay: 0.6s; }
+  .stat:nth-child(3) { animation-delay: 0.8s; }
+  .stat:nth-child(4) { animation-delay: 1.0s; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .stat-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(36px, 5vw, 64px);
+    color: #f0a500;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+  }
+
+  /* ── VOICE VISUALIZER ── */
+  .voice-viz {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 30px 0 20px;
+    height: 60px;
+  }
+  .voice-bar {
+    width: 6px;
+    background: #f0a500;
+    border-radius: 3px;
+    animation: voicePulse 0.8s ease-in-out infinite alternate;
+  }
+  .voice-bar:nth-child(1) { height: 20px; animation-delay: 0s; }
+  .voice-bar:nth-child(2) { height: 35px; animation-delay: 0.1s; }
+  .voice-bar:nth-child(3) { height: 50px; animation-delay: 0.2s; }
+  .voice-bar:nth-child(4) { height: 40px; animation-delay: 0.3s; }
+  .voice-bar:nth-child(5) { height: 55px; animation-delay: 0.15s; }
+  .voice-bar:nth-child(6) { height: 30px; animation-delay: 0.25s; }
+  .voice-bar:nth-child(7) { height: 45px; animation-delay: 0.05s; }
+  .voice-bar:nth-child(8) { height: 25px; animation-delay: 0.35s; }
+  .voice-bar:nth-child(9) { height: 50px; animation-delay: 0.12s; }
+  .voice-bar:nth-child(10) { height: 35px; animation-delay: 0.22s; }
+  .voice-bar:nth-child(11) { height: 20px; animation-delay: 0.08s; }
+  .voice-bar:nth-child(12) { height: 40px; animation-delay: 0.18s; }
+  @keyframes voicePulse {
+    0% { transform: scaleY(0.4); opacity: 0.5; }
+    100% { transform: scaleY(1); opacity: 1; }
+  }
+
+  /* ── PHONE MOCKUP ── */
+  .phone-mockup {
+    width: 280px;
+    height: 560px;
+    background: #131720;
+    border-radius: 40px;
+    border: 3px solid rgba(240,165,0,0.3);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 60px rgba(240,165,0,0.1);
+    opacity: 0;
+    animation: phoneIn 1s ease 0.5s forwards;
+  }
+  @keyframes phoneIn {
+    from { opacity: 0; transform: translateY(40px) rotateX(10deg); }
+    to { opacity: 1; transform: translateY(0) rotateX(0); }
+  }
+  .phone-notch {
+    width: 120px;
+    height: 28px;
+    background: #0a0a0e;
+    border-radius: 0 0 16px 16px;
+    margin: 0 auto;
+  }
+  .phone-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    gap: 8px;
+  }
+  .phone-header .q-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f0a500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    color: #0a0a0e;
+    font-weight: 800;
+  }
+  .phone-header span {
+    font-weight: 800;
+    font-size: 16px;
+    color: #f0a500;
+  }
+  .phone-chat {
+    padding: 0 16px;
+  }
+  .chat-bubble {
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    opacity: 0;
+    animation: bubbleIn 0.4s ease forwards;
+    max-width: 85%;
+  }
+  .chat-bubble.q {
+    background: rgba(240,165,0,0.1);
+    border: 1px solid rgba(240,165,0,0.2);
+    color: rgba(255,255,255,0.85);
+    align-self: flex-start;
+  }
+  .chat-bubble.driver {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    margin-left: auto;
+  }
+  .chat-bubble:nth-child(1) { animation-delay: 1.0s; }
+  .chat-bubble:nth-child(2) { animation-delay: 2.0s; }
+  .chat-bubble:nth-child(3) { animation-delay: 3.0s; }
+  .chat-bubble:nth-child(4) { animation-delay: 4.0s; }
+  @keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── TYPING INDICATOR ── */
+  .typing {
+    display: flex;
+    gap: 4px;
+    padding: 10px 14px;
+    opacity: 0;
+    animation: bubbleIn 0.4s ease 0.6s forwards;
+  }
+  .typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f0a500;
+    animation: typingBounce 1.4s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* ── PIPELINE ── */
+  .pipeline {
+    display: flex;
+    gap: 16px;
+    margin-top: 30px;
+    max-width: 900px;
+  }
+  .pipeline-col {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+  .pipeline-col:nth-child(1) { animation-delay: 0.3s; }
+  .pipeline-col:nth-child(2) { animation-delay: 0.5s; }
+  .pipeline-col:nth-child(3) { animation-delay: 0.7s; }
+  .pipeline-col:nth-child(4) { animation-delay: 0.9s; }
+  .pipeline-col:nth-child(5) { animation-delay: 1.1s; }
+  .col-title {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 10px;
+  }
+  .col-count {
+    color: #f0a500;
+    font-weight: 800;
+  }
+  .mini-card {
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 6px;
+    border-left: 3px solid #f0a500;
+  }
+  .mini-card .route {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.8);
+  }
+  .mini-card .meta {
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 3px;
+  }
+
+  /* ── CTA ── */
+  .cta-btn {
+    margin-top: 40px;
+    padding: 18px 48px;
+    background: #f0a500;
+    color: #0a0a0e;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.8s forwards;
+    box-shadow: 0 10px 40px rgba(240,165,0,0.3);
+  }
+  .cta-sub {
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 12px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 1.2s forwards;
+  }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #f0a500;
+    z-index: 100;
+    transition: width 0.3s linear;
+  }
+
+  /* ── SCENE COUNTER ── */
+  .scene-counter {
+    position: fixed;
+    bottom: 20px;
+    right: 30px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.2);
+    font-weight: 700;
+    z-index: 100;
+    letter-spacing: 2px;
+  }
+
+  /* ── QUOTE ── */
+  .quote {
+    font-size: clamp(20px, 3vw, 36px);
+    font-style: italic;
+    color: rgba(255,255,255,0.6);
+    text-align: center;
+    max-width: 700px;
+    line-height: 1.5;
+    margin-top: 20px;
+  }
+  .quote-author {
+    font-size: 14px;
+    color: #f0a500;
+    margin-top: 16px;
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  /* ── PARTICLES ── */
+  .particle {
+    position: fixed;
+    width: 3px;
+    height: 3px;
+    background: rgba(240,165,0,0.3);
+    border-radius: 50%;
+    animation: float 8s ease-in-out infinite;
+    z-index: 0;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+    50% { transform: translateY(-100px) translateX(30px); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="video-container">
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <!-- Floating particles -->
+  <div class="particle" style="left:10%;top:80%;animation-delay:0s"></div>
+  <div class="particle" style="left:25%;top:70%;animation-delay:1s"></div>
+  <div class="particle" style="left:40%;top:85%;animation-delay:2s"></div>
+  <div class="particle" style="left:55%;top:75%;animation-delay:3s"></div>
+  <div class="particle" style="left:70%;top:90%;animation-delay:1.5s"></div>
+  <div class="particle" style="left:85%;top:80%;animation-delay:2.5s"></div>
+  <div class="particle" style="left:15%;top:60%;animation-delay:4s"></div>
+  <div class="particle" style="left:90%;top:65%;animation-delay:3.5s"></div>
+
+  <!-- SCENE 1: LOGO INTRO -->
+  <div class="scene active" id="scene1">
+    <div class="hero-title">QIVORI</div>
+    <div class="hero-sub">The <strong>AI Dispatcher</strong> That Never Sleeps</div>
+  </div>
+
+  <!-- SCENE 2: THE PROBLEM -->
+  <div class="scene" id="scene2">
+    <div class="scene-title">DISPATCHERS COST YOU <span class="accent">$60K/YEAR</span></div>
+    <div class="scene-body">They work 9 to 5. They miss loads. They don't negotiate rates at 2 AM. Your money sits on the table while your dispatcher sleeps.</div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-num">$60K</div><div class="stat-label">Avg Dispatcher Salary</div></div>
+      <div class="stat"><div class="stat-num">8%</div><div class="stat-label">Commission Lost</div></div>
+      <div class="stat"><div class="stat-num">40%</div><div class="stat-label">Empty Miles</div></div>
+      <div class="stat"><div class="stat-num">0</div><div class="stat-label">Night Coverage</div></div>
+    </div>
+  </div>
+
+  <!-- SCENE 3: MEET Q -->
+  <div class="scene" id="scene3">
+    <div class="scene-title">MEET <span class="accent">Q</span></div>
+    <div class="scene-body">Your AI dispatcher, accountant, compliance officer, and business strategist. All in one voice.</div>
+    <div class="voice-viz">
+      <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+      <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+      <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+      <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+    </div>
+    <div class="scene-body" style="color:#f0a500;font-weight:700;font-size:18px;margin-top:10px">"That load pays $2.10/mi but you'd deadhead 120 miles. Effective RPM drops to $1.85. Counter at $2.40."</div>
+  </div>
+
+  <!-- SCENE 4: PHONE DEMO -->
+  <div class="scene" id="scene4" style="flex-direction:row;gap:60px">
+    <div style="flex:1;max-width:400px">
+      <div class="scene-title" style="text-align:left;font-size:clamp(30px,4vw,56px)">TALK TO Q.<br><span class="accent">HANDS FREE.</span></div>
+      <div class="scene-body" style="text-align:left">"Hey Q, mark my load delivered and find me a reload from Memphis."<br><br>Q handles it. Updates status. Sends invoice. Finds your next load. All by voice.</div>
+    </div>
+    <div class="phone-mockup">
+      <div class="phone-notch"></div>
+      <div class="phone-header">
+        <div class="q-badge">Q</div>
+        <span>Q is listening...</span>
+      </div>
+      <div class="phone-chat">
+        <div class="typing">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+        <div class="chat-bubble q">Load marked delivered. Sending invoice to TQL for $3,400.</div>
+        <div class="chat-bubble driver">Find me a reload heading west</div>
+        <div class="chat-bubble q">Found 3 options from Memphis. Best: Memphis to Dallas, $2.90/mi, 452 miles. Want it?</div>
+        <div class="chat-bubble driver">Book it</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 5: FEATURES -->
+  <div class="scene" id="scene5">
+    <div class="scene-title">EVERYTHING. <span class="accent">ONE APP.</span></div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">&#128266;</div>
+        <div class="feature-label">AI Voice Dispatch</div>
+        <div class="feature-desc">Call Q hands-free. Update loads, log expenses, find freight — by voice.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#128200;</div>
+        <div class="feature-label">Rate Intelligence</div>
+        <div class="feature-desc">Real-time market rates. RPM analysis. Never take a bad load again.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#128203;</div>
+        <div class="feature-label">Scan Rate Cons</div>
+        <div class="feature-desc">Upload a rate con — AI reads it and books the load in seconds.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#128176;</div>
+        <div class="feature-label">Invoicing & P&L</div>
+        <div class="feature-desc">Auto-invoice on delivery. Per-trip profit tracking. Know your numbers.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#128737;</div>
+        <div class="feature-label">Compliance</div>
+        <div class="feature-desc">HOS tracking, IFTA, CSA scores, ELD integration. Stay legal.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#128640;</div>
+        <div class="feature-label">Smart Dispatch</div>
+        <div class="feature-desc">AI finds reloads before you deliver. Eliminates deadhead miles.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 6: PIPELINE -->
+  <div class="scene" id="scene6">
+    <div class="scene-title">YOUR LOADS. <span class="accent">ONE VIEW.</span></div>
+    <div class="scene-body">Kanban pipeline. Drag to update. Click for details. Everything at a glance.</div>
+    <div class="pipeline">
+      <div class="pipeline-col">
+        <div class="col-title">Booked <span class="col-count">3</span></div>
+        <div class="mini-card"><div class="route">DAL &rarr; ATL</div><div class="meta">$3,840 &middot; $2.94/mi</div></div>
+        <div class="mini-card"><div class="route">HOU &rarr; MEM</div><div class="meta">$2,100 &middot; $2.65/mi</div></div>
+      </div>
+      <div class="pipeline-col">
+        <div class="col-title">In Transit <span class="col-count">2</span></div>
+        <div class="mini-card"><div class="route">CHI &rarr; DET</div><div class="meta">$1,450 &middot; $3.10/mi</div></div>
+      </div>
+      <div class="pipeline-col">
+        <div class="col-title">Delivered <span class="col-count">1</span></div>
+        <div class="mini-card"><div class="route">LAX &rarr; PHX</div><div class="meta">$1,800 &middot; $2.45/mi</div></div>
+      </div>
+      <div class="pipeline-col">
+        <div class="col-title">Invoiced <span class="col-count">4</span></div>
+        <div class="mini-card"><div class="route">MIA &rarr; JAX</div><div class="meta">$1,200 &middot; $2.80/mi</div></div>
+        <div class="mini-card"><div class="route">NAS &rarr; STL</div><div class="meta">$1,650 &middot; $2.55/mi</div></div>
+      </div>
+      <div class="pipeline-col">
+        <div class="col-title">Paid <span class="col-count">6</span></div>
+        <div class="mini-card"><div class="route">SEA &rarr; PDX</div><div class="meta">$950 &middot; $3.20/mi</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 7: TESTIMONIAL / VISION -->
+  <div class="scene" id="scene7">
+    <div class="scene-title" style="font-size:clamp(30px,4vw,50px)">BUILT BY A TRUCKER.<br><span class="accent">FOR TRUCKERS.</span></div>
+    <div class="quote">"I built Qivori because I was tired of paying dispatchers who didn't care about my business as much as I do. Q works harder than any dispatcher I've ever had."</div>
+    <div class="quote-author">— Mohamed Wasuge, Founder & CEO</div>
+  </div>
+
+  <!-- SCENE 8: PRICING -->
+  <div class="scene" id="scene8">
+    <div class="scene-title">START AT <span class="accent">$79/MO</span></div>
+    <div class="scene-body">Everything included. No contracts. No commission. No hidden fees.<br>14-day free trial. Cancel anytime.</div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-num">$0</div><div class="stat-label">Commission</div></div>
+      <div class="stat"><div class="stat-num">0%</div><div class="stat-label">Hidden Fees</div></div>
+      <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">AI Dispatch</div></div>
+      <div class="stat"><div class="stat-num">14</div><div class="stat-label">Day Free Trial</div></div>
+    </div>
+    <button class="cta-btn" onclick="window.open('https://qivori.com','_blank')">START FREE TRIAL</button>
+    <div class="cta-sub">No credit card required &middot; Cancel anytime</div>
+  </div>
+
+  <!-- SCENE 9: CLOSING LOGO -->
+  <div class="scene" id="scene9">
+    <div class="hero-title" style="font-size:clamp(80px,12vw,180px)">QIVORI</div>
+    <div class="hero-sub" style="font-size:clamp(14px,2vw,22px);letter-spacing:4px;text-transform:uppercase">The Future of Trucking Dispatch</div>
+    <div class="hero-sub" style="margin-top:30px;font-size:16px;color:#f0a500;font-weight:800">qivori.com</div>
+  </div>
+
+  <div class="progress-bar" id="progress"></div>
+  <div class="scene-counter" id="counter">01 / 09</div>
+</div>
+
+<script>
+  const scenes = document.querySelectorAll('.scene')
+  const progress = document.getElementById('progress')
+  const counter = document.getElementById('counter')
+  const totalScenes = scenes.length
+  let current = 0
+  let playing = true
+
+  // Scene durations in ms
+  const durations = [4000, 5500, 5500, 7000, 6000, 6000, 6000, 6000, 5000]
+
+  function showScene(index) {
+    scenes.forEach((s, i) => {
+      s.classList.remove('active', 'exit')
+      if (i === index) s.classList.add('active')
+      else if (i === index - 1 || (index === 0 && i === totalScenes - 1)) s.classList.add('exit')
+    })
+    counter.textContent = `${String(index + 1).padStart(2, '0')} / ${String(totalScenes).padStart(2, '0')}`
+    progress.style.width = `${((index + 1) / totalScenes) * 100}%`
+  }
+
+  function nextScene() {
+    if (!playing) return
+    current++
+    if (current >= totalScenes) {
+      current = 0 // loop
+    }
+    showScene(current)
+    setTimeout(nextScene, durations[current] || 5000)
+  }
+
+  // Start auto-play
+  setTimeout(nextScene, durations[0])
+
+  // Click to advance
+  document.addEventListener('click', () => {
+    current++
+    if (current >= totalScenes) current = 0
+    showScene(current)
+  })
+
+  // Keyboard: space to pause, arrows to navigate
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      playing = !playing
+      if (playing) setTimeout(nextScene, 2000)
+      e.preventDefault()
+    }
+    if (e.code === 'ArrowRight') {
+      current = (current + 1) % totalScenes
+      showScene(current)
+    }
+    if (e.code === 'ArrowLeft') {
+      current = (current - 1 + totalScenes) % totalScenes
+      showScene(current)
+    }
+  })
+</script>
+
+</body>
+</html>

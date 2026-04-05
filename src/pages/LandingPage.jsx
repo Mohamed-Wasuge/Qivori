@@ -395,6 +395,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-section { padding: 60px 20px !important; }
           .lp-features-grid { grid-template-columns: 1fr !important; }
           .lp-pipeline-cols { grid-template-columns: repeat(2, 1fr) !important; }
+          .lp-invoice-grid { grid-template-columns: 1fr !important; }
           .lp-q-voice-grid { grid-template-columns: 1fr !important; }
           .lp-section-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
@@ -723,6 +724,95 @@ export default function LandingPage({ onGetStarted }) {
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Revenue: <strong style={{ color: '#22c55e' }}>$20,690</strong></span>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>Profit: <strong style={{ color: '#00d4aa' }}>$9,380</strong></span>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginLeft: 'auto' }}>Q auto-dispatched <strong style={{ color: '#f0a500' }}>4 loads</strong> today</span>
+              </div>
+            </div>
+          </FadeIn>
+
+          {/* ── INVOICE FACTORY — Bill to Broker ──────────────────────── */}
+          <FadeIn delay={0.2}>
+            <div style={{ marginTop: 48 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 16, textAlign: 'center' }}>INVOICE FACTORY</p>
+              <h3 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: 2, textAlign: 'center', marginBottom: 32, color: '#1a1a1a' }}>Delivered? Billed. Automatically.</h3>
+            </div>
+            <div className="lp-invoice-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              {/* Invoice cards — bills to brokers */}
+              <div className="lp-mockup-card" style={{ background: '#0a0a0e', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(240,165,0,0.1)', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1 }}>RECENT INVOICES</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>This Week</span>
+                </div>
+                <div style={{ padding: '12px 18px' }}>
+                  {[
+                    { inv: 'INV-1845', broker: 'TQL Logistics', route: 'MIA → ATL', amount: '$1,980', status: 'Sent', statusColor: '#f0a500' },
+                    { inv: 'INV-1846', broker: 'CH Robinson', route: 'HOU → DAL', amount: '$680', status: 'Paid', statusColor: '#22c55e' },
+                    { inv: 'INV-1847', broker: 'Echo Global', route: 'LAX → PHX', amount: '$1,200', status: 'Sent', statusColor: '#f0a500' },
+                    { inv: 'INV-1848', broker: 'Coyote Logistics', route: 'BOS → NYC', amount: '$890', status: 'Factored', statusColor: '#00d4aa' },
+                    { inv: 'INV-1844', broker: 'XPO Logistics', route: 'DAL → ATL', amount: '$3,840', status: 'Paid', statusColor: '#22c55e' },
+                  ].map((inv, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: inv.statusColor, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{inv.inv}</span>
+                          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, color: '#f0a500' }}>{inv.amount}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>{inv.broker} · {inv.route}</span>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: inv.statusColor, background: `${inv.statusColor}15`, padding: '1px 6px', borderRadius: 3, letterSpacing: 0.5 }}>{inv.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: '10px 18px', borderTop: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>Total billed: <strong style={{ color: '#f0a500' }}>$8,590</strong></span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>Collected: <strong style={{ color: '#22c55e' }}>$4,520</strong></span>
+                </div>
+              </div>
+
+              {/* Single invoice preview */}
+              <div className="lp-mockup-card" style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}>
+                <div style={{ padding: '18px 22px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'rgba(26,26,26,0.3)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Invoice</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a' }}>INV-1845</div>
+                  </div>
+                  <div style={{ padding: '4px 10px', background: 'rgba(240,165,0,0.08)', borderRadius: 6, fontSize: 10, fontWeight: 700, color: '#f0a500', letterSpacing: 0.5 }}>SENT TO BROKER</div>
+                </div>
+                <div style={{ padding: '16px 22px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', marginBottom: 2 }}>Bill To</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>TQL Logistics</div>
+                      <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)' }}>Cincinnati, OH</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: 'rgba(26,26,26,0.35)', marginBottom: 2 }}>Date</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>Apr 4, 2026</div>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 12 }}>
+                    {[
+                      { label: 'Route', value: 'Miami, FL → Atlanta, GA' },
+                      { label: 'Miles', value: '662 mi' },
+                      { label: 'Load #', value: 'TQL-482917' },
+                      { label: 'Driver', value: 'Sarah M. — Unit 312' },
+                    ].map((row, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: 'rgba(26,26,26,0.4)' }}>{row.label}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '2px solid rgba(0,0,0,0.08)', marginTop: 8 }}>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>Total Due</span>
+                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: '#f0a500', lineHeight: 1 }}>$1,980</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                    <div style={{ flex: 1, padding: '8px 0', background: 'linear-gradient(135deg, #f0a500, #e09000)', borderRadius: 8, textAlign: 'center', fontSize: 11, fontWeight: 800, color: '#000', letterSpacing: 0.5 }}>SEND INVOICE</div>
+                    <div style={{ flex: 1, padding: '8px 0', background: 'rgba(0,212,170,0.08)', border: '1px solid rgba(0,212,170,0.2)', borderRadius: 8, textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#00d4aa', letterSpacing: 0.5 }}>QUICK FACTOR</div>
+                  </div>
+                </div>
               </div>
             </div>
           </FadeIn>

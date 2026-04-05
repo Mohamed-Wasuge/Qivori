@@ -309,6 +309,12 @@ export default function LandingPage({ onGetStarted }) {
           to { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
         }
 
+        /* Q Voice bars animation */
+        @keyframes lpVoiceBar {
+          from { height: 8px; opacity: 0.3; }
+          to { height: 36px; opacity: 1; }
+        }
+
         /* Floating particles (light) */
         .lp-particle {
           position: absolute;
@@ -364,6 +370,7 @@ export default function LandingPage({ onGetStarted }) {
           .lp-features-grid { grid-template-columns: 1fr !important; }
           .lp-steps-row { flex-direction: column !important; }
           .lp-compare-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .lp-q-voice-grid { grid-template-columns: 1fr !important; }
           .lp-kanban-cols { grid-template-columns: repeat(2, 1fr) !important; }
           .lp-section-heading { font-size: 36px !important; }
           .lp-footer-grid { grid-template-columns: 1fr !important; text-align: center !important; }
@@ -465,49 +472,63 @@ export default function LandingPage({ onGetStarted }) {
             </FadeIn>
           </div>
 
-          {/* RIGHT — AI Load Analysis Mockup */}
+          {/* RIGHT — Live Fleet Dashboard Mockup */}
           <FadeIn delay={0.15}>
-            <div className="lp-mockup-card" style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.1), 0 0 0 1px rgba(240,165,0,0.05)' }}>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: '#f8f8f8' }}>
+            <div className="lp-mockup-card" style={{ background: '#0a0a0e', borderRadius: 20, overflow: 'hidden', boxShadow: '0 40px 100px rgba(0,0,0,0.2), 0 0 60px rgba(240,165,0,0.06)', border: '1px solid rgba(240,165,0,0.1)' }}>
+              {/* Browser chrome */}
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.03)' }}>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
                 </div>
-                <div style={{ flex: 1, marginLeft: 12, background: '#fff', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(0,0,0,0.35)', border: '1px solid rgba(0,0,0,0.06)' }}>qivori.com/ai-dispatch</div>
+                <div style={{ flex: 1, marginLeft: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 6, padding: '4px 12px', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>qivori.com/dashboard</div>
               </div>
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                  <Ic icon={Zap} size={14} color="#f0a500" />
-                  <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase' }}>AI Load Analysis</span>
+              {/* Fleet header */}
+              <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px rgba(34,197,94,0.6)' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 1.5 }}>LIVE FLEET</span>
                 </div>
-                <div style={{ background: '#FAFAFA', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12, padding: '16px', marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Dallas, TX → Houston, TX</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', background: 'rgba(34,197,94,0.08)', padding: '3px 8px', borderRadius: 6 }}>HIGH PROFIT</span>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  {[{ v: '8', l: 'On Load' }, { v: '$34.2K', l: 'This Week' }].map(s => (
+                    <div key={s.l} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: '#f0a500', lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5 }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Active loads pipeline */}
+              <div style={{ padding: '16px 20px' }}>
+                {[
+                  { route: 'DAL → ATL', rate: '$3,840', rpm: '$2.95/mi', status: 'In Transit', statusColor: '#22c55e', driver: 'Mike J.', truckColor: '#f0a500', progress: 65 },
+                  { route: 'CHI → MIA', rate: '$3,590', rpm: '$2.60/mi', status: 'Loaded', statusColor: '#00d4aa', driver: 'Carlos R.', truckColor: '#00d4aa', progress: 10 },
+                  { route: 'NYC → PHL', rate: '$680', rpm: '$7.00/mi', status: 'At Pickup', statusColor: '#4d8ef0', driver: 'James W.', truckColor: '#3498db', progress: 0 },
+                ].map((load, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, marginBottom: 8, background: i === 0 ? 'rgba(240,165,0,0.06)' : 'rgba(255,255,255,0.02)', border: i === 0 ? '1px solid rgba(240,165,0,0.15)' : '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: load.truckColor, boxShadow: `0 0 6px ${load.truckColor}60`, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{load.route}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: load.statusColor, background: `${load.statusColor}15`, padding: '2px 8px', borderRadius: 4, letterSpacing: 0.5 }}>{load.status}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{load.driver} · {load.rpm}</span>
+                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#f0a500' }}>{load.rate}</span>
+                      </div>
+                      {load.progress > 0 && (
+                        <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1, marginTop: 6, overflow: 'hidden' }}>
+                          <div style={{ width: `${load.progress}%`, height: '100%', background: load.truckColor, borderRadius: 1 }} />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 28 }}>
-                    <div><div style={{ fontSize: 9, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Rate</div><div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>$2,400</div></div>
-                    <div><div style={{ fontSize: 9, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Miles</div><div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>1,200</div></div>
-                    <div><div style={{ fontSize: 9, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Net Profit</div><div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e' }}>$1,050</div></div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 9, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>AI Recommendation</div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                  <div style={{ flex: 1, background: 'rgba(34,197,94,0.08)', border: '2px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 800, color: '#22c55e' }}>✓ ACCEPT</div>
-                  <div style={{ flex: 1, background: 'rgba(240,165,0,0.04)', border: '1px solid rgba(240,165,0,0.12)', borderRadius: 10, padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'rgba(240,165,0,0.4)' }}>NEGOTIATE</div>
-                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.03)', border: '1px solid rgba(239,68,68,0.1)', borderRadius: 10, padding: '10px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'rgba(239,68,68,0.3)' }}>REJECT</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.4)', fontWeight: 600 }}>Q Confidence</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#22c55e' }}>94%</span>
-                </div>
-                <div style={{ height: 4, background: 'rgba(0,0,0,0.06)', borderRadius: 2, overflow: 'hidden', marginBottom: 14 }}>
-                  <div style={{ width: '94%', height: '100%', background: 'linear-gradient(90deg, #22c55e, #16a34a)', borderRadius: 2 }} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
-                  <Ic icon={Clock} size={11} color="rgba(0,0,0,0.3)" />
-                  Q analyzed 47 loads and selected this one
+                ))}
+                {/* Q AI status bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '10px 14px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)', borderRadius: 10 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                  <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 600 }}>Q analyzed 247 loads · Auto-booked 3 · Saved $1,840 in negotiations</span>
                 </div>
               </div>
             </div>
@@ -515,16 +536,21 @@ export default function LandingPage({ onGetStarted }) {
         </div>
       </section>
 
-      {/* ── SOCIAL PROOF ─────────────────────────────────────────────── */}
-      <section style={{ borderTop: '1px solid rgba(0,0,0,0.06)', borderBottom: '1px solid rgba(0,0,0,0.06)', background: '#fff' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 40px', textAlign: 'center' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#f0a500', letterSpacing: 2, marginBottom: 16 }}>INTEGRATIONS</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 48, flexWrap: 'wrap', marginBottom: 8 }}>
-            {['MOTIVE', 'DAT', 'TRUCKSTOP', 'QUICKBOOKS', 'COMDATA'].map(name => (
-              <span key={name} style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, color: 'rgba(26,26,26,0.2)' }}>{name}</span>
-            ))}
-          </div>
-          <p style={{ fontSize: 13, color: 'rgba(26,26,26,0.35)' }}>Connects with tools you already use</p>
+      {/* ── LIVE STATS BAR ─────────────────────────────────────────── */}
+      <section style={{ background: '#0a0a0e', borderTop: '1px solid rgba(240,165,0,0.1)', borderBottom: '1px solid rgba(240,165,0,0.1)' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', padding: '28px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
+          {[
+            { value: '247', label: 'Loads Scanned Today', color: '#f0a500' },
+            { value: '$34.2K', label: 'Weekly Revenue', color: '#22c55e' },
+            { value: '$2.74', label: 'Avg Rate/Mile', color: '#00d4aa' },
+            { value: '94%', label: 'Q Confidence', color: '#4d8ef0' },
+            { value: '8', label: 'Trucks on Load', color: '#a855f7' },
+          ].map(stat => (
+            <div key={stat.label} style={{ textAlign: 'center', flex: 1, minWidth: 100 }}>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: stat.color, lineHeight: 1, marginBottom: 4 }}>{stat.value}</div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{stat.label}</div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -746,6 +772,63 @@ export default function LandingPage({ onGetStarted }) {
           <FadeIn delay={0.2}>
             <p style={{ fontSize: 15, color: 'rgba(26,26,26,0.3)', textAlign: 'center', marginTop: 48 }}>No spreadsheets. No switching apps. One system.</p>
           </FadeIn>
+        </div>
+      </section>
+
+      {/* ── MEET Q — VOICE AI SECTION ──────────────────────────────── */}
+      <section className="lp-section" style={{ padding: '100px 48px', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141a 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(240,165,0,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(240,165,0,0.02) 1px, transparent 1px)', backgroundSize: '60px 60px', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', width: 500, height: 500, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(240,165,0,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
+        <div style={{ maxWidth: 900, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          <FadeIn>
+            <div style={{ textAlign: 'center', marginBottom: 48 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#f0a500', letterSpacing: 3, marginBottom: 12 }}>MEET Q</p>
+              <h2 className="lp-section-heading" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, letterSpacing: 3, color: '#fff', marginBottom: 16 }}>Your AI That Talks Back</h2>
+              <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.4)', maxWidth: 500, margin: '0 auto' }}>Q doesn't just analyze — it speaks. Call Q, ask for loads, check status, get paid. Hands-free while you drive.</p>
+            </div>
+          </FadeIn>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center' }}>
+            {/* Q Orb + Voice Bars */}
+            <FadeIn delay={0.1}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+                <div style={{ width: 120, height: 120, borderRadius: '50%', background: 'radial-gradient(circle at 40% 40%, #f0a500, #c48400)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 60, color: '#0a0a0e', boxShadow: '0 0 60px rgba(240,165,0,0.3), 0 0 120px rgba(240,165,0,0.1)' }}>
+                  Q
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 40 }}>
+                  {[0, 0.1, 0.2, 0.15, 0.25, 0.05, 0.3, 0.12, 0.22, 0.08, 0.28, 0.18].map((d, i) => (
+                    <div key={i} style={{ width: 4, background: '#f0a500', borderRadius: 2, animation: 'lpVoiceBar 0.8s ease-in-out infinite alternate', animationDelay: `${d}s`, height: 10 }} />
+                  ))}
+                </div>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>"Hey Q, find me a load from Atlanta..."</p>
+              </div>
+            </FadeIn>
+            {/* Phone mockup with chat */}
+            <FadeIn delay={0.2}>
+              <div style={{ width: 280, height: 480, background: '#131720', borderRadius: 36, border: '2px solid rgba(240,165,0,0.15)', overflow: 'hidden', boxShadow: '0 40px 80px rgba(0,0,0,0.5)', margin: '0 auto' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f0a500', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, color: '#0a0a0e', fontWeight: 700 }}>Q</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Q Dispatch AI</div>
+                    <div style={{ fontSize: 9, color: '#22c55e' }}>● Autonomous Mode</div>
+                  </div>
+                </div>
+                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { q: true, text: '🚛 New load dispatched!\nDAL → ATL · 1,300 mi\n$3,840 · $2.95/mi' },
+                    { q: false, text: 'Got it Q, rolling out now' },
+                    { q: true, text: '✅ GPS check-in at shipper.\nStatus → At Pickup\nDock 7. Load time: 45 min.' },
+                    { q: true, text: '💰 Delivered. POD uploaded.\nInvoice #1847 sent.\nDriver pay: $1,075.20' },
+                    { q: false, text: 'Q, find backhaul from ATL' },
+                    { q: true, text: 'Best: ATL → MIA\n$2,190 · $2.80/mi\nBroker: TQL (A-rated)' },
+                  ].map((msg, i) => (
+                    <div key={i} style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: 14, fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-line', alignSelf: msg.q ? 'flex-start' : 'flex-end', background: msg.q ? 'rgba(240,165,0,0.08)' : 'rgba(255,255,255,0.05)', border: msg.q ? '1px solid rgba(240,165,0,0.15)' : '1px solid rgba(255,255,255,0.08)', borderBottomLeftRadius: msg.q ? 4 : 14, borderBottomRightRadius: msg.q ? 14 : 4, color: 'rgba(255,255,255,0.85)' }}>
+                      {msg.text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </FadeIn>
+          </div>
         </div>
       </section>
 

@@ -176,66 +176,77 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', WebkitOverflowScrolling: 'touch' }}>
+      <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', WebkitOverflowScrolling: 'touch' }}>
 
         {/* ── 1. HERO: "You're owed $X,XXX" ── */}
         <div style={{
-          textAlign: 'center', padding: '24px 16px 20px',
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18,
-          marginBottom: 16, animation: 'fadeInUp 0.4s ease',
+          textAlign: 'center', padding: '28px 20px 24px',
+          background: 'linear-gradient(145deg, var(--surface), rgba(240,165,0,0.03))',
+          border: '1px solid rgba(255,255,255,0.06)',
+          boxShadow: '0 2px 20px rgba(0,0,0,0.08), 0 0 1px rgba(255,255,255,0.06)',
+          borderRadius: 20, marginBottom: 20, animation: 'fadeInUp 0.4s ease',
+          position: 'relative', overflow: 'hidden',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1.5, marginBottom: 8 }}>
+          {/* Subtle background glow */}
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            width: 200, height: 200, borderRadius: '50%',
+            background: unpaidTotal > 0 ? 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(0,212,170,0.06) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 2, marginBottom: 10, position: 'relative' }}>
             YOU'RE OWED
           </div>
           <div style={{
-            fontFamily: "'Bebas Neue',sans-serif", fontSize: 52, fontWeight: 800,
+            fontFamily: "'Bebas Neue',sans-serif", fontSize: 56, fontWeight: 800,
             color: unpaidTotal > 0 ? 'var(--accent)' : 'var(--success)',
             letterSpacing: 2, lineHeight: 1, animation: 'qNumberPop 0.5s ease',
+            position: 'relative',
+            textShadow: unpaidTotal > 0 ? '0 2px 20px rgba(240,165,0,0.2)' : '0 2px 20px rgba(0,212,170,0.15)',
           }}>
             {fmt$(unpaidTotal)}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8, fontWeight: 500 }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, fontWeight: 500, position: 'relative' }}>
             {unpaidInvoices.length === 0 ? 'All caught up' : `${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length !== 1 ? 's' : ''}`}
           </div>
         </div>
 
         {/* ── 2. UNPAID INVOICES LIST ── */}
         {unpaidInvoices.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 8 }}>UNPAID INVOICES</div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--muted)', marginBottom: 10 }}>UNPAID INVOICES</div>
             {unpaidInvoices.map((inv, index) => {
               const isSent = (inv.status || '').toLowerCase() === 'sent'
               return (
-                <div key={inv.id || inv.invoice_number || inv._dbId} style={{
-                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
-                  padding: '12px 14px', marginBottom: 8, animation: `fadeInUp 0.2s ease ${index * 0.04}s both`,
+                <div key={inv.id || inv.invoice_number || inv._dbId} className="premium-card" style={{
+                  padding: '14px 16px', marginBottom: 10, animation: `fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.05}s both`,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
                         {inv.route || `${inv.load_number || inv.loadId || '—'}`}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                         {inv.broker || '—'} · {inv.invoice_number || inv.id}
-                        {isSent && <span style={{ color: 'var(--accent)', fontWeight: 700 }}> · Sent</span>}
+                        {isSent && <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 9, background: 'rgba(240,165,0,0.1)', padding: '1px 6px', borderRadius: 4 }}>SENT</span>}
                       </div>
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", flexShrink: 0 }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", flexShrink: 0, letterSpacing: 1 }}>
                       {fmt$(inv.amount)}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => sendInvoice(inv)}
-                      style={{ flex: 1, padding: '8px', background: 'var(--accent)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                      <Ic icon={Send} size={12} color="#000" /> Send
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => sendInvoice(inv)} className="premium-btn"
+                      style={{ flex: 1, padding: '10px', background: 'var(--accent)', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                      <Ic icon={Send} size={13} color="#000" /> Send
                     </button>
-                    <button onClick={() => markPaid(inv)}
-                      style={{ flex: 1, padding: '8px', background: 'var(--success)', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                      <Ic icon={CheckCircle} size={12} color="#000" /> Paid
+                    <button onClick={() => markPaid(inv)} className="premium-btn"
+                      style={{ flex: 1, padding: '10px', background: 'var(--success)', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                      <Ic icon={CheckCircle} size={13} color="#000" /> Paid
                     </button>
-                    <button onClick={() => { haptic(); setFactorModal(inv) }}
-                      style={{ flex: 1, padding: '8px', background: '#8b5cf6', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                      <Ic icon={Zap} size={12} color="#fff" /> Factor
+                    <button onClick={() => { haptic(); setFactorModal(inv) }} className="premium-btn"
+                      style={{ flex: 1, padding: '10px', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, boxShadow: '0 2px 8px rgba(139,92,246,0.3)' }}>
+                      <Ic icon={Zap} size={13} color="#fff" /> Factor
                     </button>
                   </div>
                 </div>
@@ -245,40 +256,45 @@ export default function MobileMoneyTab({ initialSubTab }) {
         )}
 
         {/* ── 3. THIS WEEK'S EARNINGS ── */}
-        <div style={{
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
-          padding: '16px', marginBottom: 16, animation: 'fadeInUp 0.4s ease 0.1s both',
+        <div className="premium-card" style={{
+          padding: '18px 20px', marginBottom: 20, animation: 'fadeInUp 0.4s ease 0.1s both',
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 12 }}>THIS WEEK</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14 }}>THIS WEEK</div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Revenue</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(weekStats.revenue)}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Revenue</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{fmt$(weekStats.revenue)}</div>
             </div>
-            <div style={{ width: 1, background: 'var(--border)' }} />
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.06)', margin: '0 4px' }} />
             <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Expenses</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(weekStats.expenses)}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Expenses</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{fmt$(weekStats.expenses)}</div>
             </div>
-            <div style={{ width: 1, background: 'var(--border)' }} />
+            <div style={{ width: 1, background: 'rgba(255,255,255,0.06)', margin: '0 4px' }} />
             <div style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Net</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: weekStats.net >= 0 ? 'var(--success)' : 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(weekStats.net)}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Net</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: weekStats.net >= 0 ? 'var(--success)' : 'var(--danger)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{fmt$(weekStats.net)}</div>
             </div>
           </div>
         </div>
 
         {/* ── 4. SNAP RECEIPT BUTTON ── */}
-        <button onClick={() => receiptRef.current?.click()} disabled={scanning}
+        <button onClick={() => receiptRef.current?.click()} disabled={scanning} className="premium-btn"
           style={{
-            width: '100%', padding: '16px', background: 'var(--surface)', border: '2px dashed var(--accent)',
-            borderRadius: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            fontFamily: "'DM Sans',sans-serif", marginBottom: 16, transition: 'all 0.15s ease',
+            width: '100%', padding: '18px', background: scanning ? 'var(--surface2)' : 'rgba(240,165,0,0.06)',
+            border: '2px dashed rgba(240,165,0,0.35)',
+            borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            fontFamily: "'DM Sans',sans-serif", marginBottom: 16,
           }}>
-          <Ic icon={Camera} size={20} color="var(--accent)" />
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
-            {scanning ? 'Scanning Receipt...' : 'Snap Receipt'}
-          </span>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(240,165,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Ic icon={Camera} size={18} color="var(--accent)" />
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
+              {scanning ? 'Scanning Receipt...' : 'Snap Receipt'}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500 }}>Auto-categorize with AI</div>
+          </div>
         </button>
         <input ref={receiptRef} type="file" accept="image/*,.pdf" capture="environment" style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleReceiptScan(f); e.target.value = '' }} />
@@ -293,7 +309,7 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
         {/* ── EXPENSE FORM (fallback for scan failures + manual entry) ── */}
         {showExpenseForm && (
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: '14px', marginBottom: 16, animation: 'fadeInUp 0.25s ease' }}>
+          <div className="premium-card" style={{ borderColor: 'rgba(240,165,0,0.2)', padding: '16px', marginBottom: 20, animation: 'fadeInUp 0.25s ease' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700 }}>New Expense</span>
               <button onClick={() => setShowExpenseForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
@@ -329,8 +345,8 @@ export default function MobileMoneyTab({ initialSubTab }) {
                 </>
               )}
             </div>
-            <button onClick={async () => { await saveExpense(); setShowExpenseForm(false) }}
-              style={{ width: '100%', marginTop: 10, padding: '10px', background: 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>
+            <button onClick={async () => { await saveExpense(); setShowExpenseForm(false) }} className="premium-btn"
+              style={{ width: '100%', marginTop: 12, padding: '12px', background: 'var(--accent)', borderRadius: 12, fontSize: 14, fontWeight: 700, color: '#000', boxShadow: '0 2px 10px rgba(240,165,0,0.25)' }}>
               Save Expense
             </button>
           </div>
@@ -338,25 +354,24 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
         {/* ── 5. PAID INVOICES (collapsed summary) ── */}
         {invoices.filter(i => (i.status || '').toLowerCase() === 'paid' || (i.status || '').toLowerCase() === 'factored').length > 0 && (
-          <div style={{
-            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
-            padding: '14px', animation: 'fadeInUp 0.4s ease 0.15s both',
+          <div className="premium-card" style={{
+            padding: '16px', animation: 'fadeInUp 0.4s ease 0.15s both',
           }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--success)', marginBottom: 8 }}>COLLECTED</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--success)', marginBottom: 10 }}>COLLECTED</div>
             {invoices.filter(i => {
               const s = (i.status || '').toLowerCase()
               return s === 'paid' || s === 'factored'
             }).slice(0, 5).map((inv) => (
               <div key={inv.id || inv.invoice_number || inv._dbId} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0',
-                borderBottom: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
               }}>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
                   {inv.route || inv.load_number || inv.invoice_number || '—'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(inv.amount)}</span>
-                  <Ic icon={CheckCircle} size={10} color="var(--success)" />
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 0.5 }}>{fmt$(inv.amount)}</span>
+                  <Ic icon={CheckCircle} size={12} color="var(--success)" />
                 </div>
               </div>
             ))}
@@ -375,8 +390,16 @@ export default function MobileMoneyTab({ initialSubTab }) {
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
             onClick={() => setFactorModal(null)}>
-            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: 'var(--surface)', borderRadius: '20px 20px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))', animation: 'fadeInUp 0.2s ease' }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', margin: '0 auto 16px' }} />
+            <div onClick={e => e.stopPropagation()} style={{
+              width: '100%', maxWidth: 480, background: 'var(--surface)',
+              borderRadius: '24px 24px 0 0',
+              padding: '20px 24px calc(24px + env(safe-area-inset-bottom, 0px))',
+              animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderBottom: 'none',
+            }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '0 auto 20px' }} />
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <Ic icon={Zap} size={24} color="#8b5cf6" />
                 <div style={{ fontSize: 16, fontWeight: 800, marginTop: 8 }}>Factor Invoice</div>
@@ -397,14 +420,14 @@ export default function MobileMoneyTab({ initialSubTab }) {
               <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: '10px 0' }}>
                 {company} · 24-hour deposit
               </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                <button onClick={() => setFactorModal(null)}
-                  style={{ flex: 1, padding: '12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: "'DM Sans',sans-serif" }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <button onClick={() => setFactorModal(null)} className="premium-btn"
+                  style={{ flex: 1, padding: '14px', background: 'var(--surface2)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
                   Cancel
                 </button>
-                <button onClick={() => factorInvoice(factorModal)}
-                  style={{ flex: 1, padding: '12px', background: '#8b5cf6', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <Ic icon={Zap} size={14} color="#fff" /> Factor Now
+                <button onClick={() => factorInvoice(factorModal)} className="premium-btn"
+                  style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', borderRadius: 12, fontSize: 14, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 4px 16px rgba(139,92,246,0.35)' }}>
+                  <Ic icon={Zap} size={15} color="#fff" /> Factor Now
                 </button>
               </div>
             </div>

@@ -177,23 +177,23 @@ function SwipeableLoadCard({ load, children, onSwipeRight, onSwipeLeft }) {
   }
 
   return (
-    <div style={{ position: 'relative', marginBottom: 8 }}>
+    <div style={{ position: 'relative', marginBottom: 10 }}>
       {/* Swipe indicators behind card */}
       <div style={{
-        position: 'absolute', inset: 0, borderRadius: 14, display: 'flex', overflow: 'hidden',
+        position: 'absolute', inset: 0, borderRadius: 16, display: 'flex', overflow: 'hidden',
       }}>
-        <div style={{ flex: 1, background: 'rgba(0,212,170,0.15)', display: 'flex', alignItems: 'center', paddingLeft: 16 }}>
+        <div style={{ flex: 1, background: 'rgba(0,212,170,0.12)', display: 'flex', alignItems: 'center', paddingLeft: 20 }}>
           <ArrowRight size={18} color="var(--success)" />
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', marginLeft: 6 }}>Advance</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)', marginLeft: 6 }}>Advance</span>
         </div>
-        <div style={{ flex: 1, background: 'rgba(77,142,240,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 16 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#4d8ef0', marginRight: 6 }}>Details</span>
+        <div style={{ flex: 1, background: 'rgba(77,142,240,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 20 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#4d8ef0', marginRight: 6 }}>Details</span>
           <ChevronRight size={14} color="#4d8ef0" />
         </div>
       </div>
       {/* Actual card */}
       <div ref={cardRef} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        style={{ position: 'relative', zIndex: 1, background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)' }}>
+        className="premium-card" style={{ position: 'relative', zIndex: 1 }}>
         {children}
       </div>
     </div>
@@ -439,31 +439,38 @@ export default function MobileLoadsTab() {
       {/* ── HERO ACTIVE LOAD CARD ── */}
       {heroLoad && !expandedId && (
         <div style={{
-          margin: '12px 16px 8px', padding: '16px',
-          background: 'linear-gradient(135deg, var(--surface), rgba(240,165,0,0.04))',
-          border: '2px solid rgba(240,165,0,0.25)', borderRadius: 18,
-          animation: 'cardPop 0.4s ease',
+          margin: '14px 20px 10px', padding: '20px',
+          background: 'linear-gradient(145deg, var(--surface), rgba(240,165,0,0.03))',
+          border: '1px solid rgba(255,255,255,0.06)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.1), 0 0 0 1px rgba(240,165,0,0.1)',
+          borderRadius: 20, animation: 'cardPop 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          position: 'relative', overflow: 'hidden',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(heroLoad.status), animation: 'qStatusPulse 2s ease-in-out infinite' }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(heroLoad.status), letterSpacing: 0.5 }}>{heroLoad.status}</span>
+          {/* Subtle accent glow */}
+          <div style={{
+            position: 'absolute', top: -40, right: -40, width: 120, height: 120,
+            borderRadius: '50%', background: 'radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, position: 'relative' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(heroLoad.status), animation: 'qStatusPulse 2s ease-in-out infinite', boxShadow: `0 0 8px ${statusColor(heroLoad.status)}40` }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(heroLoad.status), letterSpacing: 0.5, textTransform: 'uppercase' }}>{heroLoad.status}</span>
             <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace' }}>{heroLoad.load_id || heroLoad.loadId || ''}</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace', opacity: 0.7 }}>{heroLoad.load_id || heroLoad.loadId || ''}</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, marginBottom: 4 }}>
-            {heroLoad.origin || '?'} → {heroLoad.destination || heroLoad.dest || '?'}
+          <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5, marginBottom: 6, position: 'relative' }}>
+            {heroLoad.origin || '?'} <span style={{ color: 'var(--accent)' }}>→</span> {heroLoad.destination || heroLoad.dest || '?'}
           </div>
-          <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-            <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{fmt$(heroLoad.gross || heroLoad.rate)}</span>
-            {heroLoad.miles > 0 && <span>${((heroLoad.gross || heroLoad.rate || 0) / heroLoad.miles).toFixed(2)}/mi</span>}
-            {heroLoad.miles > 0 && <span>{heroLoad.miles} mi</span>}
+          <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--muted)', marginBottom: 16, position: 'relative' }}>
+            <span style={{ fontWeight: 800, color: 'var(--accent)', fontSize: 15, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 0.5 }}>{fmt$(heroLoad.gross || heroLoad.rate)}</span>
+            {heroLoad.miles > 0 && <span style={{ display: 'flex', alignItems: 'center' }}>${((heroLoad.gross || heroLoad.rate || 0) / heroLoad.miles).toFixed(2)}/mi</span>}
+            {heroLoad.miles > 0 && <span style={{ display: 'flex', alignItems: 'center' }}>{heroLoad.miles} mi</span>}
           </div>
           {/* Context-aware action button */}
           {(() => {
             const label = getActionLabel(heroLoad.status)
             if (!label) return null
             const st = (heroLoad.status || '').toLowerCase()
-            // Special case: "Snap POD" for delivered loads
             if (st === 'delivered') {
               return (
                 <button onClick={() => {
@@ -472,25 +479,27 @@ export default function MobileLoadsTab() {
                   inp.type = 'file'; inp.accept = 'image/*,.pdf'; inp.capture = 'environment'
                   inp.onchange = (e) => { const f = e.target.files?.[0]; if (f) handleDocUpload(f, heroLoad.id, 'POD') }
                   inp.click()
-                }} style={{
-                  width: '100%', padding: '14px', background: '#8b5cf6', border: 'none', borderRadius: 12,
-                  cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                }} className="premium-btn" style={{
+                  width: '100%', padding: '16px', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', borderRadius: 14,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: '0 4px 16px rgba(139,92,246,0.35)',
+                  position: 'relative',
                 }}>
-                  <Ic icon={Camera} size={16} color="#fff" />
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Snap POD</span>
+                  <Ic icon={Camera} size={18} color="#fff" />
+                  <span style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: 0.5 }}>Snap POD</span>
                 </button>
               )
             }
             return (
-              <button onClick={() => advanceStatus(heroLoad)}
+              <button onClick={() => advanceStatus(heroLoad)} className="premium-btn"
                 style={{
-                  width: '100%', padding: '14px', background: 'var(--accent)', border: 'none', borderRadius: 12,
-                  cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
+                  width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f5b800, #e09000)', borderRadius: 14,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: '0 4px 16px rgba(240,165,0,0.35)',
+                  position: 'relative',
                 }}>
-                <Ic icon={ArrowRight} size={16} color="#000" />
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#000' }}>{label}</span>
+                <Ic icon={ArrowRight} size={18} color="#000" />
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#000', letterSpacing: 0.5 }}>{label}</span>
               </button>
             )
           })()}
@@ -498,16 +507,21 @@ export default function MobileLoadsTab() {
       )}
 
       {/* ── Header + Upload Rate Con ── */}
-      <div style={{ flexShrink: 0, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ flexShrink: 0, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>{isDriver ? 'MY LOADS' : 'LOADS'}</div>
-          <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
+          <div style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1.5 }}>{isDriver ? 'MY LOADS' : 'LOADS'}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>{loads.length} total · {loads.filter(l => !['Delivered', 'Invoiced', 'Paid', 'Cancelled'].includes(l.status)).length} active</div>
         </div>
         {!isDriver && (
           <button onClick={() => rateConRef.current?.click()}
-            disabled={scanning}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: scanning ? 'var(--surface2)' : 'var(--accent)', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
-            <Ic icon={scanning ? Clock : ScanLine} size={14} color="#000" />
+            disabled={scanning} className="premium-btn"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px',
+              background: scanning ? 'var(--surface2)' : 'linear-gradient(135deg, #f5b800, #e09000)',
+              borderRadius: 12,
+              boxShadow: scanning ? 'none' : '0 2px 10px rgba(240,165,0,0.3)',
+            }}>
+            <Ic icon={scanning ? Clock : ScanLine} size={15} color="#000" />
             <span style={{ fontSize: 12, fontWeight: 700, color: '#000' }}>{scanning ? 'Scanning...' : 'Upload Rate Con'}</span>
           </button>
         )}
@@ -516,30 +530,42 @@ export default function MobileLoadsTab() {
       </div>
 
       {/* ── Simplified filters: Active | Delivered | All ── */}
-      <div style={{ flexShrink: 0, padding: '0 16px 8px', display: 'flex', gap: 6 }}>
+      <div style={{ flexShrink: 0, padding: '0 20px 10px', display: 'flex', gap: 8 }}>
         {FILTERS.map(s => {
           const isActive = filter === s
           const count = s === 'All' ? loads.length
             : s === 'Active' ? loads.filter(l => { const st = (l.status || '').toLowerCase(); return !st.includes('delivered') && !st.includes('invoiced') && !st.includes('paid') && !st.includes('cancel') }).length
             : loads.filter(l => { const st = (l.status || '').toLowerCase(); return st.includes('delivered') || st.includes('invoiced') || st.includes('paid') }).length
           return (
-            <button key={s} onClick={() => { haptic(); setFilter(s) }}
-              style={{ flex: 1, padding: '8px 12px', borderRadius: 20, background: isActive ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`, color: isActive ? '#000' : 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'all 0.15s ease' }}>
-              {s} {count > 0 && <span style={{ opacity: 0.7 }}>({count})</span>}
+            <button key={s} onClick={() => { haptic(); setFilter(s) }} className="premium-btn"
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 22,
+                background: isActive ? 'var(--accent)' : 'var(--surface)',
+                border: `1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}`,
+                color: isActive ? '#000' : 'var(--text)', fontSize: 12, fontWeight: isActive ? 800 : 600,
+                boxShadow: isActive ? '0 2px 8px rgba(240,165,0,0.25)' : '0 1px 3px rgba(0,0,0,0.06)',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}>
+              {s} {count > 0 && <span style={{ opacity: isActive ? 0.8 : 0.5 }}>({count})</span>}
             </button>
           )
         })}
       </div>
 
       {/* ── Load cards ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
+      <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px', WebkitOverflowScrolling: 'touch' }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--muted)' }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(240,165,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 17, color: 'var(--accent)', fontWeight: 800, lineHeight: 1 }}>Q</span>
+          <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)', animation: 'fadeInUp 0.5s ease' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: 'linear-gradient(145deg, rgba(240,165,0,0.12), rgba(240,165,0,0.04))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+              boxShadow: '0 4px 20px rgba(240,165,0,0.08)',
+            }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: 'var(--accent)', fontWeight: 800, lineHeight: 1 }}>Q</span>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{isDriver ? 'No loads assigned yet' : 'No loads yet'}</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>{isDriver ? 'Your dispatcher will assign loads here.' : 'Upload a rate con or let Q find your next load.'}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{isDriver ? 'No loads assigned yet' : 'No loads yet'}</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5 }}>{isDriver ? 'Your dispatcher will assign loads here.' : 'Upload a rate con or ask Q to find your next load.'}</div>
           </div>
         )}
 
@@ -558,23 +584,30 @@ export default function MobileLoadsTab() {
             >
               {/* Card header */}
               <div onClick={() => { haptic(); const newId = isExpanded ? null : (load.id || load.load_id); setExpandedId(newId); if (newId && load.id) fetchLoadDocs(load.id) }}
-                style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(load.status), flexShrink: 0 }} />
+                style={{ padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: '50%', background: statusColor(load.status), flexShrink: 0,
+                  boxShadow: `0 0 8px ${statusColor(load.status)}30`,
+                }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace' }}>{load.load_id || load.loadId || '—'}</span>
-                    <span style={{ fontSize: 10, color: statusColor(load.status), fontWeight: 700, background: `${statusColor(load.status)}15`, padding: '1px 6px', borderRadius: 4 }}>{load.status}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace', opacity: 0.7 }}>{load.load_id || load.loadId || '—'}</span>
+                    <span style={{
+                      fontSize: 9, color: statusColor(load.status), fontWeight: 700,
+                      background: `${statusColor(load.status)}12`, padding: '2px 8px', borderRadius: 6,
+                      letterSpacing: 0.3, textTransform: 'uppercase',
+                    }}>{load.status}</span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>
-                    {load.origin || '?'} → {load.destination || load.dest || '?'}
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, lineHeight: 1.3 }}>
+                    {load.origin || '?'} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>→</span> {load.destination || load.dest || '?'}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 8, marginTop: 2 }}>
-                    <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{fmt$(load.gross || load.rate)}</span>
-                    {load.miles > 0 && <span>${((load.gross || load.rate || 0) / load.miles).toFixed(2)}/mi</span>}
-                    {load.miles > 0 && <span>{load.miles} mi</span>}
+                  <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 10 }}>
+                    <span style={{ fontWeight: 800, color: 'var(--accent)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 0.3 }}>{fmt$(load.gross || load.rate)}</span>
+                    {load.miles > 0 && <span style={{ display: 'flex', alignItems: 'center' }}>${((load.gross || load.rate || 0) / load.miles).toFixed(2)}/mi</span>}
+                    {load.miles > 0 && <span style={{ display: 'flex', alignItems: 'center' }}>{load.miles} mi</span>}
                   </div>
                 </div>
-                <ChevronRight size={14} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                <ChevronRight size={16} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)', opacity: 0.5 }} />
               </div>
 
               {/* Expanded details */}

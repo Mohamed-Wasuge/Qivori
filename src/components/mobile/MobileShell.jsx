@@ -117,7 +117,7 @@ export default function MobileShell() {
   }
 
   return (
-    <div style={{ height: '100dvh', width: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden' }}>
+    <div style={{ height: '100dvh', width: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)', fontFamily: "'DM Sans',sans-serif", overflow: 'hidden', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
 
       {/* Demo banner */}
       {demoMode && (
@@ -188,18 +188,31 @@ export default function MobileShell() {
       )}
 
       {/* ── HEADER ── */}
-      <div style={{ height: 48, background: 'var(--surface)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0 }}>
-        <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 3, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span></span>
+      <div style={{
+        height: 52, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0,
+        background: 'var(--surface)', borderBottom: '1px solid rgba(255,255,255,0.04)',
+        boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+      }}>
+        <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: 4, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>QI<span style={{ color: 'var(--accent)' }}>VORI</span></span>
         <div style={{ flex: 1 }} />
-        {/* Q status indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: `${qState.color}10`, borderRadius: 20 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color }} />
+        {/* Q status pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px',
+          background: `${qState.color}0D`, borderRadius: 20,
+          border: `1px solid ${qState.color}20`,
+        }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: qState.color, animation: 'qStatusPulse 2s ease-in-out infinite' }} />
           <span style={{ fontSize: 9, color: qState.color, fontWeight: 700, letterSpacing: 0.3 }}>{qState.label}</span>
         </div>
         {/* Gear icon → settings */}
         <button onClick={() => { haptic(); setSettingsOpen(true) }}
-          style={{ width: 32, height: 32, borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Ic icon={Settings} size={18} color="var(--muted)" />
+          style={{
+            width: 36, height: 36, borderRadius: '50%', background: 'var(--surface2)',
+            border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.15s ease',
+          }}>
+          <Ic icon={Settings} size={17} color="var(--muted)" />
         </button>
       </div>
 
@@ -232,8 +245,9 @@ export default function MobileShell() {
           <div style={{
             position: 'fixed', top: 0, right: 0, bottom: 0, width: '85%', maxWidth: 380,
             zIndex: 300, background: 'var(--bg)', display: 'flex', flexDirection: 'column',
-            animation: settingsClosing ? 'settingsSlideOut 0.25s ease forwards' : 'settingsSlideIn 0.25s ease',
-            boxShadow: '-4px 0 20px rgba(0,0,0,0.3)',
+            animation: settingsClosing ? 'settingsSlideOut 0.25s cubic-bezier(0.4, 0, 1, 1) forwards' : 'settingsSlideIn 0.3s cubic-bezier(0, 0, 0.2, 1)',
+            boxShadow: '-8px 0 40px rgba(0,0,0,0.35), -2px 0 10px rgba(0,0,0,0.15)',
+            borderLeft: '1px solid rgba(255,255,255,0.04)',
           }}>
             <Suspense fallback={<TabLoader />}>
               {isDriver
@@ -299,49 +313,54 @@ export default function MobileShell() {
       {/* ── BOTTOM NAV: [Loads] [Q] [Money] ── */}
       <div style={{
         flexShrink: 0,
-        minHeight: 56,
+        minHeight: 64,
         background: 'var(--surface)',
-        borderTop: '1px solid var(--border)',
+        borderTop: '1px solid rgba(255,255,255,0.04)',
+        boxShadow: '0 -2px 20px rgba(0,0,0,0.1)',
         display: 'flex',
         alignItems: 'center',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         position: 'relative',
       }}>
-        {/* Loads tab — left 40% */}
+        {/* Loads tab — left */}
         <button onClick={() => { haptic('light'); setActiveTab('loads'); setMoneySubTab(null) }}
+          className="premium-btn"
           style={{
-            flex: 2, background: 'none', border: 'none', cursor: 'pointer',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            padding: '10px 0', position: 'relative',
+            flex: 2, background: 'none', border: 'none',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            padding: '12px 0', position: 'relative',
           }}>
           <div style={{ position: 'relative' }}>
-            <Ic icon={Package} size={20}
+            <Ic icon={Package} size={22}
               color={activeTab === 'loads' ? 'var(--accent)' : 'var(--muted)'}
               strokeWidth={activeTab === 'loads' ? 2.5 : 1.5}
             />
             {activeLoads.length > 0 && (
               <span style={{
-                position: 'absolute', top: -4, right: -8,
-                fontSize: 8, fontWeight: 800, background: 'var(--danger)', color: '#fff',
-                borderRadius: 10, padding: '1px 4px', minWidth: 14, textAlign: 'center',
-                lineHeight: '12px',
+                position: 'absolute', top: -5, right: -10,
+                fontSize: 9, fontWeight: 800, background: 'var(--danger)', color: '#fff',
+                borderRadius: 10, padding: '2px 5px', minWidth: 16, textAlign: 'center',
+                lineHeight: '12px', animation: 'badgePop 0.3s ease',
+                boxShadow: '0 2px 6px rgba(239,68,68,0.4)',
               }}>{activeLoads.length}</span>
             )}
           </div>
           <span style={{
-            fontSize: 9, fontWeight: activeTab === 'loads' ? 800 : 600,
+            fontSize: 10, fontWeight: activeTab === 'loads' ? 800 : 600,
             color: activeTab === 'loads' ? 'var(--accent)' : 'var(--muted)',
-            letterSpacing: activeTab === 'loads' ? 0.5 : 0,
+            letterSpacing: 0.5,
+            transition: 'color 0.2s ease',
           }}>Loads</span>
           {activeTab === 'loads' && (
             <div style={{
               position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-              width: 20, height: 2, borderRadius: 1, background: 'var(--accent)',
+              width: 24, height: 3, borderRadius: 2, background: 'var(--accent)',
+              boxShadow: '0 1px 6px rgba(240,165,0,0.4)',
             }} />
           )}
         </button>
 
-        {/* Q Center Button — overlapping gold circle */}
+        {/* Q Center Button — premium floating gold orb */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
           <button
             onTouchStart={onQTouchStart}
@@ -349,58 +368,74 @@ export default function MobileShell() {
             onMouseDown={onQTouchStart}
             onMouseUp={onQTouchEnd}
             onClick={onQClick}
+            className="premium-btn"
             style={{
-              width: 56, height: 56, borderRadius: '50%',
-              background: qState.state === 'alert' ? 'var(--danger)' : 'var(--accent)',
-              border: '3px solid var(--bg)',
-              cursor: 'pointer',
+              width: 62, height: 62, borderRadius: '50%',
+              background: qState.state === 'alert'
+                ? 'linear-gradient(145deg, #ef4444, #dc2626)'
+                : 'linear-gradient(145deg, #f5b800, #e09000)',
+              border: '4px solid var(--bg)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              position: 'absolute', top: -20,
-              boxShadow: '0 4px 20px rgba(240,165,0,0.4)',
+              position: 'absolute', top: -24,
+              boxShadow: qState.state === 'alert'
+                ? '0 4px 24px rgba(239,68,68,0.5), 0 0 0 0 rgba(239,68,68,0.2)'
+                : '0 4px 24px rgba(240,165,0,0.45), 0 8px 32px rgba(240,165,0,0.2)',
               animation: qState.state === 'alert' ? 'qCenterPulse 2s ease-in-out infinite' : 'none',
-              transform: qPressed ? 'scale(0.92)' : 'scale(1)',
-              transition: 'transform 0.1s ease',
+              transform: qPressed ? 'scale(0.88)' : 'scale(1)',
+              transition: 'transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
               WebkitTapHighlightColor: 'transparent',
             }}
           >
+            {/* Outer ring for premium feel */}
+            <div style={{
+              position: 'absolute', inset: -8, borderRadius: '50%',
+              border: '1px solid rgba(240,165,0,0.15)',
+              animation: qPressed ? 'ringExpand 0.4s ease forwards' : 'none',
+              pointerEvents: 'none',
+            }} />
             <span style={{
-              fontFamily: "'Bebas Neue',sans-serif", fontSize: 24,
+              fontFamily: "'Bebas Neue',sans-serif", fontSize: 26,
               color: qState.state === 'alert' ? '#fff' : '#000',
               fontWeight: 800, lineHeight: 1,
+              textShadow: qState.state === 'alert' ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
             }}>Q</span>
           </button>
         </div>
 
-        {/* Money tab — right 40% */}
+        {/* Money tab — right */}
         <button onClick={() => { haptic('light'); setActiveTab('money'); setMoneySubTab(null) }}
+          className="premium-btn"
           style={{
-            flex: 2, background: 'none', border: 'none', cursor: 'pointer',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            padding: '10px 0', position: 'relative',
+            flex: 2, background: 'none', border: 'none',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            padding: '12px 0', position: 'relative',
           }}>
           <div style={{ position: 'relative' }}>
-            <Ic icon={DollarSign} size={20}
+            <Ic icon={DollarSign} size={22}
               color={activeTab === 'money' ? 'var(--accent)' : 'var(--muted)'}
               strokeWidth={activeTab === 'money' ? 2.5 : 1.5}
             />
             {unpaidInvoices.length > 0 && (
               <span style={{
-                position: 'absolute', top: -4, right: -8,
-                fontSize: 8, fontWeight: 800, background: 'var(--danger)', color: '#fff',
-                borderRadius: 10, padding: '1px 4px', minWidth: 14, textAlign: 'center',
-                lineHeight: '12px',
+                position: 'absolute', top: -5, right: -10,
+                fontSize: 9, fontWeight: 800, background: 'var(--danger)', color: '#fff',
+                borderRadius: 10, padding: '2px 5px', minWidth: 16, textAlign: 'center',
+                lineHeight: '12px', animation: 'badgePop 0.3s ease',
+                boxShadow: '0 2px 6px rgba(239,68,68,0.4)',
               }}>{unpaidInvoices.length}</span>
             )}
           </div>
           <span style={{
-            fontSize: 9, fontWeight: activeTab === 'money' ? 800 : 600,
+            fontSize: 10, fontWeight: activeTab === 'money' ? 800 : 600,
             color: activeTab === 'money' ? 'var(--accent)' : 'var(--muted)',
-            letterSpacing: activeTab === 'money' ? 0.5 : 0,
+            letterSpacing: 0.5,
+            transition: 'color 0.2s ease',
           }}>Money</span>
           {activeTab === 'money' && (
             <div style={{
               position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-              width: 20, height: 2, borderRadius: 1, background: 'var(--accent)',
+              width: 24, height: 3, borderRadius: 2, background: 'var(--accent)',
+              boxShadow: '0 1px 6px rgba(240,165,0,0.4)',
             }} />
           )}
         </button>

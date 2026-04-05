@@ -325,8 +325,50 @@ export const mobileAnimations = `
     50% { opacity: 0.6; transform: translateX(4px); }
     100% { opacity: 0; transform: translateX(-4px); }
   }
+  @keyframes glassShimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes heroGlow {
+    0%, 100% { filter: drop-shadow(0 0 20px rgba(240,165,0,0.15)); }
+    50% { filter: drop-shadow(0 0 40px rgba(240,165,0,0.3)); }
+  }
+  @keyframes subtleBounce {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes ringExpand {
+    0% { transform: scale(1); opacity: 0.4; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+  @keyframes badgePop {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
   .press-scale:active { transform: scale(0.97); transition: transform 0.1s ease; }
   .momentum-scroll { -webkit-overflow-scrolling: touch; overflow-y: auto; }
-  .smooth-transition { transition: all 0.2s ease; }
+  .smooth-transition { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
   * { -webkit-tap-highlight-color: transparent; }
+  .glass-surface {
+    background: rgba(var(--surface-rgb, 20,20,28), 0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  .premium-shadow { box-shadow: 0 2px 16px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.1); }
+  .premium-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.08);
+    border-radius: 16px;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+  }
+  .premium-card:active { transform: scale(0.985); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+  .premium-btn {
+    font-family: 'DM Sans', sans-serif;
+    border: none; cursor: pointer;
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease;
+  }
+  .premium-btn:active { transform: scale(0.96); opacity: 0.9; }
 `

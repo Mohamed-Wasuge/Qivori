@@ -37,15 +37,76 @@ export default async function handler(req) {
       const duration = call?.duration_ms ? Math.round(call.duration_ms / 1000) : 0
       const recording = call?.recording_url || null
       const transcript = call?.transcript || null
-      const outcome = metadata.outcome || call?.call_analysis?.call_summary || 'completed'
+      const disconnectReason = call?.disconnection_reason || ''
       const agreedRate = metadata.agreed_rate ? parseFloat(metadata.agreed_rate) : null
+
+      // Smart outcome detection based on call signals
+      let outcome = metadata.outcome || 'completed'
+      let callStatus = 'completed'
+      let notes = ''
+
+      // Voicemail detection: very short call + no meaningful transcript
+      const transcriptText = typeof transcript === 'string' ? transcript : ''
+      const hasConversation = transcriptText.length > 50
+
+      if (disconnectReason === 'voicemail_reached' || disconnectReason === 'machine_detected') {
+        // Retell explicitly detected voicemail
+        outcome = 'voicemail'
+        callStatus = 'voicemail'
+        notes = 'Voicemail detected by Retell — auto-retry scheduled'
+      } else if (duration < 8 && !hasConversation) {
+        // Call under 8 seconds with no real conversation = likely voicemail/no-answer
+        outcome = 'no_answer'
+        callStatus = 'no_answer'
+        notes = 'Call too short (' + duration + 's) — no conversation detected'
+      } else if (disconnectReason === 'dial_busy' || disconnectReason === 'line_busy') {
+        outcome = 'busy'
+        callStatus = 'busy'
+        notes = 'Broker line was busy'
+      } else if (disconnectReason === 'dial_no_answer') {
+        outcome = 'no_answer'
+        callStatus = 'no_answer'
+        notes = 'No answer after ringing'
+      } else if (disconnectReason === 'call_transfer' || disconnectReason === 'user_hangup') {
+        // Broker hung up — check if it was mid-negotiation or after resolution
+        if (duration < 30 && !hasConversation) {
+          outcome = 'hung_up_early'
+          callStatus = 'hung_up'
+          notes = 'Broker hung up within ' + duration + 's — may not have been interested'
+        } else if (!agreedRate && outcome === 'completed') {
+          outcome = 'hung_up_no_deal'
+          callStatus = 'completed'
+          notes = 'Broker disconnected without agreement — no rate confirmed'
+        }
+      } else if (disconnectReason === 'error_inbound_webhook' || disconnectReason === 'error_llm_websocket_open') {
+        outcome = 'error'
+        callStatus = 'failed'
+        notes = 'Technical error: ' + disconnectReason
+      }
+
+      // Use call_analysis summary if available and no explicit outcome
+      if (outcome === 'completed' && call?.call_analysis?.call_summary) {
+        const summary = call.call_analysis.call_summary.toLowerCase()
+        if (summary.includes('voicemail') || summary.includes('answering machine')) {
+          outcome = 'voicemail'
+          callStatus = 'voicemail'
+          notes = 'AI analysis detected voicemail'
+        } else if (summary.includes('booked') || summary.includes('confirmed') || summary.includes('accepted')) {
+          outcome = 'booked'
+        } else if (summary.includes('declined') || summary.includes('rejected') || summary.includes('not available')) {
+          outcome = 'load_unavailable'
+        } else if (summary.includes('counter') || summary.includes('negotiate')) {
+          outcome = 'counter_offer'
+        }
+      }
 
       await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + idField + '=eq.' + callId, {
         method: 'PATCH', headers: sbHeaders(),
         body: JSON.stringify({
-          call_status: 'completed', duration_seconds: duration, recording_url: recording,
+          call_status: callStatus, duration_seconds: duration, recording_url: recording,
           transcript: transcript, outcome: outcome, agreed_rate: agreedRate,
-          ended_at: new Date().toISOString()
+          ended_at: new Date().toISOString(),
+          notes: notes || (call?.call_analysis?.call_summary || '')
         })
       })
 
@@ -57,6 +118,11 @@ export default async function handler(req) {
       // If negotiation needed, notify driver
       if (outcome === 'counter_offer' && metadata.loadId) {
         await notifyDriverOfOffer(metadata)
+      }
+
+      // Auto-retry for voicemail, no-answer, busy (max 3 attempts)
+      if (['voicemail', 'no_answer', 'busy', 'hung_up_early'].includes(outcome) && metadata.loadId) {
+        await scheduleRetryCall(metadata, callId)
       }
     }
 
@@ -111,4 +177,32 @@ async function notifyDriverOfOffer(meta) {
   // In production, look up driver phone from load record
   // For now, log the offer
   console.log('Driver notification needed for load ' + loadId + ': Broker ' + brokerName + ' offered $' + offered_rate + ' (min: $' + min_rate + ')')
+}
+
+// Schedule a retry call in 30 min (max 3 per load+broker)
+async function scheduleRetryCall(meta, originalCallId) {
+  try {
+    // Check existing retry count
+    const checkRes = await fetch(
+      SUPABASE_URL + '/rest/v1/retell_calls?load_id=eq.' + (meta.loadId || '') + '&outcome=in.(voicemail,no_answer,busy,hung_up_early)&select=id&limit=5',
+      { headers: sbHeaders() }
+    )
+    const existing = checkRes.ok ? await checkRes.json() : []
+    if (existing.length >= 3) return // Max 3 retries
+
+    const retryAt = new Date(Date.now() + 30 * 60 * 1000)
+    await fetch(SUPABASE_URL + '/rest/v1/check_calls', {
+      method: 'POST', headers: sbHeaders(),
+      body: JSON.stringify({
+        load_id: meta.loadId,
+        call_type: 'broker_retry',
+        broker_name: meta.brokerName || '',
+        broker_phone: meta.brokerPhone || '',
+        carrier_name: meta.carrierName || '',
+        call_status: 'scheduled',
+        scheduled_at: retryAt.toISOString(),
+        notes: 'Auto-retry #' + (existing.length + 1) + ' — original call ' + originalCallId
+      })
+    })
+  } catch {}
 }

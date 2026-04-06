@@ -49,6 +49,15 @@ export default async function handler(req) {
         from_number: FROM_NUMBER,
         to_number: toNumber,
         agent_id: RETELL_AGENT_ID,
+        metadata: {
+          call_type: 'broker_outbound',
+          loadId: body.loadId || '',
+          brokerName: brokerName || '',
+          brokerPhone: toNumber,
+          carrierName: body.carrierName || '',
+          origin: body.originCity || '',
+          destination: body.destinationCity || '',
+        },
         retell_llm_dynamic_variables: {
           call_type: 'broker',
           broker_name: brokerName || 'Broker',

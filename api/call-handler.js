@@ -483,11 +483,19 @@ export default async function handler(req) {
 
       if (callSid) {
         const update = { call_duration: Number(duration) };
-        if (status === 'completed' || status === 'busy' || status === 'no-answer' || status === 'failed') {
+        if (status === 'completed' || status === 'busy' || status === 'no-answer' || status === 'failed' || status === 'canceled') {
           update.ended_at = new Date().toISOString();
-          if (status !== 'completed') update.call_status = status;
+          if (status !== 'completed') {
+            update.call_status = status;
+            update.outcome = status; // busy, no-answer, failed
+          }
         }
         await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, update);
+
+        // Schedule auto-retry for busy/no-answer (retry in 30 min, max 3 attempts)
+        if ((status === 'busy' || status === 'no-answer') && context.loadId && context.userId) {
+          scheduleRetryCall(context, callSid).catch(() => {});
+        }
 
         // After call completes, extract broker urgency from transcripts (fire-and-forget)
         if (status === 'completed' && context.userId) {
@@ -501,7 +509,7 @@ export default async function handler(req) {
                 const rows = await tRes.json();
                 const fullTranscript = (rows || []).map(r => r.text).join(' ');
                 if (fullTranscript && context.loadId) {
-                  const brokerName = context.carrierName || 'Unknown'; // The broker name from context
+                  const brokerName = context.carrierName || 'Unknown';
                   await updateBrokerUrgency(context.userId, brokerName, fullTranscript);
                 }
               }
@@ -518,16 +526,73 @@ export default async function handler(req) {
       const callSid = form.CallSid || '';
       const amdResult = form.AnsweredBy || '';
 
-      if (amdResult === 'machine_start' || amdResult === 'machine_end_beep') {
-        // Leave a voicemail
-        const voicemail = `Hi, this is Q from Qivori Dispatch. I'm calling about a load from ${context.origin} to ${context.destination}. If that's still available, please give us a call back. Thanks.`;
-        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, { call_status: 'voicemail', outcome: 'voicemail' });
+      if (amdResult === 'machine_start' || amdResult === 'machine_end_beep' || amdResult === 'machine_end_other') {
+        // Leave a detailed voicemail with load info and callback number
+        const fromNumber = process.env.TWILIO_PHONE_NUMBER || '';
+        const rateInfo = context.rate ? `, posted at $${context.rate}` : '';
+        const voicemail = `Hi, this is Q from Qivori Dispatch calling on behalf of ${context.carrierName}. `
+          + `I'm reaching out about load number ${context.loadId}, ${context.origin} to ${context.destination}${rateInfo}. `
+          + `We've got a ${context.equipment || 'dry van'} available for pickup ${context.pickupDate || 'as soon as possible'}. `
+          + `If that load's still available, please call us back at ${fromNumber.replace(/(\d{1})(\d{3})(\d{3})(\d{4})/, '$1-$2-$3-$4')}. `
+          + `Again, this is Q from Qivori Dispatch. Thank you.`;
+
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, {
+          call_status: 'voicemail', outcome: 'voicemail',
+          notes: 'Voicemail left — auto-retry scheduled in 30 min'
+        });
+
+        // Log voicemail as transcript
+        await supabaseInsert('call_transcripts', {
+          call_sid: callSid, speaker: 'ai_q', text: voicemail,
+          stage: 'voicemail', created_at: new Date().toISOString()
+        });
+
+        // Schedule retry call in 30 min
+        scheduleRetryCall(context, callSid).catch(() => {});
+
         return twimlResponse(`${say(voicemail)}<Hangup/>`);
       }
+
+      // Human answered — AMD confirms, just continue normally
+      if (amdResult === 'human') {
+        await supabaseUpdate('call_logs', `twilio_call_sid=eq.${callSid}`, { notes: 'AMD confirmed human answered' });
+      }
+
       return new Response('OK');
     }
 
     default:
       return twimlResponse(say("Sorry, something went wrong on our end. We'll call back. Thanks.") + '<Hangup/>');
   }
+}
+
+// Schedule a retry call in 30 minutes (max 3 attempts per load+broker)
+async function scheduleRetryCall(context, originalCallSid) {
+  // Check how many retries we've already done for this load
+  const retryRes = await fetch(
+    `${supabaseUrl}/rest/v1/call_logs?load_id=eq.${context.loadId}&broker_phone=eq.${context.brokerPhone || ''}&outcome=in.(voicemail,no-answer,busy)&select=id&limit=5`,
+    { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
+  );
+  const retries = retryRes.ok ? await retryRes.json() : [];
+
+  if (retries.length >= 3) {
+    // Max retries reached — mark as exhausted, don't schedule more
+    await supabaseUpdate('call_logs', `twilio_call_sid=eq.${originalCallSid}`, {
+      notes: `Max retries reached (${retries.length} attempts). No further calls.`
+    });
+    return;
+  }
+
+  // Schedule retry via check_calls table (picked up by cron)
+  const retryAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min from now
+  await supabaseInsert('check_calls', {
+    load_id: context.loadId,
+    call_type: 'broker_retry',
+    broker_name: context.carrierName || '',
+    broker_phone: context.brokerPhone || '',
+    carrier_name: context.carrierName || '',
+    call_status: 'scheduled',
+    scheduled_at: retryAt.toISOString(),
+    notes: `Auto-retry #${retries.length + 1} — original call ${originalCallSid}`
+  });
 }

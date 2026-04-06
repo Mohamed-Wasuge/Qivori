@@ -83,7 +83,13 @@ async function bridgeToRetell(callerPhone, calledNumber, callSid, callerType, dy
   }
 
   const data = await res.json()
-  return twimlResponse(`<Dial><Sip>sip:${data.call_id}@sip.retellai.com</Sip></Dial>`)
+  // Log the Retell response for debugging
+  console.log('Retell register response:', JSON.stringify(data))
+  // Bridge to Retell via SIP — add action URL to catch SIP failures
+  const sipUri = `sip:${data.call_id}@sip.retellai.com;transport=tls`
+  return twimlResponse(
+    `<Dial timeout="30" action="https://www.qivori.com/api/inbound-call?stage=sip_fallback"><Sip>${sipUri}</Sip></Dial>`
+  )
 }
 
 // ─── MAIN HANDLER ───────────────────────────────────────────────────────────
@@ -126,6 +132,28 @@ export default async function handler(req) {
   }
 
   try {
+    const reqUrl = new URL(req.url)
+
+    // SIP fallback — Twilio calls this when <Dial><Sip> fails
+    if (reqUrl.searchParams.get('stage') === 'sip_fallback') {
+      const form = await req.text()
+      const fp = new URLSearchParams(form)
+      const dialStatus = fp.get('DialCallStatus') || fp.get('DialSipResponseCode') || 'unknown'
+      const sipCode = fp.get('DialSipResponseCode') || 'none'
+      // Log the SIP failure so we can diagnose
+      console.log('SIP FALLBACK:', JSON.stringify({ dialStatus, sipCode, allParams: Object.fromEntries(fp) }))
+      sbPost('call_logs', {
+        twilio_call_sid: fp.get('CallSid') || '',
+        call_status: 'sip_failed',
+        outcome: 'sip_error',
+        notes: `SIP dial failed: status=${dialStatus}, sipCode=${sipCode}`,
+        created_at: new Date().toISOString(),
+      }).catch(() => {})
+      return twimlResponse(
+        '<Say voice="Polly.Matthew-Neural">Hey, thanks for calling Qivori Dispatch. This is Q. Our voice system is briefly updating. Please call back in one minute and I will be ready for you.</Say><Hangup/>'
+      )
+    }
+
     const text = await req.text()
     const params = new URLSearchParams(text)
     const callerPhone = params.get('From') || ''

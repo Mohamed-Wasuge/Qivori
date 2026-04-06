@@ -329,7 +329,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:900 }} />
-      <div style={{ position:'fixed', top:48, right:0, bottom:0, width:480, maxWidth:'100vw', background:'var(--bg)',
+      <div style={{ position:'fixed', top:48, right:0, bottom:0, width:480, maxWidth:'100%', background:'var(--bg)',
         borderLeft:'1px solid var(--border)', zIndex:901, display:'flex', flexDirection:'column',
         boxShadow:'-8px 0 32px rgba(0,0,0,0.3)', animation:'slideInRight 0.2s ease' }}>
         {/* Header */}

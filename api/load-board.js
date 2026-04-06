@@ -25,6 +25,43 @@ export default async function handler(req) {
   const { limited, resetMs } = rateLimit(`loadboard:${ip}`, 20, 60000)
   if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
+  // Debug endpoint: ?debug=123 to test 123Loadboard token
+  const debugUrl = new URL(req.url)
+  if (debugUrl.searchParams.get('debug') === '123') {
+    const lb123Creds = {
+      clientId: process.env.LB123_CLIENT_ID,
+      clientSecret: process.env.LB123_CLIENT_SECRET,
+      serviceUsername: process.env.LB123_SERVICE_USERNAME,
+      servicePassword: process.env.LB123_SERVICE_PASSWORD,
+    }
+    const hasEnvVars = !!(lb123Creds.clientId && lb123Creds.clientSecret && lb123Creds.serviceUsername && lb123Creds.servicePassword)
+    let tokenResult = null
+    let searchResult = null
+    if (hasEnvVars) {
+      try {
+        const token = await get123Token(lb123Creds)
+        tokenResult = token ? 'OK (got token)' : 'FAILED (no token returned)'
+        if (token) {
+          const testLoads = await fetch123Loadboard({ origin: 'Dallas', originState: 'TX' }, lb123Creds)
+          searchResult = `${testLoads.length} loads returned`
+        }
+      } catch (err) {
+        tokenResult = `ERROR: ${err.message}`
+      }
+    }
+    return Response.json({
+      envVars: {
+        LB123_CLIENT_ID: lb123Creds.clientId ? `${lb123Creds.clientId.slice(0, 4)}...` : 'MISSING',
+        LB123_CLIENT_SECRET: lb123Creds.clientSecret ? 'SET' : 'MISSING',
+        LB123_SERVICE_USERNAME: lb123Creds.serviceUsername ? `${lb123Creds.serviceUsername.slice(0, 4)}...` : 'MISSING',
+        LB123_SERVICE_PASSWORD: lb123Creds.servicePassword ? 'SET' : 'MISSING',
+      },
+      hasEnvVars,
+      tokenResult,
+      searchResult,
+    }, { headers: corsHeaders(req) })
+  }
+
   // Parse filters from query params (GET) or body (POST)
   let filters = {}
   if (req.method === 'POST') {
@@ -58,7 +95,7 @@ export default async function handler(req) {
 
     // Also check platform env vars as fallback (for admin/testing)
     const hasDat = userCreds.dat || (process.env.DAT_CLIENT_ID && process.env.DAT_CLIENT_SECRET)
-    const has123 = userCreds['123loadboard'] || process.env.LB123_API_KEY
+    const has123 = userCreds['123loadboard'] || process.env.LB123_CLIENT_ID
     const hasTs = userCreds.truckstop || (process.env.TRUCKSTOP_CLIENT_ID && process.env.TRUCKSTOP_CLIENT_SECRET)
 
     if (!hasDat && !has123 && !hasTs) {
@@ -301,6 +338,8 @@ async function get123Token(creds) {
   })
 
   if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    console.error(`123LB password grant failed: ${res.status} ${errText}`)
     // Try client_credentials grant as fallback
     const res2 = await fetch('https://api.dev.123loadboard.com/token', {
       method: 'POST',
@@ -316,7 +355,11 @@ async function get123Token(creds) {
         client_secret: creds.clientSecret,
       }).toString(),
     })
-    if (!res2.ok) return null
+    if (!res2.ok) {
+      const errText2 = await res2.text().catch(() => '')
+      console.error(`123LB client_credentials grant also failed: ${res2.status} ${errText2}`)
+      return null
+    }
     const data2 = await res2.json()
     lb123Token = data2.access_token
     lb123TokenExpiry = Date.now() + (data2.expires_in || 3600) * 1000
@@ -385,10 +428,16 @@ async function fetch123Loadboard(filters, creds) {
       body: JSON.stringify(searchBody),
     })
 
-    if (!res.ok) return []
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      console.error(`123LB search failed: ${res.status} ${errText}`)
+      return []
+    }
     const data = await res.json()
-    return (data.loads || []).map(normalize123Load)
-  } catch {
+    console.log(`123LB search returned ${(data.loads || []).length} loads`)
+    return (data.loads || data || []).map(normalize123Load)
+  } catch (err) {
+    console.error(`123LB fetch error: ${err.message}`)
     return []
   }
 }

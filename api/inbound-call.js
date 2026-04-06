@@ -25,7 +25,7 @@
 
 export const config = { runtime: 'edge' }
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY
 const RETELL_API_KEY = process.env.RETELL_API_KEY
 const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID
@@ -130,8 +130,13 @@ export default async function handler(req) {
     return handleUnknownCaller(callSid)
 
   } catch (err) {
+    // If DB is down, still answer the phone like Q
     return twimlResponse(
-      say('Thank you for calling Qivori Dispatch. We experienced a technical issue. Please try again in a moment.')
+      gather(
+        `${baseUrl()}/api/call-handler?stage=greeting&inbound=true`,
+        'Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?'
+      )
+      + say("If you're returning a call about a load, just let me know and I'll pull it up.")
       + '<Hangup/>'
     )
   }

@@ -318,6 +318,49 @@ async function get123Token(creds) {
   // Return cached token if still valid (with 60s buffer)
   if (lb123Token && Date.now() < lb123TokenExpiry - 60000) return lb123Token
 
+  // Check for global token set by OAuth callback
+  if (globalThis.__lb123Token && Date.now() < (globalThis.__lb123TokenExpiry || 0) - 60000) {
+    lb123Token = globalThis.__lb123Token
+    lb123TokenExpiry = globalThis.__lb123TokenExpiry
+    return lb123Token
+  }
+
+  // If we have an OAuth access token from stored credentials, use it directly
+  if (creds.accessToken) {
+    // Check if token is still valid
+    if (creds.expiresAt && new Date(creds.expiresAt) > new Date()) {
+      lb123Token = creds.accessToken
+      lb123TokenExpiry = new Date(creds.expiresAt).getTime()
+      return lb123Token
+    }
+    // Try refresh token
+    if (creds.refreshToken && creds.clientId && creds.clientSecret) {
+      const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
+      try {
+        const res = await fetch('https://api.dev.123loadboard.com/token', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${basicAuth}`,
+            '123LB-Api-Version': '1.3',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: creds.refreshToken,
+          }).toString(),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          lb123Token = data.access_token
+          lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
+          return lb123Token
+        }
+      } catch {}
+    }
+  }
+
+  // Fallback: try client_credentials (may not work for all clients)
+  if (!creds.clientId || !creds.clientSecret) return null
   const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
 
   const res = await fetch('https://api.dev.123loadboard.com/token', {

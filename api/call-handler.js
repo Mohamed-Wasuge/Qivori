@@ -269,11 +269,36 @@ export default async function handler(req) {
     stage: stage
   };
 
-  const baseUrl = `${url.origin}/api/call-handler`;
+  // Always use www — Vercel redirects non-www, breaking Twilio POST requests
+  const baseUrl = `https://www.qivori.com/api/call-handler`;
   const contextParams = new URLSearchParams(context).toString();
 
   // — Handle different conversation stages —
   switch (stage) {
+
+    // INBOUND: Unknown caller greeted by Q — handle their response
+    case 'inbound_greeting': {
+      const form = await parseForm(req);
+      const callerSaid = form.SpeechResult || '';
+      const callSid = form.CallSid || '';
+      const lower = callerSaid.toLowerCase();
+
+      // If they mention a load, route, or want to talk about freight
+      if (lower.includes('load') || lower.includes('freight') || lower.includes('truck') || lower.includes('dispatch') || lower.includes('driver')) {
+        const response = `Got it. Can you give me the origin and destination, or a load number, and I'll pull it up for you?`;
+        const nextUrl = `${baseUrl}?stage=inbound_greeting&${contextParams}`;
+        return twimlResponse(gather(nextUrl, response, 10) + say("No worries. Call back anytime. Have a good one.") + '<Hangup/>');
+      }
+
+      // Generic helpful response
+      const response = `I appreciate you calling in. I'm Q, the AI dispatcher for Qivori. I can help with load status, dispatch, or connect you with the right carrier. What do you need?`;
+      const nextUrl = `${baseUrl}?stage=inbound_greeting&${contextParams}`;
+      return twimlResponse(
+        gather(nextUrl, response, 10)
+        + say("Alright, feel free to call back anytime. Have a good one.")
+        + '<Hangup/>'
+      );
+    }
 
     // STAGE 1: Greeting when broker answers
     case 'greeting': {

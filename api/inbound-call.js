@@ -154,7 +154,7 @@ export default async function handler(req) {
     // If DB is down, still answer the phone like Q
     return twimlResponse(
       gather(
-        `${baseUrl()}/api/call-handler?stage=greeting&inbound=true`,
+        `${baseUrl()}/api/call-handler?stage=inbound_greeting`,
         'Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?'
       )
       + say("If you're returning a call about a load, just let me know and I'll pull it up.")
@@ -370,7 +370,7 @@ function handleMultipleBrokerMatches(matches, callSid) {
 // ─── UNKNOWN CALLER ──────────────────────────────────────────────────────────
 function handleUnknownCaller(callSid) {
   const greeting = `Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?`
-  const nextUrl = `${baseUrl()}/api/call-handler?stage=greeting&inbound=true`
+  const nextUrl = `${baseUrl()}/api/call-handler?stage=inbound_greeting`
 
   return twimlResponse(
     gather(nextUrl, greeting)

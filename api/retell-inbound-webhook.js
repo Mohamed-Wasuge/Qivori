@@ -109,7 +109,7 @@ export default async function handler(req) {
 // ─── RESPONSE BUILDERS ─────────────────────────────────────────────────────
 
 function buildDriverResponse(match) {
-  const { driver, company, activeLoads, driverName } = match
+  const { driver, company, activeLoads, recentLoads, memories, driverName } = match
   const firstName = driverName.split(' ')[0] || 'driver'
   const companyName = company.name || 'your company'
 
@@ -118,8 +118,37 @@ function buildDriverResponse(match) {
     loadContext = activeLoads.map(l => {
       const origin = (l.origin || '').split(',')[0]
       const dest = (l.destination || l.dest || '').split(',')[0]
-      return `Load ${l.load_id || l.id}: ${origin} to ${dest}, status ${l.status}, broker ${l.broker_name || 'unknown'}`
+      const rpm = l.miles > 0 ? (Number(l.gross) / l.miles).toFixed(2) : '?'
+      return `Load ${l.load_id || l.id}: ${origin} to ${dest}, ${l.miles}mi, $${l.gross} ($${rpm}/mi), status ${l.status}, pickup ${l.pickup_date || 'TBD'}, broker ${l.broker_name || 'unknown'}`
     }).join('. ')
+  }
+
+  // Recent delivery history
+  let recentContext = ''
+  if (recentLoads && recentLoads.length > 0) {
+    const totalMiles = recentLoads.reduce((s, l) => s + (l.miles || 0), 0)
+    const totalGross = recentLoads.reduce((s, l) => s + Number(l.gross || 0), 0)
+    const avgRpm = totalMiles > 0 ? (totalGross / totalMiles).toFixed(2) : '?'
+    recentContext = `Last ${recentLoads.length} delivered loads: ${totalMiles} total miles, $${totalGross} gross, $${avgRpm}/mi avg.`
+  }
+
+  // Driver details
+  const payInfo = driver.pay_model && driver.pay_rate
+    ? `Pay: ${driver.pay_model === 'percent' ? driver.pay_rate + '%' : '$' + driver.pay_rate + '/' + driver.pay_model}`
+    : ''
+  const hosInfo = driver.hos_drive_remaining ? `HOS: ${driver.hos_drive_remaining}hrs drive remaining.` : ''
+  const equipInfo = driver.equipment ? `Equipment: ${driver.equipment}.` : ''
+  const homeBase = driver.home_base ? `Home base: ${driver.home_base}.` : ''
+
+  // Q's memories about this driver/company
+  let memoryContext = ''
+  if (memories && memories.length > 0) {
+    const relevant = memories
+      .filter(m => m.content && m.importance >= 5)
+      .slice(0, 5)
+      .map(m => `- ${m.content}`)
+      .join('\n')
+    if (relevant) memoryContext = `\nTHINGS Q REMEMBERS:\n${relevant}`
   }
 
   return {
@@ -138,19 +167,31 @@ function buildDriverResponse(match) {
         agent: { agent_name: 'Q' },
         retell_llm: {
           begin_message: `Hey ${firstName}, it's Q from ${companyName}. I've got your info pulled up. What's going on?`,
-          general_prompt: `You are Q, an elite AI freight dispatcher at ${companyName}. 15 years in freight. A driver named ${driverName} is calling you.
+          general_prompt: `You are Q, an elite AI freight dispatcher at ${companyName}. 15 years in freight, sharp with numbers, no BS. A driver named ${driverName} is calling you.
 
-THEIR LOADS: ${loadContext}
+DRIVER PROFILE:
+${equipInfo} ${homeBase} ${payInfo} ${hosInfo}
 
-RULES:
-- 2-3 sentences max. Driver is on the road, often hands-free.
+ACTIVE LOADS: ${loadContext}
+
+${recentContext ? 'RECENT HISTORY: ' + recentContext : ''}
+${memoryContext}
+
+WHAT Q DOES:
+- Know their loads cold — status, ETA, pickup/delivery times, broker name, rate.
+- If they ask about money: calculate their cut instantly. ${driver.pay_model === 'percent' ? `They get ${driver.pay_rate}% of gross.` : payInfo}
+- If they report delays/issues: acknowledge it, ask if they need dispatch to call the broker.
+- If they need next load: tell them you'll find something in their lane and text them options.
+- If they ask about fuel: reference nearby truck stops on their route.
+- If HOS is tight, factor that into any load suggestions.
+
+VOICE RULES:
+- 2-3 sentences max. They're driving, often hands-free.
 - Sound human: contractions, real talk, no corporate speak.
 - Never say "I am an AI" — you are Q, their dispatcher.
-- Use real dispatcher language: "solid", "light", "crushed it", "that lane is trash"
-- Help with: load status, ETA, delays, directions, next load requests, invoicing, fuel/IFTA, HOS.
-- If they have no loads, offer to have dispatch reach out with available loads.
-- Numbers matter more than explanations. Show the math, skip the essay.
-- Keep the call under 60 seconds.`,
+- Dispatcher language: "solid", "light", "crushed it", "that lane is trash", "you're sitting pretty"
+- Numbers over explanations. Show the math, skip the essay.
+- Keep the call under 60 seconds. Be the dispatcher they brag about to other drivers.`,
         },
       },
     },
@@ -166,13 +207,56 @@ function buildBrokerResponse(matches) {
   const firstName = brokerName ? brokerName.split(' ')[0] : 'there'
   const originShort = (match.origin || '').split(',')[0]
   const destShort = (match.destination || '').split(',')[0]
+  const rate = Number(match.rate || 0)
 
-  let loadContext = `Load from ${match.origin || 'unknown'} to ${match.destination || 'unknown'}. Posted rate: $${match.rate || 'unknown'}. Equipment: ${match.equipment || 'dry van'}.`
+  // Negotiation intelligence
+  const neg = match.negSettings || {}
+  const minRpm = neg.min_rate_per_mile || 2.50
+  const counterMarkup = neg.counter_offer_markup_pct || 10
+  const maxRounds = neg.max_counter_rounds || 2
+  const autoAccept = neg.auto_accept_above_minimum || false
+
+  // Rate analysis
+  const miles = Number(match.miles || 0)
+  const rpm = miles > 0 ? (rate / miles).toFixed(2) : 0
+  const targetRate = Math.round(rate * (1 + counterMarkup / 100))
+  const floorRate = Math.round(minRpm * (miles || 500))
+  const floorRpm = minRpm
+
+  // Diesel cost context
+  const dieselPrice = match.dieselPrice || 4.00
+  const fuelCostPerMile = (dieselPrice / 6.5).toFixed(2) // ~6.5 mpg avg
+  const operatingCost = (Number(fuelCostPerMile) + 0.51).toFixed(2) // fuel + fixed costs
+
+  // Broker urgency
+  const urgency = match.urgency
+  let urgencyContext = ''
+  if (urgency) {
+    const level = urgency.urgency_score >= 70 ? 'HIGH' : urgency.urgency_score >= 40 ? 'MEDIUM' : 'LOW'
+    urgencyContext = `\nBROKER URGENCY: ${level} (${urgency.urgency_score}/100). Called us ${urgency.call_count || 1} times.`
+    if (urgency.signals?.length > 0) {
+      urgencyContext += ` Signals: ${urgency.signals.slice(0, 3).join(', ')}.`
+    }
+    if (urgency.urgency_score >= 70) {
+      urgencyContext += ' → They need this covered badly. Push for top rate.'
+    }
+  }
+
+  let loadContext = `Load from ${match.origin || 'unknown'} to ${match.destination || 'unknown'}. Posted rate: $${rate}${miles ? ` (${miles}mi, $${rpm}/mi)` : ''}. Equipment: ${match.equipment || 'dry van'}.`
 
   if (matches.length > 1) {
     loadContext += ' We also called about: ' + matches.slice(1, 3).map(m =>
       `${(m.origin || '').split(',')[0]} to ${(m.destination || '').split(',')[0]} at $${m.rate || 'unknown'}`
     ).join(', ') + '.'
+  }
+
+  // Rate verdict
+  let rateVerdict = ''
+  if (rpm > 0) {
+    if (rpm >= 3.00) rateVerdict = 'EXCELLENT rate — accept if available.'
+    else if (rpm >= 2.50) rateVerdict = 'GOOD rate — solid, worth taking.'
+    else if (rpm >= minRpm) rateVerdict = 'FAIR rate — push for more but acceptable.'
+    else rateVerdict = `BELOW MINIMUM ($${minRpm}/mi floor) — must negotiate up or walk.`
   }
 
   return {
@@ -188,27 +272,41 @@ function buildBrokerResponse(matches) {
         carrierName: carrier,
         origin: match.origin || '',
         destination: match.destination || '',
-        rate: String(match.rate || ''),
+        rate: String(rate),
         userId: match.user_id || '',
       },
       agent_override: {
         agent: { agent_name: 'Q' },
         retell_llm: {
           begin_message: `Hey ${firstName}, this is Q on behalf of ${carrier}${mc ? ', MC ' + mc : ''}. Thanks for getting back to us about that ${originShort} to ${destShort} load. Is that still available?`,
-          general_prompt: `You are Q, an elite AI freight dispatcher representing ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}. A broker is calling you back about a load.
+          general_prompt: `You are Q, an elite AI freight dispatcher representing ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}. 15 years in freight. A broker is calling you back about a load.
 
 LOAD DETAILS: ${loadContext}
 
-YOUR JOB:
-- This broker is returning our call. Thank them for calling back.
-- Confirm if the load is still available.
-- If available, negotiate the rate. Target: $${match.rate || 'market rate'}. Flex 5-10% but push for posted rate first.
-- Be professional but personable. Use dispatcher language — "bet", "solid", "what can you do on the rate?"
-- If they agree on a rate, ask for their email so we can send a rate confirmation.
-- If the load is taken, ask: "You got anything else in that lane?"
+RATE INTELLIGENCE:
+- Posted: $${rate} ($${rpm}/mi)
+- Your target: $${targetRate} ($${(targetRate / (miles || 500)).toFixed(2)}/mi) — push for this first
+- Your floor: $${floorRate} ($${floorRpm}/mi) — NEVER go below this
+- Operating cost: $${operatingCost}/mi (diesel at $${dieselPrice}/gal)
+- ${rateVerdict}
+${urgencyContext}
+
+NEGOTIATION STRATEGY:
+1. First confirm the load is still available.
+2. If available and rate is at/above target ($${targetRate}): "That works, let's lock it in. What email should I send the rate con to?"
+3. If rate is between floor and target: Counter with "What can you do on the rate? We're looking at $${targetRate} on that lane." If they counter back above floor, take it.
+4. If rate is below floor ($${floorRate}): "I appreciate it but that doesn't cover our costs on that lane. We'd need at least $${floorRate} to make it work."
+5. ${urgency && urgency.urgency_score >= 60 ? 'This broker is eager — hold firm on your target rate, they will likely come up.' : 'Standard negotiation — be flexible but protect your floor.'}
+6. Max ${maxRounds} counter rounds. After that: take it or walk.
+7. If they agree: "Solid. What's your email? I'll shoot over the rate con right now."
+8. If load is taken: "No worries. You got anything else in that lane? We run ${originShort} to ${destShort} regularly."
+
+VOICE RULES:
+- 2-3 sentences max. This is a phone call, not an essay.
+- Sound like a real dispatcher: "bet", "solid", "what can you do on the rate?", "we run that lane heavy"
 - Never say you are AI. You are Q, the dispatcher.
-- Keep responses short — 2-3 sentences max. This is a phone call.
-- Carrier info: ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}, clean safety record, on-time delivery.`,
+- Know your numbers cold. RPM, gross, operating cost — instant answers.
+- Carrier info: ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}, clean safety record, on-time delivery, no double-brokering.`,
         },
       },
     },
@@ -249,22 +347,24 @@ YOUR JOB:
 
 async function identifyDriver(phone10) {
   const drivers = await sbGet(
-    `drivers?phone=like.*${phone10}&select=id,full_name,name,phone,owner_id,pay_model,pay_rate&limit=1`
+    `drivers?phone=like.*${phone10}&select=id,full_name,name,phone,owner_id,pay_model,pay_rate,hos_drive_remaining,equipment,home_base&limit=1`
   )
   if (drivers.length === 0) return null
 
   const driver = drivers[0]
-  const companies = await sbGet(
-    `companies?owner_id=eq.${driver.owner_id}&select=name,mc_number,dot_number&limit=1`
-  )
+
+  // Parallel fetches for speed (budget: <5s total)
+  const [companies, activeLoads, recentLoads, memories] = await Promise.all([
+    sbGet(`companies?owner_id=eq.${driver.owner_id}&select=name,mc_number,dot_number&limit=1`),
+    sbGet(`loads?owner_id=eq.${driver.owner_id}&driver=eq.${encodeURIComponent(driver.full_name || driver.name || '')}&status=in.(Assigned,In Transit,Loaded,At Pickup,At Delivery)&select=id,load_id,origin,destination,status,miles,gross,pickup_date,delivery_date,broker_name&order=created_at.desc&limit=5`),
+    sbGet(`loads?owner_id=eq.${driver.owner_id}&driver=eq.${encodeURIComponent(driver.full_name || driver.name || '')}&status=eq.Delivered&select=id,origin,destination,gross,miles&order=created_at.desc&limit=5`),
+    sbGet(`q_memories?owner_id=eq.${driver.owner_id}&order=importance.desc,updated_at.desc&limit=10`),
+  ])
+
   const company = companies[0] || {}
-
   const driverName = driver.full_name || driver.name || ''
-  const activeLoads = await sbGet(
-    `loads?owner_id=eq.${driver.owner_id}&driver=eq.${encodeURIComponent(driverName)}&status=in.(Assigned,In Transit,Loaded,At Pickup,At Delivery)&select=id,load_id,origin,destination,status,miles,gross,pickup_date,delivery_date,broker_name&order=created_at.desc&limit=5`
-  )
 
-  return { driver, company, activeLoads, driverName }
+  return { driver, company, activeLoads, recentLoads, memories, driverName }
 }
 
 async function identifyBrokerCallback(phone10) {
@@ -284,10 +384,17 @@ async function identifyBrokerCallback(phone10) {
 
   for (const match of unique) {
     if (match.user_id) {
-      const companies = await sbGet(
-        `companies?owner_id=eq.${match.user_id}&select=name,mc_number,dot_number&limit=1`
-      )
+      // Parallel: company, negotiation settings, broker urgency, diesel prices
+      const [companies, negSettings, urgencyRows, dieselRows] = await Promise.all([
+        sbGet(`companies?owner_id=eq.${match.user_id}&select=name,mc_number,dot_number&limit=1`),
+        sbGet(`negotiation_settings?user_id=eq.${match.user_id}&select=min_rate_per_mile,counter_offer_markup_pct,max_counter_rounds,auto_accept_above_minimum&limit=1`),
+        match.broker_name ? sbGet(`broker_urgency_scores?owner_id=eq.${match.user_id}&broker_name=eq.${encodeURIComponent(match.broker_name)}&select=urgency_score,signals,call_count&limit=1`) : [],
+        sbGet(`diesel_prices?region=eq.US AVG&order=fetched_at.desc&limit=1`),
+      ])
       match.company = companies[0] || {}
+      match.negSettings = negSettings[0] || { min_rate_per_mile: 2.50, counter_offer_markup_pct: 10, max_counter_rounds: 2 }
+      match.urgency = urgencyRows[0] || null
+      match.dieselPrice = dieselRows[0]?.price || null
     }
   }
 

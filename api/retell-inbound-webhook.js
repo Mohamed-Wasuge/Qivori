@@ -80,15 +80,16 @@ export default async function handler(req) {
       return json(buildResponse('unknown', {}, 'Caller', 'Unknown caller — no phone number.'))
     }
 
-    // --- STEP 1: Check if caller is a DRIVER ---
-    const driverMatch = await identifyDriver(callerLast10)
+    // --- Run driver + broker lookup IN PARALLEL for speed ---
+    const [driverMatch, brokerMatches] = await Promise.all([
+      identifyDriver(callerLast10),
+      identifyBrokerCallback(callerLast10),
+    ])
+
     if (driverMatch) {
       logInboundCall(fromNumber, toNumber, 'driver', driverMatch).catch(() => {})
       return json(buildDriverResponse(driverMatch))
     }
-
-    // --- STEP 2: Check if caller is a BROKER calling back ---
-    const brokerMatches = await identifyBrokerCallback(callerLast10)
 
     if (brokerMatches.length > 0) {
       cancelPendingRetries(callerLast10).catch(() => {})
@@ -382,20 +383,19 @@ async function identifyBrokerCallback(phone10) {
     return true
   })
 
-  for (const match of unique) {
-    if (match.user_id) {
-      // Parallel: company, negotiation settings, broker urgency, diesel prices
-      const [companies, negSettings, urgencyRows, dieselRows] = await Promise.all([
-        sbGet(`companies?owner_id=eq.${match.user_id}&select=name,mc_number,dot_number&limit=1`),
-        sbGet(`negotiation_settings?user_id=eq.${match.user_id}&select=min_rate_per_mile,counter_offer_markup_pct,max_counter_rounds,auto_accept_above_minimum&limit=1`),
-        match.broker_name ? sbGet(`broker_urgency_scores?owner_id=eq.${match.user_id}&broker_name=eq.${encodeURIComponent(match.broker_name)}&select=urgency_score,signals,call_count&limit=1`) : [],
-        sbGet(`diesel_prices?region=eq.US AVG&order=fetched_at.desc&limit=1`),
-      ])
-      match.company = companies[0] || {}
-      match.negSettings = negSettings[0] || { min_rate_per_mile: 2.50, counter_offer_markup_pct: 10, max_counter_rounds: 2 }
-      match.urgency = urgencyRows[0] || null
-      match.dieselPrice = dieselRows[0]?.price || null
-    }
+  // Enrich only the FIRST match (the one we'll use) — skip the rest for speed
+  const match = unique[0]
+  if (match?.user_id) {
+    const [companies, negSettings, urgencyRows, dieselRows] = await Promise.all([
+      sbGet(`companies?owner_id=eq.${match.user_id}&select=name,mc_number,dot_number&limit=1`),
+      sbGet(`negotiation_settings?user_id=eq.${match.user_id}&select=min_rate_per_mile,counter_offer_markup_pct,max_counter_rounds,auto_accept_above_minimum&limit=1`),
+      match.broker_name ? sbGet(`broker_urgency_scores?owner_id=eq.${match.user_id}&broker_name=eq.${encodeURIComponent(match.broker_name)}&select=urgency_score,signals,call_count&limit=1`) : [],
+      sbGet(`diesel_prices?region=eq.US AVG&order=fetched_at.desc&limit=1`),
+    ])
+    match.company = companies[0] || {}
+    match.negSettings = negSettings[0] || { min_rate_per_mile: 2.50, counter_offer_markup_pct: 10, max_counter_rounds: 2 }
+    match.urgency = urgencyRows[0] || null
+    match.dieselPrice = dieselRows[0]?.price || null
   }
 
   return unique

@@ -67,10 +67,17 @@ async function bridgeToRetell(callerPhone, calledNumber, callSid, callerType, dy
       from_number: callerPhone,
       to_number: calledNumber,
       metadata: { ...metadata, twilio_call_sid: callSid, call_type: callerType },
-      retell_llm_dynamic_variables: dynamicVars,
+      retell_llm_dynamic_variables: {
+        driver_name: dynamicVars.caller_name || 'Caller',
+        context: dynamicVars.caller_context || '',
+        language: 'english',
+      },
       agent_override: {
         agent: { agent_name: 'Q' },
-        retell_llm: { begin_message: dynamicVars._begin_message || "Hey, this is Q from Qivori Dispatch. How can I help you?" },
+        retell_llm: Object.assign(
+          { begin_message: dynamicVars._begin_message || "Hey, this is Q from Qivori Dispatch. How can I help you?" },
+          dynamicVars._prompt ? { general_prompt: dynamicVars._prompt } : {}
+        ),
       },
     }),
   })
@@ -195,11 +202,10 @@ export default async function handler(req) {
     // Last resort — try Retell with no context
     try {
       return await bridgeToRetell('+10000000000', '+10000000000', '', 'unknown_inbound', {
-        call_type: 'unknown_inbound',
         caller_name: 'Caller',
-        caller_context: 'Unknown caller. System had a technical issue loading their info.',
-        conversation_instructions: 'Greet them as Q from Qivori Dispatch. Ask how you can help. Keep it natural.',
+        caller_context: 'Unknown caller. System had a technical issue.',
         _begin_message: "Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you?",
+        _prompt: 'You are Q, an AI freight dispatcher at Qivori Dispatch. Someone is calling. Find out who they are and what they need. Be short, natural, helpful. Never say you are AI.',
       }, {})
     } catch {
       return twimlResponse(
@@ -246,14 +252,22 @@ function handleDriverCall(match, callSid, callerPhone, calledNumber) {
   }
 
   const dynamicVars = {
-    call_type: 'driver_inbound',
     caller_name: firstName,
-    carrier_name: companyName,
-    carrier_mc: company.mc_number || '',
-    carrier_dot: company.dot_number || '',
     caller_context: `Driver ${driverName} is calling in. They drive for ${companyName}. Their loads: ${loadContext}`,
-    conversation_instructions: `Greet ${firstName} by name. Give their load status naturally. Help with: status updates, ETA, delay reporting, directions, next load requests. If they have no loads, offer to have dispatch reach out. Keep it short and natural like a real dispatcher. You are Q.`,
     _begin_message: `Hey ${firstName}, it's Q from ${companyName}. I've got your info pulled up. What's going on?`,
+    _prompt: `You are Q, an elite AI freight dispatcher at ${companyName}. 15 years in freight. A driver named ${driverName} is calling you.
+
+THEIR LOADS: ${loadContext}
+
+RULES:
+- 2-3 sentences max. Driver is on the road, often hands-free.
+- Sound human: contractions, real talk, no corporate speak.
+- Never say "I am an AI" — you are Q, their dispatcher.
+- Use real dispatcher language: "solid", "light", "crushed it", "that lane is trash"
+- You can help with: load status, ETA, delays, directions, next load requests, invoicing, fuel/IFTA, HOS.
+- If they have no loads, offer to have dispatch reach out with available loads.
+- Numbers matter more than explanations. Show the math, skip the essay.
+- Keep the call under 60 seconds.`,
   }
 
   const metadata = {
@@ -311,14 +325,23 @@ function handleBrokerCallback(matches, callSid, callerPhone, calledNumber) {
   }
 
   const dynamicVars = {
-    call_type: 'broker_callback',
     caller_name: firstName,
-    carrier_name: carrier,
-    carrier_mc: mc,
-    carrier_dot: dot,
-    caller_context: `Broker ${brokerName || 'unknown'} is returning our call. ${loadContext} We called them from this platform on behalf of ${carrier}${mc ? ' MC ' + mc : ''}.`,
-    conversation_instructions: `This broker is calling back about a load we reached out about. Thank them for calling back. Confirm if the load is still available. If yes, negotiate the rate — you represent ${carrier}${mc ? ' MC ' + mc : ''}${dot ? ' DOT ' + dot : ''}. Be professional but personable, use dispatcher language. If they agree on a rate, ask for their email for rate confirmation. If the load is taken, ask if they have anything else in that lane.`,
-    _begin_message: `Hey ${firstName}, this is Q calling on behalf of ${carrier}${mc ? ', MC ' + mc : ''}. Thanks for getting back to us about that ${(match.origin || '').split(',')[0]} to ${(match.destination || '').split(',')[0]} load. Is that still available?`,
+    caller_context: `Broker ${brokerName || 'unknown'} is returning our call. ${loadContext}`,
+    _begin_message: `Hey ${firstName}, this is Q on behalf of ${carrier}${mc ? ', MC ' + mc : ''}. Thanks for getting back to us about that ${(match.origin || '').split(',')[0]} to ${(match.destination || '').split(',')[0]} load. Is that still available?`,
+    _prompt: `You are Q, an elite AI freight dispatcher representing ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}. A broker is calling you back about a load.
+
+LOAD DETAILS: ${loadContext}
+
+YOUR JOB:
+- This broker is returning our call. Thank them for calling back.
+- Confirm if the load is still available.
+- If available, negotiate the rate. Our target rate is $${match.rate || 'market rate'}. You can flex 5-10% but push for the posted rate first.
+- Be professional but personable. Use dispatcher language — "bet", "solid", "what can you do on the rate?"
+- If they agree on a rate, ask for their email so we can send a rate confirmation.
+- If the load is taken, ask: "You got anything else in that lane?"
+- Never say you are AI. You are Q, the dispatcher.
+- Keep responses short — 2-3 sentences max. This is a phone call, not an email.
+- If they ask about our carrier: ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}, clean safety record, on-time delivery.`,
   }
 
   const metadata = {
@@ -338,14 +361,20 @@ function handleBrokerCallback(matches, callSid, callerPhone, calledNumber) {
 // ─── UNKNOWN CALLER → RETELL ────────────────────────────────────────────────
 function handleUnknownCaller(callSid, callerPhone, calledNumber) {
   const dynamicVars = {
-    call_type: 'unknown_inbound',
     caller_name: 'Caller',
-    carrier_name: 'Qivori Dispatch',
-    carrier_mc: '',
-    carrier_dot: '',
-    caller_context: 'Unknown caller. Not found in drivers or recent broker call logs.',
-    conversation_instructions: 'Greet them as Q from Qivori Dispatch. Ask how you can help. If they are a broker returning a call, get the load details and help them. If they are asking about Qivori, give a brief pitch: AI-powered dispatch for trucking companies. If they want to reach a specific carrier, try to help route them. Keep it natural and helpful.',
+    caller_context: 'Unknown caller. Not found in our system.',
     _begin_message: "Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?",
+    _prompt: `You are Q, an AI freight dispatcher at Qivori Dispatch. Someone is calling in and we don't have their info in our system yet.
+
+YOUR JOB:
+- Find out who they are and what they need.
+- If they're a broker returning a call about a load, get the details: origin, destination, rate. Help them.
+- If they're a driver looking for loads or dispatch help, tell them about Qivori — AI-powered dispatch for owner-operators and small fleets.
+- If they're asking about Qivori services, give a brief pitch: "We're an AI dispatch platform for trucking companies. Q handles broker calls, load matching, invoicing, compliance — the whole nine. Your drivers can even talk to me hands-free."
+- If they want to reach a specific person or carrier, ask for details and offer to help route them.
+- Never say you are AI. You are Q, the dispatcher.
+- Keep it short, natural, friendly. 2-3 sentences max per response.
+- Sound like a real dispatcher: contractions, casual, confident.`,
   }
 
   return bridgeToRetell(callerPhone, calledNumber, callSid, 'unknown_inbound', dynamicVars, {})

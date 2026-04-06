@@ -283,7 +283,7 @@ RULES:
 async function identifyBrokerCallback(phone10) {
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
   const matches = await sbGet(
-    `call_logs?broker_phone=like.*${phone10}&created_at=gte.${cutoff}&order=created_at.desc&limit=10&select=id,load_id,broker_name,broker_phone,carrier_name,origin,destination,rate,equipment,outcome,user_id,created_at`
+    `call_logs?broker_phone=like.*${phone10}&created_at=gte.${cutoff}&call_status=neq.inbound&outcome=not.like.inbound_*&order=created_at.desc&limit=10&select=id,load_id,broker_name,broker_phone,carrier_name,origin,destination,rate,equipment,outcome,user_id,created_at`
   )
 
   const seen = new Set()

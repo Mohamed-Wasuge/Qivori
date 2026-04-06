@@ -78,7 +78,8 @@ function twimlResponse(body) {
 }
 
 function baseUrl() {
-  return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://qivori.com'
+  // Always use the custom domain — VERCEL_URL is a preview URL that Twilio can't follow
+  return 'https://qivori.com'
 }
 
 export default async function handler(req) {

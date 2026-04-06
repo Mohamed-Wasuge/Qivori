@@ -10,7 +10,7 @@
 
 export const config = { runtime: 'edge' };
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 const anthropicKey = process.env.ANTHROPIC_API_KEY;
 

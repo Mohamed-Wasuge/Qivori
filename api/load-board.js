@@ -86,7 +86,12 @@ export default async function handler(req) {
     }
 
     // 2. Try 123Loadboard API
-    const lb123Creds = userCreds['123loadboard'] || (process.env.LB123_API_KEY ? { apiKey: process.env.LB123_API_KEY } : null)
+    const lb123Creds = userCreds['123loadboard'] || (process.env.LB123_CLIENT_ID ? {
+      clientId: process.env.LB123_CLIENT_ID,
+      clientSecret: process.env.LB123_CLIENT_SECRET,
+      serviceUsername: process.env.LB123_SERVICE_USERNAME,
+      servicePassword: process.env.LB123_SERVICE_PASSWORD,
+    } : null)
     if (lb123Creds) {
       const lb123Loads = await fetch123Loadboard(filters, lb123Creds)
       if (lb123Loads.length > 0) {
@@ -264,69 +269,165 @@ function normalizeDATLoad(match) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 123Loadboard API Integration
-// Requires: LB123_API_KEY env var
+// OAuth2 + POST /loads/search
 // Docs: https://developers.123loadboard.com
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Token cache (in-memory, shared across requests on same Edge instance)
+let lb123Token = null
+let lb123TokenExpiry = 0
+
+async function get123Token(creds) {
+  // Return cached token if still valid (with 60s buffer)
+  if (lb123Token && Date.now() < lb123TokenExpiry - 60000) return lb123Token
+
+  const basicAuth = btoa(`${creds.serviceUsername}:${creds.servicePassword}`)
+
+  const res = await fetch('https://api.dev.123loadboard.com/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${basicAuth}`,
+      '123LB-Api-Version': '1.3',
+      'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+      username: creds.serviceUsername,
+      password: creds.servicePassword,
+    }).toString(),
+  })
+
+  if (!res.ok) {
+    // Try client_credentials grant as fallback
+    const res2 = await fetch('https://api.dev.123loadboard.com/token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basicAuth}`,
+        '123LB-Api-Version': '1.3',
+        'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
+      }).toString(),
+    })
+    if (!res2.ok) return null
+    const data2 = await res2.json()
+    lb123Token = data2.access_token
+    lb123TokenExpiry = Date.now() + (data2.expires_in || 3600) * 1000
+    return lb123Token
+  }
+
+  const data = await res.json()
+  lb123Token = data.access_token
+  lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
+  return lb123Token
+}
+
 async function fetch123Loadboard(filters, creds) {
-  const apiKey = creds?.apiKey
-  if (!apiKey) return []
+  if (!creds?.clientId) return []
 
   try {
-    const params = new URLSearchParams({
-      api_key: apiKey,
-      format: 'json',
-      limit: '50',
-    })
+    const token = await get123Token(creds)
+    if (!token) return []
 
-    if (filters.origin) params.set('origin_city', filters.origin)
-    if (filters.originState) params.set('origin_state', filters.originState)
-    if (filters.destination) params.set('destination_city', filters.destination)
-    if (filters.destState) params.set('destination_state', filters.destState)
-    if (filters.equipment && filters.equipment !== 'All') {
-      const equipMap = { 'Dry Van': 'Van', 'Reefer': 'Reefer', 'Flatbed': 'Flatbed' }
-      params.set('equipment', equipMap[filters.equipment] || 'Van')
+    // Map equipment types
+    const equipMap = {
+      'Dry Van': 'Van', 'Van': 'Van',
+      'Reefer': 'Reefer', 'Refrigerated': 'Reefer',
+      'Flatbed': 'Flatbed', 'Step Deck': 'StepDeck',
+      'Power Only': 'PowerOnly', 'Box Truck': 'BoxTruck',
+      'Hotshot': 'HotShot', 'Sprinter': 'Sprinter',
+    }
+    const equipType = (filters.equipment && filters.equipment !== 'All')
+      ? equipMap[filters.equipment] || 'Van'
+      : 'Van'
+
+    // Build search body
+    const searchBody = {
+      metadata: {},
+      origin: {
+        city: filters.origin || filters.originCity || '',
+        state: filters.originState || '',
+        radius: 100,
+      },
+      destination: {
+        city: filters.destination || filters.destCity || '',
+        state: filters.destState || '',
+        radius: 100,
+      },
+      equipmentTypes: [equipType],
+      loadSize: 'Tl',
+      hasRate: true,
+      includeWithGreaterPickupDates: true,
     }
 
-    const res = await fetch(`https://api.123loadboard.com/v1/loads/search?${params}`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
+    // Remove empty origin/dest if not provided
+    if (!searchBody.origin.city && !searchBody.origin.state) delete searchBody.origin
+    if (!searchBody.destination.city && !searchBody.destination.state) delete searchBody.destination
+
+    const deviceId = 'qivori-dispatch-' + (creds.clientId || '').slice(-8)
+
+    const res = await fetch('https://api.dev.123loadboard.com/loads/search', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        '123LB-Api-Version': '1.3',
+        '123LB-AID': deviceId,
+        'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(searchBody),
     })
+
     if (!res.ok) return []
     const data = await res.json()
-    return (data.loads || data.results || data || []).map(normalize123Load)
+    return (data.loads || []).map(normalize123Load)
   } catch {
     return []
   }
 }
 
 function normalize123Load(load) {
-  const miles = load.miles || load.distance || 0
-  const gross = load.rate || load.price || 0
+  const origin = load.origin || {}
+  const dest = load.destination || {}
+  const miles = load.mileage || load.miles || load.distance || 0
+  const gross = load.rate || load.price || load.amount || 0
   const rpm = miles > 0 ? +(gross / miles).toFixed(2) : 0
+  const originCity = origin.city || load.originCity || ''
+  const originState = origin.state || load.originState || ''
+  const destCity = dest.city || load.destinationCity || ''
+  const destState = dest.state || load.destinationState || ''
 
   return {
     id: `123-${load.id || load.loadId || Math.random().toString(36).slice(2, 8)}`,
     source: '123loadboard',
-    broker: load.company || load.broker_name || load.poster || 'Unknown',
-    brokerMC: load.mc_number || '',
-    origin: load.origin || `${load.origin_city || ''}, ${load.origin_state || ''}`.trim().replace(/^,\s*/, ''),
-    originCity: load.origin_city || '',
-    originState: load.origin_state || '',
-    dest: load.destination || `${load.destination_city || ''}, ${load.destination_state || ''}`.trim().replace(/^,\s*/, ''),
-    destCity: load.destination_city || '',
-    destState: load.destination_state || '',
+    broker: load.company?.name || load.companyName || load.poster || 'Unknown',
+    brokerMC: load.company?.mcNumber || load.mcNumber || '',
+    brokerPhone: load.company?.phone || load.contactPhone || '',
+    origin: originCity && originState ? `${originCity}, ${originState}` : originCity || originState || '',
+    originCity,
+    originState,
+    dest: destCity && destState ? `${destCity}, ${destState}` : destCity || destState || '',
+    destCity,
+    destState,
     miles,
     rate: rpm,
     gross,
     weight: load.weight || '',
     commodity: load.commodity || load.description || '',
-    equipment: normalizeEquipment(load.equipment || load.trailer_type || ''),
-    pickup: load.pickup_date || load.available_date || '',
-    delivery: load.delivery_date || '',
-    deadhead: load.deadhead || 0,
-    refNum: load.reference || '',
-    postedAt: load.posted_date || new Date().toISOString(),
-    laneKey: `${(load.origin_city || '').slice(0, 3).toUpperCase()}→${(load.destination_city || '').slice(0, 3).toUpperCase()}`,
+    equipment: normalizeEquipment(load.equipmentType || load.equipment || ''),
+    pickup: load.pickupDate || load.availableDate || '',
+    delivery: load.deliveryDate || '',
+    deadhead: load.deadheadMiles || load.deadhead || 0,
+    refNum: load.referenceNumber || load.reference || '',
+    postedAt: load.createdOn || load.postedDate || new Date().toISOString(),
+    laneKey: `${originCity.slice(0, 3).toUpperCase()}→${destCity.slice(0, 3).toUpperCase()}`,
   }
 }
 

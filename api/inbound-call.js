@@ -78,12 +78,32 @@ function twimlResponse(body) {
 }
 
 function baseUrl() {
-  // Always use the custom domain — VERCEL_URL is a preview URL that Twilio can't follow
-  return 'https://qivori.com'
+  // Always use www — Vercel redirects non-www to www (308), breaking Twilio POST requests
+  return 'https://www.qivori.com'
 }
 
 export default async function handler(req) {
   if (req.method === 'GET') {
+    // Debug: test DB connectivity
+    const url = req.url
+    if (url.includes('debug=1')) {
+      try {
+        const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+        const sbKey = process.env.SUPABASE_SERVICE_KEY
+        const res = await fetch(`${sbUrl}/rest/v1/drivers?select=id&limit=1`, {
+          headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
+        })
+        const data = await res.json()
+        return new Response(JSON.stringify({
+          supabaseUrl: sbUrl ? 'set' : 'NOT SET',
+          serviceKey: sbKey ? 'set' : 'NOT SET',
+          dbTest: res.ok ? 'connected' : 'failed',
+          driversFound: data.length,
+        }), { headers: { 'Content-Type': 'application/json' } })
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500 })
+      }
+    }
     return new Response('Inbound call handler active', { status: 200 })
   }
 

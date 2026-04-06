@@ -199,14 +199,30 @@ async function testConnection(provider, credentials) {
     }
 
     if (provider === '123loadboard') {
-      const { apiKey } = credentials || {}
-      if (!apiKey) return { success: false, message: 'API Key required' }
-      const res = await fetch(`https://api.123loadboard.com/v1/loads/search?api_key=${apiKey}&format=json&limit=1`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
+      const { clientId, clientSecret, serviceUsername, servicePassword } = credentials || {}
+      if (!clientId || !clientSecret || !serviceUsername || !servicePassword) {
+        return { success: false, message: 'Client ID, Client Secret, Service Username, and Service Password are all required' }
+      }
+      const basicAuth = btoa(`${serviceUsername}:${servicePassword}`)
+      const res = await fetch('https://api.dev.123loadboard.com/token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          '123LB-Api-Version': '1.3',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          client_id: clientId,
+          client_secret: clientSecret,
+          username: serviceUsername,
+          password: servicePassword,
+        }).toString(),
       })
-      if (res.ok || res.status === 200) return { success: true, message: '123Loadboard connected successfully' }
-      if (res.status === 401 || res.status === 403) return { success: false, message: 'Invalid API key' }
-      return { success: false, message: `123Loadboard returned HTTP ${res.status}` }
+      if (res.ok) return { success: true, message: '123Loadboard connected successfully' }
+      const errText = await res.text().catch(() => '')
+      if (res.status === 401 || res.status === 403) return { success: false, message: `Invalid credentials (${res.status})` }
+      return { success: false, message: `123Loadboard auth failed: HTTP ${res.status} ${errText.slice(0, 100)}` }
     }
 
     if (provider === 'truckstop') {

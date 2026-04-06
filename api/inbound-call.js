@@ -1,24 +1,16 @@
 /**
- * Inbound Call Handler — Smart routing for ALL inbound calls
+ * Inbound Call Handler — Retell AI voice for ALL inbound calls
  *
- * Q identifies WHO is calling and routes accordingly:
- *
- * 1. DRIVER calling → Q gives load status, ETA, next steps
- *    - Looks up driver by phone in `drivers` table
- *    - Scoped to driver's owner_id (carrier) — full tenant isolation
- *    - Finds their active loads and delivers status update
- *
- * 2. BROKER calling back → Q picks up with load context
- *    - Matches caller phone against recent outbound call_logs
- *    - If one carrier called them → direct to that carrier's context
- *    - If multiple carriers called them → Q asks which load
- *    - Cancels pending retry calls
- *
- * 3. UNKNOWN caller → Generic Q greeting
+ * Flow:
+ *   1. Twilio receives call → POST here
+ *   2. Identify caller via Supabase (driver, broker callback, unknown)
+ *   3. Register call with Retell AI, passing caller context as dynamic variables
+ *   4. Return TwiML <Dial><Sip> to bridge caller audio to Retell
+ *   5. Retell Q has a natural conversation — no rigid phone tree
+ *   6. Call ends → retell-webhook.js logs transcript + outcome
  *
  * Multi-tenant: Every query is scoped by owner_id/user_id.
  * Q never leaks one carrier's data to another.
- * Each carrier's company name, MC#, DOT# loaded per call.
  *
  * Runtime: Vercel Edge
  */
@@ -53,23 +45,6 @@ async function sbPatch(path, data) {
   })
 }
 
-// TwiML voice settings — same voice as outbound calls
-const VOICE = 'Polly.Matthew-Neural'
-const VOICE_RATE = '95%'
-
-function say(text) {
-  const ssmlText = text
-    .replace(/\. /g, '. <break time="400ms"/> ')
-    .replace(/\? /g, '? <break time="300ms"/> ')
-  return `<Say voice="${VOICE}"><prosody rate="${VOICE_RATE}">${ssmlText}</prosody></Say>`
-}
-
-function gather(actionUrl, prompt, timeout = 8) {
-  return `<Gather input="speech" timeout="${timeout}" speechTimeout="auto" action="${actionUrl}" method="POST">`
-    + say(prompt)
-    + '</Gather>'
-}
-
 function twimlResponse(body) {
   return new Response(
     `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`,
@@ -77,26 +52,53 @@ function twimlResponse(body) {
   )
 }
 
-function baseUrl() {
-  // Always use www — Vercel redirects non-www to www (308), breaking Twilio POST requests
-  return 'https://www.qivori.com'
+// ─── RETELL BRIDGE ──────────────────────────────────────────────────────────
+// Register call with Retell and return TwiML to bridge via SIP
+async function bridgeToRetell(callerPhone, calledNumber, callSid, callerType, dynamicVars, metadata) {
+  const res = await fetch('https://api.retellai.com/v2/register-phone-call', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RETELL_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      agent_id: RETELL_AGENT_ID,
+      direction: 'inbound',
+      from_number: callerPhone,
+      to_number: calledNumber,
+      metadata: { ...metadata, twilio_call_sid: callSid, call_type: callerType },
+      retell_llm_dynamic_variables: dynamicVars,
+      agent_override: {
+        agent: { agent_name: 'Q' },
+        retell_llm: { begin_message: dynamicVars._begin_message || "Hey, this is Q from Qivori Dispatch. How can I help you?" },
+      },
+    }),
+  })
+
+  if (!res.ok) {
+    // Retell down — simple fallback
+    return twimlResponse(
+      '<Say voice="Polly.Matthew-Neural">Hey, thanks for calling Qivori Dispatch. We are having a brief technical issue. Please call back in a minute.</Say><Hangup/>'
+    )
+  }
+
+  const data = await res.json()
+  return twimlResponse(`<Dial><Sip>sip:${data.call_id}@sip.retellai.com</Sip></Dial>`)
 }
 
+// ─── MAIN HANDLER ───────────────────────────────────────────────────────────
 export default async function handler(req) {
   if (req.method === 'GET') {
-    // Debug: test DB connectivity
-    const url = req.url
-    if (url.includes('debug=1')) {
+    // Debug endpoint
+    if (req.url.includes('debug=1')) {
       try {
-        const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-        const sbKey = process.env.SUPABASE_SERVICE_KEY
-        const res = await fetch(`${sbUrl}/rest/v1/drivers?select=id&limit=1`, {
-          headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
-        })
+        const res = await fetch(`${supabaseUrl}/rest/v1/drivers?select=id&limit=1`, { headers: sbHeaders() })
         const data = await res.json()
         return new Response(JSON.stringify({
-          supabaseUrl: sbUrl ? 'set' : 'NOT SET',
-          serviceKey: sbKey ? 'set' : 'NOT SET',
+          supabaseUrl: supabaseUrl ? 'set' : 'NOT SET',
+          serviceKey: supabaseKey ? 'set' : 'NOT SET',
+          retellKey: RETELL_API_KEY ? 'set' : 'NOT SET',
+          retellAgent: RETELL_AGENT_ID || 'NOT SET',
           dbTest: res.ok ? 'connected' : 'failed',
           driversFound: data.length,
         }), { headers: { 'Content-Type': 'application/json' } })
@@ -104,7 +106,7 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 })
       }
     }
-    return new Response('Inbound call handler active', { status: 200 })
+    return new Response('Inbound call handler active (Retell)', { status: 200 })
   }
 
   try {
@@ -115,7 +117,7 @@ export default async function handler(req) {
     const callSid = params.get('CallSid') || ''
 
     if (!callerPhone) {
-      return twimlResponse(say('Thank you for calling Qivori Dispatch. Please try again later.') + '<Hangup/>')
+      return twimlResponse('<Say voice="Polly.Matthew-Neural">Thank you for calling Qivori Dispatch.</Say><Hangup/>')
     }
 
     const callerDigits = callerPhone.replace(/\D/g, '')
@@ -125,148 +127,107 @@ export default async function handler(req) {
     const driverMatch = await identifyDriver(callerLast10)
     if (driverMatch) {
       logInboundCall(callSid, callerPhone, calledNumber, 'driver', driverMatch).catch(() => {})
-      return handleDriverCall(driverMatch, callSid)
+      return handleDriverCall(driverMatch, callSid, callerPhone, calledNumber)
     }
 
     // --- STEP 2: Check if caller is a BROKER calling back ---
     const brokerMatches = await identifyBrokerCallback(callerLast10)
 
-    // Cancel pending retries for this broker
     if (brokerMatches.length > 0) {
       cancelPendingRetries(callerLast10).catch(() => {})
     }
 
     logInboundCall(callSid, callerPhone, calledNumber, 'broker', brokerMatches[0] || null).catch(() => {})
 
-    if (brokerMatches.length === 1) {
-      return handleBrokerCallback(brokerMatches[0], callSid)
-    }
-
-    if (brokerMatches.length > 1) {
-      return handleMultipleBrokerMatches(brokerMatches, callSid)
+    if (brokerMatches.length >= 1) {
+      return handleBrokerCallback(brokerMatches, callSid, callerPhone, calledNumber)
     }
 
     // --- STEP 3: Unknown caller ---
     logInboundCall(callSid, callerPhone, calledNumber, 'unknown', null).catch(() => {})
-    return handleUnknownCaller(callSid)
+    return handleUnknownCaller(callSid, callerPhone, calledNumber)
 
   } catch (err) {
-    // If DB is down, still answer the phone like Q
-    return twimlResponse(
-      gather(
-        `${baseUrl()}/api/call-handler?stage=inbound_greeting`,
-        'Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?'
+    // Last resort — try Retell with no context
+    try {
+      return await bridgeToRetell('+10000000000', '+10000000000', '', 'unknown_inbound', {
+        call_type: 'unknown_inbound',
+        caller_name: 'Caller',
+        caller_context: 'Unknown caller. System had a technical issue loading their info.',
+        conversation_instructions: 'Greet them as Q from Qivori Dispatch. Ask how you can help. Keep it natural.',
+        _begin_message: "Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you?",
+      }, {})
+    } catch {
+      return twimlResponse(
+        '<Say voice="Polly.Matthew-Neural">Thanks for calling Qivori Dispatch. Please try again in a moment.</Say><Hangup/>'
       )
-      + say("If you're returning a call about a load, just let me know and I'll pull it up.")
-      + '<Hangup/>'
-    )
+    }
   }
 }
 
-// ─── DRIVER IDENTIFICATION ───────────────────────────────────────────────────
-// Look up caller phone in the drivers table. Returns driver + their carrier info.
+// ─── DRIVER IDENTIFICATION ──────────────────────────────────────────────────
 async function identifyDriver(phone10) {
-  // Search drivers by phone (last 10 digits match)
   const drivers = await sbGet(
     `drivers?phone=like.*${phone10}&select=id,full_name,name,phone,owner_id,pay_model,pay_rate&limit=1`
   )
   if (drivers.length === 0) return null
 
   const driver = drivers[0]
-
-  // Load the carrier's company info (tenant-scoped)
   const companies = await sbGet(
     `companies?owner_id=eq.${driver.owner_id}&select=name,mc_number,dot_number&limit=1`
   )
   const company = companies[0] || {}
 
-  // Load driver's active loads
   const driverName = driver.full_name || driver.name || ''
   const activeLoads = await sbGet(
     `loads?owner_id=eq.${driver.owner_id}&driver=eq.${encodeURIComponent(driverName)}&status=in.(Assigned,In Transit,Loaded,At Pickup,At Delivery)&select=id,load_id,origin,destination,status,miles,gross,pickup_date,delivery_date,broker_name&order=created_at.desc&limit=5`
   )
 
-  return {
-    driver,
-    company,
-    activeLoads,
-    driverName,
-  }
+  return { driver, company, activeLoads, driverName }
 }
 
-// ─── DRIVER CALL HANDLER ─────────────────────────────────────────────────────
-// Q answers with the driver's load status — scoped to their carrier only
-function handleDriverCall(match, callSid) {
+// ─── DRIVER CALL → RETELL ───────────────────────────────────────────────────
+function handleDriverCall(match, callSid, callerPhone, calledNumber) {
   const { driver, company, activeLoads, driverName } = match
   const firstName = driverName.split(' ')[0] || 'driver'
   const companyName = company.name || 'your company'
 
-  if (activeLoads.length === 0) {
-    const greeting = `Hey ${firstName}, this is Q from ${companyName}. `
-      + `I don't see any active loads assigned to you right now. `
-      + `Want me to have dispatch reach out to you with available loads?`
-
-    return twimlResponse(
-      gather(`${baseUrl()}/api/inbound-call?stage=driver_followup&driverId=${driver.id}&ownerId=${driver.owner_id}`, greeting)
-      + say("Alright, I'll let dispatch know. Talk to you soon. Drive safe.")
-      + '<Hangup/>'
-    )
+  let loadContext = 'No active loads assigned right now.'
+  if (activeLoads.length > 0) {
+    loadContext = activeLoads.map(l => {
+      const origin = (l.origin || '').split(',')[0]
+      const dest = (l.destination || l.dest || '').split(',')[0]
+      return `Load ${l.load_id || l.id}: ${origin} to ${dest}, status ${l.status}, broker ${l.broker_name || 'unknown'}`
+    }).join('. ')
   }
 
-  // Build status update for their loads
-  const load = activeLoads[0] // Most relevant active load
-  const loadId = load.load_id || load.id
-  const origin = (load.origin || '').split(',')[0]
-  const dest = (load.destination || load.dest || '').split(',')[0]
-  const status = load.status || 'Active'
-  const broker = load.broker_name || ''
-
-  // Context-aware next steps based on status
-  let nextStep = ''
-  switch (status) {
-    case 'Assigned':
-      nextStep = 'You\'re assigned but haven\'t marked pickup yet. Head to the shipper and update your status when you arrive.'
-      break
-    case 'At Pickup':
-      nextStep = 'You\'re at the pickup location. Once you\'re loaded, update your status and I\'ll notify the broker.'
-      break
-    case 'Loaded':
-    case 'In Transit':
-      nextStep = `You're in transit to ${dest}. Everything looks good. Let me know if you hit any delays and I'll update the broker.`
-      break
-    case 'At Delivery':
-      nextStep = 'You\'re at the delivery location. Once you\'re unloaded, snap a photo of the POD and mark delivered. I\'ll send the invoice automatically.'
-      break
-    default:
-      nextStep = 'Let me know if you need anything updated.'
+  const dynamicVars = {
+    call_type: 'driver_inbound',
+    caller_name: firstName,
+    carrier_name: companyName,
+    carrier_mc: company.mc_number || '',
+    carrier_dot: company.dot_number || '',
+    caller_context: `Driver ${driverName} is calling in. They drive for ${companyName}. Their loads: ${loadContext}`,
+    conversation_instructions: `Greet ${firstName} by name. Give their load status naturally. Help with: status updates, ETA, delay reporting, directions, next load requests. If they have no loads, offer to have dispatch reach out. Keep it short and natural like a real dispatcher. You are Q.`,
+    _begin_message: `Hey ${firstName}, it's Q from ${companyName}. I've got your info pulled up. What's going on?`,
   }
 
-  const greeting = `Hey ${firstName}, this is Q from ${companyName}. `
-    + `Here's your update. `
-    + `Load ${loadId}, ${origin} to ${dest}${broker ? ' for ' + broker : ''}. `
-    + `Status: ${status}. `
-    + nextStep
-    + ` Anything else you need?`
+  const metadata = {
+    driver_id: driver.id,
+    owner_id: driver.owner_id,
+    load_id: activeLoads[0]?.id || null,
+  }
 
-  const followupUrl = `${baseUrl()}/api/inbound-call?stage=driver_followup&driverId=${driver.id}&ownerId=${driver.owner_id}&loadId=${load.id}`
-
-  return twimlResponse(
-    gather(followupUrl, greeting, 10)
-    + say("Alright, you're all set. Drive safe out there. Call me anytime.")
-    + '<Hangup/>'
-  )
+  return bridgeToRetell(callerPhone, calledNumber, callSid, 'driver_inbound', dynamicVars, metadata)
 }
 
-// ─── BROKER IDENTIFICATION ───────────────────────────────────────────────────
-// Look up caller in recent outbound call_logs (last 48h) — returns matches with carrier context
+// ─── BROKER IDENTIFICATION ──────────────────────────────────────────────────
 async function identifyBrokerCallback(phone10) {
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-
   const matches = await sbGet(
     `call_logs?broker_phone=like.*${phone10}&created_at=gte.${cutoff}&order=created_at.desc&limit=10&select=id,load_id,broker_name,broker_phone,carrier_name,origin,destination,rate,equipment,outcome,user_id,created_at`
   )
 
-  // Deduplicate by load_id + user_id (same load for same carrier = one match)
   const seen = new Set()
   const unique = matches.filter(m => {
     if (!m.load_id) return false
@@ -276,7 +237,6 @@ async function identifyBrokerCallback(phone10) {
     return true
   })
 
-  // Enrich each match with carrier company info (MC#, DOT#)
   for (const match of unique) {
     if (match.user_id) {
       const companies = await sbGet(
@@ -289,104 +249,65 @@ async function identifyBrokerCallback(phone10) {
   return unique
 }
 
-// ─── BROKER CALLBACK — SINGLE CARRIER MATCH ─────────────────────────────────
-function handleBrokerCallback(match, callSid) {
-  const carrier = match.carrier_name || match.company?.name || 'our carrier'
-  const mc = match.company?.mc_number ? `, MC ${match.company.mc_number}` : ''
-  const origin = match.origin || ''
-  const dest = match.destination || ''
-  const rate = match.rate ? '$' + match.rate : ''
-  const brokerName = match.broker_name || ''
-  const firstName = brokerName ? brokerName.split(' ')[0] : ''
-
-  const greeting = firstName
-    ? `Hey ${firstName}, this is Q calling on behalf of ${carrier}${mc}. Thanks for getting back to us. `
-      + `I reached out about a load from ${origin} to ${dest}${rate ? ' at ' + rate : ''}. `
-      + `Is that load still available?`
-    : `Hey, this is Q from Qivori Dispatch calling on behalf of ${carrier}${mc}. Thanks for calling back. `
-      + `I left a message about a load from ${origin} to ${dest}${rate ? ' at ' + rate : ''}. `
-      + `Is that still available?`
-
-  const contextParams = new URLSearchParams({
-    loadId: match.load_id || '',
-    origin: match.origin || '',
-    destination: match.destination || '',
-    rate: String(match.rate || ''),
-    carrierName: carrier,
-    carrierMC: match.company?.mc_number || '',
-    carrierDOT: match.company?.dot_number || '',
-    equipment: match.equipment || 'dry van',
-    userId: match.user_id || '',
-    inbound: 'true',
-  })
-  const nextUrl = `${baseUrl()}/api/call-handler?stage=availability&${contextParams.toString()}`
-
-  return twimlResponse(
-    gather(nextUrl, greeting)
-    + say("I didn't catch that. Are you calling about the load I left a message about?")
-    + gather(nextUrl, "Just let me know if it's still available and we can go from there.", 6)
-    + '<Hangup/>'
-  )
-}
-
-// ─── BROKER CALLBACK — MULTIPLE CARRIER MATCHES ─────────────────────────────
-// Multiple carriers on Qivori called the same broker. Q asks which one.
-function handleMultipleBrokerMatches(matches, callSid) {
-  const loadList = matches.slice(0, 3).map((m, i) => {
-    const origin = (m.origin || '').split(',')[0]
-    const dest = (m.destination || '').split(',')[0]
-    const carrier = m.carrier_name || m.company?.name || 'a carrier'
-    const mc = m.company?.mc_number ? ` MC ${m.company.mc_number}` : ''
-    return `Option ${i + 1}: ${origin} to ${dest} for ${carrier}${mc}`
-  })
-
-  const greeting = `Hey, this is Q from Qivori Dispatch. Thanks for calling back. `
-    + `I see we reached out about a few loads. Which one are you calling about? `
-    + loadList.join('. ') + '.'
-
-  // Default to most recent match if broker doesn't specify
+// ─── BROKER CALLBACK → RETELL ───────────────────────────────────────────────
+function handleBrokerCallback(matches, callSid, callerPhone, calledNumber) {
   const match = matches[0]
-  const contextParams = new URLSearchParams({
+  const carrier = match.carrier_name || match.company?.name || 'our carrier'
+  const mc = match.company?.mc_number || ''
+  const dot = match.company?.dot_number || ''
+  const brokerName = match.broker_name || ''
+  const firstName = brokerName ? brokerName.split(' ')[0] : 'there'
+
+  let loadContext = `Load from ${match.origin || 'unknown'} to ${match.destination || 'unknown'}. Posted rate: $${match.rate || 'unknown'}. Equipment: ${match.equipment || 'dry van'}.`
+
+  if (matches.length > 1) {
+    loadContext += ' We also called about: ' + matches.slice(1, 3).map(m =>
+      `${(m.origin || '').split(',')[0]} to ${(m.destination || '').split(',')[0]} at $${m.rate || 'unknown'}`
+    ).join(', ') + '.'
+  }
+
+  const dynamicVars = {
+    call_type: 'broker_callback',
+    caller_name: firstName,
+    carrier_name: carrier,
+    carrier_mc: mc,
+    carrier_dot: dot,
+    caller_context: `Broker ${brokerName || 'unknown'} is returning our call. ${loadContext} We called them from this platform on behalf of ${carrier}${mc ? ' MC ' + mc : ''}.`,
+    conversation_instructions: `This broker is calling back about a load we reached out about. Thank them for calling back. Confirm if the load is still available. If yes, negotiate the rate — you represent ${carrier}${mc ? ' MC ' + mc : ''}${dot ? ' DOT ' + dot : ''}. Be professional but personable, use dispatcher language. If they agree on a rate, ask for their email for rate confirmation. If the load is taken, ask if they have anything else in that lane.`,
+    _begin_message: `Hey ${firstName}, this is Q calling on behalf of ${carrier}${mc ? ', MC ' + mc : ''}. Thanks for getting back to us about that ${(match.origin || '').split(',')[0]} to ${(match.destination || '').split(',')[0]} load. Is that still available?`,
+  }
+
+  const metadata = {
     loadId: match.load_id || '',
+    brokerName: brokerName,
+    brokerPhone: callerPhone,
+    carrierName: carrier,
     origin: match.origin || '',
     destination: match.destination || '',
     rate: String(match.rate || ''),
-    carrierName: match.carrier_name || match.company?.name || '',
-    carrierMC: match.company?.mc_number || '',
-    carrierDOT: match.company?.dot_number || '',
-    equipment: match.equipment || 'dry van',
     userId: match.user_id || '',
-    inbound: 'true',
-  })
-  const nextUrl = `${baseUrl()}/api/call-handler?stage=availability&${contextParams.toString()}`
+  }
 
-  return twimlResponse(
-    gather(nextUrl, greeting, 10)
-    + say("No worries, let me pull up the most recent one.")
-    + `<Redirect method="POST">${nextUrl}</Redirect>`
-  )
+  return bridgeToRetell(callerPhone, calledNumber, callSid, 'broker_callback', dynamicVars, metadata)
 }
 
-// ─── UNKNOWN CALLER ──────────────────────────────────────────────────────────
-function handleUnknownCaller(callSid) {
-  const greeting = `Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?`
-  const nextUrl = `${baseUrl()}/api/call-handler?stage=inbound_greeting`
+// ─── UNKNOWN CALLER → RETELL ────────────────────────────────────────────────
+function handleUnknownCaller(callSid, callerPhone, calledNumber) {
+  const dynamicVars = {
+    call_type: 'unknown_inbound',
+    caller_name: 'Caller',
+    carrier_name: 'Qivori Dispatch',
+    carrier_mc: '',
+    carrier_dot: '',
+    caller_context: 'Unknown caller. Not found in drivers or recent broker call logs.',
+    conversation_instructions: 'Greet them as Q from Qivori Dispatch. Ask how you can help. If they are a broker returning a call, get the load details and help them. If they are asking about Qivori, give a brief pitch: AI-powered dispatch for trucking companies. If they want to reach a specific carrier, try to help route them. Keep it natural and helpful.',
+    _begin_message: "Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?",
+  }
 
-  return twimlResponse(
-    gather(nextUrl, greeting)
-    + say("If you're returning a call about a load, just let me know the origin and destination and I'll pull it up.")
-    + gather(nextUrl, "I'm still here. What can I help you with?", 6)
-    + say("Alright, feel free to call back anytime. Have a good one.")
-    + '<Hangup/>'
-  )
+  return bridgeToRetell(callerPhone, calledNumber, callSid, 'unknown_inbound', dynamicVars, {})
 }
 
-// ─── DRIVER FOLLOW-UP (stage handler) ────────────────────────────────────────
-// When driver responds to the status update, handle follow-up questions
-// This is called when the Gather from handleDriverCall completes
-
-// ─── UTILITIES ───────────────────────────────────────────────────────────────
-
+// ─── UTILITIES ──────────────────────────────────────────────────────────────
 async function cancelPendingRetries(phone10) {
   const pending = await sbGet(
     `check_calls?call_type=eq.broker_retry&call_status=eq.scheduled&broker_phone=like.*${phone10}&select=id`
@@ -409,7 +330,7 @@ async function logInboundCall(callSid, from, to, callerType, match) {
     user_id: match?.user_id || match?.driver?.owner_id || null,
     carrier_name: match?.carrier_name || match?.company?.name || null,
     broker_name: match?.broker_name || null,
-    notes: `Inbound call from ${callerType}${match ? ' — identified and routed' : ' — unknown caller'}`,
+    notes: `Inbound call from ${callerType}${match ? ' — identified and routed to Retell' : ' — unknown caller'}`,
     created_at: new Date().toISOString(),
   })
 }

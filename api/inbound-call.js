@@ -92,15 +92,31 @@ export default async function handler(req) {
     // Debug endpoint
     if (req.url.includes('debug=1')) {
       try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/drivers?select=id&limit=1`, { headers: sbHeaders() })
-        const data = await res.json()
+        const dbRes = await fetch(`${supabaseUrl}/rest/v1/drivers?select=id&limit=1`, { headers: sbHeaders() })
+        const dbData = await dbRes.json()
+
+        // Test Retell register-phone-call to see full response
+        const retellRes = await fetch('https://api.retellai.com/v2/register-phone-call', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${RETELL_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: RETELL_AGENT_ID,
+            direction: 'inbound',
+            from_number: '+13134748674',
+            to_number: '+10000000000',
+          }),
+        })
+        const retellData = await retellRes.json()
+
         return new Response(JSON.stringify({
           supabaseUrl: supabaseUrl ? 'set' : 'NOT SET',
           serviceKey: supabaseKey ? 'set' : 'NOT SET',
           retellKey: RETELL_API_KEY ? 'set' : 'NOT SET',
           retellAgent: RETELL_AGENT_ID || 'NOT SET',
-          dbTest: res.ok ? 'connected' : 'failed',
-          driversFound: data.length,
+          dbTest: dbRes.ok ? 'connected' : 'failed',
+          driversFound: dbData.length,
+          retellStatus: retellRes.status,
+          retellFullResponse: retellData,
         }), { headers: { 'Content-Type': 'application/json' } })
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 })

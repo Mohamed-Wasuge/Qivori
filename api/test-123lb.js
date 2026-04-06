@@ -19,11 +19,11 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ envCheck, error: 'Missing env vars' }), { headers })
   }
 
-  // Try OAuth2 token
   const basicAuth = btoa(`${clientId}:${clientSecret}`)
-  let tokenResult = null
   let token = null
+  const attempts = []
 
+  // Attempt 1: client_credentials grant (Basic Auth header)
   try {
     const res = await fetch('https://api.dev.123loadboard.com/token', {
       method: 'POST',
@@ -32,34 +32,69 @@ export default async function handler(req) {
         '123LB-Api-Version': '1.3',
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        grant_type: 'password',
-        username: serviceUsername,
-        password: servicePassword,
-      }).toString(),
+      body: 'grant_type=client_credentials',
     })
     const text = await res.text()
-    tokenResult = { status: res.status, body: text.slice(0, 500) }
-    if (res.ok) {
-      try {
-        const data = JSON.parse(text)
-        token = data.access_token
-        tokenResult.hasToken = !!token
-      } catch {}
-    }
-  } catch (err) {
-    tokenResult = { error: err.message }
+    attempts.push({ grant: 'client_credentials_basic', status: res.status, body: text.slice(0, 300) })
+    if (res.ok) { try { token = JSON.parse(text).access_token } catch {} }
+  } catch (err) { attempts.push({ grant: 'client_credentials_basic', error: err.message }) }
+
+  // Attempt 2: password grant (Basic Auth header)
+  if (!token) {
+    try {
+      const res = await fetch('https://api.dev.123loadboard.com/token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          '123LB-Api-Version': '1.3',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ grant_type: 'password', username: serviceUsername, password: servicePassword }).toString(),
+      })
+      const text = await res.text()
+      attempts.push({ grant: 'password_basic', status: res.status, body: text.slice(0, 300) })
+      if (res.ok) { try { token = JSON.parse(text).access_token } catch {} }
+    } catch (err) { attempts.push({ grant: 'password_basic', error: err.message }) }
+  }
+
+  // Attempt 3: password grant (client_id/secret in body, no header)
+  if (!token) {
+    try {
+      const res = await fetch('https://api.dev.123loadboard.com/token', {
+        method: 'POST',
+        headers: {
+          '123LB-Api-Version': '1.3',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ grant_type: 'password', client_id: clientId, client_secret: clientSecret, username: serviceUsername, password: servicePassword }).toString(),
+      })
+      const text = await res.text()
+      attempts.push({ grant: 'password_body', status: res.status, body: text.slice(0, 300) })
+      if (res.ok) { try { token = JSON.parse(text).access_token } catch {} }
+    } catch (err) { attempts.push({ grant: 'password_body', error: err.message }) }
+  }
+
+  // Attempt 4: client_credentials with client_id/secret in body
+  if (!token) {
+    try {
+      const res = await fetch('https://api.dev.123loadboard.com/token', {
+        method: 'POST',
+        headers: {
+          '123LB-Api-Version': '1.3',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }).toString(),
+      })
+      const text = await res.text()
+      attempts.push({ grant: 'client_credentials_body', status: res.status, body: text.slice(0, 300) })
+      if (res.ok) { try { token = JSON.parse(text).access_token } catch {} }
+    } catch (err) { attempts.push({ grant: 'client_credentials_body', error: err.message }) }
   }
 
   // If token worked, try a search
   let searchResult = null
   if (token) {
     try {
-      const searchBody = {
-        equipmentTypes: ['Van'],
-        loadSize: 'Tl',
-        hasRate: true,
-      }
       const deviceId = 'qivori-test-' + clientId.slice(-8)
       const res = await fetch('https://api.dev.123loadboard.com/loads/search', {
         method: 'POST',
@@ -69,7 +104,7 @@ export default async function handler(req) {
           '123LB-AID': deviceId,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(searchBody),
+        body: JSON.stringify({ equipmentTypes: ['Van'], loadSize: 'Tl' }),
       })
       const text = await res.text()
       searchResult = { status: res.status, body: text.slice(0, 1000) }
@@ -78,5 +113,5 @@ export default async function handler(req) {
     }
   }
 
-  return new Response(JSON.stringify({ envCheck, tokenResult, searchResult }, null, 2), { headers })
+  return new Response(JSON.stringify({ envCheck, gotToken: !!token, attempts, searchResult }, null, 2), { headers })
 }

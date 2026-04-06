@@ -2787,85 +2787,86 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
   // ── PUSH-TO-TALK (MediaRecorder + Whisper) ──────────────────────────
   const mediaRecorderRef = useRef(null)
-  const speechRecRef = useRef(null)
   const audioChunksRef = useRef([])
   const recordingTimerRef = useRef(null)
 
   const startListening = useCallback(async () => {
     unlockTTS()
 
-    // If already listening, stop
+    // If already recording, stop and transcribe
     if (listening) {
-      if (speechRecRef.current) {
-        speechRecRef.current.stop()
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop()
       }
       return
     }
 
-    // Use browser SpeechRecognition (free, no OpenAI needed)
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = false
-      recognition.lang = 'en-US'
-      recognition.maxAlternatives = 1
-      speechRecRef.current = recognition
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      audioChunksRef.current = []
 
-      recognition.onresult = (event) => {
-        const text = (event.results[0]?.[0]?.transcript || '').trim()
+      // Use webm if supported, fall back to mp4 for iOS
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : ''
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
         setListening(false)
-        if (text && text.length > 1) {
-          haptic('light')
-          setMessages(m => [...m, { role: 'user', content: text }])
-          lastInputWasVoiceRef.current = true
-          sendMessageRef.current?.(text)
-        } else {
-          showToast('', 'No Speech', 'Tap the mic and speak clearly')
+        if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current)
+
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        if (blob.size < 1000) return
+
+        // Immediately show processing state — feels instant
+        haptic('light')
+        setMessages(m => [...m, { role: 'user', content: 'Voice message...', _processing: true }])
+        setLoading(true)
+
+        try {
+          const form = new FormData()
+          form.append('audio', blob, 'recording.webm')
+          const res = await apiFetch('/api/transcribe', { method: 'POST', body: form })
+          const data = await res.json()
+          const text = (data.text || '').trim()
+          if (text && text.length > 1) {
+            // Replace processing message with actual text
+            setMessages(m => m.map((msg, i) => i === m.length - 1 && msg._processing ? { role: 'user', content: text } : msg))
+            setLoading(false)
+            lastInputWasVoiceRef.current = true
+            sendMessageRef.current?.(text)
+          } else {
+            // Remove processing message
+            setMessages(m => m.filter(msg => !msg._processing))
+            setLoading(false)
+            showToast('', 'No Speech', 'Tap the mic and speak clearly')
+          }
+        } catch {
+          setMessages(m => m.filter(msg => !msg._processing))
+          setLoading(false)
+          showToast('error', 'Try Again', 'Could not process audio')
         }
       }
 
-      recognition.onerror = () => {
-        setListening(false)
-        showToast('error', 'Try Again', 'Could not process audio')
-      }
-
-      recognition.onend = () => setListening(false)
-
-      recognition.start()
+      recorder.start()
       setListening(true)
       haptic('medium')
 
       // Auto-stop after 30 seconds
       recordingTimerRef.current = setTimeout(() => {
-        if (speechRecRef.current) speechRecRef.current.stop()
-      }, 30000)
-
-      return
-    }
-
-    // Fallback: MediaRecorder + server transcription for browsers without SpeechRecognition
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      audioChunksRef.current = []
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : ''
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
-      mediaRecorderRef.current = recorder
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop())
-        setListening(false)
-        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-        if (blob.size < 1000) return
-        showToast('', 'Voice', 'Browser speech recognition not available — type your message instead')
-      }
-      recorder.start()
-      setListening(true)
-      haptic('medium')
-      recordingTimerRef.current = setTimeout(() => {
-        if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+        if (mediaRecorderRef.current?.state === 'recording') {
+          mediaRecorderRef.current.stop()
+        }
       }, 30000)
     } catch (err) {
       setListening(false)

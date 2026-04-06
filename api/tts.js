@@ -14,8 +14,9 @@ export default async function handler(req) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 
-  // ElevenLabs TTS (OpenAI removed — Retell handles voice calls)
+  // Try ElevenLabs first, then OpenAI
   const elevenLabsKey = process.env.ELEVENLABS_API_KEY
+  const openaiKey = (process.env.OPENAI_API_KEY || '').replace(/\\n|\n|\r/g, '').trim()
 
   try {
     const { text } = await req.json()
@@ -75,7 +76,32 @@ export default async function handler(req) {
       }
     }
 
-    // No TTS available (browser speechSynthesis will be used as client-side fallback)
+    // OpenAI TTS fallback
+    if (openaiKey) {
+      const res = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1-hd',
+          voice: 'onyx',
+          input: clean,
+          response_format: 'mp3',
+          speed: 1.0,
+        }),
+      })
+      if (res.ok) {
+        const audioData = await res.arrayBuffer()
+        return new Response(audioData, {
+          status: 200,
+          headers: { ...corsHeaders(req), 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-cache' },
+        })
+      }
+    }
+
+    // No TTS available
     return new Response(null, { status: 204, headers: corsHeaders(req) })
   } catch {
     return new Response(null, { status: 204, headers: corsHeaders(req) })

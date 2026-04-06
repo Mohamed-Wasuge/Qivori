@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react'
 import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
@@ -26,6 +26,7 @@ function DetentionTimer({ loadId, locationType }) {
 
   // Tick every second
   useEffect(() => {
+    if (!running) return
     const saved = localStorage.getItem(`detention_${loadId}`)
     if (!saved) return
     const start = parseInt(saved)
@@ -118,7 +119,7 @@ function getActionLabel(status) {
 }
 
 // ── Swipeable Load Card ──
-function SwipeableLoadCard({ load, children, onSwipeRight, onSwipeLeft }) {
+const SwipeableLoadCard = memo(function SwipeableLoadCard({ load, children, onSwipeRight, onSwipeLeft }) {
   const cardRef = useRef(null)
   const touchRef = useRef({ startX: 0, startY: 0, currentX: 0, swiping: false, direction: null })
   const THRESHOLD = 80
@@ -198,7 +199,7 @@ function SwipeableLoadCard({ load, children, onSwipeRight, onSwipeLeft }) {
       </div>
     </div>
   )
-}
+})
 
 export default function MobileLoadsTab() {
   const ctx = useCarrier() || {}
@@ -276,9 +277,10 @@ export default function MobileLoadsTab() {
       showToast?.('error', 'No Invoice', 'Create an invoice first')
       return
     }
-    const factoringRate = ctx.company?.factoring_rate || 2.5
-    const fee = Math.round(inv.amount * factoringRate / 100)
-    const net = inv.amount - fee
+    const factoringRate = Number(ctx.company?.factoring_rate) || 2.5
+    const amount = Number(inv.amount) || 0
+    const fee = Math.round(amount * factoringRate / 100)
+    const net = amount - fee
     const factoringEmail = ctx.company?.factoring_email || ''
     if (factoringEmail) {
       try {

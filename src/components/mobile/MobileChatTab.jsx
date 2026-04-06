@@ -10,7 +10,10 @@ import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
 import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper, mobileAnimations } from './shared'
 
+// Board loads cache — shared across renders but scoped to module lifecycle
+// Using module-level ref pattern to avoid stale closures in 30+ callbacks
 let BOARD_LOADS = []
+let BOARD_LOADS_TIMESTAMP = 0
 
 // Q Thinking text — cycles through processing states
 const Q_THINK_STATES = ['Processing request', 'Analyzing data', 'Checking context', 'Preparing response']
@@ -185,6 +188,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
         const data = await res.json()
         if (!cancelled && data.loads?.length > 0) {
           BOARD_LOADS = data.loads
+          BOARD_LOADS_TIMESTAMP = Date.now()
         }
       } catch { /* silent */ }
     }

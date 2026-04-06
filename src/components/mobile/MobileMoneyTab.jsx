@@ -52,13 +52,13 @@ export default function MobileMoneyTab({ initialSubTab }) {
   // ── This week's earnings ──
   const weekStats = useMemo(() => {
     const weekLoads = loads.filter(l => isThisWeek(l.delivery_date) || isThisWeek(l.created_at))
-    const weekRevenue = weekLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0)
-    const weekExpenses = expenses.filter(e => isThisWeek(e.date)).reduce((s, e) => s + (e.amount || 0), 0)
+    const weekRevenue = weekLoads.reduce((s, l) => s + (Number(l.gross) || Number(l.rate) || 0), 0)
+    const weekExpenses = expenses.filter(e => isThisWeek(e.date)).reduce((s, e) => s + (Number(e.amount) || 0), 0)
     return { revenue: weekRevenue, expenses: weekExpenses, net: weekRevenue - weekExpenses }
   }, [loads, expenses])
 
   // ── Unpaid total ──
-  const unpaidTotal = unpaidInvoices.reduce((s, i) => s + (i.amount || 0), 0)
+  const unpaidTotal = unpaidInvoices.reduce((s, i) => s + (Number(i.amount) || 0), 0)
 
   // ── Existing handlers ──
   const handleReceiptScan = async (file) => {
@@ -126,8 +126,9 @@ export default function MobileMoneyTab({ initialSubTab }) {
 
   const factorInvoice = async (inv) => {
     const factoringRate = ctx.company?.factoring_rate || 2.5
-    const fee = Math.round(inv.amount * factoringRate / 100)
-    const net = inv.amount - fee
+    const amount = Number(inv.amount) || 0
+    const fee = Math.round(amount * Number(factoringRate) / 100)
+    const net = amount - fee
     const factoringCompany = ctx.company?.factoring_company || 'Factoring Company'
     const factoringEmail = ctx.company?.factoring_email || ''
     if (factoringEmail) {

@@ -48,6 +48,7 @@ export default function MobileShell() {
   const [chatAutoCall, setChatAutoCall] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsClosing, setSettingsClosing] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
 
   // DVIR overlay state
   const [showDVIR, setShowDVIR] = useState(false)
@@ -270,20 +271,28 @@ export default function MobileShell() {
               <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: '#f0a500' }}>$99</span>
               <span style={{ fontSize: 12, color: '#8a8a9a' }}>/mo starting · 3 plans available</span>
             </div>
-            <button onClick={() => {
-              import('../../lib/api').then(({ apiFetch }) => {
-                apiFetch('/api/create-checkout', {
+            <button disabled={checkoutLoading} onClick={async () => {
+              if (checkoutLoading) return
+              setCheckoutLoading(true)
+              try {
+                const { apiFetch } = await import('../../lib/api')
+                const res = await apiFetch('/api/create-checkout', {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ planId: 'autonomous_fleet', email: profile?.email, userId: profile?.id, truckCount: 1 }),
-                }).then(r => r.json()).then(d => { if (d.url) window.location.href = d.url })
-                  .catch(() => showToast('error', 'Error', 'Could not start checkout'))
-              })
+                })
+                const d = await res.json()
+                if (d.url) window.location.href = d.url
+                else { showToast('error', 'Error', 'Could not start checkout'); setCheckoutLoading(false) }
+              } catch {
+                showToast('error', 'Error', 'Could not start checkout')
+                setCheckoutLoading(false)
+              }
             }} style={{
               width: '100%', padding: '14px', border: 'none', borderRadius: 10, cursor: 'pointer',
               background: '#f0a500', color: '#000', fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
               marginBottom: 8,
             }}>
-              Upgrade — $199/mo
+              {checkoutLoading ? 'Loading...' : 'Upgrade — $199/mo'}
             </button>
             <button onClick={logout} style={{
               width: '100%', padding: '10px', border: '1px solid #2a2a35', borderRadius: 10,

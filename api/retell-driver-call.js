@@ -15,8 +15,7 @@ export default async function handler(req) {
   }
 
   const RETELL_API_KEY = process.env.RETELL_API_KEY
-  const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID
-  // Use Retell phone number if available, otherwise fall back to Twilio number
+  const RETELL_AGENT_ID = process.env.RETELL_DRIVER_AGENT_ID || process.env.RETELL_AGENT_ID
   const FROM_NUMBER = process.env.RETELL_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER
   if (!RETELL_API_KEY || !RETELL_AGENT_ID || !FROM_NUMBER) {
     return Response.json({ error: 'Retell not configured' }, { status: 500, headers: corsHeaders(req) })
@@ -24,19 +23,17 @@ export default async function handler(req) {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const { phone, brokerName, loadDetails, driverName } = body
+    const { phone, driverName } = body
 
     if (!phone) {
-      return Response.json({ error: 'Phone number is required' }, { status: 400, headers: corsHeaders(req) })
+      return Response.json({ error: 'Driver phone number is required' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // Strip non-digit characters and validate
     const digits = phone.replace(/\D/g, '')
     if (digits.length < 10) {
-      return Response.json({ error: 'Invalid phone number — must be at least 10 digits' }, { status: 400, headers: corsHeaders(req) })
+      return Response.json({ error: 'Invalid phone number' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // Ensure E.164 format
     const toNumber = `+${digits}`
 
     const res = await fetch('https://api.retellai.com/v2/create-phone-call', {
@@ -50,12 +47,8 @@ export default async function handler(req) {
         to_number: toNumber,
         agent_id: RETELL_AGENT_ID,
         retell_llm_dynamic_variables: {
-          call_type: 'broker',
-          broker_name: brokerName || 'Broker',
-          load_details: loadDetails || '',
+          call_type: 'driver',
           driver_name: driverName || 'Driver',
-          origin_city: body.originCity || '',
-          destination_city: body.destinationCity || '',
         },
       }),
     })

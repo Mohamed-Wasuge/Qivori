@@ -340,10 +340,23 @@ export default function LandingPage({ onGetStarted }) {
         .lp-feature-text { flex: 1; min-width: 0; }
         .lp-feature-img { flex: 1.2; min-width: 0; }
 
+        .lp-hero-video {
+          position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+          object-fit: cover; z-index: 0; opacity: 0; transition: opacity 1.5s ease-in;
+        }
+        .lp-hero-video.ready { opacity: 0.45; }
+        .lp-hero-overlay {
+          position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(180deg, rgba(8,9,12,0.55) 0%, rgba(10,10,14,0.50) 40%, rgba(10,10,14,0.70) 100%);
+          z-index: 1; pointer-events: none;
+        }
+        @media (max-width: 768px) { .lp-hero-video { display: none; } .lp-hero-overlay { display: none; } }
+        @media (prefers-reduced-motion: reduce) { .lp-hero-video { display: none !important; } .lp-hero-overlay { display: none !important; } }
+
         .lp-hero-split {
           display: flex; flex-direction: column; align-items: center;
           max-width: 1140px; margin: 0 auto; padding: 0 20px 48px;
-          position: relative; z-index: 1; gap: 32px; text-align: center;
+          position: relative; z-index: 3; gap: 32px; text-align: center;
         }
         .lp-hero-left { max-width: 560px; }
         .lp-hero-right {
@@ -618,8 +631,6 @@ export default function LandingPage({ onGetStarted }) {
       <section style={{ paddingTop: 90, paddingBottom: 0, position: 'relative', overflow: 'hidden', background: 'linear-gradient(180deg, #08090c 0%, #0f1118 30%, #161a28 100%)' }}>
         {/* Radial glow */}
         <div style={{ position: 'absolute', top: -80, left: '50%', transform: 'translateX(-50%)', width: 900, height: 700, background: 'radial-gradient(ellipse at center, rgba(212,145,10,0.12) 0%, rgba(212,145,10,0.03) 40%, transparent 70%)', pointerEvents: 'none' }} />
-        {/* Secondary glow */}
-        <div style={{ position: 'absolute', bottom: 0, left: '30%', width: 400, height: 400, background: 'radial-gradient(circle, rgba(212,145,10,0.04) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         <div className="lp-hero-split">
           {/* LEFT — Text */}
@@ -710,10 +721,22 @@ export default function LandingPage({ onGetStarted }) {
           HOW Q WORKS — Cinematic Q Simulator
       ═══════════════════════════════════════════════════════════ */}
       <section ref={qRef} id="how-it-works" style={{ padding: '72px 0', background: 'linear-gradient(180deg, #0a0a0e 0%, #12141e 50%, #0a0a0e 100%)', position: 'relative', overflow: 'hidden' }}>
-        {/* Ambient glow */}
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, height: 600, background: `radial-gradient(circle, ${qStep >= 4 ? 'rgba(34,197,94,0.08)' : 'rgba(212,145,10,0.08)'} 0%, transparent 70%)`, pointerEvents: 'none', transition: 'background 1s' }} />
+        {/* Cinematic truck background video */}
+        <video
+          autoPlay loop muted playsInline
+          poster="/videos/hero-truck-poster.jpg"
+          preload="metadata"
+          className="lp-hero-video"
+          onCanPlay={e => e.target.classList.add('ready')}
+        >
+          <source src="/videos/hero-truck.mp4" type="video/mp4" />
+        </video>
+        <div className="lp-hero-overlay" />
 
-        <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1 }}>
+        {/* Ambient glow */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 600, height: 600, background: `radial-gradient(circle, ${qStep >= 4 ? 'rgba(34,197,94,0.08)' : 'rgba(212,145,10,0.08)'} 0%, transparent 70%)`, pointerEvents: 'none', transition: 'background 1s', zIndex: 2 }} />
+
+        <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 3 }}>
           <FadeIn>
             <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: 4, color: '#d4910a', textAlign: 'center', marginBottom: 12 }}>MEET YOUR AI DISPATCHER</p>
             <h2 className="lp-section-title" style={{ fontFamily: "'Bebas Neue', sans-serif", textAlign: 'center', margin: '0 0 8px', color: '#fff' }}>Q Runs Your Business While You Drive</h2>

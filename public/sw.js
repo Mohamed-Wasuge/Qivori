@@ -1,6 +1,6 @@
 // Qivori AI — Service Worker
 // Cache versioning: bump CACHE_VERSION to force update
-const CACHE_VERSION = 269
+const CACHE_VERSION = 271
 const STATIC_CACHE = `qivori-static-v${CACHE_VERSION}`
 const RUNTIME_CACHE = `qivori-runtime-v${CACHE_VERSION}`
 const OFFLINE_URL = '/offline.html'
@@ -11,7 +11,7 @@ const PRECACHE_ASSETS = [
 ]
 
 // File extensions that should use cache-first strategy
-const CACHE_FIRST_EXTENSIONS = ['.woff', '.woff2', '.ttf', '.eot', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico']
+const CACHE_FIRST_EXTENSIONS = ['.woff', '.woff2', '.ttf', '.eot', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', '.mp4', '.webm']
 
 // Domains/paths that are API calls (network-first)
 const API_PATTERNS = ['/api/', '/rest/v1/', '/auth/v1/', '/storage/v1/', '/functions/v1/']

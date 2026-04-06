@@ -318,7 +318,7 @@ async function get123Token(creds) {
   // Return cached token if still valid (with 60s buffer)
   if (lb123Token && Date.now() < lb123TokenExpiry - 60000) return lb123Token
 
-  const basicAuth = btoa(`${creds.serviceUsername}:${creds.servicePassword}`)
+  const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
 
   const res = await fetch('https://api.dev.123loadboard.com/token', {
     method: 'POST',
@@ -330,8 +330,6 @@ async function get123Token(creds) {
     },
     body: new URLSearchParams({
       grant_type: 'password',
-      client_id: creds.clientId,
-      client_secret: creds.clientSecret,
       username: creds.serviceUsername,
       password: creds.servicePassword,
     }).toString(),
@@ -351,8 +349,6 @@ async function get123Token(creds) {
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: creds.clientId,
-        client_secret: creds.clientSecret,
       }).toString(),
     })
     if (!res2.ok) {

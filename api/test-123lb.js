@@ -20,7 +20,7 @@ export default async function handler(req) {
   }
 
   // Try OAuth2 token
-  const basicAuth = btoa(`${serviceUsername}:${servicePassword}`)
+  const basicAuth = btoa(`${clientId}:${clientSecret}`)
   let tokenResult = null
   let token = null
 
@@ -34,8 +34,6 @@ export default async function handler(req) {
       },
       body: new URLSearchParams({
         grant_type: 'password',
-        client_id: clientId,
-        client_secret: clientSecret,
         username: serviceUsername,
         password: servicePassword,
       }).toString(),

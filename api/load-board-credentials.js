@@ -203,7 +203,7 @@ async function testConnection(provider, credentials) {
       if (!clientId || !clientSecret || !serviceUsername || !servicePassword) {
         return { success: false, message: 'Client ID, Client Secret, Service Username, and Service Password are all required' }
       }
-      const basicAuth = btoa(`${serviceUsername}:${servicePassword}`)
+      const basicAuth = btoa(`${clientId}:${clientSecret}`)
       const res = await fetch('https://api.dev.123loadboard.com/token', {
         method: 'POST',
         headers: {
@@ -213,8 +213,6 @@ async function testConnection(provider, credentials) {
         },
         body: new URLSearchParams({
           grant_type: 'password',
-          client_id: clientId,
-          client_secret: clientSecret,
           username: serviceUsername,
           password: servicePassword,
         }).toString(),

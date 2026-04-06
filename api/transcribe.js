@@ -14,38 +14,7 @@ export default async function handler(req) {
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
 
-  const apiKey = (process.env.OPENAI_API_KEY || '').replace(/\\n|\n|\r/g, '').trim()
-  if (!apiKey) {
-    return Response.json({ error: 'Transcription not configured' }, { status: 500, headers: corsHeaders(req) })
-  }
-
-  try {
-    const formData = await req.formData()
-    const audioFile = formData.get('audio')
-    if (!audioFile) {
-      return Response.json({ error: 'No audio file' }, { status: 400, headers: corsHeaders(req) })
-    }
-
-    // Forward to OpenAI Whisper
-    const whisperForm = new FormData()
-    whisperForm.append('file', audioFile, 'audio.webm')
-    whisperForm.append('model', 'whisper-1')
-    whisperForm.append('response_format', 'json')
-
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-      body: whisperForm,
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      return Response.json({ error: 'Transcription failed' }, { status: 502, headers: corsHeaders(req) })
-    }
-
-    const data = await res.json()
-    return Response.json({ text: data.text || '' }, { headers: corsHeaders(req) })
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders(req) })
-  }
+  // Transcription now handled client-side via browser SpeechRecognition API (free, no OpenAI needed)
+  // This endpoint is kept for backward compatibility — returns empty if called
+  return Response.json({ text: '', note: 'Use browser SpeechRecognition instead' }, { headers: corsHeaders(req) })
 }

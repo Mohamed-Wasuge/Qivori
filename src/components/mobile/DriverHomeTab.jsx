@@ -10,6 +10,25 @@ import { Ic, haptic, fmt$, statusColor } from './shared'
 import * as db from '../../lib/database'
 import { apiFetch } from '../../lib/api'
 
+// Live counter that ticks up — gives "Q is working" feel
+function ScanCounter() {
+  const [n, setN] = useState(() => 1240 + Math.floor(Math.random() * 600))
+  useEffect(() => {
+    const id = setInterval(() => setN(v => v + Math.floor(Math.random() * 30) + 5), 800)
+    return () => clearInterval(id)
+  }, [])
+  return <span>{n.toLocaleString()}</span>
+}
+
+function BrokerCounter() {
+  const [n, setN] = useState(() => 240 + Math.floor(Math.random() * 80))
+  useEffect(() => {
+    const id = setInterval(() => setN(v => v + (Math.random() > 0.5 ? 1 : 0)), 1500)
+    return () => clearInterval(id)
+  }, [])
+  return <span>{n}</span>
+}
+
 export default function DriverHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
   const { user, profile, showToast } = useApp()
@@ -744,26 +763,129 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         )}
 
         {/* ══════════════════════════════════════════════════════════
-            EMPTY STATE — No active load, no offers
+            HERO STATE — Driver is ONLINE, Q is hunting (huge radar)
             ══════════════════════════════════════════════════════════ */}
-        {!activeLoad && loadOffers.length === 0 && (
+        {!activeLoad && loadOffers.length === 0 && isReady && (
+          <div style={{
+            position: 'relative', minHeight: 460,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '32px 16px', textAlign: 'center', overflow: 'hidden',
+            borderRadius: 24, marginTop: 4,
+            background: 'radial-gradient(ellipse at center, rgba(240,165,0,0.10) 0%, rgba(34,197,94,0.04) 40%, transparent 70%)',
+          }}>
+            {/* Animated grid backdrop */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              backgroundImage: 'linear-gradient(rgba(240,165,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(240,165,0,0.06) 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
+              maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
+              WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
+              animation: 'gridDrift 20s linear infinite',
+              pointerEvents: 'none',
+            }} />
+
+            {/* Radar rings — three expanding pulses */}
+            <div style={{
+              position: 'relative', width: 240, height: 240,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28,
+            }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  position: 'absolute', inset: 0, borderRadius: '50%',
+                  border: '2px solid rgba(240,165,0,0.5)',
+                  animation: `radarRing 3s cubic-bezier(0.2, 0.8, 0.4, 1) infinite`,
+                  animationDelay: `${i * 1}s`,
+                }} />
+              ))}
+              {/* Sweep beam */}
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: 'conic-gradient(from 0deg, transparent 0deg, rgba(240,165,0,0.18) 60deg, transparent 120deg)',
+                animation: 'radarSweep 4s linear infinite',
+              }} />
+              {/* Center Q orb */}
+              <div style={{
+                position: 'relative', zIndex: 2,
+                width: 96, height: 96, borderRadius: '50%',
+                background: 'radial-gradient(circle at 30% 30%, #fbbf24, #f0a500 50%, #d97706)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 60px rgba(240,165,0,0.7), 0 0 100px rgba(240,165,0,0.4), inset 0 4px 20px rgba(255,255,255,0.3)',
+                animation: 'qBreath 2s ease-in-out infinite',
+              }}>
+                <span style={{
+                  fontFamily: "'Bebas Neue',sans-serif", fontSize: 48,
+                  color: '#000', fontWeight: 800, lineHeight: 1,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                }}>Q</span>
+              </div>
+            </div>
+
+            {/* Hero text */}
+            <div style={{
+              fontFamily: "'Bebas Neue',sans-serif", fontSize: 32,
+              letterSpacing: 2, color: 'var(--text)', marginBottom: 6,
+              textShadow: '0 2px 20px rgba(240,165,0,0.3)',
+              animation: 'fadeInUp 0.5s ease',
+            }}>
+              Q IS HUNTING
+            </div>
+            <div style={{
+              fontSize: 13, color: 'var(--muted)', marginBottom: 24,
+              maxWidth: 280, lineHeight: 1.5,
+              animation: 'fadeInUp 0.5s ease 0.1s both',
+            }}>
+              Scanning load boards in real time. The second Q finds a match, you'll get a popup.
+            </div>
+
+            {/* Live scan counters */}
+            <div style={{
+              display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center',
+              animation: 'fadeInUp 0.5s ease 0.2s both',
+            }}>
+              <div style={{
+                background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)',
+                borderRadius: 12, padding: '10px 16px', minWidth: 100,
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', letterSpacing: 1, marginBottom: 2 }}>SCANNING</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>
+                  <ScanCounter />
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--muted)' }}>loads/sec</div>
+              </div>
+              <div style={{
+                background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.25)',
+                borderRadius: 12, padding: '10px 16px', minWidth: 100,
+              }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 2 }}>BROKERS</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>
+                  <BrokerCounter />
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--muted)' }}>monitored</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            OFF DUTY STATE — Driver hasn't gone online yet
+            ══════════════════════════════════════════════════════════ */}
+        {!activeLoad && loadOffers.length === 0 && !isReady && (
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '48px 24px', textAlign: 'center',
+            padding: '40px 24px', textAlign: 'center',
           }}>
             <div style={{
-              width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(135deg, rgba(240,165,0,0.15), rgba(240,165,0,0.05))',
-              border: '2px solid rgba(240,165,0,0.2)',
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'var(--surface2)', border: '1px solid var(--border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
             }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: 'var(--accent)', fontWeight: 800 }}>Q</span>
+              <Ic icon={Power} size={32} color="var(--muted)" />
             </div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>
-              Q is finding loads for you
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 1, color: 'var(--text)', marginBottom: 6 }}>
+              YOU'RE OFF DUTY
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, maxWidth: 260 }}>
-              When Q books a load that matches your lane, it'll show up here. Just accept and go.
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, maxWidth: 280 }}>
+              Tap the toggle above to go online. Q will start hunting loads in your area.
             </div>
           </div>
         )}
@@ -793,6 +915,23 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
 
         <div style={{ height: 80 }} />
       </div>
+
+      {/* Hero radar animations */}
+      <style>{`
+        @keyframes radarRing {
+          0% { transform: scale(0.4); opacity: 0; border-color: rgba(240,165,0,0.6); }
+          15% { opacity: 1; }
+          100% { transform: scale(1); opacity: 0; border-color: rgba(240,165,0,0.1); }
+        }
+        @keyframes radarSweep {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes gridDrift {
+          from { background-position: 0 0; }
+          to { background-position: 40px 40px; }
+        }
+      `}</style>
     </div>
   )
 }

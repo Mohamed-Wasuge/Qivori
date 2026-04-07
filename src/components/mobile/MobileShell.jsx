@@ -1,11 +1,12 @@
-import { useState, useCallback, useRef, lazy, Suspense } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
 import useQLocation from '../../hooks/useQLocation'
-import { Package, DollarSign, X, Clock, Settings, Sparkles } from 'lucide-react'
+import { Package, DollarSign, X, Clock, Settings, Sparkles, CheckCircle, Phone } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic, fmt$ } from './shared'
 import * as db from '../../lib/database'
+import { apiFetch } from '../../lib/api'
 
 // Lazy-load all tabs — only loads the tab JS when first rendered
 const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
@@ -54,6 +55,86 @@ export default function MobileShell() {
   // DVIR overlay state
   const [showDVIR, setShowDVIR] = useState(false)
   const [dvirLoad, setDvirLoad] = useState(null)
+
+  // ── UBER POPUP: load offer overlay ──
+  const [popupLoad, setPopupLoad] = useState(null)
+  const [popupDismissed, setPopupDismissed] = useState({})
+  const [popupCallState, setPopupCallState] = useState(null) // null | 'calling' | 'done' | 'failed'
+
+  const allLoads = ctx.loads || ctx.allLoads || []
+  const loadOffers = useMemo(() => {
+    return allLoads.filter(l => {
+      const s = (l.status || '').toLowerCase()
+      return s === 'assigned to driver' || s === 'dispatched' || s === 'booked'
+    })
+  }, [allLoads])
+
+  // Pop first unseen offer
+  useEffect(() => {
+    if (popupLoad) return
+    const unseen = loadOffers.find(l => {
+      const lid = l.id || l.load_id || l.loadId
+      return !popupDismissed[lid]
+    })
+    if (unseen) {
+      setPopupLoad(unseen)
+      setPopupCallState(null)
+      haptic('success')
+    }
+  }, [loadOffers, popupDismissed, popupLoad])
+
+  const popupAccept = useCallback(async (load) => {
+    haptic('success')
+    const lid = load.id || load.load_id || load.loadId
+    const brokerPhone = load.broker_phone || load.brokerPhone || ''
+
+    ctx.updateLoadStatus?.(lid, 'Driver Accepted')
+
+    if (brokerPhone) {
+      setPopupCallState('calling')
+      try {
+        const res = await apiFetch('/api/retell-broker-call', {
+          method: 'POST',
+          body: JSON.stringify({
+            phone: brokerPhone,
+            brokerName: load.broker_name || load.broker || '',
+            loadId: lid,
+            rate: Number(load.gross || load.rate || 0),
+            miles: Number(load.miles || 0),
+            originCity: (load.origin || '').split(',')[0].trim(),
+            destinationCity: (load.destination || load.dest || '').split(',')[0].trim(),
+            equipment: load.equipment || 'dry van',
+            loadDetails: `${(load.origin || '').split(',')[0]} → ${(load.destination || load.dest || '').split(',')[0]}. Rate: $${load.gross || load.rate || 0}${load.miles ? ` (${load.miles}mi)` : ''}. Equipment: ${load.equipment || 'dry van'}.`,
+            driverName: profile?.full_name || 'Driver',
+          }),
+        })
+        if (res.call_id) {
+          setPopupCallState('done')
+          showToast?.('success', 'Q Calling', 'Q is calling the broker now')
+          setTimeout(() => { setPopupLoad(null); setPopupDismissed(p => ({ ...p, [lid]: true })); setPopupCallState(null) }, 3000)
+        } else {
+          setPopupCallState('failed')
+        }
+      } catch {
+        setPopupCallState('failed')
+        showToast?.('error', 'Call Failed', 'Could not reach broker')
+      }
+    } else {
+      ctx.updateLoadStatus?.(lid, 'En Route to Pickup')
+      showToast?.('info', 'Accepted', 'No broker phone on file')
+      setPopupLoad(null)
+      setPopupDismissed(p => ({ ...p, [lid]: true }))
+    }
+  }, [ctx, profile, showToast])
+
+  const popupPass = useCallback((load) => {
+    haptic()
+    const lid = load.id || load.load_id || load.loadId
+    ctx.updateLoadStatus?.(lid, 'Available')
+    setPopupLoad(null)
+    setPopupDismissed(p => ({ ...p, [lid]: true }))
+    setPopupCallState(null)
+  }, [ctx])
 
   // ── Q AUTONOMOUS LOCATION ENGINE ──
   const qLocation = useQLocation({
@@ -341,6 +422,130 @@ export default function MobileShell() {
           <Ic icon={Settings} size={17} color="var(--muted)" />
         </button>
       </div>
+
+      {/* ═══ UBER POPUP — fullscreen load offer ═══ */}
+      {popupLoad && (() => {
+        const pu = popupLoad
+        const gross = Number(pu.gross || pu.rate || 0)
+        const miles = Number(pu.miles || 0)
+        const rpm = miles > 0 ? (gross / miles).toFixed(2) : '—'
+        const origin = (pu.origin || '?').split(',')[0]
+        const dest = (pu.destination || pu.dest || '?').split(',')[0]
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(16px)',
+            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            {/* Top — Q badge */}
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0,
+              padding: '24px 20px', display: 'flex', alignItems: 'center', gap: 12,
+              paddingTop: 'calc(env(safe-area-inset-top, 0px) + 24px)',
+            }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #f0a500, #f59e0b)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 30px rgba(240,165,0,0.5)',
+                animation: 'pulse 2s infinite',
+              }}>
+                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#000', fontWeight: 800 }}>Q</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>Q found you a load</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+                  {pu.broker_name || 'Broker'} • {pu.equipment || 'Dry Van'}
+                </div>
+              </div>
+            </div>
+
+            {/* Card — slides up from bottom */}
+            <div style={{
+              background: 'var(--bg)', borderRadius: '28px 28px 0 0',
+              padding: '32px 24px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)',
+              animation: 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}>
+              {/* Route */}
+              <div style={{ textAlign: 'center', marginBottom: 24 }}>
+                <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--text)', lineHeight: 1.1 }}>{origin}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '10px 0', color: 'var(--muted)' }}>
+                  <div style={{ width: 50, height: 1, background: 'var(--border)' }} />
+                  <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1 }}>{miles} MI</span>
+                  <div style={{ width: 50, height: 1, background: 'var(--border)' }} />
+                </div>
+                <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--text)', lineHeight: 1.1 }}>{dest}</div>
+              </div>
+
+              {/* Numbers row */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-around', marginBottom: 24,
+                padding: '18px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>RATE</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(gross)}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>RPM</div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>${rpm}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', letterSpacing: 1, marginBottom: 4 }}>PICKUP</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>{pu.pickup_date || 'ASAP'}</div>
+                </div>
+              </div>
+
+              {/* Calling state */}
+              {(popupCallState === 'calling' || popupCallState === 'done') ? (
+                <div style={{
+                  padding: '20px', borderRadius: 16,
+                  background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(240,165,0,0.03))',
+                  border: '2px solid rgba(240,165,0,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
+                }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #f0a500, #f59e0b)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    animation: 'pulse 1.5s infinite',
+                  }}>
+                    <Ic icon={Phone} size={18} color="#000" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>Q is calling the broker</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Negotiating your rate now...</div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 14 }}>
+                  <button onClick={() => popupPass(pu)} style={{
+                    flex: 1, padding: '20px', background: 'none',
+                    border: '2px solid var(--border)', borderRadius: 18, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}>
+                    <Ic icon={X} size={22} color="var(--muted)" />
+                    <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--muted)' }}>Pass</span>
+                  </button>
+                  <button onClick={() => popupAccept(pu)} style={{
+                    flex: 2, padding: '20px',
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    border: 'none', borderRadius: 18, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                    fontFamily: "'DM Sans',sans-serif",
+                    boxShadow: '0 8px 32px rgba(34,197,94,0.4)',
+                  }}>
+                    <Ic icon={CheckCircle} size={24} color="#fff" />
+                    <span style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Accept</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── TAB CONTENT ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

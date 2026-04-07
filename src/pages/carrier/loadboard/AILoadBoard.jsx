@@ -41,6 +41,29 @@ function calcAiScore(load) {
 
 const EQUIPMENT_LABEL = { 'Dry Van':'Dry Van', 'Reefer':'Reefer', 'Flatbed':'Flatbed' }
 
+// ── Load source attribution (required by load board partner agreements) ──────
+// 123Loadboard API agreement requires: "Your application must clearly show the
+// source of the information to be from 123Loadboard." Same applies for DAT and
+// Truckstop per their integration terms.
+const LOAD_SOURCES = {
+  '123loadboard': { label: '123Loadboard', color: '#3b82f6', short: '123' },
+  'dat':          { label: 'DAT',           color: '#22c55e', short: 'DAT' },
+  'truckstop':    { label: 'Truckstop',     color: '#f0a500', short: 'TS'  },
+}
+function SourceBadge({ source, compact }) {
+  const s = LOAD_SOURCES[source]
+  if (!s) return null
+  return (
+    <span style={{
+      fontSize: compact ? 9 : 10, fontWeight: 800, padding: compact ? '1px 6px' : '2px 8px',
+      borderRadius: 5, background: s.color + '18', color: s.color,
+      letterSpacing: 0.3, whiteSpace: 'nowrap',
+    }}>
+      {compact ? s.short : `Source: ${s.label}`}
+    </span>
+  )
+}
+
 // ─── AI RATE NEGOTIATOR ───────────────────────────────────────────────────────
 function AIRateNegotiator({ load, lane, bkr }) {
   const { showToast } = useApp()
@@ -411,6 +434,7 @@ export function AILoadBoard() {
                     {l.origin.split(',')[0]} → {l.dest.split(',')[0]}
                   </div>
                   <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                    <SourceBadge source={l.source} compact />
                     {isB && <span style={{ fontSize:10, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(34,197,94,0.15)', color:'var(--success)' }}>BOOKED</span>}
                     <span style={{ fontSize:11, fontWeight:800, padding:'2px 8px', borderRadius:6, background:scC+'15', color:scC }}>{sc}</span>
                   </div>
@@ -468,11 +492,12 @@ export function AILoadBoard() {
                   <div style={{ fontSize:9, fontWeight:800, color:scoreColor, letterSpacing:1 }}>AI SCORE</div>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Calendar} /> {load.pickup}</span>
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Flag} /> {load.delivery}</span>
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Bookmark} /> {load.refNum}</span>
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Route} /> {load.deadhead} mi deadhead</span>
+                <SourceBadge source={load.source} />
               </div>
             </div>
 

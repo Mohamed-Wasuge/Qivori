@@ -25,43 +25,6 @@ export default async function handler(req) {
   const { limited, resetMs } = rateLimit(`loadboard:${ip}`, 20, 60000)
   if (limited) return rateLimitResponse(req, corsHeaders, resetMs)
 
-  // Debug endpoint: ?debug=123 to test 123Loadboard token
-  const debugUrl = new URL(req.url)
-  if (debugUrl.searchParams.get('debug') === '123') {
-    const lb123Creds = {
-      clientId: process.env.LB123_CLIENT_ID,
-      clientSecret: process.env.LB123_CLIENT_SECRET,
-      serviceUsername: process.env.LB123_SERVICE_USERNAME,
-      servicePassword: process.env.LB123_SERVICE_PASSWORD,
-    }
-    const hasEnvVars = !!(lb123Creds.clientId && lb123Creds.clientSecret && lb123Creds.serviceUsername && lb123Creds.servicePassword)
-    let tokenResult = null
-    let searchResult = null
-    if (hasEnvVars) {
-      try {
-        const token = await get123Token(lb123Creds)
-        tokenResult = token ? 'OK (got token)' : 'FAILED (no token returned)'
-        if (token) {
-          const testLoads = await fetch123Loadboard({ origin: 'Dallas', originState: 'TX' }, lb123Creds)
-          searchResult = `${testLoads.length} loads returned`
-        }
-      } catch (err) {
-        tokenResult = `ERROR: ${err.message}`
-      }
-    }
-    return Response.json({
-      envVars: {
-        LB123_CLIENT_ID: lb123Creds.clientId ? `${lb123Creds.clientId.slice(0, 4)}...` : 'MISSING',
-        LB123_CLIENT_SECRET: lb123Creds.clientSecret ? 'SET' : 'MISSING',
-        LB123_SERVICE_USERNAME: lb123Creds.serviceUsername ? `${lb123Creds.serviceUsername.slice(0, 4)}...` : 'MISSING',
-        LB123_SERVICE_PASSWORD: lb123Creds.servicePassword ? 'SET' : 'MISSING',
-      },
-      hasEnvVars,
-      tokenResult,
-      searchResult,
-    }, { headers: corsHeaders(req) })
-  }
-
   // Parse filters from query params (GET) or body (POST)
   let filters = {}
   if (req.method === 'POST') {
@@ -132,18 +95,34 @@ export default async function handler(req) {
       servicePassword: process.env.LB123_SERVICE_PASSWORD,
     } : null)
     let lb123Expired = false
+    let lb123RateLimited = null // 'hour' | 'day' | 'month' | null
     if (lb123Creds) {
       // Tag OAuth creds with userId so token refresh can persist + expire in DB
       if (userCreds['123loadboard']) lb123Creds.__userId = user.id
-      const lb123Loads = await fetch123Loadboard(filters, lb123Creds)
-      if (lb123Loads.length > 0) {
-        loads.push(...lb123Loads)
-        providers.push('123loadboard')
-      } else if (userCreds['123loadboard']) {
-        // Had OAuth creds but got nothing — likely expired/refresh-failed.
-        // get123Token will have marked the row as 'expired' in that case.
-        lb123Expired = true
-        userCaches.delete(user.id)
+
+      // Compliance: enforce 123Loadboard API Usage Agreement limits per user
+      // (100/hr, 300/day, 2000/month). Silent fail-open if Supabase is down.
+      const limitCheck = userCreds['123loadboard']
+        ? await check123LBLimit(user.id)
+        : { allowed: true, usage: null }
+
+      if (!limitCheck.allowed) {
+        lb123RateLimited = limitCheck.reason
+      } else {
+        const lb123Loads = await fetch123Loadboard(filters, lb123Creds)
+        if (lb123Loads.length > 0) {
+          loads.push(...lb123Loads)
+          providers.push('123loadboard')
+          // Count this real API call against the user's quota.
+          if (userCreds['123loadboard']) {
+            await increment123LBUsage(user.id, limitCheck.usage)
+          }
+        } else if (userCreds['123loadboard']) {
+          // Had OAuth creds but got nothing — likely expired/refresh-failed.
+          // get123Token will have marked the row as 'expired' in that case.
+          lb123Expired = true
+          userCaches.delete(user.id)
+        }
       }
     }
 
@@ -188,6 +167,14 @@ export default async function handler(req) {
       ...(lb123Expired && !providers.includes('123loadboard') ? {
         message: '123Loadboard session expired. Go to Settings → Load Boards → 123Loadboard → Reconnect.',
         needsReconnect: ['123loadboard'],
+      } : {}),
+      ...(lb123RateLimited ? {
+        rateLimited: { provider: '123loadboard', bucket: lb123RateLimited },
+        message: lb123RateLimited === 'hour'
+          ? '123Loadboard hourly search limit reached (100/hr). Resets at the top of the hour.'
+          : lb123RateLimited === 'day'
+          ? '123Loadboard daily search limit reached (300/day). Resets at midnight UTC.'
+          : '123Loadboard monthly search limit reached (2000/mo). Resets on the 1st.',
       } : {}),
     }, { headers: { ...corsHeaders(req), 'Cache-Control': 'private, max-age=300' } })
   } catch (err) {
@@ -332,6 +319,87 @@ function normalizeDATLoad(match) {
 // Set LB123_API_BASE=https://api.123loadboard.com in Vercel env to switch.
 const LB123_BASE = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
 
+// ── 123Loadboard API Usage Limits (per their API Usage Agreement) ────────────
+// Hard caps enforced PER USER. We only count REAL search API calls (not cache
+// hits), so the 15-min in-memory cache means a typical user does ~4 calls/hr.
+// These limits are a compliance backstop, not a real throttle.
+const LB123_LIMITS = {
+  hour:  100,
+  day:   300,
+  month: 2000,
+}
+
+// Read api_usage JSONB from the user's load_board_credentials row, reset any
+// expired buckets (hour/day/month), and return the current counters.
+async function getLB123Usage(userId) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !serviceKey) return null
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/load_board_credentials?user_id=eq.${userId}&provider=eq.123loadboard&select=api_usage`,
+      { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }
+    )
+    if (!res.ok) return null
+    const rows = await res.json()
+    const usage = rows?.[0]?.api_usage || {}
+    const now = new Date()
+    const hourStart  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString()
+    const dayStart   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
+    return {
+      hour:  usage.hour?.start  === hourStart  ? usage.hour  : { start: hourStart,  count: 0 },
+      day:   usage.day?.start   === dayStart   ? usage.day   : { start: dayStart,   count: 0 },
+      month: usage.month?.start === monthStart ? usage.month : { start: monthStart, count: 0 },
+    }
+  } catch {
+    return null
+  }
+}
+
+// Returns true if the user is allowed to make a 123LB search call. Silent
+// fail-open on Supabase errors so a transient infra issue can't lock users out.
+async function check123LBLimit(userId) {
+  const usage = await getLB123Usage(userId)
+  if (!usage) return { allowed: true, usage: null } // fail-open
+  if (usage.hour.count  >= LB123_LIMITS.hour)  return { allowed: false, usage, reason: 'hour'  }
+  if (usage.day.count   >= LB123_LIMITS.day)   return { allowed: false, usage, reason: 'day'   }
+  if (usage.month.count >= LB123_LIMITS.month) return { allowed: false, usage, reason: 'month' }
+  return { allowed: true, usage }
+}
+
+// Increment the user's 123LB usage counters after a real API call. Best-effort
+// — failures here log but don't surface to the user.
+async function increment123LBUsage(userId, currentUsage) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !serviceKey) return
+  const usage = currentUsage || (await getLB123Usage(userId))
+  if (!usage) return
+  const next = {
+    hour:  { start: usage.hour.start,  count: usage.hour.count  + 1 },
+    day:   { start: usage.day.start,   count: usage.day.count   + 1 },
+    month: { start: usage.month.start, count: usage.month.count + 1 },
+  }
+  try {
+    await fetch(
+      `${supabaseUrl}/rest/v1/load_board_credentials?user_id=eq.${userId}&provider=eq.123loadboard`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ api_usage: next }),
+      }
+    )
+  } catch (err) {
+    console.error(`increment123LBUsage failed: ${err.message}`)
+  }
+}
+
 // Token cache (in-memory, shared across requests on same Edge instance)
 let lb123Token = null
 let lb123TokenExpiry = 0
@@ -467,56 +535,13 @@ async function get123Token(creds) {
     return null
   }
 
-  // Non-OAuth path: service-account creds from env vars (platform-level fallback)
-  if (!creds.clientId || !creds.clientSecret) return null
-  const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
-
-  const res = await fetch(`${LB123_BASE}/token`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${basicAuth}`,
-      '123LB-Api-Version': '1.3',
-      'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      username: creds.serviceUsername,
-      password: creds.servicePassword,
-    }).toString(),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '')
-    console.error(`123LB password grant failed: ${res.status} ${errText}`)
-    // Try client_credentials grant as fallback
-    const res2 = await fetch(`${LB123_BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${basicAuth}`,
-        '123LB-Api-Version': '1.3',
-        'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-      }).toString(),
-    })
-    if (!res2.ok) {
-      const errText2 = await res2.text().catch(() => '')
-      console.error(`123LB client_credentials grant also failed: ${res2.status} ${errText2}`)
-      return null
-    }
-    const data2 = await res2.json()
-    lb123Token = data2.access_token
-    lb123TokenExpiry = Date.now() + (data2.expires_in || 3600) * 1000
-    return lb123Token
-  }
-
-  const data = await res.json()
-  lb123Token = data.access_token
-  lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
-  return lb123Token
+  // Per 123Loadboard guidance (Awais Ali, Apr 2026): the Flex service-account
+  // credentials must NOT be used unless we are integrating against the Flex API.
+  // Qivori uses the standard OAuth authorization_code flow, so the password and
+  // client_credentials grants are not authorized for our client and have been
+  // removed. If we ever add Flex support, gate that path behind an explicit
+  // `creds.useFlex` flag instead of resurrecting the fallback.
+  return null
 }
 
 // Parse "City, ST" or "City ST" or just "City" into { city, state }
@@ -829,8 +854,12 @@ function scoreLoad(load) {
   // Gross pay bonus
   if (load.gross >= 3000) score += 5
   if (load.gross >= 5000) score += 5
-  // Source bonus (DAT is premium data)
+  // Source quality bonus — all paid load board partners get parity. We do NOT
+  // bias scoring against any partner, since the AI's job is to find the best
+  // load for the carrier regardless of which board posted it.
   if (load.source === 'dat') score += 3
+  if (load.source === '123loadboard') score += 3
+  if (load.source === 'truckstop') score += 3
   return Math.min(99, Math.max(15, Math.round(score)))
 }
 

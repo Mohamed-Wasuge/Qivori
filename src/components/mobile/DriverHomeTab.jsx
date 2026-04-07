@@ -240,7 +240,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
   const isReady = !!(myDriver?.is_available)
   const [readyToggling, setReadyToggling] = useState(false)
   const toggleReady = useCallback(async () => {
-    if (!myDriver?.id || readyToggling) return
+    if (readyToggling) return
     setReadyToggling(true)
     haptic('success')
     const next = !isReady
@@ -256,6 +256,39 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
           )
         })
       }
+
+      // ── Bootstrap: if no driver record exists for this user, create one ──
+      let driverId = myDriver?.id
+      if (!driverId) {
+        if (!ctx.addDriver) {
+          showToast?.('error', 'Setup needed', 'Driver record not configured')
+          setReadyToggling(false)
+          return
+        }
+        const newDriver = await ctx.addDriver({
+          full_name: profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Driver',
+          email: user?.email || profile?.email || null,
+          phone: profile?.phone || null,
+          user_id: user?.id || null,
+          driver_type: 'owner_operator',
+          pay_model: 'percent',
+          pay_rate: 80,
+          is_available: true,
+          availability_status: 'ready',
+          last_location_lat: coords?.lat || null,
+          last_location_lng: coords?.lng || null,
+          last_location_updated: new Date().toISOString(),
+        })
+        if (!newDriver?.id) {
+          showToast?.('error', 'Could not go online', 'Failed to create driver record')
+          setReadyToggling(false)
+          return
+        }
+        showToast?.('success', 'You\'re ready', 'Q is hunting for loads in your area')
+        setReadyToggling(false)
+        return
+      }
+
       const updates = {
         is_available: next,
         availability_status: next ? 'ready' : 'off_duty',
@@ -265,9 +298,9 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
       }
       // editDriver writes to DB AND updates local context state
       if (ctx.editDriver) {
-        await ctx.editDriver(myDriver.id, updates)
+        await ctx.editDriver(driverId, updates)
       } else {
-        await db.updateDriverAvailability(myDriver.id, updates)
+        await db.updateDriverAvailability(driverId, updates)
       }
       if (showToast) {
         showToast(next ? 'success' : 'info',
@@ -279,7 +312,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
     } finally {
       setReadyToggling(false)
     }
-  }, [myDriver, isReady, readyToggling, ctx, showToast])
+  }, [myDriver, isReady, readyToggling, ctx, showToast, profile, user])
 
   // ── PASS on a load offer ──
   const passLoad = async (load) => {

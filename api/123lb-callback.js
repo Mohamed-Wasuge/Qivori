@@ -11,6 +11,8 @@
  * Runtime: Vercel Edge
  */
 
+import { encrypt } from './load-board-credentials.js'
+
 export const config = { runtime: 'edge' }
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -161,12 +163,16 @@ async function storeTokens(userId, tokens) {
   )
   const existing = await checkRes.json()
 
+  // AES-256-GCM encrypt the token JSON so getUserCredentials() in
+  // load-board-credentials.js can decrypt it. The previous base64 placeholder
+  // was unreadable by the load fetcher and silently dropped.
   const tokenJson = JSON.stringify(tokens)
+  const { encrypted, iv } = await encrypt(tokenJson)
   const row = {
     user_id: userId,
     provider: '123loadboard',
-    encrypted_credentials: btoa(tokenJson), // Simple base64 for now — will upgrade to AES
-    encryption_iv: 'oauth2_token',
+    encrypted_credentials: encrypted,
+    encryption_iv: iv,
     status: 'connected',
     connected_at: new Date().toISOString(),
     last_tested: new Date().toISOString(),

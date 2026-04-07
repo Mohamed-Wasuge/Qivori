@@ -13,7 +13,7 @@ async function getEncryptionKey() {
   return crypto.subtle.importKey('raw', keyBytes, { name: ALGORITHM }, false, ['encrypt', 'decrypt'])
 }
 
-async function encrypt(plaintext) {
+export async function encrypt(plaintext) {
   const key = await getEncryptionKey()
   if (!key) throw new Error('CREDENTIALS_ENCRYPTION_KEY is not configured — encryption is mandatory')
   const iv = crypto.getRandomValues(new Uint8Array(12))

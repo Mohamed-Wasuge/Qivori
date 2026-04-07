@@ -204,7 +204,8 @@ async function testConnection(provider, credentials) {
         return { success: false, message: 'Client ID, Client Secret, Service Username, and Service Password are all required' }
       }
       const basicAuth = btoa(`${clientId}:${clientSecret}`)
-      const res = await fetch('https://api.dev.123loadboard.com/token', {
+      const lb123Base = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
+      const res = await fetch(`${lb123Base}/token`, {
         method: 'POST',
         headers: {
           'Authorization': `Basic ${basicAuth}`,

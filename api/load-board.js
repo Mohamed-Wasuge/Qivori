@@ -328,6 +328,10 @@ function normalizeDATLoad(match) {
 // Docs: https://developers.123loadboard.com
 // ══════════════════════════════════════════════════════════════════════════════
 
+// 123LB API base URL — flip to production once 123LB approves prod access.
+// Set LB123_API_BASE=https://api.123loadboard.com in Vercel env to switch.
+const LB123_BASE = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
+
 // Token cache (in-memory, shared across requests on same Edge instance)
 let lb123Token = null
 let lb123TokenExpiry = 0
@@ -419,7 +423,7 @@ async function get123Token(creds) {
     if (creds.refreshToken && creds.clientId && creds.clientSecret) {
       const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
       try {
-        const res = await fetch('https://api.dev.123loadboard.com/token', {
+        const res = await fetch(`${LB123_BASE}/token`, {
           method: 'POST',
           headers: {
             'Authorization': `Basic ${basicAuth}`,
@@ -467,7 +471,7 @@ async function get123Token(creds) {
   if (!creds.clientId || !creds.clientSecret) return null
   const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
 
-  const res = await fetch('https://api.dev.123loadboard.com/token', {
+  const res = await fetch(`${LB123_BASE}/token`, {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${basicAuth}`,
@@ -486,7 +490,7 @@ async function get123Token(creds) {
     const errText = await res.text().catch(() => '')
     console.error(`123LB password grant failed: ${res.status} ${errText}`)
     // Try client_credentials grant as fallback
-    const res2 = await fetch('https://api.dev.123loadboard.com/token', {
+    const res2 = await fetch(`${LB123_BASE}/token`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${basicAuth}`,
@@ -562,7 +566,7 @@ async function fetch123Loadboard(filters, creds) {
 
     const deviceId = 'qivori-dispatch-' + (creds.clientId || 'oauth').slice(-8)
 
-    const res = await fetch('https://api.dev.123loadboard.com/loads/search', {
+    const res = await fetch(`${LB123_BASE}/loads/search`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -599,13 +603,23 @@ function normalize123Load(load) {
 
   const miles = load.computedMileage || load.mileage || load.miles || 0
 
-  // Rate not exposed unless rateCheck addon enabled — leave 0 and let
-  // Q's market rate engine estimate downstream.
-  const gross = load.rate || load.payment?.amount || 0
-  const rpm = miles > 0 && gross > 0 ? +(gross / miles).toFixed(2) : 0
-
   // Equipment lives in equipments[].equipmentType
   const equipType = load.equipments?.[0]?.equipmentType || load.equipmentType || ''
+  const normalizedEquip = normalizeEquipment(equipType)
+
+  // Rate is only exposed when 123LB Rate Check addon is enabled. If absent,
+  // estimate from Q's market rate model so the AI can score the load. Mark
+  // estimated rates so the UI can disclose the source.
+  let gross = load.rate || load.payment?.amount || 0
+  let rateEstimated = false
+  if (gross === 0 && miles > 0) {
+    const marketAvg = estimateMarketRate({
+      originState, destState, equipment: normalizedEquip, miles,
+    })
+    gross = Math.round(marketAvg * miles)
+    rateEstimated = true
+  }
+  const rpm = miles > 0 && gross > 0 ? +(gross / miles).toFixed(2) : 0
 
   // Broker is in poster.name; MC is in poster.docketNumber
   const brokerName = load.poster?.name || load.company?.name || 'Unknown'
@@ -635,9 +649,10 @@ function normalize123Load(load) {
     miles,
     rate: rpm,
     gross,
+    rateEstimated,
     weight: load.weight || '',
     commodity: load.commodity || load.description || '',
-    equipment: normalizeEquipment(equipType),
+    equipment: normalizedEquip,
     pickup,
     delivery,
     deadhead: originDeadhead,
@@ -645,6 +660,52 @@ function normalize123Load(load) {
     postedAt: load.lastRefreshed || new Date().toISOString(),
     laneKey: `${originCity.slice(0, 3).toUpperCase()}→${destCity.slice(0, 3).toUpperCase()}`,
   }
+}
+
+// ── Market rate estimator (Edge-compatible inline copy of src/lib/marketRates.js)
+// Used as a fallback when a load board returns rate=0 (e.g. 123Loadboard
+// without the Rate Check addon). Keeps load economics + AI scoring sane.
+const MR_BASE = {
+  'Dry Van': 2.35, 'Reefer': 2.75, 'Flatbed': 2.95,
+  'Step Deck': 3.15, 'Power Only': 1.95, 'Tanker': 3.20,
+}
+const MR_SEASONAL = [0.90, 0.91, 0.98, 1.02, 1.12, 1.14, 1.03, 1.04, 1.12, 1.13, 1.08, 1.06]
+const MR_NORTHEAST = ['NY','NJ','PA','CT','MA','RI','NH','VT','ME']
+const MR_WEST_COAST = ['CA','OR','WA']
+const MR_SOUTHEAST = ['GA','AL','MS','SC','NC','TN']
+const MR_MIDWEST = ['OH','IN','IL','MI','WI','MN','IA','MO','KS','NE','ND','SD']
+
+function mrRegionFactor(state) {
+  if (MR_NORTHEAST.includes(state)) return 0.12
+  if (MR_WEST_COAST.includes(state)) return 0.08
+  if (MR_SOUTHEAST.includes(state)) return -0.05
+  if (MR_MIDWEST.includes(state)) return -0.08
+  return 0
+}
+function mrDistanceAdj(miles) {
+  if (miles < 250) return 0.25
+  if (miles < 500) return 0.10
+  if (miles > 1500) return 0.05
+  if (miles > 800) return -0.15
+  return 0
+}
+function mrLanePremium(o, d) {
+  let adj = 0
+  if (o === 'TX') adj -= 0.05
+  if (d === 'CA') adj += 0.10
+  if (o === 'FL') adj -= 0.08
+  if (MR_NORTHEAST.includes(o) && MR_NORTHEAST.includes(d)) adj += 0.12
+  return adj
+}
+function estimateMarketRate({ originState, destState, equipment, miles }) {
+  const base = MR_BASE[equipment] || MR_BASE['Dry Van']
+  const month = new Date().getMonth() // 0-indexed
+  const seasonal = MR_SEASONAL[month] || 1.0
+  const regionAvg = (mrRegionFactor(originState) + mrRegionFactor(destState)) / 2
+  const distAdj = mrDistanceAdj(miles)
+  const lanePrem = mrLanePremium(originState, destState)
+  const adjusted = (base + distAdj) * (1 + regionAvg + lanePrem) * seasonal
+  return Math.round(adjusted * 100) / 100
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

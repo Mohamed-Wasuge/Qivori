@@ -133,6 +133,12 @@ export default async function handler(req) {
         method: 'PATCH', headers: sbHeaders(),
         body: JSON.stringify({ notes: summary })
       })
+
+      // ── Intelligence feedback loop ──────────────────────────────────
+      // Update broker urgency scores based on call outcomes
+      if (metadata.brokerName && metadata.userId) {
+        updateBrokerUrgency(metadata, outcome, duration, sentiment).catch(() => {})
+      }
     }
 
     return json({ received: true })
@@ -177,6 +183,60 @@ async function notifyDriverOfOffer(meta) {
   // In production, look up driver phone from load record
   // For now, log the offer
   console.log('Driver notification needed for load ' + loadId + ': Broker ' + brokerName + ' offered $' + offered_rate + ' (min: $' + min_rate + ')')
+}
+
+// ── Intelligence Feedback Loop ──────────────────────────────────────────────
+// After each call, update the broker's urgency score so future calls are smarter.
+// Signals: multiple callbacks = high urgency, quick hangups = low interest, etc.
+async function updateBrokerUrgency(meta, outcome, duration, sentiment) {
+  const { brokerName, userId } = meta
+  if (!brokerName || !userId) return
+
+  try {
+    // Get existing urgency record
+    const existing = await fetch(
+      SUPABASE_URL + '/rest/v1/broker_urgency_scores?owner_id=eq.' + userId + '&broker_name=eq.' + encodeURIComponent(brokerName) + '&limit=1',
+      { headers: sbHeaders() }
+    )
+    const rows = existing.ok ? await existing.json() : []
+    const current = rows[0] || { urgency_score: 50, signals: [], call_count: 0 }
+
+    // Calculate score adjustment based on call outcome
+    let delta = 0
+    const signals = current.signals || []
+
+    if (outcome === 'booked') { delta = 20; signals.push('booked_load') }
+    else if (outcome === 'counter_offer') { delta = 10; signals.push('counter_offered') }
+    else if (outcome === 'voicemail' || outcome === 'no_answer') { delta = -5; signals.push('no_answer') }
+    else if (outcome === 'hung_up_early') { delta = -15; signals.push('hung_up_early') }
+    else if (outcome === 'load_unavailable') { delta = -10; signals.push('load_taken') }
+    else if (sentiment === 'positive') { delta = 5; signals.push('positive_sentiment') }
+    else if (sentiment === 'negative') { delta = -10; signals.push('negative_sentiment') }
+
+    // Callback from broker = strong urgency signal
+    if (meta.call_type === 'broker_callback' || meta.call_type === 'broker_inbound') {
+      delta += 15
+      signals.push('called_back')
+    }
+
+    const newScore = Math.max(0, Math.min(100, (current.urgency_score || 50) + delta))
+    const newCount = (current.call_count || 0) + 1
+
+    // Keep only last 10 signals
+    const trimmedSignals = signals.slice(-10)
+
+    if (rows.length > 0) {
+      await fetch(
+        SUPABASE_URL + '/rest/v1/broker_urgency_scores?id=eq.' + current.id,
+        { method: 'PATCH', headers: sbHeaders(), body: JSON.stringify({ urgency_score: newScore, call_count: newCount, signals: trimmedSignals, updated_at: new Date().toISOString() }) }
+      )
+    } else {
+      await fetch(
+        SUPABASE_URL + '/rest/v1/broker_urgency_scores',
+        { method: 'POST', headers: sbHeaders(), body: JSON.stringify({ owner_id: userId, broker_name: brokerName, urgency_score: newScore, call_count: newCount, signals: trimmedSignals }) }
+      )
+    }
+  } catch {}
 }
 
 // Schedule a retry call in 30 min (max 3 per load+broker)

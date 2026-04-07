@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { haversine } from '../components/mobile/shared'
+import { writeDriverPosition } from '../lib/database'
+
+// Throttle: write driver_positions at most every 60s
+const POSITION_WRITE_INTERVAL_MS = 60_000
 
 // ── Geocode cache — survives re-renders, cleared on page reload ──
 const geocodeCache = {}
@@ -67,6 +71,7 @@ export default function useQLocation({
   allLoads = [],
   enabled = false,
   companyAddress = null,
+  driverId = null,
   onArrivedAtPickup,
   onArrivedAtDelivery,
   onDepartedPickup,
@@ -84,6 +89,11 @@ export default function useQLocation({
   const dvirDismissedRef = useRef(new Set()) // Track dismissed DVIR prompts per load
   const useHighAccuracyRef = useRef(false)
   const geocodingInProgressRef = useRef({})  // Prevent duplicate geocoding
+  const lastPositionWriteRef = useRef(0)     // Throttle DB writes to 60s
+  const driverIdRef = useRef(driverId)
+  const activeLoadsRef = useRef(activeLoads)
+  useEffect(() => { driverIdRef.current = driverId }, [driverId])
+  useEffect(() => { activeLoadsRef.current = activeLoads }, [activeLoads])
 
   // ── Cooldown check: prevent re-firing same event within 5 minutes ──
   const isCoolingDown = useCallback((loadId, event) => {
@@ -297,12 +307,33 @@ export default function useQLocation({
 
     const id = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude: lat, longitude: lng, accuracy } = pos.coords
+        const { latitude: lat, longitude: lng, accuracy, speed, heading } = pos.coords
         // Skip stale positions (older than 2 minutes)
         if (pos.timestamp && Date.now() - pos.timestamp > 120_000) return
 
         setPosition({ lat, lng, accuracy, watching: true, lastUpdate: Date.now() })
         processPosition(lat, lng)
+
+        // ── Throttled write to driver_positions (every 60s) ──
+        const now = Date.now()
+        if (now - lastPositionWriteRef.current >= POSITION_WRITE_INTERVAL_MS) {
+          lastPositionWriteRef.current = now
+          const did = driverIdRef.current
+          const loads = activeLoadsRef.current || []
+          const currentLoad = loads[0] || null
+          const lid = currentLoad?.id || null
+          // m/s → mph
+          const speedMph = speed != null ? Math.round(speed * 2.23694 * 10) / 10 : null
+          writeDriverPosition({
+            driver_id: did,
+            load_id: lid,
+            lat,
+            lng,
+            speed: speedMph,
+            heading: heading ?? null,
+            accuracy: accuracy ?? null,
+          }).catch(() => {})
+        }
       },
       (err) => {
         // Permission denied — stop watching, app remains manual

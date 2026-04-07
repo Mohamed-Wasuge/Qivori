@@ -9,6 +9,7 @@ import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { apiFetch } from '../../../lib/api'
 import { RateBadge, StopTimeline } from '../LoadBoard'
+import QVerdictBadge from '../../../components/QVerdictBadge'
 
 // ─── AI LOAD BOARD ────────────────────────────────────────────────────────────
 // Broker risk reference — grows from API data over time
@@ -433,6 +434,9 @@ export function AILoadBoard() {
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:3 }}>
                   <span style={{ fontSize:10, color:'var(--muted)' }}><Ic icon={Calendar} /> {l.pickup} · {l.deadhead} mi deadhead</span>
                   <RateBadge rpm={l.rate} equipment={l.equipment} compact />
+                </div>
+                <div style={{ marginTop:8 }}>
+                  <QVerdictBadge load={l} variant="compact" />
                 </div>
               </div>
             )

@@ -6,6 +6,8 @@ import { Ic, haptic } from './shared'
 import { apiFetch } from '../../lib/api'
 import MobileIFTATab from './MobileIFTATab'
 import { DVIRInspection } from './DriverMoreTab'
+import QActivityFeed from '../QActivityFeed'
+import QLiveNegotiation from '../QLiveNegotiation'
 
 // Recent DVIR history for mobile
 function MobileDVIRHistory() {
@@ -336,6 +338,16 @@ export default function MobileMoreTab({ onNavigate, onClose }) {
           <div style={{ fontSize: 16, fontWeight: 700 }}>{profile?.full_name || user?.user_metadata?.full_name || 'Driver'}</div>
           <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email || ''}</div>
         </div>
+      </div>
+
+      {/* Q Live Negotiation */}
+      <div style={{ marginBottom: 16 }}>
+        <QLiveNegotiation variant="panel" />
+      </div>
+
+      {/* Q Activity Feed */}
+      <div style={{ marginBottom: 16 }}>
+        <QActivityFeed variant="panel" limit={20} />
       </div>
 
       {/* Driver Compliance Status */}

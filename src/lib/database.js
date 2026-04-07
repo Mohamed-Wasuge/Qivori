@@ -1140,3 +1140,111 @@ export async function cancelInvitation(invitationId) {
   )
   if (error) throw error
 }
+
+// ─── GPS Pipeline ──────────────────────────────────────────
+// driver_positions, q_alerts, q_decisions
+// All gated by owner_id RLS — see supabase-gps-pipeline.sql
+
+export async function writeDriverPosition({ driver_id, load_id, lat, lng, speed, heading, accuracy, battery }) {
+  const owner_id = await getUserId()
+  if (!owner_id || lat == null || lng == null) return null
+  const { data } = await safeMutate('writeDriverPosition',
+    supabase.from('driver_positions').insert({
+      owner_id, driver_id, load_id,
+      lat, lng,
+      speed: speed ?? null,
+      heading: heading ?? null,
+      accuracy: accuracy ?? null,
+      battery: battery ?? null,
+    }).select().single()
+  )
+  return data
+}
+
+export async function fetchLatestDriverPositions() {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  // Pull last 24h, then dedupe to latest per driver client-side
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const data = await safeSelect('driver_positions',
+    supabase.from('driver_positions')
+      .select('*')
+      .eq('owner_id', owner_id)
+      .gte('ts', since)
+      .order('ts', { ascending: false })
+      .limit(2000)
+  )
+  if (!data) return []
+  const latest = new Map()
+  for (const p of data) {
+    if (!latest.has(p.driver_id)) latest.set(p.driver_id, p)
+  }
+  return [...latest.values()]
+}
+
+export async function fetchDriverBreadcrumb(driver_id, limit = 50) {
+  const owner_id = await getUserId()
+  if (!owner_id || !driver_id) return []
+  const data = await safeSelect('driver_positions',
+    supabase.from('driver_positions')
+      .select('lat,lng,speed,heading,ts')
+      .eq('owner_id', owner_id)
+      .eq('driver_id', driver_id)
+      .order('ts', { ascending: false })
+      .limit(limit)
+  )
+  return (data || []).reverse() // chronological for polyline
+}
+
+export async function createAlert({ type, title, message, severity = 'info', driver_id = null, load_id = null, payload = {} }) {
+  const owner_id = await getUserId()
+  if (!owner_id || !type || !title) return null
+  const { data } = await safeMutate('createAlert',
+    supabase.from('q_alerts').insert({
+      owner_id, driver_id, load_id, type, title, message, severity, payload,
+    }).select().single()
+  )
+  return data
+}
+
+export async function fetchAlerts({ limit = 50, includeDismissed = false } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  let q = supabase.from('q_alerts')
+    .select('*')
+    .eq('owner_id', owner_id)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (!includeDismissed) q = q.is('dismissed_at', null)
+  return (await safeSelect('q_alerts', q)) || []
+}
+
+export async function dismissAlert(id) {
+  const { error } = await safeMutate('dismissAlert',
+    supabase.from('q_alerts').update({ dismissed_at: new Date().toISOString() }).eq('id', id)
+  )
+  return !error
+}
+
+export async function createDecision({ type, decision = null, confidence = null, summary, reasoning = [], payload = {}, driver_id = null, load_id = null }) {
+  const owner_id = await getUserId()
+  if (!owner_id || !type || !summary) return null
+  const { data } = await safeMutate('createDecision',
+    supabase.from('q_decisions').insert({
+      owner_id, driver_id, load_id, type, decision, confidence, summary, reasoning, payload,
+    }).select().single()
+  )
+  return data
+}
+
+export async function fetchDecisions({ limit = 100 } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  return (await safeSelect('q_decisions',
+    supabase.from('q_decisions')
+      .select('*')
+      .eq('owner_id', owner_id)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+  )) || []
+}

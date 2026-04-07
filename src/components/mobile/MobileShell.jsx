@@ -150,6 +150,18 @@ export default function MobileShell() {
     // Card animation handles its own dismissal — clear popup after 1100ms
     setTimeout(() => setPopupLoad(null), 1100)
 
+    // Q decision log — accept
+    db.createDecision({
+      type: 'load_accepted',
+      decision: 'accept',
+      confidence: 95,
+      summary: `Accepted ${load.broker_name || 'broker'} load — ${(load.origin || '').split(',')[0]} → ${(load.destination || load.dest || '').split(',')[0]}`,
+      reasoning: [`$${Number(load.gross || load.rate || 0).toLocaleString()} · ${Number(load.miles || 0)}mi`],
+      payload: { gross: Number(load.gross || load.rate || 0), miles: Number(load.miles || 0) },
+      load_id: lid,
+      driver_id: myDriverForGps?.id || null,
+    }).catch(() => {})
+
     // ── Background work — never blocks UI ──
     ;(async () => {
       try {
@@ -199,14 +211,30 @@ export default function MobileShell() {
     dismissedRef.current.add(lid)
     persistDismissed()
     setTimeout(() => setPopupLoad(null), 350)
+
+    // Q decision log — pass
+    db.createDecision({
+      type: 'load_passed',
+      decision: 'reject',
+      confidence: 80,
+      summary: `Passed on ${load.broker_name || 'broker'} load — ${(load.origin || '').split(',')[0]} → ${(load.destination || load.dest || '').split(',')[0]}`,
+      reasoning: [`$${Number(load.gross || load.rate || 0).toLocaleString()} · ${Number(load.miles || 0)}mi`],
+      payload: { gross: Number(load.gross || load.rate || 0), miles: Number(load.miles || 0) },
+      load_id: lid,
+    }).catch(() => {})
   }, [])
 
   // ── Q AUTONOMOUS LOCATION ENGINE ──
+  const myDriverForGps = useMemo(
+    () => (isDriver ? (ctx.drivers || []).find(d => d.user_id === user?.id) : null),
+    [isDriver, ctx.drivers, user?.id]
+  )
   const qLocation = useQLocation({
     activeLoads,
     allLoads: ctx.loads || [],
     enabled: activeLoads.length > 0,
     companyAddress: ctx.company?.address || ctx.company?.city,
+    driverId: myDriverForGps?.id || null,
 
     // Auto-arrival at pickup — Q checks driver in, advances status, announces
     onArrivedAtPickup: useCallback((load, coords) => {
@@ -218,13 +246,21 @@ export default function MobileShell() {
         pickup_checkin_lat: coords.lat,
         pickup_checkin_lng: coords.lng,
       }).catch(() => {})
+      // Surface to carrier dashboard
+      db.createAlert({
+        type: 'arrive_pickup', severity: 'success',
+        title: `Arrived at ${shipperName}`,
+        message: `${load.driver_name || 'Driver'} checked in at pickup`,
+        driver_id: myDriverForGps?.id || null, load_id: load.id || null,
+        payload: { lat: coords.lat, lng: coords.lng },
+      }).catch(() => {})
       // Advance status
       ctx.updateLoadStatus?.(lid, 'At Pickup')
       haptic('success')
       showToast?.('success', 'Q Auto Check-In', `Arrived at ${shipperName}`)
       // Open Q with announcement
       openQ(null, `Arrived at **${shipperName}**. Checking you in automatically. GPS recorded. Status → **At Pickup**.`)
-    }, [ctx, showToast]),
+    }, [ctx, showToast, myDriverForGps]),
 
     // Auto-arrival at delivery — same pattern
     onArrivedAtDelivery: useCallback((load, coords) => {
@@ -235,11 +271,18 @@ export default function MobileShell() {
         delivery_checkin_lat: coords.lat,
         delivery_checkin_lng: coords.lng,
       }).catch(() => {})
+      db.createAlert({
+        type: 'arrive_delivery', severity: 'success',
+        title: `Arrived at ${receiverName}`,
+        message: `${load.driver_name || 'Driver'} checked in at delivery`,
+        driver_id: myDriverForGps?.id || null, load_id: load.id || null,
+        payload: { lat: coords.lat, lng: coords.lng },
+      }).catch(() => {})
       ctx.updateLoadStatus?.(lid, 'At Delivery')
       haptic('success')
       showToast?.('success', 'Q Auto Check-In', `Arrived at ${receiverName}`)
       openQ(null, `Arrived at **${receiverName}**. Checking you in. GPS recorded. Status → **At Delivery**. Snap your POD when unloaded.`)
-    }, [ctx, showToast]),
+    }, [ctx, showToast, myDriverForGps]),
 
     // Auto-departure from pickup — driver loaded and rolling out
     onDepartedPickup: useCallback((load, coords) => {
@@ -250,11 +293,18 @@ export default function MobileShell() {
         pickup_checkout_lat: coords.lat,
         pickup_checkout_lng: coords.lng,
       }).catch(() => {})
+      db.createAlert({
+        type: 'depart_pickup', severity: 'info',
+        title: `Loaded — In Transit to ${dest}`,
+        message: `${load.driver_name || 'Driver'} departed pickup`,
+        driver_id: myDriverForGps?.id || null, load_id: load.id || null,
+        payload: { lat: coords.lat, lng: coords.lng, miles: load.miles },
+      }).catch(() => {})
       ctx.updateLoadStatus?.(lid, 'In Transit')
       haptic('success')
       showToast?.('', 'Q: Rolling Out', `In Transit → ${dest}`)
       openQ(null, `Rolling out. Marked as **In Transit** → **${dest}**. ${load.miles ? `${load.miles} miles to delivery.` : ''} Drive safe.`)
-    }, [ctx, showToast]),
+    }, [ctx, showToast, myDriverForGps]),
 
     // Auto-departure from delivery — load delivered
     onDepartedDelivery: useCallback((load, coords) => {
@@ -263,10 +313,17 @@ export default function MobileShell() {
       if (status !== 'delivered' && status !== 'at delivery') {
         ctx.updateLoadStatus?.(lid, 'Delivered')
       }
+      db.createAlert({
+        type: 'depart_delivery', severity: 'success',
+        title: 'Load delivered',
+        message: `${load.driver_name || 'Driver'} completed delivery`,
+        driver_id: myDriverForGps?.id || null, load_id: load.id || null,
+        payload: { lat: coords?.lat, lng: coords?.lng },
+      }).catch(() => {})
       haptic('success')
       showToast?.('success', 'Q: Load Delivered', 'Upload POD to get paid')
       openQ(null, `Load delivered. Upload your **POD** and **BOL** so I can generate the invoice and get you paid.`)
-    }, [ctx, showToast]),
+    }, [ctx, showToast, myDriverForGps]),
 
     // Auto-detention — 2 hours at shipper/receiver
     onDetentionStart: useCallback((load, locationType) => {
@@ -278,10 +335,17 @@ export default function MobileShell() {
         // Set it to 2 hours ago since we just detected it now
         localStorage.setItem(`detention_${load.id}`, String(Date.now() - 7_200_000))
       }
+      db.createAlert({
+        type: 'detention_start', severity: 'warning',
+        title: `Detention at ${locationName}`,
+        message: `2hr free time expired — billing $75/hr`,
+        driver_id: myDriverForGps?.id || null, load_id: load.id || null,
+        payload: { locationType, rate: 75 },
+      }).catch(() => {})
       haptic('heavy')
       showToast?.('error', 'Detention Started', `2hr free time expired at ${locationName}`)
       openQ(null, `**Detention started** at ${locationName}. Free time (2 hours) expired. Timer running at **$75/hr**. I'll track the charges automatically.`)
-    }, [showToast]),
+    }, [showToast, myDriverForGps]),
 
     // DVIR prompt — driver near yard with dispatched load
     onNearYard: useCallback((load) => {

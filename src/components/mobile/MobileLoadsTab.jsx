@@ -10,6 +10,7 @@ import { Ic, haptic, fmt$, statusColor } from './shared'
 import { apiFetch } from '../../lib/api'
 import { uploadFile } from '../../lib/storage'
 import * as db from '../../lib/database'
+import QVerdictBadge from '../QVerdictBadge'
 
 // ── Detention Timer ───────────────────────────────────────────────────────
 function DetentionTimer({ loadId, locationType }) {
@@ -204,6 +205,10 @@ const SwipeableLoadCard = memo(function SwipeableLoadCard({ load, children, onSw
 export default function MobileLoadsTab() {
   const ctx = useCarrier() || {}
   const { showToast, user, isDriver } = useApp()
+  const myDriverForVerdict = useMemo(
+    () => (isDriver ? (ctx.drivers || []).find(d => d.user_id === user?.id) : null),
+    [isDriver, ctx.drivers, user?.id]
+  )
   const loads = ctx.loads || []
   const invoices = ctx.invoices || []
   const updateLoadStatus = ctx.updateLoadStatus || (() => {})
@@ -608,6 +613,12 @@ export default function MobileLoadsTab() {
                     {load.miles > 0 && <span style={{ display: 'flex', alignItems: 'center' }}>${((load.gross || load.rate || 0) / load.miles).toFixed(2)}/mi</span>}
                     {load.miles > 0 && <span style={{ display: 'flex', alignItems: 'center' }}>{load.miles} mi</span>}
                   </div>
+                  {/* Q verdict — only on pending/offered loads, not in-progress */}
+                  {(['Rate Con Received', 'Assigned to Driver', 'Dispatched', 'Booked'].includes(load.status)) && (
+                    <div style={{ marginTop: 8 }}>
+                      <QVerdictBadge load={load} driver={myDriverForVerdict} context={{ fuelCostPerMile: ctx.fuelCostPerMile }} variant="compact" />
+                    </div>
+                  )}
                 </div>
                 <ChevronRight size={16} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)', opacity: 0.5 }} />
               </div>

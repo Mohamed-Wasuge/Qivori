@@ -8,11 +8,24 @@
  *
  * Memoized to prevent re-renders from parent state changes.
  */
-import { memo, useState, useCallback, useEffect, useRef } from 'react'
-import { CheckCircle, X, Phone } from 'lucide-react'
+import { memo, useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { CheckCircle, X, Phone, TrendingUp, AlertTriangle, MessageSquare } from 'lucide-react'
 import { Ic, fmt$ } from './shared'
+import { qVerdict } from '../../lib/qVerdict'
+import { useCarrier } from '../../context/CarrierContext'
+import { useApp } from '../../context/AppContext'
 
 function LoadOfferPopupInner({ load, onAccept, onPass }) {
+  const ctx = useCarrier() || {}
+  const { user } = useApp() || {}
+  const myDriver = useMemo(
+    () => (ctx.drivers || []).find(d => d.user_id === user?.id) || null,
+    [ctx.drivers, user?.id]
+  )
+  const verdict = useMemo(
+    () => load ? qVerdict(load, myDriver, { fuelCostPerMile: ctx.fuelCostPerMile }) : null,
+    [load, myDriver, ctx.fuelCostPerMile]
+  )
   const [phase, setPhase] = useState('idle') // idle | accepting | dismissing
   const dismissTimerRef = useRef(null)
 
@@ -117,6 +130,47 @@ function LoadOfferPopupInner({ load, onAccept, onPass }) {
                 Q is calling {load.broker_name || 'the broker'}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ═══ Q VERDICT STRIP ═══ */}
+        {verdict && (
+          <div style={{
+            background: `linear-gradient(135deg, ${verdict.verdictColor}22, ${verdict.verdictColor}08)`,
+            border: `1.5px solid ${verdict.verdictColor}55`,
+            borderRadius: 16, padding: '14px 16px', marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #f0a500, #f59e0b)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 12px rgba(240,165,0,0.4)',
+                }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800 }}>Q</span>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, letterSpacing: 1.2, marginBottom: 1 }}>Q SAYS</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: verdict.verdictColor, letterSpacing: 0.5 }}>
+                    {verdict.verdict}
+                  </div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, letterSpacing: 1.2, marginBottom: 1 }}>CONFIDENCE</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)' }}>{verdict.confidence}%</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>
+              {verdict.headline}
+            </div>
+            {verdict.reasons.slice(0, 2).map((r, i) => (
+              <div key={i} style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, display: 'flex', gap: 6 }}>
+                <span style={{ color: verdict.verdictColor, fontWeight: 900 }}>·</span>
+                <span>{r}</span>
+              </div>
+            ))}
           </div>
         )}
 

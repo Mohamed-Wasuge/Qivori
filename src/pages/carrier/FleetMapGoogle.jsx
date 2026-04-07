@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Ic } from './shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { Truck, User, MapPin, Package, Radio, MessageCircle, Scale, Navigation } from 'lucide-react'
+import { Truck, User, MapPin, Package, Radio, MessageCircle, Scale, Navigation, Bell } from 'lucide-react'
+import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps'
+import { supabase } from '../../lib/supabase'
+import * as db from '../../lib/database'
+import QActivityFeed from '../../components/QActivityFeed'
+import QLiveNegotiation from '../../components/QLiveNegotiation'
 
 const STATUS_PROGRESS = { 'Rate Con Received':0.05, 'Assigned to Driver':0.10, 'En Route to Pickup':0.20, 'Loaded':0.45, 'In Transit':0.65, 'Delivered':1, 'Invoiced':1 }
 const STATUS_LABEL = { 'Rate Con Received':'Ready', 'Assigned to Driver':'Assigned', 'En Route to Pickup':'En Route', 'Loaded':'Loaded', 'In Transit':'En Route', 'Delivered':'Delivered', 'Invoiced':'Delivered' }
@@ -45,9 +50,50 @@ export function FleetMapGoogle() {
 
   const [selectedTruck, setSelectedTruck] = useState(null)
   const [showWeighStations, setShowWeighStations] = useState(true)
+  const [livePositions, setLivePositions] = useState({}) // { driverId: {lat,lng,speed,heading,ts} }
+  const [breadcrumbs, setBreadcrumbs] = useState([])     // [{lat,lng}] for selected truck
+  const [alerts, setAlerts] = useState([])
   const mapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
+  const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'qivori_fleet_map'
 
-  // Build truck data from context
+  // ── Initial load: latest positions + alerts ──
+  useEffect(() => {
+    let mounted = true
+    db.fetchLatestDriverPositions().then(rows => {
+      if (!mounted) return
+      const map = {}
+      for (const r of rows) map[r.driver_id] = r
+      setLivePositions(map)
+    })
+    db.fetchAlerts({ limit: 30 }).then(rows => { if (mounted) setAlerts(rows) })
+    return () => { mounted = false }
+  }, [])
+
+  // ── Realtime: subscribe to driver_positions inserts ──
+  useEffect(() => {
+    const channel = supabase
+      .channel('driver_positions_live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'driver_positions' }, (payload) => {
+        const p = payload.new
+        if (!p?.driver_id) return
+        setLivePositions(prev => ({ ...prev, [p.driver_id]: p }))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  // ── Realtime: subscribe to q_alerts inserts ──
+  useEffect(() => {
+    const channel = supabase
+      .channel('q_alerts_live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'q_alerts' }, (payload) => {
+        setAlerts(prev => [payload.new, ...prev].slice(0, 50))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  // Build truck data from context — extended with driverId + live GPS
   const trucksData = useMemo(() => drivers.map((d, i) => {
     const driverName = d.name || d.full_name || `Driver ${i+1}`
     const vehicle = vehicles[i]
@@ -55,38 +101,53 @@ export function FleetMapGoogle() {
     const color = UNIT_COLORS[i % UNIT_COLORS.length]
     const load = loads.find(l => (l.driver_name || l.driver) === driverName)
     const homecity = d.city || d.home_city || 'Unknown'
+    const liveGps = livePositions[d.id] || null
+    const base = {
+      driverId: d.id, unit, driver: driverName, color,
+      liveLat: liveGps ? Number(liveGps.lat) : null,
+      liveLng: liveGps ? Number(liveGps.lng) : null,
+      liveSpeed: liveGps?.speed ?? null,
+      liveHeading: liveGps?.heading ?? null,
+      liveTs: liveGps?.ts || null,
+    }
     if (load) {
       const from = load.origin || homecity
       const to = load.dest || load.destination || homecity
       return {
-        unit, driver: driverName, from, to,
+        ...base, from, to,
         progress: STATUS_PROGRESS[load.status] || 0.5,
         status: STATUS_LABEL[load.status] || load.status,
-        color, load: load.load_id || load.loadId || load.id,
+        load: load.load_id || load.loadId || load.id,
         eta: load.delivery_date?.split('T')[0] || load.delivery?.split(' · ')[0] || 'TBD',
         fuelEstimate: load.fuel_estimate, tollEstimate: load.toll_estimate,
       }
     }
-    return { unit, driver: driverName, from: homecity, to: homecity, progress: 1, status: 'Available', color, load: '—', eta: 'Ready' }
-  }), [drivers, vehicles, loads])
+    return { ...base, from: homecity, to: homecity, progress: 1, status: 'Available', load: '—', eta: 'Ready' }
+  }), [drivers, vehicles, loads, livePositions])
+
+  // ── Load breadcrumb when truck selected ──
+  useEffect(() => {
+    const truck = trucksData.find(t => t.unit === selectedTruck)
+    if (!truck?.driverId) { setBreadcrumbs([]); return }
+    db.fetchDriverBreadcrumb(truck.driverId, 50).then(rows => {
+      setBreadcrumbs(rows.map(r => ({ lat: Number(r.lat), lng: Number(r.lng) })))
+    })
+  }, [selectedTruck, trucksData])
+
+  const liveTrucks = trucksData.filter(t => t.liveLat != null && t.liveLng != null)
 
   useEffect(() => {
     if (!selectedTruck && trucksData.length) setSelectedTruck(trucksData[0].unit)
   }, [trucksData])
 
-  // Build Google Maps embed URL — show selected truck's route or US overview
-  const mapUrl = useMemo(() => {
-    if (!mapsKey) return ''
-    const selTruck = trucksData.find(t => t.unit === selectedTruck)
-    if (selTruck && selTruck.load !== '—' && selTruck.from !== selTruck.to) {
-      return `https://www.google.com/maps/embed/v1/directions?key=${mapsKey}&origin=${encodeURIComponent(selTruck.from)}&destination=${encodeURIComponent(selTruck.to)}&mode=driving`
-    }
-    const activeTruck = trucksData.find(t => t.load !== '—' && t.from !== t.to)
-    if (activeTruck) {
-      return `https://www.google.com/maps/embed/v1/directions?key=${mapsKey}&origin=${encodeURIComponent(activeTruck.from)}&destination=${encodeURIComponent(activeTruck.to)}&mode=driving`
-    }
-    return `https://www.google.com/maps/embed/v1/view?key=${mapsKey}&center=39.8283,-98.5795&zoom=4&maptype=roadmap`
-  }, [mapsKey, selectedTruck, trucksData])
+  // Map center: selected truck's live position, else first live truck, else US center
+  const mapCenter = useMemo(() => {
+    const sel = trucksData.find(t => t.unit === selectedTruck)
+    if (sel?.liveLat != null) return { lat: sel.liveLat, lng: sel.liveLng }
+    if (liveTrucks[0]) return { lat: liveTrucks[0].liveLat, lng: liveTrucks[0].liveLng }
+    return { lat: 39.8283, lng: -98.5795 }
+  }, [selectedTruck, trucksData, liveTrucks])
+  const mapZoom = (selectedTruck && trucksData.find(t => t.unit === selectedTruck)?.liveLat != null) ? 8 : (liveTrucks.length ? 5 : 4)
 
   if (!drivers.length) {
     return (
@@ -107,13 +168,59 @@ export function FleetMapGoogle() {
       {/* Map area */}
       <div style={{ flex:1, position:'relative', background:'#0a0e1a', overflow:'hidden' }}>
         {mapsKey ? (
-          <iframe
-            width="100%" height="100%"
-            style={{ border:0, display:'block' }}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            src={mapUrl}
-          />
+          <APIProvider apiKey={mapsKey}>
+            <Map
+              mapId={mapId}
+              defaultCenter={mapCenter}
+              defaultZoom={mapZoom}
+              center={mapCenter}
+              zoom={mapZoom}
+              gestureHandling="greedy"
+              disableDefaultUI={false}
+              style={{ width: '100%', height: '100%' }}
+              colorScheme="DARK"
+            >
+              {/* Live truck pins */}
+              {liveTrucks.map(t => (
+                <AdvancedMarker
+                  key={t.driverId}
+                  position={{ lat: t.liveLat, lng: t.liveLng }}
+                  onClick={() => setSelectedTruck(t.unit)}
+                  title={`${t.driver} — ${t.status}`}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: t.color,
+                    border: selectedTruck === t.unit ? '3px solid #fff' : '2px solid rgba(0,0,0,0.5)',
+                    boxShadow: `0 0 0 4px ${t.color}33, 0 4px 12px rgba(0,0,0,0.5)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transform: t.liveHeading != null ? `rotate(${t.liveHeading}deg)` : 'none',
+                    transition: 'all 0.3s ease',
+                  }}>
+                    <Truck size={18} color="#fff" />
+                  </div>
+                </AdvancedMarker>
+              ))}
+
+              {/* Weigh station pins */}
+              {showWeighStations && WEIGH_STATIONS.map((ws, i) => (
+                <AdvancedMarker key={`ws-${i}`} position={{ lat: ws.lat, lng: ws.lng }} title={`${ws.name} (${ws.highway})`}>
+                  <div style={{
+                    width: 16, height: 16, borderRadius: 4,
+                    background: 'rgba(240,165,0,0.95)',
+                    border: '1px solid #000',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, fontWeight: 900, color: '#000',
+                  }}>W</div>
+                </AdvancedMarker>
+              ))}
+
+              {/* Breadcrumb polyline for selected truck */}
+              {selectedTruck && breadcrumbs.length > 1 && (
+                <BreadcrumbLine path={breadcrumbs} color={trucksData.find(t => t.unit === selectedTruck)?.color || '#f0a500'} />
+              )}
+            </Map>
+          </APIProvider>
         ) : (
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%' }}>
             <div style={{ textAlign:'center', color:'rgba(255,255,255,0.5)', fontSize:13 }}>
@@ -126,7 +233,7 @@ export function FleetMapGoogle() {
         <div style={{ position:'absolute', top:12, left:12, display:'flex', gap:8, zIndex:10 }}>
           <div style={{ background:'rgba(0,0,0,0.75)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'6px 12px', backdropFilter:'blur(8px)' }}>
             <span style={{ fontSize:10, color:'rgba(255,255,255,0.6)', fontFamily:'DM Sans,sans-serif', letterSpacing:2 }}>
-              ● LIVE FLEET — {trucksData.filter(t=>t.load!=='—').length} on load
+              ● LIVE FLEET — {liveTrucks.length} streaming · {trucksData.filter(t=>t.load!=='—').length} on load
             </span>
           </div>
           <button onClick={() => setShowWeighStations(s => !s)}
@@ -229,7 +336,68 @@ export function FleetMapGoogle() {
             </div>
           )
         })}
+
+        {/* Q ALERTS — live feed */}
+        <div style={{ padding:'14px 16px', borderTop:'1px solid var(--border)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+            <Bell size={12} color="var(--accent)" />
+            <span style={{ fontSize:11, fontWeight:800, color:'var(--accent)', letterSpacing:2 }}>Q ALERTS</span>
+            {alerts.length > 0 && <span style={{ fontSize:9, fontWeight:700, color:'var(--muted)' }}>· {alerts.length}</span>}
+          </div>
+          {alerts.length === 0 ? (
+            <div style={{ fontSize:11, color:'var(--muted)', padding:'8px 0' }}>No alerts yet — Q will notify you when trucks arrive, depart, or hit detention.</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {alerts.slice(0, 8).map(a => {
+                const sevColor = a.severity === 'success' ? 'var(--success)' : a.severity === 'warning' ? '#f59e0b' : a.severity === 'error' ? '#ef4444' : 'var(--accent)'
+                return (
+                  <div key={a.id} style={{ background:'var(--surface2)', borderRadius:8, padding:'8px 10px', borderLeft:`3px solid ${sevColor}` }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'var(--text)' }}>{a.title}</div>
+                    {a.message && <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{a.message}</div>}
+                    <div style={{ fontSize:9, color:'var(--muted)', marginTop:3 }}>{new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Q Live Negotiation — broker call cockpit */}
+        <div style={{ padding:'14px 16px', borderTop:'1px solid var(--border)' }}>
+          <QLiveNegotiation variant="panel" />
+        </div>
+
+        {/* Q Activity Feed — every decision Q makes */}
+        <div style={{ padding:'14px 16px', borderTop:'1px solid var(--border)' }}>
+          <QActivityFeed variant="panel" limit={20} />
+        </div>
       </div>
     </div>
   )
+}
+
+// ── Polyline helper for breadcrumb trail ──
+function BreadcrumbLine({ path, color = '#f0a500' }) {
+  const map = useMap()
+  const polylineRef = useRef(null)
+
+  useEffect(() => {
+    if (!map || !path?.length) return
+    if (polylineRef.current) polylineRef.current.setMap(null)
+    polylineRef.current = new google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: color,
+      strokeOpacity: 0.85,
+      strokeWeight: 4,
+      icons: [{
+        icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 3 },
+        offset: '100%',
+      }],
+    })
+    polylineRef.current.setMap(map)
+    return () => { polylineRef.current?.setMap(null) }
+  }, [map, path, color])
+
+  return null
 }

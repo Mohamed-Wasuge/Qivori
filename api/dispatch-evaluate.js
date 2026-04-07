@@ -544,6 +544,37 @@ async function storeDecision(ownerId, loadId, driverId, driverType, result, load
   } catch {
     // Fire-and-forget — don't block response
   }
+
+  // ── Q Activity Feed mirror — q_decisions table ──
+  try {
+    const origin = (loadData?.origin || '').split(',')[0]
+    const dest = (loadData?.destination || loadData?.dest || '').split(',')[0]
+    const broker = loadData?.broker_name || loadData?.broker || 'Broker'
+    const m = result.metrics || {}
+    let summary = `${broker} · ${origin} → ${dest}`
+    if (m.estProfit != null) summary += ` · $${Math.round(m.estProfit).toLocaleString()} profit`
+    const decType =
+      result.decision === 'accept' || result.decision === 'auto_book' ? 'load_scored' :
+      result.decision === 'negotiate' ? 'rate_negotiated' :
+      result.decision === 'reject' || result.decision === 'hold' ? 'load_passed' :
+      'load_scored'
+    await fetch(`${SUPABASE_URL}/rest/v1/q_decisions`, {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+      signal: AbortSignal.timeout(5000),
+      body: JSON.stringify({
+        owner_id: ownerId,
+        load_id: loadId || null,
+        driver_id: driverId || null,
+        type: decType,
+        decision: result.decision,
+        confidence: result.confidence || null,
+        summary,
+        reasoning: (result.reasons || []).slice(0, 4),
+        payload: { metrics: m, negotiation: result.negotiation || null },
+      }),
+    })
+  } catch {}
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────

@@ -175,6 +175,50 @@ export default async function handler(req) {
     }
 
     const data = await res.json()
+
+    // ── Insert retell_calls row so live negotiation screen can subscribe ──
+    if (SUPABASE_URL && data?.call_id) {
+      fetch(`${SUPABASE_URL}/rest/v1/retell_calls`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          owner_id: user.id,
+          retell_call_id: data.call_id,
+          load_id: body.loadId || null,
+          broker_name: brokerName || null,
+          broker_phone: toNumber,
+          rate: rate,
+          miles: miles,
+          target_rate: targetRate,
+          floor_rate: floorRate,
+          call_status: 'initiating',
+          call_type: 'broker_outbound',
+          created_at: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+    }
+
+    // ── Q activity feed: log broker call ──
+    if (SUPABASE_URL) {
+      fetch(`${SUPABASE_URL}/rest/v1/q_decisions`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          owner_id: user.id,
+          load_id: body.loadId || null,
+          type: 'broker_called',
+          decision: 'call',
+          confidence: 90,
+          summary: `Calling ${brokerName || 'broker'} — ${(body.originCity || '').trim()} → ${(body.destinationCity || '').trim()}`,
+          reasoning: [
+            `Rate $${rate.toLocaleString()}${miles ? ` · $${rpm}/mi` : ''}`,
+            verdict,
+          ],
+          payload: { call_id: data.call_id, rate, miles, target: targetRate, floor: floorRate },
+        }),
+      }).catch(() => {})
+    }
+
     return Response.json({
       call_id: data.call_id,
       status: 'calling',

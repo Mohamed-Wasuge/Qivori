@@ -26,10 +26,16 @@ export default async function handler(req) {
   const error = url.searchParams.get('error')
   const state = url.searchParams.get('state') // userId
 
+  // Loop guard: if neither a userId param NOR code/error/state, this is a bare
+  // hit (likely 123LB looped back via fragment). Don't restart the dance —
+  // bounce to settings with an error so the loop terminates.
+  const userIdParam = url.searchParams.get('userId')
+  if (!code && !error && !state && !userIdParam) {
+    return redirectToSettings('error=callback_loop_blocked')
+  }
+
   // If no code, generate the authorization URL
   if (!code && !error) {
-    // Check for userId in query (passed from settings page)
-    const userId = url.searchParams.get('userId')
     if (!CLIENT_ID) {
       return new Response('123Loadboard not configured', { status: 500 })
     }
@@ -38,8 +44,8 @@ export default async function handler(req) {
       response_type: 'code',
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
-      scope: 'loadsearching loadsearchingpreview loadratecheck',
-      state: userId || 'unknown',
+      scope: 'loadsearching',
+      state: userIdParam || 'unknown',
     }).toString()
 
     // 123LB's /authorize endpoint requires the 123LB-Api-Version header,

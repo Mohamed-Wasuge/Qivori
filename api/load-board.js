@@ -129,11 +129,19 @@ export default async function handler(req) {
       serviceUsername: process.env.LB123_SERVICE_USERNAME,
       servicePassword: process.env.LB123_SERVICE_PASSWORD,
     } : null)
+    let lb123Expired = false
     if (lb123Creds) {
+      // Tag OAuth creds with userId so token refresh can persist + expire in DB
+      if (userCreds['123loadboard']) lb123Creds.__userId = user.id
       const lb123Loads = await fetch123Loadboard(filters, lb123Creds)
       if (lb123Loads.length > 0) {
         loads.push(...lb123Loads)
         providers.push('123loadboard')
+      } else if (userCreds['123loadboard']) {
+        // Had OAuth creds but got nothing — likely expired/refresh-failed.
+        // get123Token will have marked the row as 'expired' in that case.
+        lb123Expired = true
+        userCaches.delete(user.id)
       }
     }
 
@@ -171,6 +179,10 @@ export default async function handler(req) {
       total: filtered.length,
       source: providers.length > 0 ? providers.join('+') : 'none',
       providers,
+      ...(lb123Expired && !providers.includes('123loadboard') ? {
+        message: '123Loadboard session expired. Go to Settings → Load Boards → 123Loadboard → Reconnect.',
+        needsReconnect: ['123loadboard'],
+      } : {}),
     }, { headers: { ...corsHeaders(req), 'Cache-Control': 'private, max-age=300' } })
   } catch (err) {
     // Try Supabase cache as fallback
@@ -314,6 +326,67 @@ function normalizeDATLoad(match) {
 let lb123Token = null
 let lb123TokenExpiry = 0
 
+// Persist refreshed OAuth tokens back to load_board_credentials so the next
+// Edge instance can use them without re-authorizing.
+async function save123LBRefreshedTokens(userId, tokens) {
+  try {
+    const { encrypt } = await import('./load-board-credentials.js')
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY
+    if (!supabaseUrl || !serviceKey) return
+    const { encrypted, iv } = await encrypt(JSON.stringify(tokens))
+    await fetch(
+      `${supabaseUrl}/rest/v1/load_board_credentials?user_id=eq.${userId}&provider=eq.123loadboard`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          encrypted_credentials: encrypted,
+          encryption_iv: iv,
+          status: 'connected',
+          last_tested: new Date().toISOString(),
+        }),
+      }
+    )
+  } catch (err) {
+    console.error(`save123LBRefreshedTokens failed: ${err.message}`)
+  }
+}
+
+// Mark OAuth row as errored so getUserCredentials() (which filters by
+// status=connected) skips it next time and the UI prompts reconnect.
+// DB CHECK constraint only allows: pending, connected, error — use 'error'.
+async function mark123LBExpired(userId) {
+  try {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY
+    if (!supabaseUrl || !serviceKey) return
+    await fetch(
+      `${supabaseUrl}/rest/v1/load_board_credentials?user_id=eq.${userId}&provider=eq.123loadboard`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          status: 'error',
+          last_tested: new Date().toISOString(),
+        }),
+      }
+    )
+  } catch (err) {
+    console.error(`mark123LBExpired failed: ${err.message}`)
+  }
+}
+
 async function get123Token(creds) {
   // Return cached token if still valid (with 60s buffer)
   if (lb123Token && Date.now() < lb123TokenExpiry - 60000) return lb123Token
@@ -325,10 +398,13 @@ async function get123Token(creds) {
     return lb123Token
   }
 
-  // If we have an OAuth access token from stored credentials, use it directly
+  // If we have an OAuth access token from stored credentials, use it directly.
+  // OAuth creds are a completely separate path from service-account creds —
+  // if the OAuth token fails, do NOT fall through to password/client_credentials
+  // grants (those require different creds the user never provided).
   if (creds.accessToken) {
-    // Check if token is still valid
-    if (creds.expiresAt && new Date(creds.expiresAt) > new Date()) {
+    // Check if token is still valid (60s buffer)
+    if (creds.expiresAt && new Date(creds.expiresAt).getTime() > Date.now() + 60000) {
       lb123Token = creds.accessToken
       lb123TokenExpiry = new Date(creds.expiresAt).getTime()
       return lb123Token
@@ -342,6 +418,7 @@ async function get123Token(creds) {
           headers: {
             'Authorization': `Basic ${basicAuth}`,
             '123LB-Api-Version': '1.3',
+            'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
@@ -353,13 +430,34 @@ async function get123Token(creds) {
           const data = await res.json()
           lb123Token = data.access_token
           lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
+          // Persist refreshed tokens so next request can use them
+          if (creds.__userId) {
+            await save123LBRefreshedTokens(creds.__userId, {
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token || creds.refreshToken,
+              expiresAt: new Date(lb123TokenExpiry).toISOString(),
+              clientId: creds.clientId,
+              clientSecret: creds.clientSecret,
+            })
+          }
           return lb123Token
+        } else {
+          const errText = await res.text().catch(() => '')
+          console.error(`123LB refresh failed: ${res.status} ${errText.slice(0, 200)}`)
         }
-      } catch {}
+      } catch (err) {
+        console.error(`123LB refresh threw: ${err.message}`)
+      }
     }
+    // OAuth token dead and refresh failed — mark the row as expired so
+    // getUserCredentials() skips it next time and the UI prompts reconnect.
+    if (creds.__userId) {
+      await mark123LBExpired(creds.__userId)
+    }
+    return null
   }
 
-  // Fallback: try client_credentials (may not work for all clients)
+  // Non-OAuth path: service-account creds from env vars (platform-level fallback)
   if (!creds.clientId || !creds.clientSecret) return null
   const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
 

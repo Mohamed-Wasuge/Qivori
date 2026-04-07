@@ -78,9 +78,11 @@ export default async function handler(req) {
   }
 
   try {
-    // Check per-user memory cache first
+    // Check per-user memory cache first — but ONLY use it if it has loads.
+    // Caching empty results would lock users out for 15 minutes after a
+    // transient credential failure (e.g. expired OAuth token).
     const userCache = userCaches.get(user.id)
-    if (userCache && Date.now() - userCache.time < CACHE_TTL) {
+    if (userCache && userCache.loads.length > 0 && Date.now() - userCache.time < CACHE_TTL) {
       const filtered = applyFilters(userCache.loads, filters)
       return Response.json({
         loads: filtered,
@@ -162,8 +164,12 @@ export default async function handler(req) {
     loads = loads.map(l => ({ ...l, aiScore: scoreLoad(l) }))
     loads.sort((a, b) => b.aiScore - a.aiScore)
 
-    // Per-user cache
-    userCaches.set(user.id, { loads, providers, time: Date.now() })
+    // Per-user cache — only cache non-empty results
+    if (loads.length > 0) {
+      userCaches.set(user.id, { loads, providers, time: Date.now() })
+    } else {
+      userCaches.delete(user.id)
+    }
     // Evict old caches (keep max 50 users)
     if (userCaches.size > 50) {
       const oldest = [...userCaches.entries()].sort((a, b) => a[1].time - b[1].time)[0]

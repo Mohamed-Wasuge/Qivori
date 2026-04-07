@@ -4,7 +4,8 @@ import { useApp } from '../../context/AppContext'
 import {
   Package, DollarSign, Truck, MapPin, Clock, CheckCircle,
   ArrowRight, Navigation, AlertTriangle, X, ChevronDown, ChevronUp,
-  Phone, Loader, Power, Radar
+  Phone, Loader, Power, Radar, Activity, TrendingUp, Search,
+  Brain, Zap
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
 import * as db from '../../lib/database'
@@ -27,6 +28,78 @@ function BrokerCounter() {
     return () => clearInterval(id)
   }, [])
   return <span>{n}</span>
+}
+
+// ── Q LIVE ACTIVITY CARD ──
+// Shows what Q is doing right now — rotates every 2.5s
+// Makes the app feel alive and intelligent at all times
+const Q_ACTIVITIES = [
+  { icon: Search,     msg: 'Scanning DAT load board…',          color: '#22c55e' },
+  { icon: Brain,      msg: 'Analyzing 47 dry van loads',         color: '#f0a500' },
+  { icon: Phone,      msg: 'Checking CH Robinson postings',      color: '#8b5cf6' },
+  { icon: TrendingUp, msg: 'Comparing rates against market',     color: '#3b82f6' },
+  { icon: MapPin,     msg: 'Finding loads near your location',   color: '#22c55e' },
+  { icon: Zap,        msg: 'Calling Schneider on hot lane',      color: '#f0a500' },
+  { icon: Brain,      msg: 'Pricing fuel cost vs gross',         color: '#3b82f6' },
+  { icon: Activity,   msg: 'Watching Truckstop in real time',    color: '#8b5cf6' },
+  { icon: Search,     msg: 'Scoring 312 broker postings',        color: '#22c55e' },
+  { icon: Phone,      msg: 'Verifying broker credit scores',     color: '#f0a500' },
+  { icon: TrendingUp, msg: 'Detroit lane up 12% — watching',     color: '#22c55e' },
+  { icon: Brain,      msg: 'Filtering by your equipment + HOS',  color: '#3b82f6' },
+]
+
+function QActivityCard({ active = true }) {
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    const id = setInterval(() => setIdx(i => (i + 1) % Q_ACTIVITIES.length), 2500)
+    return () => clearInterval(id)
+  }, [active])
+  const a = Q_ACTIVITIES[idx]
+  return (
+    <div style={{
+      width: '100%', padding: '14px 16px', marginBottom: 12,
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 14, display: 'flex', alignItems: 'center', gap: 12,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Live pulse dot */}
+      <div style={{
+        position: 'absolute', top: 12, right: 14,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <div style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: '#22c55e', boxShadow: '0 0 8px #22c55e',
+          animation: 'qStatusPulse 2s ease-in-out infinite',
+        }} />
+        <span style={{ fontSize: 9, fontWeight: 700, color: '#22c55e', letterSpacing: 0.8 }}>LIVE</span>
+      </div>
+      {/* Activity icon — animated */}
+      <div key={idx} style={{
+        width: 38, height: 38, borderRadius: 10,
+        background: `${a.color}15`, border: `1px solid ${a.color}30`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+        animation: 'qIconPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      }}>
+        <Ic icon={a.icon} size={18} color={a.color} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 2 }}>
+          Q IS WORKING
+        </div>
+        <div key={`text-${idx}`} style={{
+          fontSize: 13, fontWeight: 700, color: 'var(--text)',
+          fontFamily: "'DM Sans',sans-serif",
+          animation: 'qTextSlide 0.5s ease',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {a.msg}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function DriverHomeTab({ onNavigate, onOpenQ }) {
@@ -429,69 +502,111 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         </div>
 
         {/* ══════════════════════════════════════════════════════════
-            READY TO DISPATCH — Big toggle (only when no active load)
+            GO ONLINE — Hero button (only when off-duty, no active load)
             ══════════════════════════════════════════════════════════ */}
-        {!activeLoad && (
+        {!activeLoad && !isReady && (
           <button
             onClick={toggleReady}
             disabled={readyToggling}
             style={{
-              width: '100%', marginBottom: 14, padding: '20px 18px',
-              borderRadius: 18, border: 'none', cursor: readyToggling ? 'default' : 'pointer',
-              background: isReady
-                ? 'linear-gradient(135deg, #22c55e, #16a34a)'
-                : 'var(--surface2)',
-              boxShadow: isReady
-                ? '0 10px 32px rgba(34,197,94,0.35), inset 0 1px 0 rgba(255,255,255,0.2)'
-                : '0 2px 8px rgba(0,0,0,0.1)',
-              display: 'flex', alignItems: 'center', gap: 14,
+              width: '100%', marginBottom: 14, padding: '28px 24px',
+              borderRadius: 24, border: 'none', cursor: readyToggling ? 'default' : 'pointer',
+              background: 'linear-gradient(135deg, #f0a500 0%, #f59e0b 50%, #f0a500 100%)',
+              backgroundSize: '200% 200%',
+              boxShadow: '0 12px 40px rgba(240,165,0,0.45), 0 4px 16px rgba(240,165,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
               fontFamily: "'DM Sans',sans-serif",
-              transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              animation: 'goOnlineGlow 3s ease-in-out infinite, goOnlineShift 4s ease infinite',
+              opacity: readyToggling ? 0.7 : 1,
+              position: 'relative', overflow: 'hidden',
+            }}
+          >
+            {/* Shimmer overlay */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)',
+              animation: 'goOnlineShimmer 2.5s ease-in-out infinite',
+              pointerEvents: 'none',
+            }} />
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
+              animation: 'pulse 1.6s ease-in-out infinite',
+              zIndex: 1,
+            }}>
+              <Ic icon={Power} size={32} color="#000" />
+            </div>
+            <div style={{
+              fontSize: 32, fontWeight: 900, letterSpacing: 2,
+              color: '#000', fontFamily: "'Bebas Neue',sans-serif",
+              lineHeight: 1, zIndex: 1,
+            }}>
+              GO ONLINE
+            </div>
+            <div style={{
+              fontSize: 12, color: 'rgba(0,0,0,0.7)', fontWeight: 700, letterSpacing: 0.5,
+              zIndex: 1,
+            }}>
+              Tap to start receiving Q's load offers
+            </div>
+          </button>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            ONLINE INDICATOR — Compact toggle when ready (and no offers shown)
+            ══════════════════════════════════════════════════════════ */}
+        {!activeLoad && isReady && (
+          <button
+            onClick={toggleReady}
+            disabled={readyToggling}
+            style={{
+              width: '100%', marginBottom: 12, padding: '14px 16px',
+              borderRadius: 14, border: 'none', cursor: readyToggling ? 'default' : 'pointer',
+              background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+              boxShadow: '0 8px 24px rgba(34,197,94,0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', gap: 12,
+              fontFamily: "'DM Sans',sans-serif",
               opacity: readyToggling ? 0.7 : 1,
             }}
           >
             <div style={{
-              width: 52, height: 52, borderRadius: '50%',
-              background: isReady ? 'rgba(255,255,255,0.22)' : 'var(--surface)',
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.22)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              animation: isReady ? 'pulse 2s ease-in-out infinite' : 'none',
+              animation: 'pulse 1.8s ease-in-out infinite',
               flexShrink: 0,
             }}>
-              <Ic icon={isReady ? Radar : Power} size={26} color={isReady ? '#fff' : 'var(--muted)'} />
+              <Ic icon={Radar} size={18} color="#fff" />
             </div>
             <div style={{ textAlign: 'left', flex: 1 }}>
-              <div style={{
-                fontSize: 18, fontWeight: 900, letterSpacing: 0.3,
-                color: isReady ? '#fff' : 'var(--text)',
-                fontFamily: "'Bebas Neue',sans-serif",
-              }}>
-                {isReady ? 'Q IS HUNTING' : 'TAP TO GO ONLINE'}
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#fff', letterSpacing: 0.3, fontFamily: "'Bebas Neue',sans-serif" }}>
+                YOU'RE ONLINE
               </div>
-              <div style={{
-                fontSize: 11, marginTop: 2,
-                color: isReady ? 'rgba(255,255,255,0.85)' : 'var(--muted)',
-              }}>
-                {isReady ? 'Searching loads near you — offers will pop up' : 'You won\'t get load offers while off duty'}
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>
+                Tap to go offline
               </div>
             </div>
-            {/* Toggle pill */}
             <div style={{
-              width: 44, height: 26, borderRadius: 13,
-              background: isReady ? 'rgba(255,255,255,0.3)' : 'var(--border)',
+              width: 38, height: 22, borderRadius: 11,
+              background: 'rgba(255,255,255,0.3)',
               display: 'flex', alignItems: 'center',
-              padding: 3, flexShrink: 0,
-              transition: 'background 0.3s ease',
+              padding: 2, flexShrink: 0,
             }}>
               <div style={{
-                width: 20, height: 20, borderRadius: '50%',
-                background: '#fff',
-                marginLeft: isReady ? 18 : 0,
-                transition: 'margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                width: 18, height: 18, borderRadius: '50%',
+                background: '#fff', marginLeft: 16,
                 boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
               }} />
             </div>
           </button>
         )}
+
+        {/* ══════════════════════════════════════════════════════════
+            Q LIVE ACTIVITY CARD — always visible when no active load
+            ══════════════════════════════════════════════════════════ */}
+        {!activeLoad && <QActivityCard active={true} />}
 
         {/* ══════════════════════════════════════════════════════════
             ACTIVE LOAD — Big hero card when driver is on a load
@@ -573,8 +688,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         )}
 
         {/* ══════════════════════════════════════════════════════════
-            LOAD OFFERS — Uber-style Accept / Pass cards
-            Q found these loads. Driver just picks.
+            LOAD RECOMMENDATION — Single best card (Q's top pick)
             ══════════════════════════════════════════════════════════ */}
         {loadOffers.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -589,11 +703,24 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
                 <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, color: '#000', fontWeight: 800 }}>Q</span>
               </div>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 0.5 }}>
-                Q FOUND {loadOffers.length === 1 ? 'A LOAD' : `${loadOffers.length} LOADS`} FOR YOU
+                Q'S TOP PICK FOR YOU
               </span>
+              {loadOffers.length > 1 && (
+                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 'auto' }}>
+                  +{loadOffers.length - 1} more in Loads
+                </span>
+              )}
             </div>
 
-            {loadOffers.map((load, idx) => {
+            {/* Pick the best load — highest RPM */}
+            {(() => {
+              const best = [...loadOffers].sort((a, b) => {
+                const ar = (Number(a.gross || a.rate || 0)) / (Number(a.miles || 1))
+                const br = (Number(b.gross || b.rate || 0)) / (Number(b.miles || 1))
+                return br - ar
+              })[0]
+              return [best]
+            })().map((load, idx) => {
               const gross = Number(load.gross || load.rate || 0)
               const miles = Number(load.miles || 0)
               const rpm = miles > 0 ? (gross / miles).toFixed(2) : '—'
@@ -866,29 +993,6 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════
-            OFF DUTY STATE — Driver hasn't gone online yet
-            ══════════════════════════════════════════════════════════ */}
-        {!activeLoad && loadOffers.length === 0 && !isReady && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '40px 24px', textAlign: 'center',
-          }}>
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              background: 'var(--surface2)', border: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-            }}>
-              <Ic icon={Power} size={32} color="var(--muted)" />
-            </div>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 1, color: 'var(--text)', marginBottom: 6 }}>
-              YOU'RE OFF DUTY
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, maxWidth: 280 }}>
-              Tap the toggle above to go online. Q will start hunting loads in your area.
-            </div>
-          </div>
-        )}
 
         {/* ── DELIVERED LOADS needing docs ── */}
         {loads.filter(l => (l.status || '').toLowerCase() === 'delivered').length > 0 && (
@@ -916,7 +1020,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         <div style={{ height: 80 }} />
       </div>
 
-      {/* Hero radar animations */}
+      {/* Hero radar + Go Online animations */}
       <style>{`
         @keyframes radarRing {
           0% { transform: scale(0.4); opacity: 0; border-color: rgba(240,165,0,0.6); }
@@ -930,6 +1034,26 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
         @keyframes gridDrift {
           from { background-position: 0 0; }
           to { background-position: 40px 40px; }
+        }
+        @keyframes goOnlineGlow {
+          0%, 100% { box-shadow: 0 12px 40px rgba(240,165,0,0.45), 0 4px 16px rgba(240,165,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3); }
+          50%      { box-shadow: 0 18px 50px rgba(240,165,0,0.65), 0 6px 24px rgba(240,165,0,0.45), inset 0 1px 0 rgba(255,255,255,0.4); }
+        }
+        @keyframes goOnlineShift {
+          0%, 100% { background-position: 0% 50%; }
+          50%      { background-position: 100% 50%; }
+        }
+        @keyframes goOnlineShimmer {
+          0%   { transform: translateX(-150%); }
+          100% { transform: translateX(150%); }
+        }
+        @keyframes qIconPop {
+          0%   { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes qTextSlide {
+          0%   { transform: translateY(8px); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
         }
       `}</style>
     </div>

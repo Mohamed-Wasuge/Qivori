@@ -9,6 +9,7 @@ import * as db from '../../lib/database'
 import { apiFetch } from '../../lib/api'
 
 // Lazy-load all tabs — only loads the tab JS when first rendered
+const LoadOfferPopup = lazy(() => import('./LoadOfferPopup'))
 const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
 const MobileLoadsTab = lazy(() => import('./MobileLoadsTab'))
 const MobileMoneyTab = lazy(() => import('./MobileMoneyTab'))
@@ -56,90 +57,102 @@ export default function MobileShell() {
   const [showDVIR, setShowDVIR] = useState(false)
   const [dvirLoad, setDvirLoad] = useState(null)
 
-  // ── UBER POPUP: load offer overlay ──
+  // ── UBER POPUP: single source of truth ──
   const [popupLoad, setPopupLoad] = useState(null)
-  const [popupDismissed, setPopupDismissed] = useState({})
-  const [popupCallState, setPopupCallState] = useState(null) // null | 'calling' | 'done' | 'failed'
+  // Use ref for dismissed set to avoid re-render loops in the offer-detection effect
+  const dismissedRef = useRef(new Set())
 
-  // ── Web Audio sound effects (Uber-style) ──
+  // ── Web Audio sound effects (refs to avoid re-render loops) ──
   const audioCtxRef = useRef(null)
-  const getAudioCtx = useCallback(() => {
+
+  const getAudioCtx = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)() } catch {}
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume().catch(() => {})
     return audioCtxRef.current
-  }, [])
+  }
 
-  const playTone = useCallback((freq, duration = 0.15, type = 'sine', volume = 0.3, delay = 0) => {
-    const ctx = getAudioCtx()
-    if (!ctx) return
-    const t0 = ctx.currentTime + delay
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
+  const playTone = (freq, duration = 0.15, type = 'sine', volume = 0.5, delay = 0) => {
+    const audio = getAudioCtx()
+    if (!audio) return
+    const t0 = audio.currentTime + delay
+    const osc = audio.createOscillator()
+    const gain = audio.createGain()
     osc.type = type
     osc.frequency.setValueAtTime(freq, t0)
     gain.gain.setValueAtTime(0, t0)
-    gain.gain.linearRampToValueAtTime(volume, t0 + 0.01)
+    gain.gain.linearRampToValueAtTime(volume, t0 + 0.015)
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration)
-    osc.connect(gain).connect(ctx.destination)
+    osc.connect(gain).connect(audio.destination)
     osc.start(t0)
     osc.stop(t0 + duration + 0.05)
-  }, [getAudioCtx])
+  }
 
-  // Notification ding — new load (rising 3-tone like Uber)
-  const playNewLoadSound = useCallback(() => {
-    playTone(880, 0.12, 'sine', 0.35, 0)
-    playTone(1175, 0.12, 'sine', 0.35, 0.1)
-    playTone(1568, 0.18, 'sine', 0.35, 0.2)
-  }, [playTone])
+  // New load — bright rising 3-tone (Uber-style ride request)
+  const playNewLoadSound = () => {
+    playTone(880, 0.13, 'sine', 0.55, 0)
+    playTone(1318, 0.13, 'sine', 0.55, 0.11)
+    playTone(1760, 0.22, 'sine', 0.55, 0.22)
+  }
+  // Accept — major chord burst
+  const playAcceptSound = () => {
+    playTone(1046, 0.1, 'triangle', 0.5, 0)
+    playTone(1318, 0.14, 'triangle', 0.5, 0.06)
+    playTone(1568, 0.2, 'triangle', 0.5, 0.12)
+  }
+  // Pass — soft minor descent
+  const playPassSound = () => {
+    playTone(523, 0.1, 'sine', 0.3, 0)
+    playTone(392, 0.14, 'sine', 0.3, 0.08)
+  }
 
-  // Accept — bright success chime
-  const playAcceptSound = useCallback(() => {
-    playTone(1046, 0.1, 'sine', 0.3, 0)
-    playTone(1568, 0.18, 'sine', 0.3, 0.08)
-  }, [playTone])
-
-  // Pass — soft low dismiss
-  const playPassSound = useCallback(() => {
-    playTone(440, 0.1, 'sine', 0.2, 0)
-    playTone(330, 0.15, 'sine', 0.2, 0.08)
-  }, [playTone])
-
-  const allLoads = ctx.loads || ctx.allLoads || []
-  const loadOffers = useMemo(() => {
-    return allLoads.filter(l => {
-      const s = (l.status || '').toLowerCase()
-      return s === 'assigned to driver' || s === 'dispatched' || s === 'booked'
-    })
-  }, [allLoads])
-
-  // Pop first unseen offer
+  // Detect first unseen offer — uses ref for dismissed set, no re-render loops
+  // Effect only depends on the loads array reference
+  const ctxLoads = ctx.loads
   useEffect(() => {
     if (popupLoad) return
-    const unseen = loadOffers.find(l => {
+    if (!ctxLoads || ctxLoads.length === 0) return
+    const unseen = ctxLoads.find(l => {
+      const s = (l.status || '').toLowerCase()
+      if (s !== 'assigned to driver' && s !== 'dispatched' && s !== 'booked') return false
       const lid = l.id || l.load_id || l.loadId
-      return !popupDismissed[lid]
+      return !dismissedRef.current.has(lid)
     })
     if (unseen) {
       setPopupLoad(unseen)
-      setPopupCallState(null)
       haptic('success')
       playNewLoadSound()
     }
-  }, [loadOffers, popupDismissed, popupLoad, playNewLoadSound])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctxLoads, popupLoad])
 
-  const popupAccept = useCallback(async (load) => {
+  // ── ACCEPT: optimistic, non-blocking, instant feedback ──
+  const popupAccept = useCallback((load) => {
+    if (!load) return
+    const lid = load.id || load.load_id || load.loadId
     haptic('success')
     playAcceptSound()
-    const lid = load.id || load.load_id || load.loadId
-    const brokerPhone = load.broker_phone || load.brokerPhone || ''
 
-    ctx.updateLoadStatus?.(lid, 'Driver Accepted')
+    // Mark dismissed IMMEDIATELY so it won't re-pop
+    dismissedRef.current.add(lid)
 
-    if (brokerPhone) {
-      setPopupCallState('calling')
+    // Card animation handles its own dismissal — clear popup after 1100ms
+    setTimeout(() => setPopupLoad(null), 1100)
+
+    // ── Background work — never blocks UI ──
+    ;(async () => {
       try {
+        // Optimistic status update
+        ctx.updateLoadStatus?.(lid, 'Driver Accepted')
+
+        const brokerPhone = load.broker_phone || load.brokerPhone || ''
+        if (!brokerPhone) {
+          ctx.updateLoadStatus?.(lid, 'En Route to Pickup')
+          showToast?.('info', 'Accepted', 'No broker phone on file')
+          return
+        }
+
         const res = await apiFetch('/api/retell-broker-call', {
           method: 'POST',
           body: JSON.stringify({
@@ -155,34 +168,27 @@ export default function MobileShell() {
             driverName: profile?.full_name || 'Driver',
           }),
         })
-        if (res.call_id) {
-          setPopupCallState('done')
-          showToast?.('success', 'Q Calling', 'Q is calling the broker now')
-          setTimeout(() => { setPopupLoad(null); setPopupDismissed(p => ({ ...p, [lid]: true })); setPopupCallState(null) }, 3000)
+        const data = res?.json ? await res.json() : res
+        if (data?.call_id) {
+          showToast?.('success', 'Q is calling broker', `${load.broker_name || 'Broker'} — negotiating now`)
         } else {
-          setPopupCallState('failed')
+          showToast?.('error', 'Call failed', data?.error || 'Try again from Loads')
         }
-      } catch {
-        setPopupCallState('failed')
-        showToast?.('error', 'Call Failed', 'Could not reach broker')
+      } catch (err) {
+        showToast?.('error', 'Call failed', err?.message || 'Try again from Loads')
       }
-    } else {
-      ctx.updateLoadStatus?.(lid, 'En Route to Pickup')
-      showToast?.('info', 'Accepted', 'No broker phone on file')
-      setPopupLoad(null)
-      setPopupDismissed(p => ({ ...p, [lid]: true }))
-    }
-  }, [ctx, profile, showToast, playAcceptSound])
+    })()
+  }, [ctx, profile, showToast])
 
+  // ── PASS: instant local dismiss, no DB write ──
   const popupPass = useCallback((load) => {
+    if (!load) return
+    const lid = load.id || load.load_id || load.loadId
     haptic()
     playPassSound()
-    const lid = load.id || load.load_id || load.loadId
-    ctx.updateLoadStatus?.(lid, 'Available')
-    setPopupLoad(null)
-    setPopupDismissed(p => ({ ...p, [lid]: true }))
-    setPopupCallState(null)
-  }, [ctx, playPassSound])
+    dismissedRef.current.add(lid)
+    setTimeout(() => setPopupLoad(null), 350)
+  }, [])
 
   // ── Q AUTONOMOUS LOCATION ENGINE ──
   const qLocation = useQLocation({
@@ -471,129 +477,12 @@ export default function MobileShell() {
         </button>
       </div>
 
-      {/* ═══ UBER POPUP — fullscreen load offer ═══ */}
-      {popupLoad && (() => {
-        const pu = popupLoad
-        const gross = Number(pu.gross || pu.rate || 0)
-        const miles = Number(pu.miles || 0)
-        const rpm = miles > 0 ? (gross / miles).toFixed(2) : '—'
-        const origin = (pu.origin || '?').split(',')[0]
-        const dest = (pu.destination || pu.dest || '?').split(',')[0]
-        return (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(16px)',
-            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-            animation: 'fadeIn 0.2s ease',
-          }}>
-            {/* Top — Q badge */}
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0,
-              padding: '24px 20px', display: 'flex', alignItems: 'center', gap: 12,
-              paddingTop: 'calc(env(safe-area-inset-top, 0px) + 24px)',
-            }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #f0a500, #f59e0b)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 30px rgba(240,165,0,0.5)',
-                animation: 'pulse 2s infinite',
-              }}>
-                <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, color: '#000', fontWeight: 800 }}>Q</span>
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>Q found you a load</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-                  {pu.broker_name || 'Broker'} • {pu.equipment || 'Dry Van'}
-                </div>
-              </div>
-            </div>
-
-            {/* Card — slides up from bottom */}
-            <div style={{
-              background: 'var(--bg)', borderRadius: '28px 28px 0 0',
-              padding: '32px 24px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)',
-              animation: 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}>
-              {/* Route */}
-              <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--text)', lineHeight: 1.1 }}>{origin}</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '10px 0', color: 'var(--muted)' }}>
-                  <div style={{ width: 50, height: 1, background: 'var(--border)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1 }}>{miles} MI</span>
-                  <div style={{ width: 50, height: 1, background: 'var(--border)' }} />
-                </div>
-                <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--text)', lineHeight: 1.1 }}>{dest}</div>
-              </div>
-
-              {/* Numbers row */}
-              <div style={{
-                display: 'flex', justifyContent: 'space-around', marginBottom: 24,
-                padding: '18px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>RATE</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(gross)}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>RPM</div>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>${rpm}</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', letterSpacing: 1, marginBottom: 4 }}>PICKUP</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--success)' }}>{pu.pickup_date || 'ASAP'}</div>
-                </div>
-              </div>
-
-              {/* Calling state */}
-              {(popupCallState === 'calling' || popupCallState === 'done') ? (
-                <div style={{
-                  padding: '20px', borderRadius: 16,
-                  background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(240,165,0,0.03))',
-                  border: '2px solid rgba(240,165,0,0.3)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
-                }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #f0a500, #f59e0b)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    animation: 'pulse 1.5s infinite',
-                  }}>
-                    <Ic icon={Phone} size={18} color="#000" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)' }}>Q is calling the broker</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>Negotiating your rate now...</div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 14 }}>
-                  <button onClick={() => popupPass(pu)} style={{
-                    flex: 1, padding: '20px', background: 'none',
-                    border: '2px solid var(--border)', borderRadius: 18, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    fontFamily: "'DM Sans',sans-serif",
-                  }}>
-                    <Ic icon={X} size={22} color="var(--muted)" />
-                    <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--muted)' }}>Pass</span>
-                  </button>
-                  <button onClick={() => popupAccept(pu)} style={{
-                    flex: 2, padding: '20px',
-                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                    border: 'none', borderRadius: 18, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    fontFamily: "'DM Sans',sans-serif",
-                    boxShadow: '0 8px 32px rgba(34,197,94,0.4)',
-                  }}>
-                    <Ic icon={CheckCircle} size={24} color="#fff" />
-                    <span style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Accept</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })()}
+      {/* ═══ UBER POPUP — fullscreen load offer (memoized component) ═══ */}
+      {popupLoad && (
+        <Suspense fallback={null}>
+          <LoadOfferPopup load={popupLoad} onAccept={popupAccept} onPass={popupPass} />
+        </Suspense>
+      )}
 
       {/* ── TAB CONTENT ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

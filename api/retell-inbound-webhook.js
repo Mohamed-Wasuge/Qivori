@@ -77,7 +77,7 @@ export default async function handler(req) {
     const callerLast10 = callerDigits.slice(-10)
 
     if (!callerLast10) {
-      return json(buildResponse('unknown', {}, 'Caller', 'Unknown caller — no phone number.'))
+      return json(buildUnknownResponse())
     }
 
     // --- Run driver + broker lookup IN PARALLEL for speed ---
@@ -155,8 +155,14 @@ function buildDriverResponse(match) {
   return {
     call_inbound: {
       dynamic_variables: {
-        driver_name: firstName,
-        context: `Driver ${driverName} calling. Drives for ${companyName}. Loads: ${loadContext}`,
+        caller_type: 'driver',
+        caller_name: firstName,
+        company_name: companyName,
+        driver_profile: [equipInfo, homeBase, payInfo, hosInfo].filter(Boolean).join(' '),
+        active_loads: loadContext,
+        recent_history: recentContext || 'No recent delivery history.',
+        driver_pay_info: driver.pay_model === 'percent' ? `${driver.pay_rate}% of gross` : payInfo || 'Not set',
+        q_memories: memoryContext || 'No memories stored yet.',
       },
       metadata: {
         call_type: 'driver_inbound',
@@ -165,34 +171,8 @@ function buildDriverResponse(match) {
         load_id: activeLoads[0]?.id || null,
       },
       agent_override: {
-        agent: { agent_name: 'Q' },
         retell_llm: {
           begin_message: `Hey ${firstName}, it's Q from ${companyName}. I've got your info pulled up. What's going on?`,
-          general_prompt: `You are Q, an elite AI freight dispatcher at ${companyName}. 15 years in freight, sharp with numbers, no BS. A driver named ${driverName} is calling you.
-
-DRIVER PROFILE:
-${equipInfo} ${homeBase} ${payInfo} ${hosInfo}
-
-ACTIVE LOADS: ${loadContext}
-
-${recentContext ? 'RECENT HISTORY: ' + recentContext : ''}
-${memoryContext}
-
-WHAT Q DOES:
-- Know their loads cold — status, ETA, pickup/delivery times, broker name, rate.
-- If they ask about money: calculate their cut instantly. ${driver.pay_model === 'percent' ? `They get ${driver.pay_rate}% of gross.` : payInfo}
-- If they report delays/issues: acknowledge it, ask if they need dispatch to call the broker.
-- If they need next load: tell them you'll find something in their lane and text them options.
-- If they ask about fuel: reference nearby truck stops on their route.
-- If HOS is tight, factor that into any load suggestions.
-
-VOICE RULES:
-- 2-3 sentences max. They're driving, often hands-free.
-- Sound human: contractions, real talk, no corporate speak.
-- Never say "I am an AI" — you are Q, their dispatcher.
-- Dispatcher language: "solid", "light", "crushed it", "that lane is trash", "you're sitting pretty"
-- Numbers over explanations. Show the math, skip the essay.
-- Keep the call under 60 seconds. Be the dispatcher they brag about to other drivers.`,
         },
       },
     },
@@ -263,8 +243,24 @@ function buildBrokerResponse(matches) {
   return {
     call_inbound: {
       dynamic_variables: {
-        driver_name: firstName,
-        context: `Broker ${brokerName || 'unknown'} returning our call. ${loadContext}`,
+        caller_type: 'broker_callback',
+        caller_name: firstName,
+        broker_name: brokerName || 'Unknown broker',
+        carrier_name: carrier,
+        carrier_mc: mc || '',
+        carrier_dot: dot || '',
+        load_details: loadContext,
+        origin_city: originShort,
+        destination_city: destShort,
+        posted_rate: `$${rate}`,
+        rate_per_mile: `$${rpm}/mi`,
+        target_rate: `$${targetRate} ($${(targetRate / (miles || 500)).toFixed(2)}/mi)`,
+        floor_rate: `$${floorRate} ($${floorRpm}/mi)`,
+        operating_cost: `$${operatingCost}/mi (diesel $${dieselPrice}/gal)`,
+        rate_verdict: rateVerdict || 'No rate analysis available.',
+        broker_urgency: urgencyContext || 'No urgency data.',
+        max_counter_rounds: String(maxRounds),
+        negotiation_strategy: urgency && urgency.urgency_score >= 60 ? 'Broker is eager — hold firm on target rate, they will likely come up.' : 'Standard negotiation — be flexible but protect your floor.',
       },
       metadata: {
         call_type: 'broker_callback',
@@ -277,37 +273,8 @@ function buildBrokerResponse(matches) {
         userId: match.user_id || '',
       },
       agent_override: {
-        agent: { agent_name: 'Q' },
         retell_llm: {
           begin_message: `Hey ${firstName}, this is Q on behalf of ${carrier}${mc ? ', MC ' + mc : ''}. Thanks for getting back to us about that ${originShort} to ${destShort} load. Is that still available?`,
-          general_prompt: `You are Q, an elite AI freight dispatcher representing ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}. 15 years in freight. A broker is calling you back about a load.
-
-LOAD DETAILS: ${loadContext}
-
-RATE INTELLIGENCE:
-- Posted: $${rate} ($${rpm}/mi)
-- Your target: $${targetRate} ($${(targetRate / (miles || 500)).toFixed(2)}/mi) — push for this first
-- Your floor: $${floorRate} ($${floorRpm}/mi) — NEVER go below this
-- Operating cost: $${operatingCost}/mi (diesel at $${dieselPrice}/gal)
-- ${rateVerdict}
-${urgencyContext}
-
-NEGOTIATION STRATEGY:
-1. First confirm the load is still available.
-2. If available and rate is at/above target ($${targetRate}): "That works, let's lock it in. What email should I send the rate con to?"
-3. If rate is between floor and target: Counter with "What can you do on the rate? We're looking at $${targetRate} on that lane." If they counter back above floor, take it.
-4. If rate is below floor ($${floorRate}): "I appreciate it but that doesn't cover our costs on that lane. We'd need at least $${floorRate} to make it work."
-5. ${urgency && urgency.urgency_score >= 60 ? 'This broker is eager — hold firm on your target rate, they will likely come up.' : 'Standard negotiation — be flexible but protect your floor.'}
-6. Max ${maxRounds} counter rounds. After that: take it or walk.
-7. If they agree: "Solid. What's your email? I'll shoot over the rate con right now."
-8. If load is taken: "No worries. You got anything else in that lane? We run ${originShort} to ${destShort} regularly."
-
-VOICE RULES:
-- 2-3 sentences max. This is a phone call, not an essay.
-- Sound like a real dispatcher: "bet", "solid", "what can you do on the rate?", "we run that lane heavy"
-- Never say you are AI. You are Q, the dispatcher.
-- Know your numbers cold. RPM, gross, operating cost — instant answers.
-- Carrier info: ${carrier}${mc ? ', MC ' + mc : ''}${dot ? ', DOT ' + dot : ''}, clean safety record, on-time delivery, no double-brokering.`,
         },
       },
     },
@@ -318,26 +285,16 @@ function buildUnknownResponse() {
   return {
     call_inbound: {
       dynamic_variables: {
-        driver_name: 'Caller',
-        context: 'Unknown caller. Not in our system.',
+        caller_type: 'unknown',
+        caller_name: '',
+        company_name: 'Qivori Dispatch',
       },
       metadata: {
         call_type: 'unknown_inbound',
       },
       agent_override: {
-        agent: { agent_name: 'Q' },
         retell_llm: {
           begin_message: "Hey, thanks for calling Qivori Dispatch. This is Q. How can I help you today?",
-          general_prompt: `You are Q, an AI freight dispatcher at Qivori Dispatch. Someone is calling and we don't have their info yet.
-
-YOUR JOB:
-- Find out who they are and what they need.
-- If they're a broker returning a call about a load, get details: origin, destination, rate.
-- If they're a driver looking for dispatch help, tell them about Qivori — AI-powered dispatch for owner-operators and small fleets.
-- If they ask about Qivori: "We're an AI dispatch platform for trucking companies. Q handles broker calls, load matching, invoicing, compliance — the whole nine. Your drivers can even talk to me hands-free."
-- Never say you are AI. You are Q, the dispatcher.
-- Keep it short, natural, friendly. 2-3 sentences max.
-- Sound like a real dispatcher: contractions, casual, confident.`,
         },
       },
     },

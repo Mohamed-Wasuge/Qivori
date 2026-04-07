@@ -411,14 +411,23 @@ async function get123Token(creds) {
   return lb123Token
 }
 
+// Parse "City, ST" or "City ST" or just "City" into { city, state }
+function parseCityState(input) {
+  if (!input) return { city: '', state: '' }
+  const s = String(input).trim()
+  const m = s.match(/^([^,]+),\s*([A-Z]{2})$/i) || s.match(/^(.+?)\s+([A-Z]{2})$/i)
+  if (m) return { city: m[1].trim(), state: m[2].toUpperCase() }
+  return { city: s, state: '' }
+}
+
 async function fetch123Loadboard(filters, creds) {
-  if (!creds?.clientId) return []
+  if (!creds?.clientId && !creds?.accessToken) return []
 
   try {
     const token = await get123Token(creds)
     if (!token) return []
 
-    // Map equipment types
+    // Map equipment types — 123LB expects PascalCase singular names
     const equipMap = {
       'Dry Van': 'Van', 'Van': 'Van',
       'Reefer': 'Reefer', 'Refrigerated': 'Reefer',
@@ -430,30 +439,24 @@ async function fetch123Loadboard(filters, creds) {
       ? equipMap[filters.equipment] || 'Van'
       : 'Van'
 
-    // Build search body
+    // 123LB requires BOTH origin and destination as { type:'City', city, states:[ST] }
+    // Default to Dallas → Atlanta if no filter provided (popular freight lane)
+    const o = parseCityState(filters.origin || filters.originCity)
+    const d = parseCityState(filters.destination || filters.destCity)
+    const originCity = o.city || 'Dallas'
+    const originState = o.state || filters.originState || 'TX'
+    const destCity = d.city || 'Atlanta'
+    const destState = d.state || filters.destState || 'GA'
+
     const searchBody = {
-      metadata: {},
-      origin: {
-        city: filters.origin || filters.originCity || '',
-        state: filters.originState || '',
-        radius: 100,
-      },
-      destination: {
-        city: filters.destination || filters.destCity || '',
-        state: filters.destState || '',
-        radius: 100,
-      },
+      metadata: { limit: 25 },
+      origin: { type: 'City', city: originCity, states: [originState] },
+      destination: { type: 'City', city: destCity, states: [destState] },
       equipmentTypes: [equipType],
       loadSize: 'Tl',
-      hasRate: true,
-      includeWithGreaterPickupDates: true,
     }
 
-    // Remove empty origin/dest if not provided
-    if (!searchBody.origin.city && !searchBody.origin.state) delete searchBody.origin
-    if (!searchBody.destination.city && !searchBody.destination.state) delete searchBody.destination
-
-    const deviceId = 'qivori-dispatch-' + (creds.clientId || '').slice(-8)
+    const deviceId = 'qivori-dispatch-' + (creds.clientId || 'oauth').slice(-8)
 
     const res = await fetch('https://api.dev.123loadboard.com/loads/search', {
       method: 'POST',
@@ -482,22 +485,43 @@ async function fetch123Loadboard(filters, creds) {
 }
 
 function normalize123Load(load) {
-  const origin = load.origin || {}
-  const dest = load.destination || {}
-  const miles = load.mileage || load.miles || load.distance || 0
-  const gross = load.rate || load.price || load.amount || 0
-  const rpm = miles > 0 ? +(gross / miles).toFixed(2) : 0
-  const originCity = origin.city || load.originCity || ''
-  const originState = origin.state || load.originState || ''
-  const destCity = dest.city || load.destinationCity || ''
-  const destState = dest.state || load.destinationState || ''
+  // 123LB returns nested originLocation/destinationLocation with address sub-object
+  const originAddr = load.originLocation?.address || load.origin?.address || {}
+  const destAddr = load.destinationLocation?.address || load.destination?.address || {}
+  const originCity = originAddr.city || load.originLocation?.city || ''
+  const originState = originAddr.state || load.originLocation?.state || ''
+  const destCity = destAddr.city || load.destinationLocation?.city || ''
+  const destState = destAddr.state || load.destinationLocation?.state || ''
+
+  const miles = load.computedMileage || load.mileage || load.miles || 0
+
+  // Rate not exposed unless rateCheck addon enabled — leave 0 and let
+  // Q's market rate engine estimate downstream.
+  const gross = load.rate || load.payment?.amount || 0
+  const rpm = miles > 0 && gross > 0 ? +(gross / miles).toFixed(2) : 0
+
+  // Equipment lives in equipments[].equipmentType
+  const equipType = load.equipments?.[0]?.equipmentType || load.equipmentType || ''
+
+  // Broker is in poster.name; MC is in poster.docketNumber
+  const brokerName = load.poster?.name || load.company?.name || 'Unknown'
+  const brokerMC = load.poster?.docketNumber?.number
+    ? `${load.poster.docketNumber.prefix || 'MC'}${load.poster.docketNumber.number}`
+    : ''
+
+  // Pickup is array; take first
+  const pickup = load.pickupDateTimesUtc?.[0] || load.pickupDate || ''
+  const delivery = load.deliveryDateTimeUtc || load.deliveryDate || ''
+
+  // Deadheads from metadata.userdata
+  const originDeadhead = load.metadata?.userdata?.originDeadhead?.value || 0
 
   return {
-    id: `123-${load.id || load.loadId || Math.random().toString(36).slice(2, 8)}`,
+    id: `123-${load.id || load.postReference || Math.random().toString(36).slice(2, 8)}`,
     source: '123loadboard',
-    broker: load.company?.name || load.companyName || load.poster || 'Unknown',
-    brokerMC: load.company?.mcNumber || load.mcNumber || '',
-    brokerPhone: load.company?.phone || load.contactPhone || '',
+    broker: brokerName,
+    brokerMC,
+    brokerPhone: load.poster?.contactInfo?.phone || '',
     origin: originCity && originState ? `${originCity}, ${originState}` : originCity || originState || '',
     originCity,
     originState,
@@ -509,12 +533,12 @@ function normalize123Load(load) {
     gross,
     weight: load.weight || '',
     commodity: load.commodity || load.description || '',
-    equipment: normalizeEquipment(load.equipmentType || load.equipment || ''),
-    pickup: load.pickupDate || load.availableDate || '',
-    delivery: load.deliveryDate || '',
-    deadhead: load.deadheadMiles || load.deadhead || 0,
-    refNum: load.referenceNumber || load.reference || '',
-    postedAt: load.createdOn || load.postedDate || new Date().toISOString(),
+    equipment: normalizeEquipment(equipType),
+    pickup,
+    delivery,
+    deadhead: originDeadhead,
+    refNum: load.postReference || load.referenceNumber || '',
+    postedAt: load.lastRefreshed || new Date().toISOString(),
     laneKey: `${originCity.slice(0, 3).toUpperCase()}→${destCity.slice(0, 3).toUpperCase()}`,
   }
 }

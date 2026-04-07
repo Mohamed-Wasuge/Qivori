@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext'
 import {
   Package, DollarSign, Truck, MapPin, Clock, CheckCircle,
   ArrowRight, Navigation, AlertTriangle, X, ChevronDown, ChevronUp,
-  Phone, Loader
+  Phone, Loader, Power, Radar
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
 import * as db from '../../lib/database'
@@ -142,6 +142,52 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
       if (showToast) showToast('Load accepted — no broker phone on file', 'info')
     }
   }
+
+  // ── READY TO DISPATCH TOGGLE ──
+  // Reads/writes drivers.is_available — Q's matching pipeline only assigns loads to available drivers
+  const isReady = !!(myDriver?.is_available)
+  const [readyToggling, setReadyToggling] = useState(false)
+  const toggleReady = useCallback(async () => {
+    if (!myDriver?.id || readyToggling) return
+    setReadyToggling(true)
+    haptic('success')
+    const next = !isReady
+    try {
+      // Try to grab GPS in background — non-blocking
+      let coords = null
+      if (next && navigator.geolocation) {
+        coords = await new Promise(resolve => {
+          navigator.geolocation.getCurrentPosition(
+            p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+            () => resolve(null),
+            { timeout: 4000, maximumAge: 60_000 }
+          )
+        })
+      }
+      const updates = {
+        is_available: next,
+        availability_status: next ? 'ready' : 'off_duty',
+        last_location_lat: coords?.lat || null,
+        last_location_lng: coords?.lng || null,
+        last_location_updated: new Date().toISOString(),
+      }
+      // editDriver writes to DB AND updates local context state
+      if (ctx.editDriver) {
+        await ctx.editDriver(myDriver.id, updates)
+      } else {
+        await db.updateDriverAvailability(myDriver.id, updates)
+      }
+      if (showToast) {
+        showToast(next ? 'success' : 'info',
+          next ? 'You\'re ready' : 'Off duty',
+          next ? 'Q is hunting for loads in your area' : 'Q won\'t send you load offers')
+      }
+    } catch (err) {
+      if (showToast) showToast('error', 'Could not update', err?.message || 'Try again')
+    } finally {
+      setReadyToggling(false)
+    }
+  }, [myDriver, isReady, readyToggling, ctx, showToast])
 
   // ── PASS on a load offer ──
   const passLoad = async (load) => {
@@ -362,6 +408,71 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
             </div>
           )}
         </div>
+
+        {/* ══════════════════════════════════════════════════════════
+            READY TO DISPATCH — Big toggle (only when no active load)
+            ══════════════════════════════════════════════════════════ */}
+        {!activeLoad && (
+          <button
+            onClick={toggleReady}
+            disabled={readyToggling}
+            style={{
+              width: '100%', marginBottom: 14, padding: '20px 18px',
+              borderRadius: 18, border: 'none', cursor: readyToggling ? 'default' : 'pointer',
+              background: isReady
+                ? 'linear-gradient(135deg, #22c55e, #16a34a)'
+                : 'var(--surface2)',
+              boxShadow: isReady
+                ? '0 10px 32px rgba(34,197,94,0.35), inset 0 1px 0 rgba(255,255,255,0.2)'
+                : '0 2px 8px rgba(0,0,0,0.1)',
+              display: 'flex', alignItems: 'center', gap: 14,
+              fontFamily: "'DM Sans',sans-serif",
+              transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              opacity: readyToggling ? 0.7 : 1,
+            }}
+          >
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%',
+              background: isReady ? 'rgba(255,255,255,0.22)' : 'var(--surface)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: isReady ? 'pulse 2s ease-in-out infinite' : 'none',
+              flexShrink: 0,
+            }}>
+              <Ic icon={isReady ? Radar : Power} size={26} color={isReady ? '#fff' : 'var(--muted)'} />
+            </div>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <div style={{
+                fontSize: 18, fontWeight: 900, letterSpacing: 0.3,
+                color: isReady ? '#fff' : 'var(--text)',
+                fontFamily: "'Bebas Neue',sans-serif",
+              }}>
+                {isReady ? 'Q IS HUNTING' : 'TAP TO GO ONLINE'}
+              </div>
+              <div style={{
+                fontSize: 11, marginTop: 2,
+                color: isReady ? 'rgba(255,255,255,0.85)' : 'var(--muted)',
+              }}>
+                {isReady ? 'Searching loads near you — offers will pop up' : 'You won\'t get load offers while off duty'}
+              </div>
+            </div>
+            {/* Toggle pill */}
+            <div style={{
+              width: 44, height: 26, borderRadius: 13,
+              background: isReady ? 'rgba(255,255,255,0.3)' : 'var(--border)',
+              display: 'flex', alignItems: 'center',
+              padding: 3, flexShrink: 0,
+              transition: 'background 0.3s ease',
+            }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: '50%',
+                background: '#fff',
+                marginLeft: isReady ? 18 : 0,
+                transition: 'margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              }} />
+            </div>
+          </button>
+        )}
 
         {/* ══════════════════════════════════════════════════════════
             ACTIVE LOAD — Big hero card when driver is on a load

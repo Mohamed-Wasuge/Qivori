@@ -46,7 +46,7 @@ export const LB_PROVIDERS = [
 ]
 
 export function LoadBoardSettings() {
-  const { showToast } = useApp()
+  const { showToast, user } = useApp()
   const [connections, setConnections] = useState({}) // { dat: { status, connected_at }, ... }
   const [credentials, setCredentials] = useState({}) // { dat: { clientId:'', clientSecret:'' }, ... }
   const [testing, setTesting] = useState(null) // provider being tested
@@ -198,6 +198,26 @@ export function LoadBoardSettings() {
               {isExpanded && (
                 <div style={{ padding:'0 20px 20px', borderTop:'1px solid var(--border)' }}>
                   <div style={{ paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
+                    {prov.id === '123loadboard' && (
+                      <div style={{ background:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                          {isConnected ? 'Reconnect via OAuth' : 'Connect with 123Loadboard (Recommended)'}
+                        </div>
+                        <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+                          Sign in to your 123Loadboard account and authorize Qivori to search loads on your behalf. No need to enter API credentials manually.
+                        </div>
+                        <a
+                          href={user?.id ? `/api/123lb-callback?userId=${user.id}` : '#'}
+                          onClick={(e) => { if (!user?.id) { e.preventDefault(); showToast('error', 'Not signed in', 'Please refresh the page'); } }}
+                          style={{ alignSelf:'flex-start', background:'#3b82f6', color:'#fff', fontSize:12, fontWeight:700, padding:'9px 18px', borderRadius:8, textDecoration:'none', display:'inline-block' }}
+                        >
+                          {isConnected ? 'Reconnect 123Loadboard' : 'Connect 123Loadboard'}
+                        </a>
+                        <div style={{ fontSize:10, color:'var(--muted)', borderTop:'1px solid var(--border)', paddingTop:10, marginTop:4 }}>
+                          Or enter API credentials manually below (advanced):
+                        </div>
+                      </div>
+                    )}
                     {prov.fields.map(f => (
                       <div key={f.key}>
                         <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>

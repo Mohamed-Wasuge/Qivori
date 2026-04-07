@@ -3,7 +3,8 @@ import { useCarrier } from '../../context/CarrierContext'
 import { useApp } from '../../context/AppContext'
 import {
   Package, DollarSign, Truck, MapPin, Clock, CheckCircle,
-  ArrowRight, Navigation, AlertTriangle, X, ChevronDown, ChevronUp
+  ArrowRight, Navigation, AlertTriangle, X, ChevronDown, ChevronUp,
+  Phone, Loader
 } from 'lucide-react'
 import { Ic, haptic, fmt$, statusColor } from './shared'
 import * as db from '../../lib/database'
@@ -11,9 +12,15 @@ import { apiFetch } from '../../lib/api'
 
 export default function DriverHomeTab({ onNavigate, onOpenQ }) {
   const ctx = useCarrier() || {}
-  const { user, profile } = useApp()
+  const { user, profile, showToast } = useApp()
   const loads = ctx.loads || []
   const drivers = ctx.drivers || []
+
+  // Track which loads Q is currently calling brokers for
+  const [callingLoads, setCallingLoads] = useState({})
+  // Uber-style popup: show first unseen offer as fullscreen overlay
+  const [dismissedOffers, setDismissedOffers] = useState({})
+  const [popupLoad, setPopupLoad] = useState(null)
 
   // Current driver record
   const myDriver = useMemo(() => {
@@ -72,12 +79,67 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
     return { total: Math.round(total * 100) / 100, loads: loadCount }
   }, [loads, calcDriverPay])
 
-  // ── ACCEPT a load offer ──
+  // ── Pop up first unseen offer like Uber ──
+  useEffect(() => {
+    if (popupLoad) return // already showing one
+    const unseen = loadOffers.find(l => {
+      const lid = l.id || l.load_id || l.loadId
+      return !dismissedOffers[lid] && !callingLoads[lid]
+    })
+    if (unseen) {
+      setPopupLoad(unseen)
+      haptic('success')
+    }
+  }, [loadOffers, dismissedOffers, callingLoads, popupLoad])
+
+  // ── ACCEPT a load offer → Q calls the broker ──
   const acceptLoad = async (load) => {
     haptic('success')
     const lid = load.id || load.load_id || load.loadId
+    const brokerPhone = load.broker_phone || load.brokerPhone || ''
+
+    // Dismiss popup
+    setPopupLoad(null)
+    setDismissedOffers(prev => ({ ...prev, [lid]: true }))
+
+    // Update status to show driver accepted
     if (ctx.updateLoadStatus) {
-      await ctx.updateLoadStatus(lid, 'En Route to Pickup')
+      await ctx.updateLoadStatus(lid, 'Driver Accepted')
+    }
+
+    // If we have broker phone, trigger Q to call broker and negotiate
+    if (brokerPhone) {
+      setCallingLoads(prev => ({ ...prev, [lid]: 'calling' }))
+      try {
+        const res = await apiFetch('/api/retell-broker-call', {
+          method: 'POST',
+          body: JSON.stringify({
+            phone: brokerPhone,
+            brokerName: load.broker_name || load.broker || '',
+            loadId: lid,
+            rate: Number(load.gross || load.rate || 0),
+            miles: Number(load.miles || 0),
+            originCity: (load.origin || '').split(',')[0].trim(),
+            destinationCity: (load.destination || load.dest || '').split(',')[0].trim(),
+            equipment: load.equipment || 'dry van',
+            loadDetails: `${(load.origin || '').split(',')[0]} → ${(load.destination || load.dest || '').split(',')[0]}. Rate: $${load.gross || load.rate || 0}${load.miles ? ` (${load.miles}mi)` : ''}. Equipment: ${load.equipment || 'dry van'}.`,
+            driverName: profile?.full_name || firstName,
+          }),
+        })
+        if (res.call_id) {
+          setCallingLoads(prev => ({ ...prev, [lid]: 'in_progress' }))
+          if (showToast) showToast('Q is calling the broker now', 'success')
+        }
+      } catch (err) {
+        setCallingLoads(prev => ({ ...prev, [lid]: 'failed' }))
+        if (showToast) showToast('Could not reach broker — try again', 'error')
+      }
+    } else {
+      // No broker phone — just move to En Route
+      if (ctx.updateLoadStatus) {
+        await ctx.updateLoadStatus(lid, 'En Route to Pickup')
+      }
+      if (showToast) showToast('Load accepted — no broker phone on file', 'info')
     }
   }
 
@@ -85,6 +147,8 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
   const passLoad = async (load) => {
     haptic()
     const lid = load.id || load.load_id || load.loadId
+    setPopupLoad(null)
+    setDismissedOffers(prev => ({ ...prev, [lid]: true }))
     if (ctx.updateLoadStatus) {
       await ctx.updateLoadStatus(lid, 'Available')
     }
@@ -109,8 +173,162 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
     return status
   }
 
+  // Popup load data
+  const pu = popupLoad
+  const puGross = pu ? Number(pu.gross || pu.rate || 0) : 0
+  const puMiles = pu ? Number(pu.miles || 0) : 0
+  const puRpm = puMiles > 0 ? (puGross / puMiles).toFixed(2) : '—'
+  const puPay = pu ? calcDriverPay(puGross, puMiles) : null
+  const puOrigin = pu ? (pu.origin || '?').split(',')[0] : ''
+  const puDest = pu ? (pu.destination || pu.dest || '?').split(',')[0] : ''
+  const puLid = pu ? (pu.id || pu.load_id || pu.loadId) : null
+  const puCallState = puLid ? callingLoads[puLid] : null
+
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          UBER-STYLE POPUP — slides up from bottom when Q finds a load
+          ═══════════════════════════════════════════════════════════════ */}
+      {pu && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 999,
+          background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+          display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          {/* Top bar — Q badge */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0,
+            padding: '20px', display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 20px rgba(240,165,0,0.4)',
+            }}>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, color: '#000', fontWeight: 800 }}>Q</span>
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Q found you a load</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                {pu.broker_name || 'Broker'} • {pu.equipment || 'Dry Van'}
+              </div>
+            </div>
+          </div>
+
+          {/* Main card — slides up */}
+          <div style={{
+            background: 'var(--bg)', borderRadius: '24px 24px 0 0',
+            padding: '28px 24px 32px', animation: 'slideUp 0.35s ease',
+          }}>
+            {/* Route — massive */}
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', lineHeight: 1.1, letterSpacing: -0.5 }}>
+                {puOrigin}
+              </div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                margin: '8px 0', color: 'var(--muted)',
+              }}>
+                <div style={{ width: 40, height: 1, background: 'var(--border)' }} />
+                <span style={{ fontSize: 12, fontWeight: 700 }}>{puMiles} MI</span>
+                <div style={{ width: 40, height: 1, background: 'var(--border)' }} />
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', lineHeight: 1.1, letterSpacing: -0.5 }}>
+                {puDest}
+              </div>
+            </div>
+
+            {/* Pay / Rate / RPM — big numbers row */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-around', marginBottom: 20,
+              padding: '16px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)',
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>RATE</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(puGross)}</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>RPM</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', fontFamily: "'Bebas Neue',sans-serif" }}>${puRpm}</div>
+              </div>
+              {puPay !== null && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--success)', letterSpacing: 1, marginBottom: 4 }}>YOUR PAY</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--success)', fontFamily: "'Bebas Neue',sans-serif" }}>{fmt$(puPay)}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Pickup details */}
+            {(pu.pickup_date || pu.broker_name) && (
+              <div style={{
+                display: 'flex', justifyContent: 'center', gap: 16,
+                marginBottom: 20, fontSize: 11, color: 'var(--muted)',
+              }}>
+                {pu.pickup_date && <span>Pickup: {pu.pickup_date}</span>}
+                {pu.broker_name && <span>Broker: {pu.broker_name}</span>}
+              </div>
+            )}
+
+            {/* Q calling state */}
+            {(puCallState === 'calling' || puCallState === 'in_progress') ? (
+              <div style={{
+                padding: '18px', borderRadius: 16,
+                background: 'linear-gradient(135deg, rgba(240,165,0,0.1), rgba(240,165,0,0.03))',
+                border: '2px solid rgba(240,165,0,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  animation: 'pulse 1.5s infinite',
+                }}>
+                  <Ic icon={Phone} size={16} color="#000" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent)' }}>Q is calling the broker</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Negotiating your rate now...</div>
+                </div>
+              </div>
+            ) : (
+              /* ── ACCEPT / PASS — Uber style ── */
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => passLoad(pu)}
+                  style={{
+                    flex: 1, padding: '18px', background: 'none',
+                    border: '2px solid var(--border)', borderRadius: 16, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                >
+                  <Ic icon={X} size={20} color="var(--muted)" />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--muted)' }}>Pass</span>
+                </button>
+                <button
+                  onClick={() => acceptLoad(pu)}
+                  style={{
+                    flex: 2, padding: '18px',
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    border: 'none', borderRadius: 16, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    fontFamily: "'DM Sans',sans-serif",
+                    boxShadow: '0 6px 24px rgba(34,197,94,0.4)',
+                  }}
+                >
+                  <Ic icon={CheckCircle} size={22} color="#fff" />
+                  <span style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>Accept</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px', WebkitOverflowScrolling: 'touch' }}>
 
         {/* ── HEADER: minimal greeting + earnings ── */}
@@ -309,35 +527,105 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
                     </div>
                   )}
 
-                  {/* ── ACCEPT / PASS buttons ── */}
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <button
-                      onClick={() => passLoad(load)}
-                      style={{
-                        flex: 1, padding: '14px', background: 'none',
-                        border: '2px solid var(--border)', borderRadius: 12, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        fontFamily: "'DM Sans',sans-serif",
-                      }}
-                    >
-                      <Ic icon={X} size={16} color="var(--muted)" />
-                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--muted)' }}>Pass</span>
-                    </button>
-                    <button
-                      onClick={() => acceptLoad(load)}
-                      style={{
-                        flex: 2, padding: '14px',
-                        background: 'linear-gradient(135deg, var(--success), #22c55e)',
-                        border: 'none', borderRadius: 12, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        fontFamily: "'DM Sans',sans-serif",
-                        boxShadow: '0 4px 16px rgba(52,176,104,0.3)',
-                      }}
-                    >
-                      <Ic icon={CheckCircle} size={18} color="#fff" />
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Accept</span>
-                    </button>
-                  </div>
+                  {/* ── ACCEPT / PASS buttons or Calling state ── */}
+                  {(() => {
+                    const lid = load.id || load.load_id || load.loadId
+                    const callState = callingLoads[lid]
+
+                    // Q is calling the broker
+                    if (callState === 'calling' || callState === 'in_progress') {
+                      return (
+                        <div style={{
+                          padding: '14px', borderRadius: 12,
+                          background: 'linear-gradient(135deg, rgba(240,165,0,0.08), rgba(240,165,0,0.03))',
+                          border: '2px solid rgba(240,165,0,0.3)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                        }}>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: '50%',
+                            background: 'linear-gradient(135deg, var(--accent), #f59e0b)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            animation: 'pulse 1.5s infinite',
+                          }}>
+                            <Ic icon={Phone} size={12} color="#000" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>
+                              Q is calling the broker
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                              Negotiating rate — you'll be notified when it's booked
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // Call failed — show retry
+                    if (callState === 'failed') {
+                      return (
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button
+                            onClick={() => passLoad(load)}
+                            style={{
+                              flex: 1, padding: '14px', background: 'none',
+                              border: '2px solid var(--border)', borderRadius: 12, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              fontFamily: "'DM Sans',sans-serif",
+                            }}
+                          >
+                            <Ic icon={X} size={16} color="var(--muted)" />
+                            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--muted)' }}>Pass</span>
+                          </button>
+                          <button
+                            onClick={() => acceptLoad(load)}
+                            style={{
+                              flex: 2, padding: '14px',
+                              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                              border: 'none', borderRadius: 12, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                              fontFamily: "'DM Sans',sans-serif",
+                            }}
+                          >
+                            <Ic icon={Phone} size={18} color="#fff" />
+                            <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Retry Call</span>
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    // Default: Accept / Pass
+                    return (
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button
+                          onClick={() => passLoad(load)}
+                          style={{
+                            flex: 1, padding: '14px', background: 'none',
+                            border: '2px solid var(--border)', borderRadius: 12, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            fontFamily: "'DM Sans',sans-serif",
+                          }}
+                        >
+                          <Ic icon={X} size={16} color="var(--muted)" />
+                          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--muted)' }}>Pass</span>
+                        </button>
+                        <button
+                          onClick={() => acceptLoad(load)}
+                          style={{
+                            flex: 2, padding: '14px',
+                            background: 'linear-gradient(135deg, var(--success), #22c55e)',
+                            border: 'none', borderRadius: 12, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            fontFamily: "'DM Sans',sans-serif",
+                            boxShadow: '0 4px 16px rgba(52,176,104,0.3)',
+                          }}
+                        >
+                          <Ic icon={CheckCircle} size={18} color="#fff" />
+                          <span style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Accept</span>
+                        </button>
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}

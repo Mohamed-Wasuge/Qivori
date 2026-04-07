@@ -61,6 +61,51 @@ export default function MobileShell() {
   const [popupDismissed, setPopupDismissed] = useState({})
   const [popupCallState, setPopupCallState] = useState(null) // null | 'calling' | 'done' | 'failed'
 
+  // ── Web Audio sound effects (Uber-style) ──
+  const audioCtxRef = useRef(null)
+  const getAudioCtx = useCallback(() => {
+    if (!audioCtxRef.current) {
+      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)() } catch {}
+    }
+    if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume().catch(() => {})
+    return audioCtxRef.current
+  }, [])
+
+  const playTone = useCallback((freq, duration = 0.15, type = 'sine', volume = 0.3, delay = 0) => {
+    const ctx = getAudioCtx()
+    if (!ctx) return
+    const t0 = ctx.currentTime + delay
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = type
+    osc.frequency.setValueAtTime(freq, t0)
+    gain.gain.setValueAtTime(0, t0)
+    gain.gain.linearRampToValueAtTime(volume, t0 + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(t0)
+    osc.stop(t0 + duration + 0.05)
+  }, [getAudioCtx])
+
+  // Notification ding — new load (rising 3-tone like Uber)
+  const playNewLoadSound = useCallback(() => {
+    playTone(880, 0.12, 'sine', 0.35, 0)
+    playTone(1175, 0.12, 'sine', 0.35, 0.1)
+    playTone(1568, 0.18, 'sine', 0.35, 0.2)
+  }, [playTone])
+
+  // Accept — bright success chime
+  const playAcceptSound = useCallback(() => {
+    playTone(1046, 0.1, 'sine', 0.3, 0)
+    playTone(1568, 0.18, 'sine', 0.3, 0.08)
+  }, [playTone])
+
+  // Pass — soft low dismiss
+  const playPassSound = useCallback(() => {
+    playTone(440, 0.1, 'sine', 0.2, 0)
+    playTone(330, 0.15, 'sine', 0.2, 0.08)
+  }, [playTone])
+
   const allLoads = ctx.loads || ctx.allLoads || []
   const loadOffers = useMemo(() => {
     return allLoads.filter(l => {
@@ -80,11 +125,13 @@ export default function MobileShell() {
       setPopupLoad(unseen)
       setPopupCallState(null)
       haptic('success')
+      playNewLoadSound()
     }
-  }, [loadOffers, popupDismissed, popupLoad])
+  }, [loadOffers, popupDismissed, popupLoad, playNewLoadSound])
 
   const popupAccept = useCallback(async (load) => {
     haptic('success')
+    playAcceptSound()
     const lid = load.id || load.load_id || load.loadId
     const brokerPhone = load.broker_phone || load.brokerPhone || ''
 
@@ -125,16 +172,17 @@ export default function MobileShell() {
       setPopupLoad(null)
       setPopupDismissed(p => ({ ...p, [lid]: true }))
     }
-  }, [ctx, profile, showToast])
+  }, [ctx, profile, showToast, playAcceptSound])
 
   const popupPass = useCallback((load) => {
     haptic()
+    playPassSound()
     const lid = load.id || load.load_id || load.loadId
     ctx.updateLoadStatus?.(lid, 'Available')
     setPopupLoad(null)
     setPopupDismissed(p => ({ ...p, [lid]: true }))
     setPopupCallState(null)
-  }, [ctx])
+  }, [ctx, playPassSound])
 
   // ── Q AUTONOMOUS LOCATION ENGINE ──
   const qLocation = useQLocation({

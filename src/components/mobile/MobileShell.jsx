@@ -59,8 +59,17 @@ export default function MobileShell() {
 
   // ── UBER POPUP: single source of truth ──
   const [popupLoad, setPopupLoad] = useState(null)
-  // Use ref for dismissed set to avoid re-render loops in the offer-detection effect
-  const dismissedRef = useRef(new Set())
+  // Use ref for dismissed set — persisted in localStorage so dismissals survive refresh
+  const dismissedRef = useRef(null)
+  if (dismissedRef.current === null) {
+    try {
+      const stored = localStorage.getItem('q_dismissed_offers')
+      dismissedRef.current = new Set(stored ? JSON.parse(stored) : [])
+    } catch { dismissedRef.current = new Set() }
+  }
+  const persistDismissed = () => {
+    try { localStorage.setItem('q_dismissed_offers', JSON.stringify([...dismissedRef.current])) } catch {}
+  }
 
   // ── Web Audio sound effects (refs to avoid re-render loops) ──
   const audioCtxRef = useRef(null)
@@ -136,6 +145,7 @@ export default function MobileShell() {
 
     // Mark dismissed IMMEDIATELY so it won't re-pop
     dismissedRef.current.add(lid)
+    persistDismissed()
 
     // Card animation handles its own dismissal — clear popup after 1100ms
     setTimeout(() => setPopupLoad(null), 1100)
@@ -187,6 +197,7 @@ export default function MobileShell() {
     haptic()
     playPassSound()
     dismissedRef.current.add(lid)
+    persistDismissed()
     setTimeout(() => setPopupLoad(null), 350)
   }, [])
 

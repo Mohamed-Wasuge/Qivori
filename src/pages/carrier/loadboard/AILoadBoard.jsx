@@ -240,8 +240,6 @@ export function AILoadBoard() {
         if (!res.ok) throw new Error('API error')
         const data = await res.json()
         if (!cancelled && data.loads?.length > 0) {
-          // TEMP DEBUG: verify source field is present on returned loads
-          console.log('[load-board] sources:', data.loads.slice(0, 3).map(l => ({ id: l.id, source: l.source, broker: l.broker })))
           const mapped = data.loads.map(l => ({
             id: l.id,
             broker: l.broker || 'Unknown',

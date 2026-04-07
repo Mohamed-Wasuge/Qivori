@@ -41,6 +41,7 @@ export default function MobileShell() {
   const qState = getQSystemState(ctx)
 
   const [activeTab, setActiveTab] = useState('loads')
+  const [driverLoadDetail, setDriverLoadDetail] = useState(false) // When true, show MobileLoadsTab for driver
   const [moneySubTab, setMoneySubTab] = useState(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatInitMsg, setChatInitMsg] = useState(null)
@@ -167,9 +168,16 @@ export default function MobileShell() {
       setChatOpen(true)
       return
     }
+    // Driver: 'loads' from DriverHomeTab means show detailed load management
+    if (tab === 'loads' && isDriver) {
+      setDriverLoadDetail(true)
+      setActiveTab('loads')
+      return
+    }
     // Map old tab IDs to new structure
     if (tab === 'home') {
       setActiveTab('loads')
+      setDriverLoadDetail(false)
       return
     }
     if (tab === 'more') {
@@ -339,8 +347,9 @@ export default function MobileShell() {
         <Suspense fallback={<TabLoader />}>
           {isDriver ? (
             <>
-              {/* Driver: Loads = MobileLoadsTab (shared), Money = DriverPayTab */}
-              {activeTab === 'loads' && <MobileLoadsTab />}
+              {/* Driver: default = load offers (accept/pass), detail = load management */}
+              {activeTab === 'loads' && !driverLoadDetail && <DriverHomeTab onNavigate={handleNavigate} onOpenQ={(msg) => { setChatInitMsg(msg); setChatOpen(true) }} />}
+              {activeTab === 'loads' && driverLoadDetail && <MobileLoadsTab />}
               {activeTab === 'money' && <DriverPayTab />}
             </>
           ) : (
@@ -476,7 +485,7 @@ export default function MobileShell() {
         position: 'relative',
       }}>
         {/* Loads tab — left */}
-        <button onClick={() => { haptic('light'); setActiveTab('loads'); setMoneySubTab(null) }}
+        <button onClick={() => { haptic('light'); setActiveTab('loads'); setDriverLoadDetail(false); setMoneySubTab(null) }}
           className="premium-btn"
           style={{
             flex: 2, background: 'none', border: 'none',

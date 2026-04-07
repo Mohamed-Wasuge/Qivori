@@ -26,10 +26,16 @@ export default async function handler(req) {
   const error = url.searchParams.get('error')
   const state = url.searchParams.get('state') // userId
 
+  // Loop guard: if neither a userId param NOR code/error/state, this is a bare
+  // hit (likely 123LB looped back via fragment). Don't restart the dance —
+  // bounce to settings with an error so the loop terminates.
+  const userIdParam = url.searchParams.get('userId')
+  if (!code && !error && !state && !userIdParam) {
+    return redirectToSettings('error=callback_loop_blocked')
+  }
+
   // If no code, generate the authorization URL
   if (!code && !error) {
-    // Check for userId in query (passed from settings page)
-    const userId = url.searchParams.get('userId')
     if (!CLIENT_ID) {
       return new Response('123Loadboard not configured', { status: 500 })
     }
@@ -38,12 +44,34 @@ export default async function handler(req) {
       response_type: 'code',
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
-      scope: 'loadsearching loadsearchingpreview loadratecheck',
-      state: userId || 'unknown',
+      scope: 'loadsearching',
+      state: userIdParam || 'unknown',
     }).toString()
 
-    // Redirect user to 123Loadboard login
-    return Response.redirect(authUrl, 302)
+    // 123LB's /authorize endpoint requires the 123LB-Api-Version header,
+    // which browsers can't send on a top-level navigation. So we hop server-side:
+    // fetch /authorize with the header, follow the 302 to /login?ReturnUrl=...,
+    // then redirect the browser to that login page (which renders fine without
+    // any custom headers).
+    try {
+      const hop = await fetch(authUrl, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: {
+          '123LB-Api-Version': '1.3',
+          'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+        },
+      })
+      const loginPath = hop.headers.get('location')
+      if (loginPath) {
+        const loginUrl = loginPath.startsWith('http') ? loginPath : `${LB_BASE}${loginPath}`
+        return Response.redirect(loginUrl, 302)
+      }
+      // Fallback: redirect directly (will likely 500 in browser, but at least try)
+      return Response.redirect(authUrl, 302)
+    } catch (err) {
+      return new Response(`Authorize hop failed: ${err.message}`, { status: 500 })
+    }
   }
 
   // Error from 123LB

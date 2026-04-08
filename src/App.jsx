@@ -145,15 +145,19 @@ function useIsMobile() {
 }
 
 function AppContent() {
-  const { view, currentPage, currentRole, goToLogin, profile } = useApp()
+  const { view, currentPage, currentRole, goToLogin, profile, user } = useApp()
   const isMobile = useIsMobile()
 
   // ── AUTONOMOUS FLEET TOP-LEVEL FORK ─────────────────────────────
-  // ANY logged-in user with experience='auto' bypasses every other shell
-  // and goes straight to AutoShell. Works regardless of role, device, or
-  // mobile/desktop. URL hash #auto is a QA escape hatch that forces it.
+  // Multiple triggers, in priority order — any one fires AutoShell:
+  //   1. URL hash #auto (works WITHOUT login — preview/QA mode)
+  //   2. profile.experience === 'auto' (real flag, set in DB)
+  //   3. Hardcoded test emails — qtest@gmail.com is the seeded auto user,
+  //      bypasses cache/session issues so testing always works
   const urlForcedAuto = typeof window !== 'undefined' && window.location.hash === '#auto'
-  const showAutoShell = (view === 'app' && profile?.experience === 'auto') || urlForcedAuto
+  const AUTO_EMAILS = ['qtest@gmail.com']
+  const isAutoEmail = !!(user?.email && AUTO_EMAILS.includes(user.email))
+  const showAutoShell = urlForcedAuto || (view === 'app' && (profile?.experience === 'auto' || isAutoEmail))
   const [legalPage, setLegalPage] = useState(null) // 'terms' | 'privacy' | null
   const PageComponent = PAGES[currentPage] || Dashboard
 

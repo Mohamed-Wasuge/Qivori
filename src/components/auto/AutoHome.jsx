@@ -87,6 +87,7 @@ function AutoHomeHunting() {
   // Subscribes to retell_calls table for any in-progress calls owned by
   // this user. Drives the "Q is negotiating with X brokers" UI.
   // ACTIVE_CALL_STATUSES are kept internal — the user only sees count + best.
+  // The retell_calls table uses user_id (not owner_id) and agreed_rate.
   useEffect(() => {
     if (!user?.id || !online) {
       setActiveCalls([])
@@ -94,29 +95,24 @@ function AutoHomeHunting() {
     }
     const ACTIVE_STATUSES = ['queued', 'initiating', 'ringing', 'connected', 'in-progress', 'quoted', 'countered']
 
-    // Initial fetch
-    let mounted = true
-    supabase
-      .from('retell_calls')
-      .select('retell_call_id, broker_name, broker_quoted_rate, rate, call_status')
-      .eq('owner_id', user.id)
-      .in('call_status', ACTIVE_STATUSES)
-      .then(({ data }) => { if (mounted && data) setActiveCalls(data) })
+    const fetchActive = async () => {
+      const { data } = await supabase
+        .from('retell_calls')
+        .select('retell_call_id, broker_name, agreed_rate, call_status')
+        .eq('user_id', user.id)
+        .in('call_status', ACTIVE_STATUSES)
+      if (data) setActiveCalls(data)
+    }
 
-    // Realtime subscription
+    let mounted = true
+    fetchActive()
+
+    // Realtime subscription on this user's calls
     const channel = supabase
       .channel(`auto_home_calls_${user.id}`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'retell_calls', filter: `owner_id=eq.${user.id}` },
-        () => {
-          // Re-fetch on any change — simpler than diffing payloads
-          supabase
-            .from('retell_calls')
-            .select('retell_call_id, broker_name, broker_quoted_rate, rate, call_status')
-            .eq('owner_id', user.id)
-            .in('call_status', ACTIVE_STATUSES)
-            .then(({ data }) => { if (mounted && data) setActiveCalls(data) })
-        }
+        { event: '*', schema: 'public', table: 'retell_calls', filter: `user_id=eq.${user.id}` },
+        () => { if (mounted) fetchActive() }
       )
       .subscribe()
 
@@ -131,7 +127,7 @@ function AutoHomeHunting() {
     if (activeCalls.length === 0) return null
     let best = null
     for (const c of activeCalls) {
-      const rate = Number(c.broker_quoted_rate || c.rate || 0)
+      const rate = Number(c.agreed_rate || 0)
       if (rate > 0 && (!best || rate > best.rate)) {
         best = { rate, broker: c.broker_name || 'Broker' }
       }

@@ -146,6 +146,9 @@ export default async function handler(req) {
           destination: destCity,
           rate: String(rate),
           userId: user.id,
+          // Carries the source experience so the webhook can skip legacy
+          // TMS pipelines for AutoShell users (auto-book, retry, etc).
+          experience: body.experience || 'tms',
         },
         retell_llm_dynamic_variables: {
           caller_type: 'broker_outbound',

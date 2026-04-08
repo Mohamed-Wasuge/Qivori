@@ -133,6 +133,10 @@ function NegotiationFlow({ load }) {
           driverName: profile?.full_name || 'Driver',
           carrierName: profile?.company_name,
           loadDetails: `${origin} → ${dest}, ${miles}mi, posted $${gross}, driver wants $${targetRate}`,
+          // Marks this call as AutoShell so the webhook skips legacy TMS
+          // handlers (handleBookedLoad, notifyDriverOfOffer, scheduleRetryCall).
+          // The driver decides accept/pass — Q never auto-books.
+          experience: 'auto',
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -158,8 +162,13 @@ function NegotiationFlow({ load }) {
 
   // ── Realtime subscription on retell_calls ────────────────────
   // When a real Retell call is in progress, listen for updates pushed by
-  // retell-webhook. The retell_calls schema has: call_status, agreed_rate.
-  // When the call ends with an agreed_rate set → flip to final review.
+  // retell-webhook. Two events arrive separately:
+  //   1. call_ended  → call_status='completed', agreed_rate still NULL
+  //   2. call_analyzed → agreed_rate populated by post-call analysis
+  //
+  // We only transition to 'final' once agreed_rate actually arrives.
+  // Premature transition on call_ended would cause a race where the user
+  // gets bounced back to offer step before the post-call analysis runs.
   useEffect(() => {
     if (!callId) return
     const channel = supabase
@@ -170,22 +179,29 @@ function NegotiationFlow({ load }) {
           const row = payload.new
           if (!row) return
           const status = (row.call_status || '').toLowerCase()
-          // When the call ends with an agreed_rate → final review
-          if (status === 'ended' || status === 'completed' || status === 'agreed') {
-            if (row.agreed_rate && Number(row.agreed_rate) > 0) {
-              setFinalRate(Number(row.agreed_rate))
-              setStep('final')
-            } else {
-              // Call ended with no rate — broker walked
-              showToast?.('warning', 'No deal', 'Broker walked away')
-              setStep('offer')
-              setCallId(null)
-            }
-          } else if (status === 'failed' || status === 'no-answer' || status === 'no_answer') {
+          // ONLY advance when agreed_rate actually populates — don't react
+          // to bare 'completed' status (post-call analysis runs after)
+          if (row.agreed_rate && Number(row.agreed_rate) > 0) {
+            setFinalRate(Number(row.agreed_rate))
+            setStep('final')
+            return
+          }
+          // Hard failures stay reactive (no-answer, voicemail, busy, failed)
+          // — these never produce an agreed_rate so it's safe to bail
+          if (
+            status === 'failed' ||
+            status === 'no-answer' || status === 'no_answer' ||
+            status === 'voicemail' ||
+            status === 'busy' ||
+            status === 'hung_up_early'
+          ) {
             showToast?.('warning', 'Broker did not pick up', 'Try another load')
             setStep('offer')
             setCallId(null)
           }
+          // For 'completed' / 'ended' WITHOUT agreed_rate yet → wait silently.
+          // The user can tap "Done with the call?" to advance manually if
+          // post-call analysis takes too long.
         }
       )
       .subscribe()

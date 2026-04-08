@@ -118,19 +118,30 @@ export default async function handler(req) {
         })
       })
 
-      // If booked, trigger post-booking flow
-      if (outcome === 'booked' && metadata.loadId) {
-        await handleBookedLoad(metadata)
-      }
+      // ── AutoShell calls handle their own post-call flow ──
+      // The driver app subscribes to retell_calls realtime, sees the
+      // agreed_rate when post-call analysis writes it, and the driver
+      // decides accept/pass themselves. We skip ALL legacy TMS handlers
+      // for these calls — no auto-book, no email rate con, no auto-retry.
+      const isAutoShellCall = metadata.experience === 'auto'
 
-      // If negotiation needed, notify driver
-      if (outcome === 'counter_offer' && metadata.loadId) {
-        await notifyDriverOfOffer(metadata)
-      }
+      if (!isAutoShellCall) {
+        // Legacy TMS post-call flow (carriers on $79/$199 plans)
 
-      // Auto-retry for voicemail, no-answer, busy (max 3 attempts)
-      if (['voicemail', 'no_answer', 'busy', 'hung_up_early'].includes(outcome) && metadata.loadId) {
-        await scheduleRetryCall(metadata, callId)
+        // If booked, trigger post-booking flow
+        if (outcome === 'booked' && metadata.loadId) {
+          await handleBookedLoad(metadata)
+        }
+
+        // If negotiation needed, notify driver
+        if (outcome === 'counter_offer' && metadata.loadId) {
+          await notifyDriverOfOffer(metadata)
+        }
+
+        // Auto-retry for voicemail, no-answer, busy (max 3 attempts)
+        if (['voicemail', 'no_answer', 'busy', 'hung_up_early'].includes(outcome) && metadata.loadId) {
+          await scheduleRetryCall(metadata, callId)
+        }
       }
     }
 

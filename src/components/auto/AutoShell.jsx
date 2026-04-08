@@ -194,9 +194,25 @@ const SHELL = {
   display: 'flex',
   flexDirection: 'column',
   background: 'radial-gradient(ellipse at top, #0c0f17 0%, #07090e 60%)',
-  color: 'var(--text)',
+  color: '#ffffff',
   fontFamily: "'DM Sans', sans-serif",
   overflow: 'hidden',
+  // Force dark theme tokens regardless of the user's broader Qivori theme.
+  // CSS custom properties cascade down the DOM tree, so any child component
+  // (AutoHome, AutoNegotiation, AutoCardOnFile, etc.) that uses var(--bg)
+  // will get the dark value here even though the legacy app may be on light.
+  '--bg': '#07090e',
+  '--surface': '#0c0f17',
+  '--surface2': '#11141d',
+  '--surface3': '#171b26',
+  '--text': '#ffffff',
+  '--muted': 'rgba(255, 255, 255, 0.5)',
+  '--border': 'rgba(255, 255, 255, 0.08)',
+  '--accent': '#f0a500',
+  '--accent2': '#f59e0b',
+  '--success': '#22c55e',
+  '--danger': '#ef4444',
+  '--warning': '#f0a500',
 }
 
 const SCREEN_WRAP = {

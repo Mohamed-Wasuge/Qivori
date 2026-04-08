@@ -264,7 +264,15 @@ function NegotiationFlow({ load }) {
 
       {/* STEP 2 — DIALING (real Retell call to broker with target_rate) */}
       {step === 'dialing' && (
-        <DialingStep broker={broker} targetRate={targetRate} />
+        <DialingStep
+          broker={broker}
+          targetRate={targetRate}
+          onManualRate={(rate) => {
+            // Driver finished the call — manually advance to final review
+            setFinalRate(rate)
+            setStep('final')
+          }}
+        />
       )}
 
       {/* STEP 3 — QUOTED + COUNTER */}
@@ -605,7 +613,88 @@ function TargetStep({ broker, gross, targetRate, setTargetRate, onSend, onBack, 
 // ═══════════════════════════════════════════════════════════════
 // STEP 2 — DIALING
 // ═══════════════════════════════════════════════════════════════
-function DialingStep({ broker, targetRate }) {
+function DialingStep({ broker, targetRate, onManualRate }) {
+  const [manualMode, setManualMode] = useState(false)
+  const [manualRate, setManualRate] = useState(targetRate || 0)
+
+  // ── Manual rate entry mode ──
+  // Backup for when the Retell agent doesn't push agreed_rate via webhook.
+  // Driver finishes the call themselves and types in what they agreed to.
+  if (manualMode) {
+    return (
+      <div style={STEP_FILL}>
+        <div style={{ padding: '20px 20px 8px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => setManualMode(false)} style={{
+            width: 36, height: 36, borderRadius: 12,
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+          }}>
+            <X size={18} color="rgba(255,255,255,0.6)" />
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={SUB_LABEL}>CALL FINISHED</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#22c55e' }}>
+              What did you agree to?
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 16px', flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.5, marginBottom: 10 }}>
+            FINAL AGREED RATE WITH {broker.toUpperCase()}
+          </div>
+          <div style={{
+            padding: '24px 18px',
+            background: 'rgba(34,197,94,0.08)',
+            border: '2px solid #22c55e',
+            borderRadius: 18,
+            marginBottom: 16,
+            boxShadow: '0 0 30px rgba(34,197,94,0.2)',
+            display: 'flex', alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 36, fontWeight: 900, color: '#22c55e', fontFamily: "'Bebas Neue', sans-serif" }}>$</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={manualRate || ''}
+              onChange={(e) => setManualRate(parseInt(e.target.value) || 0)}
+              autoFocus
+              style={{
+                flex: 1, background: 'none', border: 'none', outline: 'none',
+                fontSize: 44, fontWeight: 900, color: '#22c55e',
+                fontFamily: "'Bebas Neue', sans-serif",
+                width: '100%', WebkitAppearance: 'none', padding: 0, marginLeft: 8,
+              }}
+              placeholder={String(targetRate || 2700)}
+            />
+          </div>
+
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 18, lineHeight: 1.5, textAlign: 'center' }}>
+            Type the rate you and {broker} agreed to. Q will book it at this number.
+          </div>
+
+          <button
+            onClick={() => { haptic('success'); onManualRate(manualRate) }}
+            disabled={manualRate <= 0}
+            style={{
+              ...PRIMARY_BTN, width: '100%',
+              opacity: manualRate > 0 ? 1 : 0.5,
+            }}
+            className="press-scale"
+          >
+            <CheckCircle size={20} color="#fff" />
+            <span style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 1 }}>
+              CONFIRM ${manualRate.toLocaleString()}
+            </span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Default dialing screen ──
   return (
     <div style={CENTERED}>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -645,6 +734,30 @@ function DialingStep({ broker, targetRate }) {
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 14 }}>
           Hang tight — Q is fighting for your number.
         </div>
+
+        {/* ── Manual escape hatch — driver finished the call themselves ── */}
+        {onManualRate && (
+          <button
+            onClick={() => { haptic('light'); setManualMode(true) }}
+            style={{
+              marginTop: 36,
+              padding: '14px 24px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 14,
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: 13, fontWeight: 700,
+              fontFamily: "'DM Sans', sans-serif",
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+              display: 'flex', alignItems: 'center', gap: 8, margin: '36px auto 0',
+            }}
+            className="press-scale"
+          >
+            <CheckCircle size={16} color="rgba(255,255,255,0.7)" />
+            <span>Done with the call?</span>
+          </button>
+        )}
       </div>
     </div>
   )

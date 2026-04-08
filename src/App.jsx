@@ -29,7 +29,9 @@ const CarrierLayout = lazy(() => import('./components/CarrierLayout'))
 const MobileLayout = lazy(() => import('./components/MobileLayout'))
 
 // Autonomous Fleet (3% plan) shell — top-level fork for experience='auto'
-const AutoShell = lazy(() => import('./components/auto/AutoShell'))
+// AutoShellRoot wraps AutoShell in CarrierProvider so it has loads/expenses
+// context. Lazy-loaded to keep CarrierContext (~490KB) out of the main bundle.
+const AutoShellRoot = lazy(() => import('./components/auto/AutoShellRoot'))
 const AutoMockup = lazy(() => import('./components/auto/AutoMockup'))
 
 // Lazy-load sidebar/topbar (only needed when authenticated)
@@ -311,10 +313,13 @@ function AppContent() {
           </Suspense>
         )}
 
-        {/* Autonomous Fleet (3%) — top-level fork, beats all other shells */}
+        {/* Autonomous Fleet (3%) — top-level fork, beats all other shells.
+            AutoShellRoot wraps AutoShell in CarrierProvider so it has the
+            loads/expenses/invoices context. Without that wrapper, useCarrier()
+            returns null and negotiation + active load detection never fires. */}
         {!urlMockup && showAutoShell && (
           <Suspense fallback={<LoadingFallback />}>
-            <AutoShell />
+            <AutoShellRoot />
           </Suspense>
         )}
 

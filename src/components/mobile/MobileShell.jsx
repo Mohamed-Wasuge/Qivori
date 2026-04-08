@@ -10,6 +10,7 @@ import { apiFetch } from '../../lib/api'
 
 // Lazy-load all tabs — only loads the tab JS when first rendered
 const LoadOfferPopup = lazy(() => import('./LoadOfferPopup'))
+const AutoShell = lazy(() => import('../auto/AutoShell'))
 const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
 const MobileLoadsTab = lazy(() => import('./MobileLoadsTab'))
 const MobileMoneyTab = lazy(() => import('./MobileMoneyTab'))
@@ -34,6 +35,22 @@ const TabLoader = () => (
 
 export default function MobileShell() {
   const { logout, user, profile, demoMode, showToast, isDriver, goToLogin } = useApp()
+
+  // ── AUTONOMOUS FLEET FORK ──────────────────────────────────────
+  // Solo OOs on the 3% plan use a purpose-built shell — no TMS surfaces.
+  // Existing TMS users (experience='tms' default) hit the legacy code path
+  // below, completely untouched. This early return is safe because:
+  //   1. useApp() is the only hook called above this line
+  //   2. profile.experience never changes mid-mount (AutoSettings forces a
+  //      window.location.reload() when switching back to TMS)
+  if (profile?.experience === 'auto') {
+    return (
+      <Suspense fallback={<TabLoader />}>
+        <AutoShell />
+      </Suspense>
+    )
+  }
+
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
   const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'
   const ctx = useCarrier() || {}

@@ -28,6 +28,9 @@ const TruckingExpensesPage = lazyNamed(() => import('./pages/BlogPages'), 'Truck
 const CarrierLayout = lazy(() => import('./components/CarrierLayout'))
 const MobileLayout = lazy(() => import('./components/MobileLayout'))
 
+// Autonomous Fleet (3% plan) shell — top-level fork for experience='auto'
+const AutoShell = lazy(() => import('./components/auto/AutoShell'))
+
 // Lazy-load sidebar/topbar (only needed when authenticated)
 const Sidebar = lazy(() => import('./components/Sidebar'))
 const Topbar = lazy(() => import('./components/Topbar'))
@@ -142,8 +145,15 @@ function useIsMobile() {
 }
 
 function AppContent() {
-  const { view, currentPage, currentRole, goToLogin } = useApp()
+  const { view, currentPage, currentRole, goToLogin, profile } = useApp()
   const isMobile = useIsMobile()
+
+  // ── AUTONOMOUS FLEET TOP-LEVEL FORK ─────────────────────────────
+  // ANY logged-in user with experience='auto' bypasses every other shell
+  // and goes straight to AutoShell. Works regardless of role, device, or
+  // mobile/desktop. URL hash #auto is a QA escape hatch that forces it.
+  const urlForcedAuto = typeof window !== 'undefined' && window.location.hash === '#auto'
+  const showAutoShell = (view === 'app' && profile?.experience === 'auto') || urlForcedAuto
   const [legalPage, setLegalPage] = useState(null) // 'terms' | 'privacy' | null
   const PageComponent = PAGES[currentPage] || Dashboard
 
@@ -288,12 +298,19 @@ function AppContent() {
         {view === 'login' && <LoginPage />}
 
         {/* Carrier â mobile gets AI chat, desktop gets full TMS */}
-        {view === 'app' && currentRole === 'carrier' && (
+        {/* Autonomous Fleet (3%) — top-level fork, beats all other shells */}
+        {showAutoShell && (
+          <Suspense fallback={<LoadingFallback />}>
+            <AutoShell />
+          </Suspense>
+        )}
+
+        {view === 'app' && currentRole === 'carrier' && !showAutoShell && (
           isMobile ? <MobileLayout /> : <CarrierLayout />
         )}
 
         {/* Admin / Broker â sidebar layout */}
-        {view === 'app' && currentRole !== 'carrier' && (
+        {view === 'app' && currentRole !== 'carrier' && !showAutoShell && (
           <div style={{
             display: 'flex', width: '100%', height: '100%',
             position: 'relative'

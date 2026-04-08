@@ -38,7 +38,15 @@ export default async function handler(req) {
       const recording = call?.recording_url || null
       const transcript = call?.transcript || null
       const disconnectReason = call?.disconnection_reason || ''
-      const agreedRate = metadata.agreed_rate ? parseFloat(metadata.agreed_rate) : null
+      // agreed_rate flows in via Retell post-call analysis (custom_analysis_data).
+      // The agent NEVER commits during the call — it just brings back the broker's
+      // best offer, and Retell's post-call analyzer extracts the number from the
+      // transcript and writes it to call.call_analysis.custom_analysis_data.agreed_rate.
+      // Falls back to metadata.agreed_rate (legacy) so existing tests don't break.
+      const customRate = call?.call_analysis?.custom_analysis_data?.agreed_rate
+      const agreedRate = customRate
+        ? parseFloat(customRate)
+        : (metadata.agreed_rate ? parseFloat(metadata.agreed_rate) : null)
 
       // Smart outcome detection based on call signals
       let outcome = metadata.outcome || 'completed'

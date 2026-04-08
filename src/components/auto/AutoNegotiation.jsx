@@ -116,9 +116,10 @@ function NegotiationFlow({ load }) {
     dismissedRef.current = true
     setBusy(true)
     try {
+      // Loads table uses `rate` not `gross_pay`
       await db.updateLoad(load.id, {
         status: 'Booked',
-        gross_pay: finalRate || gross,
+        rate: finalRate || gross,
       })
       showToast?.('success', 'BOOKED!', 'Q is sending paperwork')
     } catch (e) {

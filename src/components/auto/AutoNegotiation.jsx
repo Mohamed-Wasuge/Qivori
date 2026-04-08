@@ -276,6 +276,32 @@ function NegotiationFlow({ load }) {
 // STEP 1 — OFFER
 // ═══════════════════════════════════════════════════════════════
 function OfferStep({ gross, rpm, origin, dest, miles, broker, verdict, pickupDate, onPass, onNegotiate }) {
+  // Track previous rate so we can highlight when a better offer overtakes it
+  const prevRateRef = useRef(gross)
+  const [pulse, setPulse] = useState(true)        // initial mount pulse
+  const [improved, setImproved] = useState(false) // green burst when rate goes up
+
+  useEffect(() => {
+    // Initial mount — clear the first pulse after the animation finishes
+    const t = setTimeout(() => setPulse(false), 700)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    // Detect rate increase (better offer replacing previous) → green burst
+    if (gross > prevRateRef.current) {
+      setImproved(true)
+      const t = setTimeout(() => setImproved(false), 900)
+      prevRateRef.current = gross
+      return () => clearTimeout(t)
+    }
+    prevRateRef.current = gross
+  }, [gross])
+
+  // 3% Q fee math — show "You keep" + Q fee on the offer card per spec
+  const fee = gross * 0.03
+  const net = gross - fee
+
   return (
     <div style={STEP_FILL}>
       <div style={{ padding: '24px 20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -325,16 +351,51 @@ function OfferStep({ gross, rpm, origin, dest, miles, broker, verdict, pickupDat
           <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>{dest}</div>
         </div>
 
-        {/* Numbers */}
+        {/* Numbers — RATE animates on mount + when improved */}
         <div style={{
-          display: 'flex', justifyContent: 'space-around', marginBottom: 24,
+          display: 'flex', justifyContent: 'space-around', marginBottom: 16,
           padding: '18px 0',
           borderTop: '1px solid rgba(255,255,255,0.1)',
           borderBottom: '1px solid rgba(255,255,255,0.1)',
         }}>
-          <NumStat label="RATE" value={fmt$(gross)} />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.2, marginBottom: 6 }}>RATE</div>
+            <div style={{
+              fontSize: 24, fontWeight: 900,
+              color: improved ? '#22c55e' : '#fff',
+              fontFamily: "'Bebas Neue', sans-serif",
+              transform: pulse || improved ? 'scale(1.05)' : 'scale(1)',
+              transition: 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s ease, text-shadow 0.3s ease',
+              textShadow: pulse || improved ? '0 0 24px rgba(34,197,94,0.5)' : 'none',
+              display: 'inline-block',
+            }}>
+              {fmt$(gross)}
+            </div>
+          </div>
           <NumStat label="RPM" value={`$${rpm}`} />
           <NumStat label="PICKUP" value={pickupDate || 'ASAP'} small />
+        </div>
+
+        {/* You keep + Q fee — per launch spec, show on offer card not just final */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 14px', marginBottom: 18,
+          background: 'rgba(34,197,94,0.06)',
+          border: '1px solid rgba(34,197,94,0.2)',
+          borderRadius: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 2 }}>YOU KEEP</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#22c55e', fontFamily: "'Bebas Neue', sans-serif" }}>
+              {fmt$(net)}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 2 }}>Q FEE 3%</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.7)' }}>
+              {fmt$(fee)}
+            </div>
+          </div>
         </div>
 
         {/* Buttons */}

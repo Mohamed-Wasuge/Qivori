@@ -39,17 +39,19 @@ export default function MobileShell() {
   // ── AUTONOMOUS FLEET FORK ──────────────────────────────────────
   // Solo OOs on the 3% plan use a purpose-built shell — no TMS surfaces.
   // Existing TMS users (experience='tms' default) hit the legacy code path
-  // below, completely untouched. This early return is safe because:
-  //   1. useApp() is the only hook called above this line
-  //   2. profile.experience never changes mid-mount (AutoSettings forces a
-  //      window.location.reload() when switching back to TMS)
-  if (profile?.experience === 'auto') {
+  // below, completely untouched.
+  //
+  // URL override: append #auto to qivori.com to force the AutoShell preview
+  // even when the profile flag isn't set (used for QA before DB migration).
+  const urlForcedAuto = typeof window !== 'undefined' && window.location.hash === '#auto'
+  if (profile?.experience === 'auto' || urlForcedAuto) {
     return (
       <Suspense fallback={<TabLoader />}>
         <AutoShell />
       </Suspense>
     )
   }
+
 
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
   const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'

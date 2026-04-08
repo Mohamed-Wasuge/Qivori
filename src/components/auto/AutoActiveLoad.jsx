@@ -21,20 +21,23 @@ import * as db from '../../lib/database'
 import { apiFetch } from '../../lib/api'
 import { useApp } from '../../context/AppContext'
 
-// Status flow — drives the timeline + the big action button label
+// Status flow — exactly 4 states per launch spec.
+// Booked → Pickup → Loaded → Delivered. One decision per screen.
+// Each state's `next` is what happens when the OO taps the primary button.
 const FLOW = [
-  { status: 'Booked',          next: 'En Route To Pickup',  buttonText: 'START DRIVING',     icon: Navigation },
-  { status: 'En Route To Pickup', next: 'Arrived Pickup',   buttonText: 'ARRIVED AT PICKUP', icon: MapPin },
-  { status: 'Arrived Pickup',  next: 'Loaded',              buttonText: 'MARK LOADED',       icon: Package },
-  { status: 'Loaded',          next: 'Arrived Delivery',    buttonText: 'ARRIVED AT DELIVERY', icon: MapPin },
-  { status: 'Arrived Delivery', next: 'Delivered',          buttonText: 'MARK DELIVERED',    icon: CheckCircle },
+  { status: 'Booked',     next: 'Pickup',    buttonText: 'ARRIVED AT PICKUP',   icon: MapPin },
+  { status: 'Pickup',     next: 'Loaded',    buttonText: 'MARK LOADED',         icon: Package },
+  { status: 'Loaded',     next: 'Delivered', buttonText: 'ARRIVED AT DELIVERY', icon: MapPin },
+  { status: 'Delivered',  next: null,        buttonText: 'DELIVERED',           icon: CheckCircle },
 ]
 
-// Timeline pegs (collapses the more granular flow into 4 visual pegs)
+// Timeline pegs — match the FLOW exactly (4 states, 4 pegs).
+// Legacy granular statuses (En Route To Pickup, Arrived Pickup, etc.)
+// still resolve correctly in case the loads table has older rows.
 const TIMELINE = [
   { label: 'Booked',    matches: ['Booked'] },
-  { label: 'Pickup',    matches: ['En Route To Pickup', 'Arrived Pickup'] },
-  { label: 'Loaded',    matches: ['Loaded', 'Arrived Delivery'] },
+  { label: 'Pickup',    matches: ['Pickup', 'En Route To Pickup', 'Arrived Pickup'] },
+  { label: 'Loaded',    matches: ['Loaded', 'En Route', 'Arrived Delivery'] },
   { label: 'Delivered', matches: ['Delivered'] },
 ]
 

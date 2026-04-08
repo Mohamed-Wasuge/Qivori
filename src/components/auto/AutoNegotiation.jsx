@@ -659,21 +659,34 @@ function FinalStep({ finalRate, origin, dest, miles, rpm, broker, pickupDate, on
             onClick={onBook}
             disabled={busy}
             style={{
+              position: 'relative',
+              overflow: 'hidden',
               flex: 2, padding: '18px',
               background: 'linear-gradient(135deg, #22c55e, #16a34a)',
               border: 'none', borderRadius: 16,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
               boxShadow: '0 8px 32px rgba(34,197,94,0.4)',
-              cursor: 'pointer',
-              opacity: busy ? 0.7 : 1,
+              cursor: busy ? 'default' : 'pointer',
+              opacity: busy ? 0.85 : 1,
               WebkitTapHighlightColor: 'transparent',
               transition: 'transform 0.15s ease, opacity 0.2s ease',
             }}
-            className="press-scale"
+            className={busy ? '' : 'press-scale'}
           >
-            <CheckCircle size={20} color="#fff" />
-            <span style={{ fontSize: 14, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>
-              {busy ? 'BOOKING...' : 'BOOK THIS LOAD'}
+            {/* Shimmer overlay during "Securing load..." (uses existing
+                @keyframes shimmer from mobileAnimations: -100% → 100% translateX) */}
+            {busy && (
+              <div style={{
+                position: 'absolute',
+                top: 0, left: 0,
+                width: '100%', height: '100%',
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)',
+                animation: 'shimmer 1.4s ease-in-out infinite',
+              }} />
+            )}
+            <CheckCircle size={20} color="#fff" style={{ position: 'relative', zIndex: 1 }} />
+            <span style={{ fontSize: 14, fontWeight: 900, color: '#fff', letterSpacing: 0.5, position: 'relative', zIndex: 1 }}>
+              {busy ? 'SECURING LOAD…' : 'BOOK THIS LOAD'}
             </span>
           </button>
         </div>

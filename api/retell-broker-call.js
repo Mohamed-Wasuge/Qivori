@@ -91,7 +91,13 @@ export default async function handler(req) {
     const counterMarkup = neg.counter_offer_markup_pct || 10
     const maxRounds = neg.max_counter_rounds || 2
     const rpm = miles > 0 ? (rate / miles).toFixed(2) : '0'
-    const targetRate = Math.round(rate * (1 + counterMarkup / 100))
+    // Honor the explicit target_rate from the body (set by AutoNegotiation
+    // when the driver picks a number on the target rate sheet). Falls back
+    // to the calculated default (posted rate × markup) if not provided.
+    const explicitTarget = Number(body.target_rate || 0)
+    const targetRate = explicitTarget > 0
+      ? Math.round(explicitTarget)
+      : Math.round(rate * (1 + counterMarkup / 100))
     const floorRate = Math.round(minRpm * (miles || 500))
     const fuelCpm = (dieselPrice / 6.5).toFixed(2)
     const opCost = (Number(fuelCpm) + 0.51).toFixed(2)

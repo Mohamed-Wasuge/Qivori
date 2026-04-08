@@ -1,18 +1,21 @@
 /**
- * AutoSettings — minimal settings for the 3% plan user
+ * AutoSettings — settings root for the 3% plan user
  *
- * Five rows. No sub-pages yet (Phase A). Tapping a row will route to
- * detail screens later — for now, taps just toast.
+ * Six rows. Tapping a row opens AutoSettingsDetail as an overlay.
  */
+import { useState, lazy, Suspense } from 'react'
 import {
-  User, Truck, Bell, ArrowRightLeft, LogOut, ChevronRight
+  User, Truck, Home, DollarSign, CreditCard, Bell, ArrowRightLeft, LogOut, ChevronRight
 } from 'lucide-react'
 import { Ic, haptic } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
 import { supabase } from '../../lib/supabase'
 
+const AutoSettingsDetail = lazy(() => import('./AutoSettingsDetail'))
+
 export default function AutoSettings() {
   const { profile, user, logout, showToast } = useApp()
+  const [detailOpen, setDetailOpen] = useState(null) // null | 'equipment' | 'home' | 'factoring' | 'account' | 'card'
 
   const switchToTms = async () => {
     haptic('medium')
@@ -30,18 +33,41 @@ export default function AutoSettings() {
     logout()
   }
 
+  const open = (which) => () => { haptic('light'); setDetailOpen(which) }
+
+  const cardSub = profile?.payment_method_last4
+    ? `${profile.payment_method_brand || 'Card'} •••• ${profile.payment_method_last4}`
+    : 'Add a card for the 3% Q fee'
+
+  const homeSub = profile?.home_base_city
+    ? `${profile.home_base_city}${profile.home_base_state ? ', ' + profile.home_base_state : ''}`
+    : 'Where Q routes you home to'
+
+  const factorSub = profile?.factoring_company
+    ? `${profile.factoring_company.toUpperCase()}`
+    : 'Set your factoring company'
+
   const rows = [
-    { icon: User,          label: 'Account',          sub: profile?.email || user?.email,                onClick: () => showToast?.('info', 'Coming soon', 'Account screen') },
-    { icon: Truck,         label: 'Equipment & Lanes', sub: 'Set what Q hunts for',                       onClick: () => showToast?.('info', 'Coming soon', 'Equipment screen') },
-    { icon: Bell,          label: 'Notifications',    sub: 'Alerts when Q finds a load',                  onClick: () => showToast?.('info', 'Coming soon', 'Notifications screen') },
-    { icon: ArrowRightLeft, label: 'Switch to TMS',    sub: 'Use the full Qivori dashboard',              onClick: switchToTms },
-    { icon: LogOut,        label: 'Log out',          sub: '',                                            onClick: handleLogout, danger: true },
+    { icon: User,          label: 'Account',          sub: profile?.email || user?.email,    onClick: open('account') },
+    { icon: Truck,         label: 'Equipment & Lanes', sub: profile?.equipment || 'Set what Q hunts for', onClick: open('equipment') },
+    { icon: Home,          label: 'Home Base',         sub: homeSub,                          onClick: open('home') },
+    { icon: DollarSign,    label: 'Factoring Company', sub: factorSub,                        onClick: open('factoring') },
+    { icon: CreditCard,    label: 'Payment Method',    sub: cardSub,                          onClick: open('card') },
+    { icon: ArrowRightLeft, label: 'Switch to TMS',    sub: 'Use the full Qivori dashboard',  onClick: switchToTms },
+    { icon: LogOut,        label: 'Log out',          sub: '',                                onClick: handleLogout, danger: true },
   ]
 
   const initials = (profile?.full_name || user?.email || 'Q').split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase()
 
   return (
     <div style={WRAP}>
+      {/* Settings detail overlay */}
+      {detailOpen && (
+        <Suspense fallback={null}>
+          <AutoSettingsDetail which={detailOpen} onBack={() => setDetailOpen(null)} />
+        </Suspense>
+      )}
+
       {/* Top bar */}
       <div style={TOP_BAR}>
         <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 }}>

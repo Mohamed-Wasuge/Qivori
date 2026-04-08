@@ -24,6 +24,7 @@ import { Ic, haptic, fmt$ } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { supabase } from '../../lib/supabase'
+import AutoActiveLoad from './AutoActiveLoad'
 
 // ── Q activity messages — rotate when hunting ───────────────────
 const Q_HUNTING_ACTIVITY = [
@@ -39,7 +40,27 @@ const Q_HUNTING_ACTIVITY = [
   { icon: Search,     msg: 'Hunting backhauls toward home' },
 ]
 
+// ── Wrapper — fork between Active Load mode and Hunting/Offline mode ──
+// This wrapper only calls ONE hook (useCarrier) before its conditional
+// return, so we never violate Rules of Hooks. Each branch is its own
+// component with its own complete hook tree.
 export default function AutoHome() {
+  const ctx = useCarrier() || {}
+  const activeLoad = useMemo(() => {
+    const loads = ctx.loads || []
+    const ACTIVE_STATUSES = [
+      'Booked', 'Dispatched', 'En Route To Pickup',
+      'Arrived Pickup', 'Loaded', 'En Route', 'Arrived Delivery'
+    ]
+    return loads.find((l) => ACTIVE_STATUSES.includes(l.status)) || null
+  }, [ctx.loads])
+
+  if (activeLoad) return <AutoActiveLoad load={activeLoad} />
+  return <AutoHomeHunting />
+}
+
+// ── Inner — the offline/hunting screen (only renders when no active load) ──
+function AutoHomeHunting() {
   const { profile, user, showToast } = useApp()
   const ctx = useCarrier() || {}
   const [online, setOnline] = useState(profile?.auto_online || false)

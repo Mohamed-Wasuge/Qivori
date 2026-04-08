@@ -18,11 +18,15 @@ import { useState, lazy, Suspense, useEffect } from 'react'
 import { Home as HomeIcon, DollarSign, Settings as SettingsIcon } from 'lucide-react'
 import { Ic, haptic, mobileAnimations } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
+import { useCarrier } from '../../context/CarrierContext'
 
 // Lazy-load tabs so the shell stays light
 const AutoHome = lazy(() => import('./AutoHome'))
 const AutoEarnings = lazy(() => import('./AutoEarnings'))
 const AutoSettings = lazy(() => import('./AutoSettings'))
+const AutoOnboarding = lazy(() => import('./AutoOnboarding'))
+const AutoNegotiation = lazy(() => import('./AutoNegotiation'))
+const AutoCardOnFile = lazy(() => import('./AutoCardOnFile'))
 
 // ── Tab definitions ──────────────────────────────────────────────
 const TABS = [
@@ -59,7 +63,27 @@ function ShellLoader() {
 
 export default function AutoShell() {
   const { profile } = useApp()
+  const ctx = useCarrier() || {}
   const [activeTab, setActiveTab] = useState('home')
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  const [cardDismissed, setCardDismissed] = useState(false)
+
+  // Show onboarding overlay if profile hasn't completed it yet
+  const needsOnboarding = !!profile && !profile.auto_onboarded_at && !onboardingDismissed
+
+  // Show card-on-file overlay if OO has booked at least one load but
+  // hasn't added a payment method yet (and hasn't dismissed it this session)
+  const hasBookedLoad = (ctx.loads || []).some((l) =>
+    ['Booked', 'Dispatched', 'En Route To Pickup', 'Arrived Pickup', 'Loaded',
+     'En Route', 'Arrived Delivery', 'Delivered'].includes(l.status)
+  )
+  const needsCardOnFile =
+    !!profile &&
+    !profile.payment_method_last4 &&
+    hasBookedLoad &&
+    !cardDismissed &&
+    !needsOnboarding
+  const latestBookedAmount = (ctx.loads || []).find((l) => l.status === 'Booked')?.gross_pay || 2500
 
   // Switch tabs with haptic feedback + scroll-to-top
   const switchTab = (id) => {
@@ -80,6 +104,31 @@ export default function AutoShell() {
 
   return (
     <div style={SHELL}>
+      {/* ─── Onboarding overlay — first run only ───────────────── */}
+      {needsOnboarding && (
+        <Suspense fallback={<ShellLoader />}>
+          <AutoOnboarding onComplete={() => setOnboardingDismissed(true)} />
+        </Suspense>
+      )}
+
+      {/* ─── Negotiation overlay — fires when a load is "Offered" ─ */}
+      {!needsOnboarding && (
+        <Suspense fallback={null}>
+          <AutoNegotiation />
+        </Suspense>
+      )}
+
+      {/* ─── Card on file overlay — first booked load only ─────── */}
+      {needsCardOnFile && (
+        <Suspense fallback={null}>
+          <AutoCardOnFile
+            loadAmount={latestBookedAmount}
+            onComplete={() => setCardDismissed(true)}
+            onClose={() => setCardDismissed(true)}
+          />
+        </Suspense>
+      )}
+
       {/* ─── Active screen ─────────────────────────────────────── */}
       <div key={activeTab} style={SCREEN_WRAP}>
         <Suspense fallback={<ShellLoader />}>

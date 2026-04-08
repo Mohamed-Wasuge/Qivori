@@ -30,6 +30,7 @@ const MobileLayout = lazy(() => import('./components/MobileLayout'))
 
 // Autonomous Fleet (3% plan) shell — top-level fork for experience='auto'
 const AutoShell = lazy(() => import('./components/auto/AutoShell'))
+const AutoMockup = lazy(() => import('./components/auto/AutoMockup'))
 
 // Lazy-load sidebar/topbar (only needed when authenticated)
 const Sidebar = lazy(() => import('./components/Sidebar'))
@@ -155,6 +156,7 @@ function AppContent() {
   //   3. Hardcoded test emails — qtest@gmail.com is the seeded auto user,
   //      bypasses cache/session issues so testing always works
   const urlForcedAuto = typeof window !== 'undefined' && window.location.hash === '#auto'
+  const urlMockup = typeof window !== 'undefined' && window.location.hash === '#mockup'
   const AUTO_EMAILS = ['qtest@gmail.com']
   const isAutoEmail = !!(user?.email && AUTO_EMAILS.includes(user.email))
   const showAutoShell = urlForcedAuto || (view === 'app' && (profile?.experience === 'auto' || isAutoEmail))
@@ -296,14 +298,21 @@ function AppContent() {
         )}
 
         {/* Landing Page */}
-        {view === 'landing' && !publicLoadBoard && !guidePage && !driverOnboarding && !carrierSlug && !trackingToken && <LandingPage onGetStarted={goToLogin} />}
+        {view === 'landing' && !urlMockup && !publicLoadBoard && !guidePage && !driverOnboarding && !carrierSlug && !trackingToken && <LandingPage onGetStarted={goToLogin} />}
 
         {/* Login View */}
-        {view === 'login' && <LoginPage />}
+        {view === 'login' && !urlMockup && <LoginPage />}
 
         {/* Carrier â mobile gets AI chat, desktop gets full TMS */}
+        {/* Mockup preview — qivori.com/#mockup, no login required */}
+        {urlMockup && (
+          <Suspense fallback={<LoadingFallback />}>
+            <AutoMockup />
+          </Suspense>
+        )}
+
         {/* Autonomous Fleet (3%) — top-level fork, beats all other shells */}
-        {showAutoShell && (
+        {!urlMockup && showAutoShell && (
           <Suspense fallback={<LoadingFallback />}>
             <AutoShell />
           </Suspense>

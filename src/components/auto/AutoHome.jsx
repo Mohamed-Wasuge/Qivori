@@ -67,6 +67,7 @@ function AutoHomeHunting() {
   const [showWhereTo, setShowWhereTo] = useState(false)
   const [activityIdx, setActivityIdx] = useState(0)
   const [toggling, setToggling] = useState(false)
+  const [activeCalls, setActiveCalls] = useState([])  // live retell_calls rows for this user
 
   // Sync local state when profile updates
   useEffect(() => {
@@ -81,6 +82,62 @@ function AutoHomeHunting() {
     }, 2500)
     return () => clearInterval(id)
   }, [online])
+
+  // ── Live broker call counter ─────────────────────────────────
+  // Subscribes to retell_calls table for any in-progress calls owned by
+  // this user. Drives the "Q is negotiating with X brokers" UI.
+  // ACTIVE_CALL_STATUSES are kept internal — the user only sees count + best.
+  useEffect(() => {
+    if (!user?.id || !online) {
+      setActiveCalls([])
+      return
+    }
+    const ACTIVE_STATUSES = ['queued', 'initiating', 'ringing', 'connected', 'in-progress', 'quoted', 'countered']
+
+    // Initial fetch
+    let mounted = true
+    supabase
+      .from('retell_calls')
+      .select('retell_call_id, broker_name, broker_quoted_rate, rate, call_status')
+      .eq('owner_id', user.id)
+      .in('call_status', ACTIVE_STATUSES)
+      .then(({ data }) => { if (mounted && data) setActiveCalls(data) })
+
+    // Realtime subscription
+    const channel = supabase
+      .channel(`auto_home_calls_${user.id}`)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'retell_calls', filter: `owner_id=eq.${user.id}` },
+        () => {
+          // Re-fetch on any change — simpler than diffing payloads
+          supabase
+            .from('retell_calls')
+            .select('retell_call_id, broker_name, broker_quoted_rate, rate, call_status')
+            .eq('owner_id', user.id)
+            .in('call_status', ACTIVE_STATUSES)
+            .then(({ data }) => { if (mounted && data) setActiveCalls(data) })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      mounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id, online])
+
+  // Best (highest) offer across all active calls
+  const bestOffer = useMemo(() => {
+    if (activeCalls.length === 0) return null
+    let best = null
+    for (const c of activeCalls) {
+      const rate = Number(c.broker_quoted_rate || c.rate || 0)
+      if (rate > 0 && (!best || rate > best.rate)) {
+        best = { rate, broker: c.broker_name || 'Broker' }
+      }
+    }
+    return best
+  }, [activeCalls])
 
   // ── Earnings strip data (this week) ─────────────────────────
   const weeklyEarnings = useMemo(() => {
@@ -163,14 +220,19 @@ function AutoHomeHunting() {
         {/* Activity / status text */}
         <div style={{ marginTop: 32, textAlign: 'center', minHeight: 60 }}>
           {online ? (
-            <ActivityRotator activity={Q_HUNTING_ACTIVITY[activityIdx]} idx={activityIdx} />
+            // Live broker counter takes priority over rotating activity when calls active
+            activeCalls.length > 0 ? (
+              <LiveBrokerCounter count={activeCalls.length} bestOffer={bestOffer} />
+            ) : (
+              <ActivityRotator activity={Q_HUNTING_ACTIVITY[activityIdx]} idx={activityIdx} />
+            )
           ) : (
             <div>
               <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', lineHeight: 1.2, marginBottom: 8, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1 }}>
-                Q IS YOUR DISPATCHER
+                Q IS READY
               </div>
               <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, padding: '0 32px' }}>
-                Tap below to go online and let Q find, negotiate, and book your next load.
+                Go online and let Q find, negotiate, and book your next load automatically.
               </div>
             </div>
           )}
@@ -283,6 +345,54 @@ function QHero({ online }) {
           letterSpacing: -2,
         }}>Q</span>
       </div>
+    </div>
+  )
+}
+
+// ── Live broker counter — shown when Q is on real calls ─────────
+// Per launch spec: ONLY show count + best offer. Never expose internal
+// states (queued/ringing/connected/etc) — user just sees "Q is working."
+function LiveBrokerCounter({ count, bestOffer }) {
+  return (
+    <div style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 18px',
+        background: 'rgba(240, 165, 0, 0.1)',
+        border: '1px solid rgba(240, 165, 0, 0.35)',
+        borderRadius: 999,
+        marginBottom: 14,
+        boxShadow: '0 0 24px rgba(240, 165, 0, 0.15)',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{
+              width: 4, height: 4, borderRadius: '50%',
+              background: '#f0a500',
+              animation: `qDotPulse 1.4s ease-in-out ${i * 0.18}s infinite`,
+            }} />
+          ))}
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#f0a500', letterSpacing: 0.3 }}>
+          Q is negotiating with {count} broker{count !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {bestOffer && (
+        <div key={`${bestOffer.broker}-${bestOffer.rate}`} style={{
+          fontSize: 12,
+          color: 'rgba(255,255,255,0.7)',
+          fontWeight: 600,
+          animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}>
+          Latest: <strong style={{ color: '#22c55e' }}>${bestOffer.rate.toLocaleString()}</strong> from {bestOffer.broker}
+        </div>
+      )}
     </div>
   )
 }

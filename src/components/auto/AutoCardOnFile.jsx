@@ -1,82 +1,66 @@
 /**
- * AutoCardOnFile — collect payment method for the 3% Q fee
+ * AutoCardOnFile — Stripe Checkout setup sheet
  *
- * Triggered when:
+ * Shown when:
  *   - OO has booked at least one load AND
- *   - No payment_method_last4 on profile yet
+ *   - profile.stripe_customer_id is not yet set
  *
- * Phase 1 (this file): UI flow with stubbed save. The card form looks
- * production-ready, but we save only the last 4 digits to profile —
- * we DO NOT process a real charge yet.
+ * Tap "Set up payment" → calls /api/create-checkout?planId=autonomous_fleet
+ * → redirects to Stripe Checkout (hosted page) → user enters card →
+ * Stripe creates customer + saves payment method → redirects back to
+ * qivori.com → existing webhook stamps stripe_customer_id on profile.
  *
- * Phase 2: replace the stub with real Stripe Elements + a serverless
- * function that creates a Stripe customer + payment_method, stores the
- * Stripe IDs in profile, and charges via Stripe Charges API after each
- * load is delivered.
+ * After return, AutoShell's gating condition (`!profile.stripe_customer_id`)
+ * is false → this sheet stops appearing.
  *
- * Why stubbed: real Stripe integration requires API key setup, webhook
- * handling, and end-to-end testing that we can't do in a single build
- * pass. Better to ship the flow now and swap the backend later.
+ * No card form here — Stripe Checkout handles all card collection on
+ * Stripe's PCI-compliant hosted page.
  */
 import { useState, useCallback } from 'react'
-import { CreditCard, Lock, Check, X } from 'lucide-react'
+import { CreditCard, Lock, Shield, X, ArrowRight } from 'lucide-react'
 import { Ic, haptic } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
-import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
-export default function AutoCardOnFile({ onComplete, onClose, loadAmount = 2500 }) {
-  const { user, showToast } = useApp()
-  const [cardNumber, setCardNumber] = useState('')
-  const [expiry, setExpiry] = useState('')
-  const [cvc, setCvc] = useState('')
-  const [name, setName] = useState('')
-  const [saving, setSaving] = useState(false)
+export default function AutoCardOnFile({ onClose, loadAmount = 2500 }) {
+  const { user, profile, showToast } = useApp()
+  const [redirecting, setRedirecting] = useState(false)
 
-  // Format card number with spaces every 4 digits
-  const formatCardNumber = (val) => {
-    const digits = val.replace(/\D/g, '').slice(0, 16)
-    return digits.replace(/(.{4})/g, '$1 ').trim()
-  }
-
-  // Format expiry as MM/YY
-  const formatExpiry = (val) => {
-    const digits = val.replace(/\D/g, '').slice(0, 4)
-    if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    return digits
-  }
-
-  const last4 = cardNumber.replace(/\D/g, '').slice(-4)
-  const isValid = cardNumber.replace(/\D/g, '').length >= 13 && expiry.length === 5 && cvc.length >= 3 && name.trim().length > 0
-
-  const handleSave = useCallback(async () => {
-    if (!isValid || saving) return
+  const handleSetup = useCallback(async () => {
+    if (redirecting) return
     haptic('success')
-    setSaving(true)
+    setRedirecting(true)
     try {
-      // Phase 1 stub — save only the last 4 digits, never the full card
-      // Phase 2: call serverless function that creates Stripe customer +
-      // payment_method, store Stripe IDs (NOT card data) in profile.
-      await supabase.from('profiles').update({
-        payment_method_last4: last4,
-        payment_method_brand: detectBrand(cardNumber),
-        payment_method_added_at: new Date().toISOString(),
-      }).eq('id', user.id)
-
-      showToast?.('success', 'Card saved', `${detectBrand(cardNumber)} ending in ${last4}`)
-      onComplete?.()
+      const res = await apiFetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: 'autonomous_fleet',
+          email: profile?.email || user?.email,
+          userId: user?.id,
+          truckCount: 1,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.url) {
+        // Stripe Checkout — full page redirect
+        window.location.href = data.url
+      } else {
+        showToast?.('error', 'Setup failed', data.error || 'Could not start checkout')
+        setRedirecting(false)
+      }
     } catch (e) {
-      showToast?.('error', 'Save failed', 'Please try again')
-      setSaving(false)
+      showToast?.('error', 'Setup failed', 'Network error — please try again')
+      setRedirecting(false)
     }
-  }, [isValid, saving, last4, cardNumber, user, showToast, onComplete])
+  }, [redirecting, user, profile, showToast])
+
+  const fee = (loadAmount * 0.03).toFixed(0)
 
   return (
     <div style={OVERLAY}>
       <div style={SHEET}>
-        {/* Drag handle */}
         <div style={HANDLE} />
-
-        {/* Close button */}
         <button onClick={onClose} style={CLOSE_BTN} aria-label="Close">
           <Ic icon={X} size={18} color="rgba(255,255,255,0.6)" />
         </button>
@@ -87,86 +71,57 @@ export default function AutoCardOnFile({ onComplete, onClose, loadAmount = 2500 
             ALMOST DONE
           </div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#fff', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.5, lineHeight: 1.1 }}>
-            ADD A CARD TO LOCK IT IN
+            SET UP PAYMENT TO LOCK IN
           </div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 10, lineHeight: 1.5 }}>
             Q just won you a <strong style={{ color: '#fff' }}>${loadAmount.toLocaleString()}</strong> load.
-            Add a card so we can charge the 3% ({fmt(loadAmount * 0.03)}) when it delivers.
-            We never charge until you deliver.
+            Set up payment in 30 seconds so we can charge the 3% (${fee}) when it delivers.
+            <strong style={{ color: '#fff' }}> We never charge until you deliver.</strong>
           </div>
         </div>
 
-        {/* Form */}
-        <div style={{ padding: '8px 16px 0' }}>
-          <FormField
-            label="CARDHOLDER NAME"
-            value={name}
-            onChange={setName}
-            placeholder="Quick Test Driver"
-            autoComplete="cc-name"
-          />
-
-          <FormField
-            label="CARD NUMBER"
-            value={cardNumber}
-            onChange={(v) => setCardNumber(formatCardNumber(v))}
-            placeholder="1234 5678 9012 3456"
-            inputMode="numeric"
-            autoComplete="cc-number"
-            icon={CreditCard}
-          />
-
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <FormField
-                label="EXPIRY"
-                value={expiry}
-                onChange={(v) => setExpiry(formatExpiry(v))}
-                placeholder="MM/YY"
-                inputMode="numeric"
-                autoComplete="cc-exp"
-              />
+        {/* Stripe trust card */}
+        <div style={{ padding: '8px 16px' }}>
+          <div style={STRIPE_CARD}>
+            <div style={STRIPE_LOGO_WRAP}>
+              <Ic icon={CreditCard} size={28} color="#635bff" strokeWidth={2.4} />
             </div>
             <div style={{ flex: 1 }}>
-              <FormField
-                label="CVC"
-                value={cvc}
-                onChange={(v) => setCvc(v.replace(/\D/g, '').slice(0, 4))}
-                placeholder="123"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-              />
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+                Powered by Stripe
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4 }}>
+                Bank-grade encryption. PCI compliant. Used by millions of businesses.
+              </div>
             </div>
+          </div>
+
+          {/* Trust bullets */}
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <TrustBullet icon={Lock} text="3% only on loads Q books and you deliver — no monthly fee" />
+            <TrustBullet icon={Shield} text="Cancel anytime · No long-term commitment" />
           </div>
         </div>
 
-        {/* Trust footer */}
-        <div style={TRUST_FOOTER}>
-          <Lock size={12} color="rgba(255,255,255,0.5)" />
-          <span>
-            Secured · We charge 3% only after you deliver. No subscription. No surprises.
-          </span>
-        </div>
-
-        {/* Save button */}
-        <div style={{ padding: '0 16px 16px' }}>
+        {/* Setup button */}
+        <div style={{ padding: '20px 16px 0' }}>
           <button
-            onClick={handleSave}
-            disabled={!isValid || saving}
-            style={{
-              ...SAVE_BTN,
-              opacity: isValid && !saving ? 1 : 0.5,
-            }}
+            onClick={handleSetup}
+            disabled={redirecting}
+            style={{ ...SETUP_BTN, opacity: redirecting ? 0.7 : 1 }}
             className="press-scale"
           >
-            {saving ? (
-              <span>Saving...</span>
+            {redirecting ? (
+              <span>Opening Stripe...</span>
             ) : (
               <>
-                <Check size={20} color="#fff" strokeWidth={2.6} />
-                <span>SAVE CARD</span>
+                <span>SET UP PAYMENT</span>
+                <Ic icon={ArrowRight} size={20} color="#fff" strokeWidth={2.6} />
               </>
             )}
+          </button>
+          <button onClick={onClose} style={LATER_BTN}>
+            <span>I'll set this up later</span>
           </button>
         </div>
       </div>
@@ -174,53 +129,17 @@ export default function AutoCardOnFile({ onComplete, onClose, loadAmount = 2500 
   )
 }
 
-// ── Brand detection — simple prefix check ──────────────────────
-function detectBrand(num) {
-  const digits = num.replace(/\D/g, '')
-  if (/^4/.test(digits)) return 'Visa'
-  if (/^5[1-5]/.test(digits)) return 'Mastercard'
-  if (/^3[47]/.test(digits)) return 'Amex'
-  if (/^6(?:011|5)/.test(digits)) return 'Discover'
-  return 'Card'
-}
-
-function fmt(n) {
-  return '$' + Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
-}
-
-// ═══════════════════════════════════════════════════════════════
-// FORM FIELD
-// ═══════════════════════════════════════════════════════════════
-function FormField({ label, value, onChange, placeholder, inputMode, autoComplete, icon: Icon }) {
+function TrustBullet({ icon: Icon, text }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={INPUT_LABEL}>{label}</label>
-      <div style={{ position: 'relative' }}>
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          inputMode={inputMode}
-          autoComplete={autoComplete}
-          style={{
-            ...INPUT,
-            paddingRight: Icon ? 44 : 18,
-          }}
-        />
-        {Icon && (
-          <div style={{
-            position: 'absolute',
-            right: 14,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            display: 'flex',
-            alignItems: 'center',
-          }}>
-            <Icon size={18} color="rgba(255,255,255,0.4)" />
-          </div>
-        )}
-      </div>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px 12px',
+      background: 'rgba(34,197,94,0.06)',
+      border: '1px solid rgba(34,197,94,0.18)',
+      borderRadius: 12,
+    }}>
+      <Icon size={14} color="#22c55e" />
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>{text}</span>
     </div>
   )
 }
@@ -273,41 +192,25 @@ const CLOSE_BTN = {
   WebkitTapHighlightColor: 'transparent',
 }
 
-const INPUT_LABEL = {
-  display: 'block',
-  fontSize: 10, fontWeight: 800,
-  color: 'rgba(255,255,255,0.5)',
-  letterSpacing: 1.2, textTransform: 'uppercase',
-  marginBottom: 8,
+const STRIPE_CARD = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 14,
+  padding: '16px 18px',
+  background: 'rgba(99, 91, 255, 0.06)',
+  border: '1px solid rgba(99, 91, 255, 0.25)',
+  borderRadius: 16,
 }
 
-const INPUT = {
-  width: '100%',
-  padding: '14px 18px',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 14,
-  fontSize: 16, fontWeight: 600,
-  color: '#fff',
-  fontFamily: "'DM Sans', sans-serif",
-  outline: 'none',
-  WebkitAppearance: 'none',
-  boxSizing: 'border-box',
-  transition: 'border-color 0.2s ease',
+const STRIPE_LOGO_WRAP = {
+  width: 52, height: 52, borderRadius: 14,
+  background: 'rgba(99, 91, 255, 0.12)',
+  border: '1px solid rgba(99, 91, 255, 0.3)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  flexShrink: 0,
 }
 
-const TRUST_FOOTER = {
-  display: 'flex', alignItems: 'center', gap: 8,
-  padding: '12px 18px',
-  margin: '8px 16px 16px',
-  background: 'rgba(34,197,94,0.06)',
-  border: '1px solid rgba(34,197,94,0.15)',
-  borderRadius: 12,
-  fontSize: 11, color: 'rgba(255,255,255,0.7)',
-  lineHeight: 1.4,
-}
-
-const SAVE_BTN = {
+const SETUP_BTN = {
   width: '100%',
   padding: '18px',
   background: 'linear-gradient(135deg, #f0a500, #f59e0b)',
@@ -323,4 +226,17 @@ const SAVE_BTN = {
   cursor: 'pointer',
   WebkitTapHighlightColor: 'transparent',
   transition: 'transform 0.15s ease, opacity 0.2s ease',
+}
+
+const LATER_BTN = {
+  width: '100%',
+  padding: '14px',
+  background: 'transparent',
+  border: 'none',
+  marginTop: 8,
+  fontSize: 12, fontWeight: 700,
+  color: 'rgba(255,255,255,0.4)',
+  fontFamily: "'DM Sans', sans-serif",
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
 }

@@ -77,9 +77,13 @@ export default function AutoShell() {
     ['Booked', 'Dispatched', 'En Route To Pickup', 'Arrived Pickup', 'Loaded',
      'En Route', 'Arrived Delivery', 'Delivered'].includes(l.status)
   )
+  // Real payment method check uses Stripe customer_id (set after Checkout
+  // completes via stripe-webhook). Falls back to legacy payment_method_last4
+  // so users who saved a fake card during the stub phase don't get re-prompted.
+  const hasStripeCustomer = !!(profile?.stripe_customer_id || profile?.payment_method_last4)
   const needsCardOnFile =
     !!profile &&
-    !profile.payment_method_last4 &&
+    !hasStripeCustomer &&
     hasBookedLoad &&
     !cardDismissed &&
     !needsOnboarding

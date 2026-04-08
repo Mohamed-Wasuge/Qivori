@@ -26,6 +26,8 @@ import { Ic, haptic, fmt$ } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import * as db from '../../lib/database'
+import { apiFetch } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 
 // ── Outer wrapper — finds an offered load, renders flow if one exists ──
 export default function AutoNegotiation() {
@@ -43,11 +45,12 @@ export default function AutoNegotiation() {
 
 // ── Inner — runs the 5-step state machine for one load ──
 function NegotiationFlow({ load }) {
-  const { showToast } = useApp()
+  const { showToast, profile, user } = useApp()
   const [step, setStep] = useState('offer')
   const [counterOffer, setCounterOffer] = useState(0)
   const [finalRate, setFinalRate] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [callId, setCallId] = useState(null) // real Retell call_id when present
   const dismissedRef = useRef(false)
 
   const gross = Number(load.gross_pay || load.rate || 0)
@@ -84,16 +87,91 @@ function NegotiationFlow({ load }) {
     setBusy(false)
   }, [busy, load.id])
 
-  // ── NEGOTIATE — start the call simulation ─────────────────────
-  const handleNegotiate = useCallback(() => {
+  // ── NEGOTIATE — kick off real Retell broker call (or simulate) ──
+  // Real path: POST /api/retell-broker-call → returns call_id → we
+  // subscribe to retell_calls realtime to receive call_status updates
+  // → drive the UI off real broker responses.
+  //
+  // Fallback (no broker phone): use the setTimeout simulation so test
+  // loads without real phone numbers still walk through the demo flow.
+  const handleNegotiate = useCallback(async () => {
     if (busy) return
     haptic('success')
     setStep('dialing')
-    // Simulate 3 seconds of dialing then transition to quoted
-    setTimeout(() => {
-      setStep('quoted')
-    }, 3000)
-  }, [busy])
+
+    const phone = load.broker_phone
+    if (!phone) {
+      // Demo / test load — simulate the call timing
+      setTimeout(() => setStep('quoted'), 3000)
+      return
+    }
+
+    // Real call path
+    try {
+      const res = await apiFetch('/api/retell-broker-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          brokerName: broker,
+          loadId: load.id,
+          rate: gross,
+          miles,
+          originCity: origin,
+          destinationCity: dest,
+          equipment: load.equipment || 'Dry Van',
+          driverName: profile?.full_name || 'Driver',
+          carrierName: profile?.company_name,
+          loadDetails: `${origin} → ${dest}, ${miles}mi, $${gross}`,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.call_id) {
+        setCallId(data.call_id)
+        // The realtime subscription (effect below) handles state transitions
+      } else {
+        // API failed — fall back to simulation so the user doesn't get stuck
+        showToast?.('warning', 'Q is on it', 'Using fallback negotiation')
+        setTimeout(() => setStep('quoted'), 3000)
+      }
+    } catch (e) {
+      showToast?.('warning', 'Q is on it', 'Using fallback negotiation')
+      setTimeout(() => setStep('quoted'), 3000)
+    }
+  }, [busy, load.id, load.broker_phone, load.equipment, broker, gross, miles, origin, dest, profile, showToast])
+
+  // ── Realtime subscription on retell_calls ────────────────────
+  // When a real Retell call is in progress, listen for status updates
+  // pushed by the retell-webhook (call connected → in-progress → ended).
+  // Map call_status to the visual step state.
+  useEffect(() => {
+    if (!callId) return
+    const channel = supabase
+      .channel(`retell_call_${callId}`)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'retell_calls', filter: `retell_call_id=eq.${callId}` },
+        (payload) => {
+          const row = payload.new
+          if (!row) return
+          // Map real call status to visual step
+          if (row.call_status === 'connected' || row.call_status === 'in-progress') {
+            // Wait for broker quote to come through
+            if (row.broker_quoted_rate) {
+              setStep('quoted')
+            }
+          } else if (row.call_status === 'ended' && row.broker_agreed_rate) {
+            setFinalRate(row.broker_agreed_rate)
+            setStep('final')
+          } else if (row.call_status === 'failed' || row.call_status === 'no-answer') {
+            showToast?.('warning', 'Broker did not pick up', 'Try another load')
+            setStep('offer')
+            setCallId(null)
+          }
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [callId, showToast])
 
   // ── SEND COUNTER — relay to broker ───────────────────────────
   const handleSendCounter = useCallback(() => {

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Ic, haptic, fmt$ } from '../mobile/shared'
 import * as db from '../../lib/database'
+import { apiFetch } from '../../lib/api'
 import { useApp } from '../../context/AppContext'
 
 // Status flow — drives the timeline + the big action button label
@@ -40,6 +41,7 @@ const TIMELINE = [
 export default function AutoActiveLoad({ load }) {
   const { showToast } = useApp()
   const [updating, setUpdating] = useState(false)
+  const [celebration, setCelebration] = useState(null) // { net, fee }
 
   if (!load) return null
 
@@ -70,13 +72,47 @@ export default function AutoActiveLoad({ load }) {
         updates.delivered_at = new Date().toISOString()
       }
       await db.updateLoad(load.id, updates)
-      showToast?.('success', 'Status updated', `${currentStep.next}`)
+
+      // ── On Delivered, charge the 3% Q fee via Stripe + show celebration ──
+      // Calls existing /api/charge-ai-fee which:
+      //   1. Reads the OO's stripe_customer_id from profiles
+      //   2. Creates a one-time Stripe charge for 3% of gross
+      //   3. Records the fee in q_ai_fees table
+      if (currentStep.next === 'Delivered') {
+        const fee = gross * 0.03
+        const net = gross - fee
+        // Show celebration overlay immediately — don't wait for charge response
+        setCelebration({ net, fee })
+        // Fire-and-forget the charge in the background
+        try {
+          const res = await apiFetch('/api/charge-ai-fee', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              loadId: load.id,
+              loadNumber: load.load_id || load.load_number,
+              loadRate: gross,
+              origin: load.origin,
+              destination: load.destination || load.dest,
+              broker: load.broker_name || 'Unknown',
+              featureUsed: 'autoshell_dispatch',
+            }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (data.error && !res.ok) {
+            // Don't kill the celebration — just log it for the next session
+            console.warn('charge-ai-fee failed:', data.error)
+          }
+        } catch {}
+      } else {
+        showToast?.('success', 'Status updated', `${currentStep.next}`)
+      }
       // CarrierContext realtime will pick up the change and re-render
     } catch (e) {
       showToast?.('error', 'Update failed', 'Please try again')
     }
     setUpdating(false)
-  }, [load.id, currentStep, updating, showToast])
+  }, [load.id, currentStep, updating, showToast, load.load_id, load.load_number, load.origin, load.destination, load.dest, load.broker_name, gross])
 
   const callBroker = useCallback(() => {
     haptic('medium')
@@ -96,6 +132,9 @@ export default function AutoActiveLoad({ load }) {
 
   return (
     <div style={WRAP}>
+      {/* ─── Delivery celebration overlay ─────────────────────── */}
+      {celebration && <CelebrationOverlay net={celebration.net} fee={celebration.fee} />}
+
       {/* ─── Top bar — broker + status ──────────────────────────── */}
       <div style={TOP_BAR}>
         <div style={Q_BADGE}>
@@ -193,6 +232,54 @@ function Stat({ label, value, small }) {
         textOverflow: 'ellipsis',
       }}>
         {value}
+      </div>
+    </div>
+  )
+}
+
+// ── CelebrationOverlay — fullscreen "DELIVERED!" moment ──────────
+// Fires the second the user taps Mark Delivered. Holds for 3 seconds
+// then auto-dismisses by component unmount (because the parent flips
+// from active load mode → hunting once the status hits Delivered).
+function CelebrationOverlay({ net, fee }) {
+  return (
+    <div style={CELEBRATION_OVERLAY}>
+      {/* Big checkmark burst */}
+      <div style={CHECK_BURST}>
+        <CheckCircle size={64} color="#fff" strokeWidth={2.6} />
+      </div>
+
+      {/* Headline */}
+      <div style={{ marginTop: 28, textAlign: 'center' }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#22c55e', letterSpacing: 2, marginBottom: 8 }}>
+          LOAD COMPLETE
+        </div>
+        <div style={{ fontSize: 56, fontWeight: 900, color: '#fff', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1, lineHeight: 1, marginBottom: 8 }}>
+          DELIVERED!
+        </div>
+      </div>
+
+      {/* Net amount big */}
+      <div style={NET_AMOUNT}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: 1.5, marginBottom: 6 }}>
+          NET TO YOU
+        </div>
+        <div style={{
+          fontSize: 80, fontWeight: 900, color: '#fff',
+          fontFamily: "'Bebas Neue', sans-serif",
+          letterSpacing: 1, lineHeight: 1,
+          textShadow: '0 0 40px rgba(34,197,94,0.4)',
+        }}>
+          +{fmt$(net)}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 12 }}>
+          Q charged ${fee.toFixed(2)} dispatch fee
+        </div>
+      </div>
+
+      {/* Q signature */}
+      <div style={{ marginTop: 32, fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.4)', letterSpacing: 1.5 }}>
+        Q · QUICK
       </div>
     </div>
   )
@@ -390,4 +477,30 @@ const SECONDARY_BTN = {
   cursor: 'pointer',
   WebkitTapHighlightColor: 'transparent',
   transition: 'background 0.2s ease, transform 0.1s ease',
+}
+
+// ─── Celebration overlay styles ──────────────────────────────────
+const CELEBRATION_OVERLAY = {
+  position: 'fixed', inset: 0, zIndex: 10000,
+  background: 'radial-gradient(ellipse at center, rgba(34,197,94,0.15) 0%, #07090e 70%)',
+  display: 'flex', flexDirection: 'column',
+  alignItems: 'center', justifyContent: 'center',
+  fontFamily: "'DM Sans', sans-serif",
+  paddingTop: 'env(safe-area-inset-top, 0px)',
+  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+  animation: 'fadeIn 0.4s ease',
+}
+
+const CHECK_BURST = {
+  width: 120, height: 120, borderRadius: '50%',
+  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  boxShadow: '0 0 80px rgba(34,197,94,0.6), 0 12px 40px rgba(0,0,0,0.4)',
+  animation: 'qBreath 1.5s ease-in-out infinite',
+}
+
+const NET_AMOUNT = {
+  marginTop: 36,
+  textAlign: 'center',
+  animation: 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both',
 }

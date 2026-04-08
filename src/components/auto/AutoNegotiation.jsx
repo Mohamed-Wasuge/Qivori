@@ -43,14 +43,15 @@ export default function AutoNegotiation() {
   return <NegotiationFlow load={offeredLoad} />
 }
 
-// ── Inner — runs the 5-step state machine for one load ──
+// ── Inner — state machine: offer → target → dialing → final → booked ──
 function NegotiationFlow({ load }) {
   const { showToast, profile, user } = useApp()
   const [step, setStep] = useState('offer')
-  const [counterOffer, setCounterOffer] = useState(0)
-  const [finalRate, setFinalRate] = useState(0)
+  const [targetRate, setTargetRate] = useState(0)        // what the OO wants Q to push for
+  const [counterOffer, setCounterOffer] = useState(0)    // legacy counter (used in old quoted step)
+  const [finalRate, setFinalRate] = useState(0)          // what broker actually agreed to
   const [busy, setBusy] = useState(false)
-  const [callId, setCallId] = useState(null) // real Retell call_id when present
+  const [callId, setCallId] = useState(null)             // real Retell call_id when present
   const dismissedRef = useRef(false)
 
   const gross = Number(load.gross_pay || load.rate || 0)
@@ -87,22 +88,30 @@ function NegotiationFlow({ load }) {
     setBusy(false)
   }, [busy, load.id])
 
-  // ── NEGOTIATE — kick off real Retell broker call (or simulate) ──
-  // Real path: POST /api/retell-broker-call → returns call_id → we
-  // subscribe to retell_calls realtime to receive call_status updates
-  // → drive the UI off real broker responses.
-  //
-  // Fallback (no broker phone): use the setTimeout simulation so test
-  // loads without real phone numbers still walk through the demo flow.
-  const handleNegotiate = useCallback(async () => {
+  // ── NEGOTIATE — show target rate input first ─────────────────
+  // Per launch spec: the driver/carrier sets the offer, then Q delivers it.
+  // So the Negotiate button doesn't dial yet — it pops the target sheet.
+  const handleNegotiate = useCallback(() => {
     if (busy) return
     haptic('success')
+    // Default target = broker's posted rate + 10% (typical counter)
+    setTargetRate(Math.round(gross * 1.10))
+    setStep('target')
+  }, [busy, gross])
+
+  // ── SEND Q — actually kick off the Retell broker call with target ──
+  const handleSendQ = useCallback(async () => {
+    if (busy || targetRate <= 0) return
+    haptic('medium')
     setStep('dialing')
 
     const phone = load.broker_phone
     if (!phone) {
-      // Demo / test load — simulate the call timing
-      setTimeout(() => setStep('quoted'), 3000)
+      // Demo / test load — simulate the call → final agreed rate
+      setTimeout(() => {
+        setFinalRate(targetRate)
+        setStep('final')
+      }, 4000)
       return
     }
 
@@ -116,34 +125,41 @@ function NegotiationFlow({ load }) {
           brokerName: broker,
           loadId: load.id,
           rate: gross,
+          target_rate: targetRate,  // Q will push for this number
           miles,
           originCity: origin,
           destinationCity: dest,
           equipment: load.equipment || 'Dry Van',
           driverName: profile?.full_name || 'Driver',
           carrierName: profile?.company_name,
-          loadDetails: `${origin} → ${dest}, ${miles}mi, $${gross}`,
+          loadDetails: `${origin} → ${dest}, ${miles}mi, posted $${gross}, driver wants $${targetRate}`,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.call_id) {
         setCallId(data.call_id)
-        // The realtime subscription (effect below) handles state transitions
+        // realtime subscription advances the state when the broker responds
       } else {
-        // API failed — fall back to simulation so the user doesn't get stuck
+        // API failed — fall back to simulation
         showToast?.('warning', 'Q is on it', 'Using fallback negotiation')
-        setTimeout(() => setStep('quoted'), 3000)
+        setTimeout(() => {
+          setFinalRate(targetRate)
+          setStep('final')
+        }, 4000)
       }
     } catch (e) {
       showToast?.('warning', 'Q is on it', 'Using fallback negotiation')
-      setTimeout(() => setStep('quoted'), 3000)
+      setTimeout(() => {
+        setFinalRate(targetRate)
+        setStep('final')
+      }, 4000)
     }
-  }, [busy, load.id, load.broker_phone, load.equipment, broker, gross, miles, origin, dest, profile, showToast])
+  }, [busy, targetRate, load.id, load.broker_phone, load.equipment, broker, gross, miles, origin, dest, profile, showToast])
 
   // ── Realtime subscription on retell_calls ────────────────────
-  // When a real Retell call is in progress, listen for status updates
-  // pushed by the retell-webhook (call connected → in-progress → ended).
-  // Map call_status to the visual step state.
+  // When a real Retell call is in progress, listen for updates pushed by
+  // retell-webhook. The retell_calls schema has: call_status, agreed_rate.
+  // When the call ends with an agreed_rate set → flip to final review.
   useEffect(() => {
     if (!callId) return
     const channel = supabase
@@ -153,16 +169,19 @@ function NegotiationFlow({ load }) {
         (payload) => {
           const row = payload.new
           if (!row) return
-          // Map real call status to visual step
-          if (row.call_status === 'connected' || row.call_status === 'in-progress') {
-            // Wait for broker quote to come through
-            if (row.broker_quoted_rate) {
-              setStep('quoted')
+          const status = (row.call_status || '').toLowerCase()
+          // When the call ends with an agreed_rate → final review
+          if (status === 'ended' || status === 'completed' || status === 'agreed') {
+            if (row.agreed_rate && Number(row.agreed_rate) > 0) {
+              setFinalRate(Number(row.agreed_rate))
+              setStep('final')
+            } else {
+              // Call ended with no rate — broker walked
+              showToast?.('warning', 'No deal', 'Broker walked away')
+              setStep('offer')
+              setCallId(null)
             }
-          } else if (row.call_status === 'ended' && row.broker_agreed_rate) {
-            setFinalRate(row.broker_agreed_rate)
-            setStep('final')
-          } else if (row.call_status === 'failed' || row.call_status === 'no-answer') {
+          } else if (status === 'failed' || status === 'no-answer' || status === 'no_answer') {
             showToast?.('warning', 'Broker did not pick up', 'Try another load')
             setStep('offer')
             setCallId(null)
@@ -228,9 +247,24 @@ function NegotiationFlow({ load }) {
         />
       )}
 
-      {/* STEP 2 — DIALING */}
+      {/* STEP 1.5 — TARGET RATE INPUT (driver tells Q their number) */}
+      {step === 'target' && (
+        <TargetStep
+          broker={broker}
+          gross={gross}
+          targetRate={targetRate}
+          setTargetRate={setTargetRate}
+          onSend={handleSendQ}
+          onBack={() => setStep('offer')}
+          miles={miles}
+          origin={origin}
+          dest={dest}
+        />
+      )}
+
+      {/* STEP 2 — DIALING (real Retell call to broker with target_rate) */}
       {step === 'dialing' && (
-        <DialingStep broker={broker} />
+        <DialingStep broker={broker} targetRate={targetRate} />
       )}
 
       {/* STEP 3 — QUOTED + COUNTER */}
@@ -415,9 +449,163 @@ function OfferStep({ gross, rpm, origin, dest, miles, broker, verdict, pickupDat
 }
 
 // ═══════════════════════════════════════════════════════════════
+// STEP 1.5 — TARGET RATE INPUT
+// Per launch spec: driver tells Q the number to push for BEFORE the call
+// ═══════════════════════════════════════════════════════════════
+function TargetStep({ broker, gross, targetRate, setTargetRate, onSend, onBack, miles, origin, dest }) {
+  const rpmAtTarget = miles > 0 ? (targetRate / miles).toFixed(2) : '0.00'
+  const fee = targetRate * 0.03
+  const net = targetRate - fee
+  const suggestions = [
+    Math.round(gross * 1.05),
+    Math.round(gross * 1.10),
+    Math.round(gross * 1.20),
+  ]
+
+  return (
+    <div style={STEP_FILL}>
+      <div style={{ padding: '20px 20px 8px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button onClick={onBack} style={{
+          width: 36, height: 36, borderRadius: 12,
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+        }}>
+          <X size={18} color="rgba(255,255,255,0.6)" />
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={SUB_LABEL}>YOUR OFFER</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+            What do you want for this load?
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '20px 16px', flex: 1, overflowY: 'auto' }}>
+        {/* Broker posted card */}
+        <div style={{
+          padding: '14px 16px',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 14,
+          marginBottom: 18,
+        }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.2, marginBottom: 4 }}>
+            {broker.toUpperCase()} POSTED
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: '#fff', fontFamily: "'Bebas Neue', sans-serif" }}>
+              {fmt$(gross)}
+            </span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+              {origin} → {dest} · {miles}mi
+            </span>
+          </div>
+        </div>
+
+        {/* Target rate input — the centerpiece */}
+        <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.5)', letterSpacing: 1.5, marginBottom: 10 }}>
+          TELL Q WHAT YOU WANT
+        </div>
+        <div style={{
+          padding: '20px 18px',
+          background: 'rgba(240,165,0,0.08)',
+          border: '2px solid #f0a500',
+          borderRadius: 18,
+          marginBottom: 14,
+          boxShadow: '0 0 30px rgba(240,165,0,0.2)',
+          display: 'flex', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 32, fontWeight: 900, color: '#f0a500', fontFamily: "'Bebas Neue', sans-serif" }}>$</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={targetRate || ''}
+            onChange={(e) => setTargetRate(parseInt(e.target.value) || 0)}
+            style={{
+              flex: 1, background: 'none', border: 'none', outline: 'none',
+              fontSize: 38, fontWeight: 900, color: '#f0a500',
+              fontFamily: "'Bebas Neue', sans-serif",
+              width: '100%', WebkitAppearance: 'none', padding: 0, marginLeft: 6,
+            }}
+            placeholder="2700"
+          />
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 700, marginLeft: 8 }}>
+            ${rpmAtTarget}/mi
+          </span>
+        </div>
+
+        {/* Suggestions */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {suggestions.map((s) => {
+            const highlighted = targetRate === s
+            return (
+              <button
+                key={s}
+                onClick={() => { haptic('light'); setTargetRate(s) }}
+                style={{
+                  flex: 1, padding: '10px 14px',
+                  background: highlighted ? 'rgba(240,165,0,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${highlighted ? 'rgba(240,165,0,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                  borderRadius: 999,
+                  fontSize: 13, fontWeight: 800,
+                  color: highlighted ? '#f0a500' : 'rgba(255,255,255,0.7)',
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                ${s.toLocaleString()}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* You keep / Q fee preview */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 14px', marginBottom: 18,
+          background: 'rgba(34,197,94,0.06)',
+          border: '1px solid rgba(34,197,94,0.2)',
+          borderRadius: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 2 }}>YOU KEEP</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#22c55e', fontFamily: "'Bebas Neue', sans-serif" }}>
+              {fmt$(net)}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 2 }}>Q FEE 3%</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.7)' }}>
+              {fmt$(fee)}
+            </div>
+          </div>
+        </div>
+
+        {/* Send Q */}
+        <button
+          onClick={onSend}
+          disabled={targetRate <= 0}
+          style={{
+            ...PRIMARY_BTN, width: '100%',
+            opacity: targetRate > 0 ? 1 : 0.5,
+          }}
+          className="press-scale"
+        >
+          <Phone size={20} color="#fff" />
+          <span style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 1 }}>
+            SEND Q TO NEGOTIATE
+          </span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
 // STEP 2 — DIALING
 // ═══════════════════════════════════════════════════════════════
-function DialingStep({ broker }) {
+function DialingStep({ broker, targetRate }) {
   return (
     <div style={CENTERED}>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -434,15 +622,28 @@ function DialingStep({ broker }) {
           <Phone size={48} color="#000" strokeWidth={2.4} />
         </div>
       </div>
-      <div style={{ marginTop: 32, textAlign: 'center' }}>
+      <div style={{ marginTop: 32, textAlign: 'center', padding: '0 20px' }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: 1.5, marginBottom: 6 }}>
           Q IS CALLING
         </div>
         <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.5 }}>
           {broker.toUpperCase()}
         </div>
+        {targetRate > 0 && (
+          <div style={{
+            display: 'inline-block',
+            marginTop: 16,
+            padding: '10px 18px',
+            background: 'rgba(34,197,94,0.08)',
+            border: '1px solid rgba(34,197,94,0.3)',
+            borderRadius: 999,
+            fontSize: 12, fontWeight: 700, color: '#22c55e',
+          }}>
+            Pushing for ${targetRate.toLocaleString()}
+          </div>
+        )}
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 14 }}>
-          Hang tight — Q is dialing now.
+          Hang tight — Q is fighting for your number.
         </div>
       </div>
     </div>

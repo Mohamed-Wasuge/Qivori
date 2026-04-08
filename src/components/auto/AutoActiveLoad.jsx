@@ -63,7 +63,13 @@ export default function AutoActiveLoad({ load }) {
     haptic('success')
     setUpdating(true)
     try {
-      await db.updateLoad(load.id, { status: currentStep.next })
+      const updates = { status: currentStep.next }
+      // Stamp delivered_at when transitioning to Delivered so earnings
+      // queries can sort and filter by it.
+      if (currentStep.next === 'Delivered') {
+        updates.delivered_at = new Date().toISOString()
+      }
+      await db.updateLoad(load.id, updates)
       showToast?.('success', 'Status updated', `${currentStep.next}`)
       // CarrierContext realtime will pick up the change and re-render
     } catch (e) {

@@ -24,15 +24,19 @@ export default function AutoEarnings() {
   const data = useMemo(() => {
     const loads = ctx.loads || []
     const cutoff = Date.now() - PERIODS.find((p) => p.id === period).days * 86400000
+    const DELIVERED_STATUSES = ['Delivered', 'Paid', 'Invoiced', 'delivered', 'paid']
     const filtered = loads.filter((l) => {
-      const d = new Date(l.delivered_at || l.created_at || 0).getTime()
-      return d >= cutoff && (l.status === 'delivered' || l.status === 'paid')
+      const d = new Date(l.delivered_at || l.updated_at || l.created_at || 0).getTime()
+      return d >= cutoff && DELIVERED_STATUSES.includes(l.status)
     })
     const gross = filtered.reduce((s, l) => s + Number(l.gross_pay || l.rate || 0), 0)
     const fee = gross * 0.03
     const net = gross - fee
     return {
-      loads: filtered.sort((a, b) => new Date(b.delivered_at || 0) - new Date(a.delivered_at || 0)),
+      loads: filtered.sort((a, b) =>
+        new Date(b.delivered_at || b.updated_at || b.created_at || 0) -
+        new Date(a.delivered_at || a.updated_at || a.created_at || 0)
+      ),
       gross,
       fee,
       net,

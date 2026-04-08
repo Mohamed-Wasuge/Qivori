@@ -88,7 +88,7 @@ function AutoHomeHunting() {
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
     const thisWeek = loads.filter((l) => {
       const d = new Date(l.delivered_at || l.created_at || 0).getTime()
-      return d >= oneWeekAgo && (l.status === 'delivered' || l.status === 'paid')
+      return d >= oneWeekAgo && ['Delivered', 'Paid', 'Invoiced', 'delivered', 'paid'].includes(l.status)
     })
     const gross = thisWeek.reduce((s, l) => s + Number(l.gross_pay || l.rate || 0), 0)
     const fee = gross * 0.03

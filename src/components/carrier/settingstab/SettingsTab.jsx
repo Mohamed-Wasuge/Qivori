@@ -1,7 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import {
   Building2, Star, CreditCard, Plug, Users, Bell, Smartphone, FileText, Palette, Shield, Globe, Sun, Moon, Eye, Zap,
-  Truck, BarChart2, Fuel, Route, Upload, Activity, Lock
+  Truck, BarChart2, Fuel, Route, Upload, Activity, Lock, Briefcase
 } from 'lucide-react'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
@@ -18,6 +18,7 @@ const SMSSettings = lazyN(() => import('../../../pages/carrier/Settings'), 'SMSS
 const InvoicingSettings = lazyN(() => import('../../../pages/carrier/Settings'), 'InvoicingSettings')
 const TeamManagement = lazyN(() => import('../../../pages/carrier/Settings'), 'TeamManagement')
 const InsuranceHub = lazyN(() => import('../../CarrierLayout'), 'InsuranceHub')
+const CarrierPackage = lazyN(() => import('../../../pages/carrier/Settings'), 'CarrierPackage')
 
 // ── Settings tab ───────────────────────────────────────────────────────────────
 export function SettingsTab() {
@@ -282,6 +283,15 @@ export function SettingsTab() {
             </div>
             <div>
               <button className="btn btn-primary" style={{ padding:'11px 28px' }} onClick={() => { updateCompany(company); showToast('','Saved','Company profile updated') }}>Save Changes</button>
+            </div>
+
+            {/* Carrier Package — broker contracting docs (W9, COI, authority, etc).
+                Folded into the Company Profile page so carriers manage their identity
+                and broker packet in one place. */}
+            <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+              <Suspense fallback={<div style={{ padding: 20, color: 'var(--muted)', fontSize: 13 }}>Loading carrier package…</div>}>
+                <CarrierPackage />
+              </Suspense>
             </div>
           </>
         )}

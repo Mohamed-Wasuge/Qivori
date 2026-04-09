@@ -5,9 +5,10 @@
  * waiting for the OO. Walks through 5 visual states:
  *
  *   1. offer        — load offer popup, Q says GO/PASS, accept or decline
- *   2. dialing      — Q is calling broker (3-5s sim)
- *   3. quoted       — broker quoted X, OO inputs counter
- *   4. relaying     — Q is telling broker the counter (3-5s sim)
+ *   2. dialing      — Q is calling broker (live transcript + counter card)
+ *   2.5 closing     — driver accepted the counter, Q wrapping up with broker
+ *   3. quoted       — (legacy) broker quoted X, OO inputs counter
+ *   4. relaying     — (legacy) Q is telling broker the counter
  *   5. final        — broker agreed, final review, BOOK button
  *
  * Phase 1 (this file): pure UI flow with mock state transitions. The
@@ -161,16 +162,33 @@ function NegotiationFlow({ load }) {
   }, [busy, targetRate, load.id, load.broker_phone, load.equipment, broker, gross, miles, origin, dest, profile, showToast])
 
   // ── Realtime subscription on retell_calls ────────────────────
-  // When a real Retell call is in progress, listen for updates pushed by
-  // retell-webhook. Two events arrive separately:
-  //   1. call_ended  → call_status='completed', agreed_rate still NULL
-  //   2. call_analyzed → agreed_rate populated by post-call analysis
+  // Two distinct flows:
   //
-  // We only transition to 'final' once agreed_rate actually arrives.
-  // Premature transition on call_ended would cause a race where the user
-  // gets bounced back to offer step before the post-call analysis runs.
+  // FLOW A — Driver tapped Accept on the counter card (DialingStep):
+  //   1. handleAcceptCounter calls /api/negotiation, which PATCHes
+  //      retell_calls.agreed_rate=X immediately. We're already in 'closing'
+  //      step (DialingStep called onAccepted before posting).
+  //   2. Q's check_driver_decision tool reads the row, confirms with broker,
+  //      calls end_call. Webhook fires call_ended → call_status='completed'.
+  //   3. We transition 'closing' → 'final' on the call_status change.
+  //   4. Safety net: if Q takes longer than 60s to wrap up, force-advance.
+  //
+  // FLOW B — Legacy path (no Accept card, e.g. Q post-call analysis):
+  //   1. Webhook updates row with agreed_rate from call_analysis.custom_data.
+  //   2. We're still in 'dialing' step. agreed_rate populates → 'final'.
   useEffect(() => {
     if (!callId) return
+
+    // Safety timer — if 'closing' lasts more than 60s without a terminal
+    // call_status, force-advance to 'final' so the UI doesn't hang.
+    let closingTimer = null
+    const armClosingTimer = () => {
+      if (closingTimer) clearTimeout(closingTimer)
+      closingTimer = setTimeout(() => {
+        setStep((s) => (s === 'closing' ? 'final' : s))
+      }, 60_000)
+    }
+
     const channel = supabase
       .channel(`retell_call_${callId}`)
       .on('postgres_changes',
@@ -179,34 +197,59 @@ function NegotiationFlow({ load }) {
           const row = payload.new
           if (!row) return
           const status = (row.call_status || '').toLowerCase()
-          // ONLY advance when agreed_rate actually populates — don't react
-          // to bare 'completed' status (post-call analysis runs after)
-          if (row.agreed_rate && Number(row.agreed_rate) > 0) {
-            setFinalRate(Number(row.agreed_rate))
-            setStep('final')
-            return
-          }
-          // Hard failures stay reactive (no-answer, voicemail, busy, failed)
-          // — these never produce an agreed_rate so it's safe to bail
-          if (
-            status === 'failed' ||
-            status === 'no-answer' || status === 'no_answer' ||
-            status === 'voicemail' ||
-            status === 'busy' ||
-            status === 'hung_up_early'
-          ) {
-            showToast?.('warning', 'Broker did not pick up', 'Try another load')
-            setStep('offer')
-            setCallId(null)
-          }
-          // For 'completed' / 'ended' WITHOUT agreed_rate yet → wait silently.
-          // The user can tap "Done with the call?" to advance manually if
-          // post-call analysis takes too long.
+          const terminal = ['completed', 'ended', 'failed', 'no-answer', 'no_answer', 'voicemail', 'busy', 'hung_up', 'hung_up_early'].includes(status)
+
+          // FLOW A — already in 'closing' (driver hit Accept). Wait for the
+          // call_status to flip terminal, then move to 'final'. agreed_rate
+          // is already set locally; don't override it from the row.
+          setStep((currentStep) => {
+            if (currentStep === 'closing') {
+              if (terminal) {
+                if (closingTimer) { clearTimeout(closingTimer); closingTimer = null }
+                return 'final'
+              }
+              return 'closing' // keep waiting
+            }
+
+            // FLOW B — still in dialing. agreed_rate populating directly
+            // (legacy path: post-call analysis or fallback).
+            if (currentStep === 'dialing' && row.agreed_rate && Number(row.agreed_rate) > 0) {
+              setFinalRate(Number(row.agreed_rate))
+              return 'final'
+            }
+
+            // Hard failures while still dialing — bail to offer step.
+            if (currentStep === 'dialing' && terminal && !row.agreed_rate) {
+              const isHardFail = ['failed', 'no-answer', 'no_answer', 'voicemail', 'busy', 'hung_up_early'].includes(status)
+              if (isHardFail) {
+                showToast?.('warning', 'Broker did not pick up', 'Try another load')
+                setCallId(null)
+                return 'offer'
+              }
+            }
+
+            return currentStep
+          })
         }
       )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [callId, showToast])
+
+    // Arm the safety timer whenever we enter 'closing'
+    if (step === 'closing') armClosingTimer()
+
+    return () => {
+      if (closingTimer) clearTimeout(closingTimer)
+      supabase.removeChannel(channel)
+    }
+  }, [callId, step, showToast])
+
+  // ── Driver tapped Accept on the counter card ─────────────────
+  // Move to 'closing' interstitial, remember the rate. The realtime sub
+  // above will advance to 'final' once Q closes the call with the broker.
+  const handleAccepted = useCallback((rate) => {
+    setFinalRate(Number(rate) || 0)
+    setStep('closing')
+  }, [])
 
   // ── SEND COUNTER — relay to broker ───────────────────────────
   const handleSendCounter = useCallback(() => {
@@ -284,12 +327,18 @@ function NegotiationFlow({ load }) {
           broker={broker}
           targetRate={targetRate}
           callId={callId}
+          onAccepted={handleAccepted}
           onManualRate={(rate) => {
             // Driver finished the call — manually advance to final review
             setFinalRate(rate)
             setStep('final')
           }}
         />
+      )}
+
+      {/* STEP 2.5 — CLOSING (driver accepted, Q wrapping up with broker) */}
+      {step === 'closing' && (
+        <ClosingStep broker={broker} finalRate={finalRate} />
       )}
 
       {/* STEP 3 — QUOTED + COUNTER */}
@@ -630,10 +679,63 @@ function TargetStep({ broker, gross, targetRate, setTargetRate, onSend, onBack, 
 // ═══════════════════════════════════════════════════════════════
 // STEP 2 — DIALING
 // ═══════════════════════════════════════════════════════════════
-function DialingStep({ broker, targetRate, callId, onManualRate }) {
+function DialingStep({ broker, targetRate, callId, onManualRate, onAccepted }) {
   const [manualMode, setManualMode] = useState(false)
   const [manualRate, setManualRate] = useState(targetRate || 0)
   const [messages, setMessages] = useState([])
+  const [acceptingRate, setAcceptingRate] = useState(0) // rate_value currently being POSTed
+  const [acceptedRate, setAcceptedRate] = useState(0)   // rate_value already accepted (hide card)
+
+  // ── Latest broker counter that hasn't been accepted yet ─────────
+  // Scans messages from newest → oldest for the first one with a rate_value
+  // and a counter/quote type. Once accepted, we suppress it so the card
+  // doesn't reappear if the parent hasn't transitioned to 'final' yet.
+  const latestCounter = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (!m?.rate_value) continue
+      if (m.message_type !== 'broker_quoted' && m.message_type !== 'broker_countered') continue
+      if (Number(m.rate_value) === acceptedRate) return null
+      return m
+    }
+    return null
+  }, [messages, acceptedRate])
+
+  // ── ACCEPT counter — relay decision to Q via /api/negotiation ────
+  // Server PATCHes retell_calls.outcome='accepted' + agreed_rate. Q's next
+  // check_driver_decision tool call (per the agent prompt) reads the row,
+  // confirms the rate to the broker, and calls end_call. The parent flow's
+  // realtime sub on retell_calls then transitions us to 'final'.
+  const handleAcceptCounter = useCallback(async (msg) => {
+    if (!callId || !msg?.rate_value || acceptingRate) return
+    const rate = Number(msg.rate_value)
+    haptic('success')
+    setAcceptingRate(rate)
+    try {
+      const res = await apiFetch('/api/negotiation?action=driver_response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callId,
+          decision: 'accept',
+          offeredRate: rate,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        // Roll back so the driver can retry
+        setAcceptingRate(0)
+        return
+      }
+      setAcceptedRate(rate)
+      // Tell the parent — it switches to the 'closing' interstitial. The
+      // parent's realtime sub then advances to 'final' once Q's call_status
+      // flips terminal (or after the 60s safety timeout).
+      onAccepted?.(rate)
+    } catch {
+      setAcceptingRate(0)
+    }
+  }, [callId, acceptingRate, onAccepted])
 
   // ── Live broker chatter ────────────────────────────────────────
   // Q calls /api/q-notify mid-call whenever the broker says something
@@ -789,6 +891,68 @@ function DialingStep({ broker, targetRate, callId, onManualRate }) {
           Hang tight — Q is fighting for your number.
         </div>
 
+        {/* ── Counter-offer Accept card ── */}
+        {/* When the broker counters with a rate, slide up an Accept card.
+            Tap → POST /api/negotiation, then wait for parent to flip to 'final'.
+            Decline is intentionally NOT here — declines are post-call only. */}
+        {latestCounter && (
+          <div style={{
+            marginTop: 24,
+            width: '100%',
+            maxWidth: 360,
+            padding: '20px 18px',
+            background: 'rgba(34,197,94,0.10)',
+            border: '2px solid #22c55e',
+            borderRadius: 18,
+            boxShadow: '0 0 40px rgba(34,197,94,0.25)',
+            animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#22c55e', letterSpacing: 1.5, marginBottom: 6 }}>
+              {broker.toUpperCase()} OFFERED
+            </div>
+            <div style={{
+              fontSize: 56,
+              fontWeight: 900,
+              color: '#22c55e',
+              fontFamily: "'Bebas Neue', sans-serif",
+              lineHeight: 1,
+              marginBottom: 6,
+            }}>
+              ${Number(latestCounter.rate_value).toLocaleString()}
+            </div>
+            {latestCounter.message && (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 16, lineHeight: 1.4 }}>
+                "{latestCounter.message}"
+              </div>
+            )}
+            <button
+              onClick={() => handleAcceptCounter(latestCounter)}
+              disabled={acceptingRate > 0}
+              style={{
+                ...PRIMARY_BTN,
+                width: '100%',
+                background: acceptingRate > 0 ? 'rgba(34,197,94,0.4)' : '#22c55e',
+                opacity: acceptingRate > 0 ? 0.7 : 1,
+                cursor: acceptingRate > 0 ? 'wait' : 'pointer',
+              }}
+              className={acceptingRate > 0 ? '' : 'press-scale'}
+            >
+              <CheckCircle size={20} color="#fff" />
+              <span style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 1 }}>
+                {acceptingRate > 0
+                  ? 'Q IS CLOSING…'
+                  : `ACCEPT $${Number(latestCounter.rate_value).toLocaleString()}`}
+              </span>
+            </button>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 10, lineHeight: 1.4 }}>
+              Q will confirm with broker and close the call.
+              <br />
+              To decline, wait for Q to finish — you'll get options after.
+            </div>
+          </div>
+        )}
+
         {/* ── Live broker messages — Q reports as the call progresses ── */}
         {messages.length > 0 && (
           <div style={{
@@ -865,6 +1029,59 @@ function DialingStep({ broker, targetRate, callId, onManualRate }) {
             <span>Done with the call?</span>
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 2.5 — CLOSING (driver accepted, Q wrapping up with broker)
+// ═══════════════════════════════════════════════════════════════
+// Renders after the driver taps Accept on the counter card. Q is still
+// on the line — confirming the rate, asking for the rate con email, then
+// invoking end_call. Once the webhook updates retell_calls.call_status
+// to a terminal value, NegotiationFlow flips to 'final' and the BOOK
+// button appears. 60s safety timeout in the parent prevents hangs.
+function ClosingStep({ broker, finalRate }) {
+  return (
+    <div style={CENTERED}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ ...PULSE_RING, animationDelay: '0s', borderColor: '#22c55e' }} />
+        <div style={{ ...PULSE_RING, animationDelay: '0.7s', borderColor: '#22c55e' }} />
+        <div style={{ ...PULSE_RING, animationDelay: '1.4s', borderColor: '#22c55e' }} />
+        <div style={{
+          width: 132, height: 132, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 0 60px rgba(34,197,94,0.55)',
+          animation: 'qBreath 2s ease-in-out infinite',
+        }}>
+          <CheckCircle size={56} color="#fff" strokeWidth={2.4} />
+        </div>
+      </div>
+      <div style={{ marginTop: 32, textAlign: 'center', padding: '0 20px' }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#22c55e', letterSpacing: 1.5, marginBottom: 6 }}>
+          DEAL ACCEPTED
+        </div>
+        <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 0.5 }}>
+          ${Number(finalRate || 0).toLocaleString()}
+        </div>
+        <div style={{
+          display: 'inline-block',
+          marginTop: 16,
+          padding: '10px 18px',
+          background: 'rgba(34,197,94,0.08)',
+          border: '1px solid rgba(34,197,94,0.3)',
+          borderRadius: 999,
+          fontSize: 12, fontWeight: 700, color: '#22c55e',
+        }}>
+          Q is closing with {broker}
+        </div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 14, lineHeight: 1.5 }}>
+          Confirming the rate and requesting the rate con.
+          <br />
+          You'll get the BOOK button as soon as Q hangs up.
+        </div>
       </div>
     </div>
   )

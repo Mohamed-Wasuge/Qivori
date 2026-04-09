@@ -167,26 +167,53 @@ export default async function handler(req) {
 }
 
 async function handleBookedLoad(meta) {
-  const { loadId, brokerName, brokerEmail, carrierName, agreed_rate } = meta
+  const { loadId, brokerName, brokerEmail, agreed_rate, userId } = meta
   // Update load status to booked
   await fetch(SUPABASE_URL + '/rest/v1/load_matches?id=eq.' + loadId, {
     method: 'PATCH', headers: sbHeaders(),
     body: JSON.stringify({ status: 'booked' })
   })
+
+  // ── Look up carrier identity from companies table ──
+  // The rate-con email MUST come from the carrier, never from Qivori. We
+  // refuse to send if we can't resolve a real From identity — better to
+  // skip the email than to leak Qivori-Dispatch into a broker's inbox.
+  let carrierName = meta.carrierName || null
+  let carrierEmail = null
+  if (userId) {
+    try {
+      const cRes = await fetch(
+        SUPABASE_URL + '/rest/v1/companies?owner_id=eq.' + userId + '&select=name,email&limit=1',
+        { headers: sbHeaders() }
+      )
+      if (cRes.ok) {
+        const rows = await cRes.json()
+        if (rows[0]) {
+          carrierName = rows[0].name || carrierName
+          carrierEmail = rows[0].email || null
+        }
+      }
+    } catch {}
+  }
+
   // Send rate confirmation email via Resend
-  if (brokerEmail && RESEND_API_KEY) {
+  if (brokerEmail && RESEND_API_KEY && carrierName && carrierEmail) {
     const confirmNum = 'RC-' + Date.now().toString(36).toUpperCase()
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Qivori Dispatch <dispatch@qivori.com>',
+        from: carrierName + ' <' + carrierEmail + '>',
+        reply_to: carrierEmail,
         to: [brokerEmail],
         subject: 'Rate Confirmation ' + confirmNum + ' - ' + carrierName,
-        html: '<h2>Rate Confirmation</h2><p>Carrier: ' + carrierName + '</p><p>Rate: $' + (agreed_rate || 'TBD') + '</p><p>Confirmation: ' + confirmNum + '</p>'
+        html: '<h2>Rate Confirmation</h2><p>Carrier: ' + carrierName + '</p><p>Rate: $' + (agreed_rate || 'TBD') + '</p><p>Confirmation: ' + confirmNum + '</p><p>Thanks,<br/>' + carrierName + '</p>'
       })
     })
+  } else if (brokerEmail && RESEND_API_KEY) {
+    console.warn('handleBookedLoad: skipping rate-con email — missing carrier identity (name=' + carrierName + ', email=' + carrierEmail + ')')
   }
+
   // Schedule check calls (2hr after pickup, 2hr before delivery)
   const now = new Date()
   const pickupCheck = new Date(now.getTime() + 2 * 60 * 60 * 1000)

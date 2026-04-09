@@ -32,14 +32,16 @@ async function supabaseRequest(path, options = {}) {
   return res.json();
 }
 
-async function sendEmail(to, subject, html, attachments = []) {
+async function sendEmail(to, subject, html, attachments = [], from, replyTo) {
   if (!RESEND_API_KEY) throw new Error('No Resend API key configured');
+  if (!from) throw new Error('Sender identity is required — must come from carrier company, never Qivori');
   const payload = {
-    from: 'Qivori Dispatch <dispatch@qivori.com>',
+    from,
     to,
     subject,
     html,
   };
+  if (replyTo) payload.reply_to = replyTo;
   if (attachments.length > 0) {
     payload.attachments = attachments;
   }
@@ -51,9 +53,14 @@ async function sendEmail(to, subject, html, attachments = []) {
   return res.json();
 }
 
+// Bucket name reconciled 2026-04-09: frontend uploads to 'documents' bucket
+// (src/lib/storage.js BUCKET constant). The 'carrier-documents' bucket exists
+// but is unused dead scaffolding from an earlier prototype.
+const STORAGE_BUCKET = 'documents';
+
 // Get download URL for a storage file
 async function getDocumentUrl(filePath) {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/carrier-documents/${filePath}`, {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${STORAGE_BUCKET}/${filePath}`, {
     method: 'POST',
     headers: {
       'apikey': SUPABASE_KEY,
@@ -69,7 +76,7 @@ async function getDocumentUrl(filePath) {
 
 // Download file content as base64 for email attachment
 async function getDocumentBase64(filePath) {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/carrier-documents/${filePath}`, {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${filePath}`, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -85,8 +92,11 @@ async function getDocumentBase64(filePath) {
   return btoa(binary);
 }
 
+// Generates the carrier packet HTML email body. Branding is intentionally
+// the carrier's company name only — no Qivori references anywhere. Brokers
+// must perceive this email as coming from the carrier directly.
 function generatePacketEmailHTML(data) {
-  const { carrierName, mcNumber, dotNumber, origin, destination, rate, brokerName, confirmationNumber, documents } = data;
+  const { carrierName, mcNumber, dotNumber, carrierEmail, carrierPhone, origin, destination, rate, brokerName, confirmationNumber, documents } = data;
 
   const docRows = documents.map(doc => {
     const docNames = {
@@ -98,38 +108,42 @@ function generatePacketEmailHTML(data) {
     return `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">${docNames[doc.document_type] || doc.document_type}</td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #22c55e;">Attached</td></tr>`;
   }).join('');
 
+  const safeName = carrierName || 'Our Carrier';
+  const greeting = brokerName ? `Hi ${brokerName},` : 'Hello,';
+
   return `
     <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
-      <div style="background: #1a1a2e; padding: 20px; text-align: center;">
-        <h1 style="color: #00d4ff; margin: 0;">QIVORI</h1>
-        <p style="color: #ccc; margin: 5px 0 0;">Carrier Packet</p>
+      <div style="background: #1f2937; padding: 24px 20px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 1px;">${safeName.toUpperCase()}</h1>
+        <p style="color: #9ca3af; margin: 6px 0 0; font-size: 13px;">Carrier Packet</p>
       </div>
       <div style="padding: 30px; background: #ffffff;">
-        <h2 style="color: #1a1a2e; border-bottom: 2px solid #00d4ff; padding-bottom: 10px;">Carrier Information</h2>
-        <table style="width: 100%; margin-bottom: 20px;">
-          <tr><td style="padding: 5px 0; color: #666;">Carrier Name:</td><td style="font-weight: bold;">${carrierName || 'N/A'}</td></tr>
-          <tr><td style="padding: 5px 0; color: #666;">MC Number:</td><td style="font-weight: bold;">${mcNumber || 'N/A'}</td></tr>
-          <tr><td style="padding: 5px 0; color: #666;">DOT Number:</td><td style="font-weight: bold;">${dotNumber || 'N/A'}</td></tr>
+        <p style="font-size: 14px; color: #1f2937;">${greeting}</p>
+        <p style="font-size: 14px; color: #1f2937;">Please find our carrier packet attached. All required documents are included as PDFs. Reply to this email if you need anything additional.</p>
+
+        <h2 style="color: #1f2937; border-bottom: 2px solid #1f2937; padding-bottom: 10px; margin-top: 28px; font-size: 16px;">Carrier Information</h2>
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px;">
+          <tr><td style="padding: 5px 0; color: #6b7280;">Carrier Name:</td><td style="font-weight: bold; color: #1f2937;">${safeName}</td></tr>
+          <tr><td style="padding: 5px 0; color: #6b7280;">MC Number:</td><td style="font-weight: bold; color: #1f2937;">${mcNumber || 'N/A'}</td></tr>
+          <tr><td style="padding: 5px 0; color: #6b7280;">DOT Number:</td><td style="font-weight: bold; color: #1f2937;">${dotNumber || 'N/A'}</td></tr>
+          ${carrierEmail ? `<tr><td style="padding: 5px 0; color: #6b7280;">Dispatch Email:</td><td style="font-weight: bold; color: #1f2937;">${carrierEmail}</td></tr>` : ''}
+          ${carrierPhone ? `<tr><td style="padding: 5px 0; color: #6b7280;">Dispatch Phone:</td><td style="font-weight: bold; color: #1f2937;">${carrierPhone}</td></tr>` : ''}
         </table>
 
-        ${confirmationNumber ? `<h2 style="color: #1a1a2e; border-bottom: 2px solid #00d4ff; padding-bottom: 10px;">Load Details</h2>
-        <table style="width: 100%; margin-bottom: 20px;">
-          <tr><td style="padding: 5px 0; color: #666;">Confirmation #:</td><td style="font-weight: bold;">${confirmationNumber}</td></tr>
-          <tr><td style="padding: 5px 0; color: #666;">Route:</td><td style="font-weight: bold;">${origin} → ${destination}</td></tr>
-          <tr><td style="padding: 5px 0; color: #666;">Agreed Rate:</td><td style="font-weight: bold; color: #22c55e;">$${Number(rate).toLocaleString()}</td></tr>
+        ${confirmationNumber ? `<h2 style="color: #1f2937; border-bottom: 2px solid #1f2937; padding-bottom: 10px; font-size: 16px;">Load Details</h2>
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px;">
+          <tr><td style="padding: 5px 0; color: #6b7280;">Confirmation #:</td><td style="font-weight: bold; color: #1f2937;">${confirmationNumber}</td></tr>
+          <tr><td style="padding: 5px 0; color: #6b7280;">Route:</td><td style="font-weight: bold; color: #1f2937;">${origin} → ${destination}</td></tr>
+          <tr><td style="padding: 5px 0; color: #6b7280;">Agreed Rate:</td><td style="font-weight: bold; color: #16a34a;">$${Number(rate).toLocaleString()}</td></tr>
         </table>` : ''}
 
-        <h2 style="color: #1a1a2e; border-bottom: 2px solid #00d4ff; padding-bottom: 10px;">Documents Included</h2>
-        <table style="width: 100%; margin-bottom: 20px;">
+        <h2 style="color: #1f2937; border-bottom: 2px solid #1f2937; padding-bottom: 10px; font-size: 16px;">Documents Attached</h2>
+        <table style="width: 100%; margin-bottom: 20px; font-size: 14px;">
           <tr style="background: #f3f4f6;"><th style="padding: 8px; text-align: left;">Document</th><th style="padding: 8px; text-align: left;">Status</th></tr>
           ${docRows}
         </table>
 
-        <p style="color: #666; font-size: 13px;">All documents are attached to this email as PDF files. Please review and confirm receipt.</p>
-        <p style="color: #666; font-size: 13px;">This carrier packet was sent automatically by Qivori Dispatch on behalf of ${carrierName || 'the carrier'}.</p>
-      </div>
-      <div style="background: #f3f4f6; padding: 15px; text-align: center; color: #999; font-size: 12px;">
-        Powered by Qivori — AI-Powered Freight Intelligence
+        <p style="color: #1f2937; font-size: 14px; margin-top: 24px;">Thanks,<br/><strong>${safeName}</strong></p>
       </div>
     </div>
   `;
@@ -182,20 +196,41 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ error: 'broker_email is required' }), { status: 400, headers: corsHeaders });
       }
 
-      // Get carrier profile
-      const profiles = await supabaseRequest(`carrier_profiles?user_id=eq.${userId}&limit=1`);
-      const profile = profiles[0];
-      if (!profile) {
-        return new Response(JSON.stringify({ error: 'Carrier profile not found. Please complete your company profile first.' }), { status: 400, headers: corsHeaders });
+      // ── Resolve carrier identity ──
+      // Read both possible profile sources. `companies` is populated at signup
+      // (canonical), `carrier_profiles` is the legacy AI-caller schema. Prefer
+      // `companies` for name/MC/DOT/email/phone since it's the table users
+      // actually edit in Settings → Company. Fall back to carrier_profiles if
+      // a field is missing. Email is critical — without it we cannot construct
+      // a sender identity, and refusing to send is safer than leaking Qivori.
+      const [companies, profiles] = await Promise.all([
+        supabaseRequest(`companies?owner_id=eq.${userId}&limit=1`).catch(() => []),
+        supabaseRequest(`carrier_profiles?user_id=eq.${userId}&limit=1`).catch(() => []),
+      ]);
+      const company = companies[0] || {};
+      const profile = profiles[0] || {};
+
+      const carrierName = company.name || profile.company_name || null;
+      const carrierEmail = company.email || null;
+      const carrierMc = company.mc_number || profile.mc_number || null;
+      const carrierDot = company.dot_number || profile.dot_number || null;
+      const carrierPhone = company.phone || null;
+
+      if (!carrierName) {
+        return new Response(JSON.stringify({ error: 'Carrier company name not found. Complete Settings → Company first.' }), { status: 400, headers: corsHeaders });
+      }
+      if (!carrierEmail) {
+        return new Response(JSON.stringify({ error: 'Carrier dispatch email not found. Add it under Settings → Company before sending packets.' }), { status: 400, headers: corsHeaders });
       }
 
       // Get carrier documents
       const docs = await supabaseRequest(`carrier_documents?user_id=eq.${userId}&order=document_type.asc`);
       if (!docs.length) {
-        return new Response(JSON.stringify({ error: 'No carrier documents uploaded. Please upload your insurance, W9, and operating authority.' }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: 'No carrier documents uploaded. Upload your W9, insurance, and operating authority in Settings → Carrier Package.' }), { status: 400, headers: corsHeaders });
       }
 
       // Download documents as attachments
+      const safeFilenameBase = carrierName.replace(/\s+/g, '_');
       const attachments = [];
       for (const doc of docs) {
         try {
@@ -208,7 +243,7 @@ export default async function handler(req) {
               medical_card: 'Medical_Card',
             };
             attachments.push({
-              filename: `${docNames[doc.document_type] || doc.document_type}_${profile.company_name?.replace(/\s/g, '_') || 'carrier'}.pdf`,
+              filename: `${docNames[doc.document_type] || doc.document_type}_${safeFilenameBase}.pdf`,
               content: base64Content,
             });
           }
@@ -217,11 +252,14 @@ export default async function handler(req) {
         }
       }
 
-      // Generate and send email
+      // Generate and send email — From / Reply-To are the carrier identity.
+      // No Qivori references anywhere in the headers or body.
       const emailHTML = generatePacketEmailHTML({
-        carrierName: profile.company_name,
-        mcNumber: profile.mc_number,
-        dotNumber: profile.dot_number,
+        carrierName,
+        mcNumber: carrierMc,
+        dotNumber: carrierDot,
+        carrierEmail,
+        carrierPhone,
         origin,
         destination,
         rate,
@@ -230,11 +268,14 @@ export default async function handler(req) {
         documents: docs,
       });
 
+      const fromHeader = `${carrierName} <${carrierEmail}>`;
       const emailResult = await sendEmail(
         broker_email,
-        `Carrier Packet — ${profile.company_name || 'Carrier'} | MC# ${profile.mc_number || 'N/A'}${confirmation_number ? ` | Conf# ${confirmation_number}` : ''}`,
+        `Carrier Packet — ${carrierName} | MC# ${carrierMc || 'N/A'}${confirmation_number ? ` | Conf# ${confirmation_number}` : ''}`,
         emailHTML,
-        attachments
+        attachments,
+        fromHeader,
+        carrierEmail
       );
 
       // Log the submission

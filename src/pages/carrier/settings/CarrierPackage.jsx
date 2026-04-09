@@ -61,6 +61,48 @@ export function CarrierPackage() {
     { key:'drug',      label:'Drug & Alcohol Policy', required:false },
   ]
 
+  // ── Doc upload + register ─────────────────────────────────────
+  // Maps the UI doc keys (w9, authority, ...) to the carrier_documents.document_type
+  // values the backend's CHECK constraint accepts. Any UI key without a mapping
+  // here cannot be sent in the carrier packet — it would only live in storage
+  // as an orphan. For Phase 1 (MVP) only W9 is wired through.
+  const DOC_TYPE_MAP = {
+    w9:        'w9_form',
+    authority: 'operating_authority',
+    // boc3, drug — no carrier_documents.document_type yet, deferred
+  }
+
+  const handleDocUpload = async (file, uiKey, label) => {
+    const docType = DOC_TYPE_MAP[uiKey]
+    if (!docType) {
+      showToast('warning', label + ' — coming soon', 'Only W-9 and Operating Authority are wired to send right now.')
+      return null
+    }
+    // 1. Upload to Supabase Storage (bucket=documents, folder=carrier-docs/{key})
+    const result = await uploadFile(file, 'carrier-docs/' + uiKey)
+    // 2. Register in carrier_documents so the send endpoint can find it.
+    // The endpoint reads `action` from the BODY, not the URL query string.
+    const reg = await apiFetch('/api/carrier-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'register_document',
+        document_type: docType,
+        file_name: file.name,
+        file_path: result.path, // matches what /api/carrier-packet downloads
+        file_size: file.size,
+        mime_type: file.type || 'application/pdf',
+      }),
+    })
+    if (!reg.ok) {
+      const err = await reg.json().catch(() => ({}))
+      showToast('error', 'Registration Failed', err.error || 'Upload saved but DB record failed')
+      return null
+    }
+    showToast('success', label + ' Uploaded', file.name)
+    return result
+  }
+
   const linkUrl = 'https://pkg.qivori.com/c/' + (company?.mc||'').replace('MC-','')
   const doneCount = INS.filter(f=>f.required&&insurance[f.key]?.policy).length + DOCS.filter(f=>f.required&&docs[f.key]?.uploaded).length
   const totalReq  = INS.filter(f=>f.required).length + DOCS.filter(f=>f.required).length
@@ -243,10 +285,8 @@ export function CarrierPackage() {
                       onChange={async e => {
                         const file = e.target.files?.[0]; if (!file) return
                         try {
-                          const result = await uploadFile(file, 'carrier-docs/' + f.key)
-                          setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:file.name, url:result.url } }))
-                          updateCompany({ [`${f.key}_doc_url`]: result.url, [`${f.key}_doc_name`]: file.name })
-                          showToast('', f.label+' Updated', file.name)
+                          const result = await handleDocUpload(file, f.key, f.label)
+                          if (result) setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:file.name, url:result.url } }))
                         } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload') }
                       }} />
                   </label>
@@ -258,10 +298,8 @@ export function CarrierPackage() {
                     onChange={async e => {
                       const file = e.target.files?.[0]; if (!file) return
                       try {
-                        const result = await uploadFile(file, 'carrier-docs/' + f.key)
-                        setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:file.name, url:result.url } }))
-                        updateCompany({ [`${f.key}_doc_url`]: result.url, [`${f.key}_doc_name`]: file.name })
-                        showToast('', f.label+' Uploaded', file.name)
+                        const result = await handleDocUpload(file, f.key, f.label)
+                        if (result) setDocs(d => ({ ...d, [f.key]: { uploaded:true, filename:file.name, url:result.url } }))
                       } catch (err) { showToast('error', 'Upload Failed', err.message || 'Could not upload') }
                     }} />
                 </label>
@@ -283,7 +321,28 @@ export function CarrierPackage() {
                 <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Broker Email</label>
                 <input value={brokerEmail} onChange={e => setBrokerEmail(e.target.value)} placeholder="dispatch@broker.com" style={inp} />
               </div>
-              <button onClick={async () => { if(!brokerEmail||pkgSent[brokerEmail]) return; try { await apiFetch('/api/carrier-packet', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ brokerEmail }) }); setPkgSent(p => ({...p, [brokerEmail]:true})); showToast('success','Package Sent!','Carrier packet emailed to '+brokerEmail) } catch(e) { showToast('error','Send Failed', e.message||'Could not send packet — check your documents are uploaded') } }}
+              <button onClick={async () => {
+                if (!brokerEmail || pkgSent[brokerEmail]) return
+                try {
+                  const res = await apiFetch('/api/carrier-packet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      action: 'send_packet',
+                      broker_email: brokerEmail,
+                    }),
+                  })
+                  const data = await res.json().catch(() => ({}))
+                  if (!res.ok || !data.ok) {
+                    showToast('error', 'Send Failed', data.error || 'Could not send packet')
+                    return
+                  }
+                  setPkgSent(p => ({ ...p, [brokerEmail]: true }))
+                  showToast('success', 'Package Sent!', `${data.attachmentCount || 0} document(s) emailed to ${brokerEmail}`)
+                } catch (e) {
+                  showToast('error', 'Send Failed', e.message || 'Could not send packet — check your documents are uploaded')
+                }
+              }}
                 style={{ padding:'12px 0', fontSize:13, fontWeight:700, borderRadius:8, border:'none', fontFamily:"'DM Sans',sans-serif", cursor:'pointer',
                   background:pkgSent[brokerEmail]?'rgba(34,197,94,0.15)':!brokerEmail?'var(--surface3)':'var(--accent3)',
                   color:pkgSent[brokerEmail]?'var(--success)':!brokerEmail?'var(--muted)':'#fff' }}>

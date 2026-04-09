@@ -211,7 +211,7 @@ function AIRateNegotiator({ load, lane, bkr }) {
 
 export function AILoadBoard() {
   const { showToast } = useApp()
-  const { addLoad, drivers: dbDrivers, fuelCostPerMile: boardFuelCpm } = useCarrier()
+  const { drivers: dbDrivers, fuelCostPerMile: boardFuelCpm } = useCarrier()
   const boardPayPct = useMemo(() => {
     const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
@@ -221,7 +221,7 @@ export function AILoadBoard() {
   const [boardLoads, setBoardLoads] = useState(SAMPLE_BOARD_LOADS)
   const [selected, setSelected] = useState(SAMPLE_BOARD_LOADS[0]?.id || null)
   const [booked, setBooked]     = useState({})
-  const [assignDriver, setAssignDriver] = useState('')
+  const [bookingId, setBookingId] = useState(null)
   const [rateConFile, setRateConFile] = useState(null)
   const [parsingRC, setParsingRC] = useState(false)
   const [lbSource, setLbSource] = useState('')
@@ -243,6 +243,8 @@ export function AILoadBoard() {
           const mapped = data.loads.map(l => ({
             id: l.id,
             broker: l.broker || 'Unknown',
+            brokerPhone: l.brokerPhone || '',
+            brokerMC: l.brokerMC || '',
             origin: l.origin || `${l.originCity}, ${l.originState}`,
             dest: l.dest || `${l.destCity}, ${l.destState}`,
             miles: l.miles || 0,
@@ -361,19 +363,73 @@ export function AILoadBoard() {
   const scoreC = load ? Math.min(99, Math.max(30, Math.round(calcAiScore(load)))) : 0
   const scoreColor = load ? (load.aiScore >= 75 ? 'var(--success)' : load.aiScore >= 55 ? 'var(--accent)' : 'var(--danger)') : 'var(--muted)'
 
-  const handleBook = () => {
-    if (!load || booked[load.id]) return
-    if (!assignDriver) { showToast('','Assign Driver','Select a driver before booking'); return }
-    addLoad({
-      origin: load.origin, dest: load.dest, miles: load.miles,
-      rate: load.rate, gross: load.gross, weight: load.weight,
-      commodity: load.commodity, pickup: load.pickup, delivery: load.delivery,
-      broker: load.broker, driver: assignDriver, refNum: load.refNum,
-    })
-    setBooked(p => ({ ...p, [load.id]: true }))
-    showToast('','Load Booked', `${load.id} assigned to ${assignDriver} · added to dispatch queue`)
-    setSelected(filtered.find(l => !booked[l.id] && l.id !== load.id)?.id || null)
-    setAssignDriver('')
+  const handleBook = async () => {
+    if (!load || booked[load.id] || bookingId) return
+    setBookingId(load.id)
+    try {
+      const res = await apiFetch('/api/load-board-book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: load.source || '123loadboard',
+          external_id: load.refNum || load.id,
+          origin: load.origin,
+          destination: load.dest,
+          miles: load.miles,
+          rate: load.gross, // endpoint expects total dollars, not $/mi
+          broker_name: load.broker,
+          broker_phone: load.brokerPhone || '',
+          equipment: load.equipment,
+          pickup_date: load.pickup || null,
+          delivery_date: load.delivery || null,
+          weight: load.weight || null,
+          commodity: load.commodity || null,
+          reference_number: load.refNum || null,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        showToast('', 'Booking Failed', data.error || `HTTP ${res.status}`)
+        return
+      }
+      setBooked(p => ({ ...p, [load.id]: true }))
+      const msg = data.duplicate
+        ? `${data.load_number} already in dispatch queue`
+        : `${data.load_number} added to dispatch queue · Q is calling broker…`
+      showToast('', data.duplicate ? 'Already Booked' : 'Load Booked', msg)
+
+      // ── Fire Q to call the broker (Option A: client-side, after book) ──
+      // Only on fresh bookings, not duplicates. Phone is required — without
+      // it Q has nothing to dial. Pass load_number (not the uuid) because
+      // retell_calls.load_id is text and stores the human load number.
+      if (!data.duplicate && load.brokerPhone) {
+        apiFetch('/api/retell-broker-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: load.brokerPhone,
+            brokerName: load.broker,
+            loadId: data.load_number, // text, matches retell_calls.load_id
+            rate: load.gross,
+            miles: load.miles,
+            // target_rate omitted — server applies counter_offer_markup_pct default
+            originCity: load.origin,
+            destinationCity: load.dest,
+            equipment: load.equipment,
+          }),
+        }).catch(() => {
+          // Non-fatal — load is already booked, dispatcher can retry from Loads tab
+        })
+      } else if (!data.duplicate && !load.brokerPhone) {
+        showToast('', 'No Broker Phone', 'Load booked but no phone on listing — call broker manually')
+      }
+
+      setSelected(filtered.find(l => !booked[l.id] && l.id !== load.id)?.id || null)
+    } catch (err) {
+      showToast('', 'Booking Failed', err?.message || 'Network error')
+    } finally {
+      setBookingId(null)
+    }
   }
 
   const estFuel   = load ? Math.round(load.miles / 6.9 * 3.85) : 0
@@ -595,21 +651,13 @@ export function AILoadBoard() {
               {!booked[load.id] ? (
                 <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:18 }}>
                   <div style={{ fontSize:13, fontWeight:700, marginBottom:12 }}><Ic icon={Zap} /> Book This Load</div>
-                  <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                    <select value={assignDriver} onChange={e => setAssignDriver(e.target.value)}
-                      style={{ ...selectStyle, flex:1, padding:'10px 12px', fontSize:13 }}>
-                      <option value="">Assign Driver…</option>
-                      {(dbDrivers || []).map(d => (
-                        <option key={d.id} value={d.full_name}>{d.full_name}{d.truck_number ? ` (Unit ${d.truck_number})` : ''}</option>
-                      ))}
-                    </select>
-                    <button className="btn btn-primary" onClick={handleBook}
-                      style={{ padding:'10px 28px', fontSize:13, whiteSpace:'nowrap', opacity: assignDriver ? 1 : 0.5 }}>
-                      Book Load →
-                    </button>
-                  </div>
+                  <button className="btn btn-primary" onClick={handleBook}
+                    disabled={bookingId === load.id}
+                    style={{ width:'100%', padding:'12px 28px', fontSize:13, whiteSpace:'nowrap', opacity: bookingId === load.id ? 0.6 : 1, cursor: bookingId === load.id ? 'wait' : 'pointer' }}>
+                    {bookingId === load.id ? 'Booking…' : 'Book Load →'}
+                  </button>
                   <div style={{ fontSize:11, color:'var(--muted)', marginTop:8 }}>
-                    Booking adds to dispatch queue with status "Rate Con Received". Upload a rate confirmation PDF to auto-fill all fields.
+                    Books to dispatch queue with status "Booked". Assign a driver from the Loads tab. Upload a rate con PDF after booking to auto-fill remaining fields.
                   </div>
                 </div>
               ) : (

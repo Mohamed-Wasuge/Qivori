@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { useSubscription } from '../../hooks/useSubscription'
 import useQLocation from '../../hooks/useQLocation'
-import { Package, DollarSign, X, Clock, Settings, Sparkles, CheckCircle, Phone } from 'lucide-react'
+import { Package, DollarSign, X, Clock, Settings, Sparkles, CheckCircle, Phone, Menu } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic, fmt$ } from './shared'
 import * as db from '../../lib/database'
 import { apiFetch } from '../../lib/api'
@@ -596,6 +596,7 @@ export default function MobileShell() {
               {activeTab === 'loads' && <MobileLoadsTab />}
               {activeTab === 'money' && <MobileMoneyTab initialSubTab={moneySubTab} />}
               {activeTab === 'q' && <AutoHome />}
+              {activeTab === 'more' && <MobileMoreTab onNavigate={handleNavigate} />}
             </>
           )}
         </Suspense>
@@ -828,7 +829,7 @@ export default function MobileShell() {
           </button>
         </div>
 
-        {/* Money tab — right */}
+        {/* Money tab — right of Q */}
         <button onClick={() => { haptic('light'); setActiveTab('money'); setMoneySubTab(null) }}
           className="premium-btn"
           style={{
@@ -858,6 +859,33 @@ export default function MobileShell() {
             transition: 'color 0.2s ease',
           }}>Money</span>
           {activeTab === 'money' && (
+            <div style={{
+              position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+              width: 24, height: 3, borderRadius: 2, background: 'var(--accent)',
+              boxShadow: '0 1px 6px rgba(240,165,0,0.4)',
+            }} />
+          )}
+        </button>
+
+        {/* More tab — far right (Fleet, DVIR, ELD/HOS, IFTA, CSA, Clearinghouse, Documents, Settings) */}
+        <button onClick={() => { haptic('light'); setActiveTab('more'); setMoneySubTab(null); setDriverLoadDetail(false) }}
+          className="premium-btn"
+          style={{
+            flex: 2, background: 'none', border: 'none',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+            padding: '12px 0', position: 'relative',
+          }}>
+          <Ic icon={Menu} size={22}
+            color={activeTab === 'more' ? 'var(--accent)' : 'var(--muted)'}
+            strokeWidth={activeTab === 'more' ? 2.5 : 1.5}
+          />
+          <span style={{
+            fontSize: 10, fontWeight: activeTab === 'more' ? 800 : 600,
+            color: activeTab === 'more' ? 'var(--accent)' : 'var(--muted)',
+            letterSpacing: 0.5,
+            transition: 'color 0.2s ease',
+          }}>More</span>
+          {activeTab === 'more' && (
             <div style={{
               position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
               width: 24, height: 3, borderRadius: 2, background: 'var(--accent)',

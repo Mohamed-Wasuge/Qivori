@@ -152,16 +152,25 @@ function AppContent() {
   const isMobile = useIsMobile()
 
   // ── AUTONOMOUS FLEET TOP-LEVEL FORK ─────────────────────────────
-  // Multiple triggers, in priority order — any one fires AutoShell:
-  //   1. URL hash #auto (works WITHOUT login — preview/QA mode)
-  //   2. profile.experience === 'auto' (real flag, set in DB)
-  //   3. Hardcoded test emails — qtest@gmail.com is the seeded auto user,
-  //      bypasses cache/session issues so testing always works
+  // ── AutoShell fork — TEMPORARILY DISABLED 2026-04-08 ──
+  // Strategic decision: 3% Autonomous Fleet users need full access to the
+  // complete TMS (DVIR with AI inspection, ELD/HOS, IFTA, Invoices, Expenses,
+  // CSA, Clearinghouse, Fleet, Profit dashboard, Financial insights, etc.).
+  // The stripped-down AutoShell hid all of that.
+  //
+  // For now, all users (including 3% / experience='auto') route to the
+  // existing MobileLayout/CarrierLayout which already has every feature
+  // built. This makes Qivori the only platform that gives 3%-tier users
+  // a full operating system — the moat against Numeo, DispatchMVP, etc.
+  //
+  // The AutoShell components stay in the codebase. Future plan: bring the
+  // Q hunting / negotiation flow back as a "Q Hunt" tab inside the full
+  // MobileShell, not as a replacement shell.
+  //
+  // URL hash overrides (#auto / #mockup) still work for QA preview.
   const urlForcedAuto = typeof window !== 'undefined' && window.location.hash === '#auto'
   const urlMockup = typeof window !== 'undefined' && window.location.hash === '#mockup'
-  const AUTO_EMAILS = ['qtest@gmail.com']
-  const isAutoEmail = !!(user?.email && AUTO_EMAILS.includes(user.email))
-  const showAutoShell = urlForcedAuto || (view === 'app' && (profile?.experience === 'auto' || isAutoEmail))
+  const showAutoShell = urlForcedAuto  // ONLY URL override — no profile.experience or email shortcut
   const [legalPage, setLegalPage] = useState(null) // 'terms' | 'privacy' | null
   const PageComponent = PAGES[currentPage] || Dashboard
 

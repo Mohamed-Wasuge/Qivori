@@ -79,29 +79,44 @@ export default function AdminCarrierOnboarding({ onClose, onCreated }) {
     }
     setSearching(true)
     try {
-      const res = await apiFetch('/api/fmcsa-lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mc_number: searchMc || null,
-          dot_number: searchDot || null,
-        }),
-      })
+      // Existing /api/fmcsa-lookup uses GET with query params + auth
+      const params = new URLSearchParams()
+      if (searchDot) params.set('dot', searchDot)
+      else if (searchMc) params.set('mc', searchMc)
+      const res = await apiFetch(`/api/fmcsa-lookup?${params.toString()}`)
       const data = await res.json().catch(() => ({}))
-      if (data.found && data.carrier) {
-        setCarrier(data.carrier)
-        // Pre-fill home base from FMCSA address
-        if (data.carrier.city) setPrefs((p) => ({ ...p, home_base_city: data.carrier.city, home_base_state: data.carrier.state || '' }))
-        showToast?.('success', 'Found in FMCSA', data.carrier.legal_name || 'Carrier loaded')
+      if (res.ok && data.carrier) {
+        // Existing endpoint returns { carrier: { dotNumber, legalName, ... } }
+        // Map the camelCase shape into the wizard's snake_case fields
+        const c = data.carrier
+        setCarrier({
+          legal_name:  c.legalName || c.dbaName || '',
+          dba_name:    c.dbaName || '',
+          mc_number:   c.docketNumber ? String(c.docketNumber).replace(/^MC-?/i, '') : (searchMc || ''),
+          dot_number:  c.dotNumber ? String(c.dotNumber) : (searchDot || ''),
+          phone:       c.telephone || '',
+          address:     c.phyStreet || c.physicalAddress || '',
+          city:        c.phyCity || '',
+          state:       c.phyState || '',
+          zip:         c.phyZipcode || '',
+          power_units: Number(c.totalPowerUnits || 0),
+          drivers:     Number(c.totalDrivers || 0),
+          safety_rating: c.safetyRating || '',
+        })
+        if (c.phyCity) setPrefs((p) => ({ ...p, home_base_city: c.phyCity, home_base_state: c.phyState || '' }))
+        showToast?.('success', 'Found in FMCSA', c.legalName || c.dbaName || 'Carrier loaded')
         setStep('account')
       } else {
         // Not found — let admin fill manually
         setCarrier((c) => ({ ...c, mc_number: searchMc, dot_number: searchDot }))
-        showToast?.('info', 'Not in FMCSA', 'Fill in details manually')
+        showToast?.('info', data.error || 'Not in FMCSA', 'Fill in details manually')
         setStep('account')
       }
     } catch (e) {
-      showToast?.('error', 'Lookup failed', 'Please try again')
+      // Network or other error — still let admin continue with manual entry
+      setCarrier((c) => ({ ...c, mc_number: searchMc, dot_number: searchDot }))
+      showToast?.('warning', 'Lookup failed', 'Continuing with manual entry')
+      setStep('account')
     }
     setSearching(false)
   }, [searchMc, searchDot, showToast])

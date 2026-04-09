@@ -1,5 +1,76 @@
 # Qivori AI — Development Rules
 
+## Working Style — read first, build once
+
+These rules exist because following them saves hours every day.
+
+### Before editing ANY file
+1. **Grep for the file first.** Don't guess paths. Don't assume which page renders what.
+2. **Read 30 lines around the section you'll edit** before writing.
+3. **If you'll touch more than 2 files, spawn parallel Explore agents first** to map the existing code. Don't go serial when parallel works.
+
+### Before claiming a feature is missing
+1. **Grep for it.** Most features the user mentions already exist in the codebase.
+2. **Check `src/components/`, `src/pages/`, `api/`** before declaring "we need to build X."
+3. **Don't build parallel solutions** to features that already exist. Reuse, don't rewrite.
+
+### Before calling an API endpoint
+1. **Read the existing endpoint file** to confirm method (GET vs POST) and param shape.
+2. **Check the env var name** referenced in the endpoint (e.g. `FMCSA_WEBKEY` not `FMCSA_WEB_KEY`).
+3. **Don't create duplicate endpoints** when one already exists.
+
+### One feature at a time
+- Build one feature **all the way to verified working on the user's phone** before starting the next.
+- Don't ship code that needs prerequisites the user hasn't run yet (migrations, Retell config, env vars). If it needs setup, give the user the EXACT steps and wait for confirmation before moving on.
+- "Pushed to main" ≠ "shipped." Shipped = user has tested it and confirmed it works.
+
+### Stop me when I'm wrong
+- If I read more than 3 files trying to find something, stop me and give me the path.
+- If I write a long explanation instead of code, say "less talking, more code."
+- If I start building a "new" thing, ask "does that already exist?" and force a grep.
+
+## File Path Cheat Sheet (don't guess)
+
+| Feature | File path |
+|---|---|
+| Admin "Manage Users" page (the one with "+ Invite User") | `src/pages/admin/UserManagement.jsx` |
+| Admin Carriers (legacy) | `src/pages/Carriers.jsx` |
+| Carrier signup form | `src/pages/LoginPage.jsx` |
+| Carrier desktop shell | `src/components/CarrierLayout.jsx` |
+| Carrier mobile shell | `src/components/mobile/MobileShell.jsx` (wrapped by `src/components/MobileLayout.jsx`) |
+| Mobile More tab | `src/components/mobile/MobileMoreTab.jsx` |
+| Carrier Settings (Company Profile, Equipment, Lanes, etc.) | `src/components/carrier/settingstab/SettingsTab.jsx` |
+| Carrier Pages (modules) | `src/pages/CarrierPages.jsx` (~8800 lines) |
+| Topbar with "+ Invite User" button | `src/components/Topbar.jsx` (handlePrimary fires AdminCarrierOnboarding) |
+| Carrier onboarding wizard (admin side) | `src/components/AdminCarrierOnboarding.jsx` |
+| Q dispatching components | `src/components/auto/` (AutoHome, AutoNegotiation, AutoActiveLoad, AutoLoopOffer, AutoCardOnFile, etc.) |
+| FMCSA lookup | `api/fmcsa-lookup.js` — **GET** with `?dot=` or `?mc=` query params, env var `FMCSA_WEBKEY` |
+| Create user (admin) | `api/create-user.js` — POST, accepts email/password/full_name/company_name/role + carrier extras (mc_number, dot_number, phone, address, city, state, zip, equipment, home_base_city, home_base_state, subscription_plan) |
+| Charge AI fee | `api/charge-ai-fee.js` — POST, charges 3% via Stripe Charges |
+| Retell broker call | `api/retell-broker-call.js` — POST, kicks off real Retell outbound call. Honors `body.target_rate` over default markup. |
+| Retell webhook | `api/retell-webhook.js` — receives call_started/call_ended/call_analyzed. Reads `agreed_rate` from `call.call_analysis.custom_analysis_data`. Skips legacy TMS pipeline when `metadata.experience === 'auto'`. |
+| Q live broker messages endpoint | `api/q-notify.js` — POST, writes to `negotiation_messages` table |
+| Stripe Checkout | `api/create-checkout.js` — POST with planId. autonomous_fleet plan = $0 base + 3% metered. |
+
+## Solo OO Carrier Conventions
+
+When creating a carrier (admin wizard or carrier signup):
+1. Insert `profiles` row with `role='carrier'`, `company_id = auth.users.id` (the user's own id)
+2. Insert `companies` row with `owner_id = user.id`, `name = company_name`, plus any FMCSA fields
+3. Insert `company_members` row with `company_id = user.id`, `user_id = user.id`, `role='owner'`, `status='active'`
+4. Insert `drivers` row with `owner_id = user.id`, `full_name`, `email`, `status='Active'`
+5. Default `subscription_plan = 'autonomous_fleet'`, `subscription_status = 'trialing'`
+
+Without ALL FIVE rows the carrier will:
+- See "Only owner can invite team members" (missing #3)
+- Find Company Profile won't save (missing #2)
+- Be invisible in HR/Drivers (missing #4)
+- Get bounced from app after 14 days (missing #5)
+
+## Parallel work — default to sub-agents
+
+For any task that touches more than 2 files, spawn parallel Explore agents FIRST to map the existing code before writing anything new. The Explore agent runs in parallel and doesn't pollute the main context. Use Plan agent for big features. Default to parallel sub-agents over serial file reads.
+
 ## Pricing (single source of truth)
 - Plan name: **Qivori AI Dispatch**
 - Founder: $199/mo first truck + $99 each additional — locked for life (first 100 carriers)
@@ -31,7 +102,7 @@
 - Run `npx vite build` before pushing — must be zero errors
 - Bump `CACHE_VERSION` in `public/sw.js` after every deploy
 - Never push directly to main without testing
-- Service worker cache version is currently in the 180s range
+- Service worker cache version is currently in the 310s range (as of 2026-04-09)
 - Pre-push hook runs 7 checks: build, missing imports, 100vw, manualChunks, hook ordering, circular imports, secrets
 
 ## Permanence Rules — NEVER VIOLATE

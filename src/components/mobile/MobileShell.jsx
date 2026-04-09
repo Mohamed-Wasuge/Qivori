@@ -11,6 +11,10 @@ import { apiFetch } from '../../lib/api'
 // Lazy-load all tabs — only loads the tab JS when first rendered
 const LoadOfferPopup = lazy(() => import('./LoadOfferPopup'))
 const AutoShell = lazy(() => import('../auto/AutoShell'))
+// Q Hunt experience — brought back as a tab inside MobileShell, not a replacement shell
+const AutoHome = lazy(() => import('../auto/AutoHome'))
+const AutoNegotiation = lazy(() => import('../auto/AutoNegotiation'))
+const AutoCardOnFile = lazy(() => import('../auto/AutoCardOnFile'))
 const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
 const MobileLoadsTab = lazy(() => import('./MobileLoadsTab'))
 const MobileMoneyTab = lazy(() => import('./MobileMoneyTab'))
@@ -451,9 +455,13 @@ export default function MobileShell() {
   }
   const onQClick = () => {
     // Only fires if long press didn't trigger
+    // Tap Q FAB → switch to Q Hunt tab (the dispatching experience).
+    // Long press still opens voice chat (handled by onQTouchStart timer).
     if (!chatOpen) {
       haptic('light')
-      openQ(null, null, false) // tap = chat
+      setActiveTab('q')
+      setMoneySubTab(null)
+      setDriverLoadDetail(false)
     }
   }
 
@@ -581,15 +589,41 @@ export default function MobileShell() {
               {activeTab === 'loads' && !driverLoadDetail && <DriverHomeTab onNavigate={handleNavigate} onOpenQ={(msg) => { setChatInitMsg(msg); setChatOpen(true) }} />}
               {activeTab === 'loads' && driverLoadDetail && <MobileLoadsTab />}
               {activeTab === 'money' && <DriverPayTab />}
+              {activeTab === 'q' && <AutoHome />}
             </>
           ) : (
             <>
               {activeTab === 'loads' && <MobileLoadsTab />}
               {activeTab === 'money' && <MobileMoneyTab initialSubTab={moneySubTab} />}
+              {activeTab === 'q' && <AutoHome />}
             </>
           )}
         </Suspense>
       </div>
+
+      {/* ── Q overlays — fire globally regardless of active tab ── */}
+      {/*    AutoNegotiation: pops fullscreen when there's an Offered load    */}
+      {/*    AutoCardOnFile:  pops bottom sheet after first booked load        */}
+      <Suspense fallback={null}>
+        <AutoNegotiation />
+      </Suspense>
+      {profile && !profile.stripe_customer_id && !profile.payment_method_last4 && (() => {
+        const hasBookedLoad = (ctx.loads || []).some((l) =>
+          ['Booked', 'Dispatched', 'En Route To Pickup', 'Arrived Pickup', 'Loaded',
+           'En Route', 'Arrived Delivery', 'Delivered'].includes(l.status)
+        )
+        const latestBooked = (ctx.loads || []).find((l) => l.status === 'Booked')
+        if (!hasBookedLoad) return null
+        return (
+          <Suspense fallback={null}>
+            <AutoCardOnFile
+              loadAmount={Number(latestBooked?.rate || latestBooked?.gross_pay || 2500)}
+              onComplete={() => {}}
+              onClose={() => {}}
+            />
+          </Suspense>
+        )
+      })()}
 
       {/* ── SETTINGS SLIDE-IN PANEL ── */}
       {settingsOpen && (

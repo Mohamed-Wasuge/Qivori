@@ -267,6 +267,46 @@ export default async function handler(req) {
       );
     }
 
+    // 6. Auto-send carrier packet to broker (fulfills the "carrier packet
+    //    will be sent separately" promise in the rate confirmation email).
+    //    Server-to-server call to /api/carrier-packet with service-key auth
+    //    and the resolved user_id. Non-fatal — if the packet send fails the
+    //    rate confirmation already shipped, log a warning and move on.
+    //    VERCEL_URL is auto-injected by Vercel into all serverless functions
+    //    (deployment URL, no protocol). Falls back to qivori.com for local.
+    if (resolvedUserId) {
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : (process.env.PUBLIC_URL || 'https://qivori.com');
+      try {
+        const packetRes = await fetch(`${baseUrl}/api/carrier-packet`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            action: 'send_packet',
+            user_id: resolvedUserId,
+            broker_email: brokerEmail,
+            broker_name: data.brokerName || null,
+            load_id: loadId || null,
+            rate_confirmation_id: confirmNumber,
+            origin,
+            destination,
+            rate: Number(agreedRate),
+            confirmation_number: confirmNumber,
+          }),
+        });
+        if (!packetRes.ok) {
+          const errText = await packetRes.text().catch(() => '');
+          console.warn(`[rate-confirm] Auto carrier-packet send failed: ${packetRes.status} ${errText}`);
+        }
+      } catch (e) {
+        console.warn('[rate-confirm] Auto carrier-packet send error:', e.message);
+      }
+    }
+
     return Response.json({
       ok: true,
       confirmationNumber: confirmNumber,

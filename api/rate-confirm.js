@@ -49,17 +49,19 @@ async function supabaseUpdate(table, query, data) {
 }
 
 // — Send email via Resend —
-async function sendEmail(to, subject, html) {
+// `from` is REQUIRED — no default. We refuse to send anonymous mail to
+// brokers, since "from Qivori Dispatch" leaks the platform identity.
+// Internal sends (to admin) can pass the Qivori address explicitly.
+async function sendEmail(to, subject, html, from, replyTo) {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) return { ok: false, error: 'RESEND_API_KEY not configured' };
+  if (!from) return { ok: false, error: 'sender identity required — never default to Qivori for outbound' };
+  const payload = { from, to: [to], subject, html };
+  if (replyTo) payload.reply_to = replyTo;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: 'Qivori Dispatch <dispatch@qivori.com>',
-      reply_to: 'dispatch@qivori.com',
-      to: [to], subject, html
-    })
+    body: JSON.stringify(payload)
   });
   return { ok: res.ok };
 }
@@ -85,17 +87,20 @@ async function sendSMS(to, message) {
 }
 
 // — Generate rate confirmation HTML email —
+// Branding is the carrier's company name only — no Qivori references anywhere.
+// Brokers must perceive this email as coming from the carrier directly.
 function generateRateConEmail(data) {
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const confirmNumber = `RC-${Date.now().toString(36).toUpperCase()}`;
+  const safeName = data.carrierName || 'Our Carrier';
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #333;">
-  <div style="background: #1a1a2e; color: #ffd700; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-    <h1 style="margin: 0; font-size: 24px;">QIVORI DISPATCH</h1>
-    <p style="margin: 5px 0 0; font-size: 14px; color: #ccc;">Rate Confirmation</p>
+  <div style="background: #1f2937; color: #ffffff; padding: 24px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="margin: 0; font-size: 22px; letter-spacing: 1px;">${safeName.toUpperCase()}</h1>
+    <p style="margin: 6px 0 0; font-size: 13px; color: #9ca3af;">Rate Confirmation</p>
   </div>
 
   <div style="border: 1px solid #ddd; padding: 25px; border-radius: 0 0 8px 8px;">
@@ -106,33 +111,31 @@ function generateRateConEmail(data) {
       </tr>
     </table>
 
-    <h2 style="color: #1a1a2e; border-bottom: 2px solid #ffd700; padding-bottom: 8px;">Load Details</h2>
+    <h2 style="color: #1f2937; border-bottom: 2px solid #1f2937; padding-bottom: 8px;">Load Details</h2>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Load #:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.loadId || 'N/A'}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Origin:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.origin}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Destination:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.destination}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Equipment:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.equipment || 'Dry Van'}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Pickup Date:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.pickupDate || 'TBD'}</td></tr>
-      <tr style="background: #f8f9fa;"><td style="padding: 12px; font-size: 18px;"><strong>Agreed Rate:</strong></td><td style="padding: 12px; font-size: 18px; color: #2d8a4e;"><strong>$${Number(data.agreedRate).toLocaleString()}</strong></td></tr>
+      <tr style="background: #f8f9fa;"><td style="padding: 12px; font-size: 18px;"><strong>Agreed Rate:</strong></td><td style="padding: 12px; font-size: 18px; color: #16a34a;"><strong>$${Number(data.agreedRate).toLocaleString()}</strong></td></tr>
     </table>
 
-    <h2 style="color: #1a1a2e; border-bottom: 2px solid #ffd700; padding-bottom: 8px;">Carrier Information</h2>
+    <h2 style="color: #1f2937; border-bottom: 2px solid #1f2937; padding-bottom: 8px;">Carrier Information</h2>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-      <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Carrier:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.carrierName}</td></tr>
+      <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Carrier:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${safeName}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>MC Number:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.carrierMC || 'On file'}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>DOT Number:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.carrierDOT || 'On file'}</td></tr>
       <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Insurance:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">On file — current and active</td></tr>
-      <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dispatch Contact:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">Qivori Dispatch — dispatch@qivori.com</td></tr>
+      ${data.carrierEmail ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dispatch Email:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.carrierEmail}</td></tr>` : ''}
+      ${data.carrierPhone ? `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Dispatch Phone:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.carrierPhone}</td></tr>` : ''}
     </table>
 
-    <div style="background: #f0f7f0; border: 1px solid #2d8a4e; border-radius: 6px; padding: 15px; margin: 20px 0;">
-      <p style="margin: 0; color: #2d8a4e;"><strong>This rate confirmation is binding upon acceptance.</strong> Carrier packet with insurance, W9, and operating authority is attached or will be sent separately.</p>
+    <div style="background: #f0f7f0; border: 1px solid #16a34a; border-radius: 6px; padding: 15px; margin: 20px 0;">
+      <p style="margin: 0; color: #16a34a;"><strong>This rate confirmation is binding upon acceptance.</strong> Carrier packet with insurance, W9, and operating authority is attached or will be sent separately.</p>
     </div>
 
-    <p style="font-size: 12px; color: #999; margin-top: 30px; text-align: center;">
-      Qivori AI-Powered Freight Intelligence — qivori.com<br>
-      This email was generated automatically by Qivori Dispatch AI.
-    </p>
+    <p style="color: #1f2937; font-size: 14px; margin-top: 24px;">Thanks,<br/><strong>${safeName}</strong></p>
   </div>
 </body>
 </html>`;
@@ -156,18 +159,53 @@ export default async function handler(req) {
 
   try {
     const data = await req.json();
-    const { callSid, brokerEmail, agreedRate, loadId, origin, destination, equipment, carrierName, carrierMC, carrierDOT, pickupDate } = data;
+    const { callSid, brokerEmail, agreedRate, loadId, origin, destination, equipment, pickupDate } = data;
+    let { carrierName, carrierMC, carrierDOT } = data;
+    let carrierEmail = data.carrierEmail || null;
+    let carrierPhone = data.carrierPhone || null;
 
     if (!brokerEmail) {
       return Response.json({ ok: false, error: 'Broker email required' }, { status: 400 });
     }
 
+    // ── Resolve carrier identity from companies table ──
+    // Priority: explicit body fields → call_logs → companies table.
+    // We MUST have carrierName + carrierEmail before sending any broker
+    // email. Refuse to send if missing — fail-closed protects identity.
+    let resolvedUserId = data.user_id || null;
+    if (!resolvedUserId && callSid) {
+      const callLogs = await supabaseQuery('call_logs', `call_sid=eq.${callSid}&select=user_id&limit=1`);
+      resolvedUserId = callLogs?.[0]?.user_id || null;
+    }
+    if (resolvedUserId) {
+      const companies = await supabaseQuery('companies', `owner_id=eq.${resolvedUserId}&select=name,email,phone,mc_number,dot_number&limit=1`);
+      const company = Array.isArray(companies) ? companies[0] : null;
+      if (company) {
+        carrierName = carrierName || company.name || null;
+        carrierEmail = carrierEmail || company.email || null;
+        carrierPhone = carrierPhone || company.phone || null;
+        carrierMC = carrierMC || company.mc_number || null;
+        carrierDOT = carrierDOT || company.dot_number || null;
+      }
+    }
+
+    if (!carrierName || !carrierEmail) {
+      return Response.json({
+        ok: false,
+        error: 'Carrier identity not found. Need carrierName + carrierEmail in body, or a callSid that links to a user with a populated companies row.'
+      }, { status: 400 });
+    }
+
     // 1. Generate and send rate confirmation email to broker
-    const html = generateRateConEmail(data);
+    // From + Reply-To use the carrier identity — never Qivori.
+    const html = generateRateConEmail({ ...data, carrierName, carrierMC, carrierDOT, carrierEmail, carrierPhone });
+    const fromHeader = `${carrierName} <${carrierEmail}>`;
     const emailResult = await sendEmail(
       brokerEmail,
       `Rate Confirmation — ${origin} to ${destination} | ${carrierName}`,
-      html
+      html,
+      fromHeader,
+      carrierEmail
     );
 
     // 2. Store rate confirmation record
@@ -196,33 +234,36 @@ export default async function handler(req) {
       });
     }
 
-    // 4. Notify the driver via SMS
-    if (callSid) {
-      const callLogs = await supabaseQuery('call_logs', `call_sid=eq.${callSid}&select=user_id&limit=1`);
-      const userId = callLogs?.[0]?.user_id;
-      if (userId) {
-        const users = await supabaseQuery('users', `id=eq.${userId}&select=phone,email,name&limit=1`);
-        const driver = users?.[0];
-        if (driver?.phone) {
-          await sendSMS(driver.phone,
-            `Load BOOKED! ${origin} to ${destination} at $${Number(agreedRate).toLocaleString()}. Pickup: ${pickupDate || 'TBD'}. Rate con sent to broker. — Qivori AI`
-          );
-        }
-        if (driver?.email) {
-          await sendEmail(driver.email,
-            `Load Booked — ${origin} to ${destination}`,
-            `<h2>Your load has been booked!</h2><p><strong>Route:</strong> ${origin} to ${destination}</p><p><strong>Rate:</strong> $${Number(agreedRate).toLocaleString()}</p><p><strong>Pickup:</strong> ${pickupDate || 'TBD'}</p><p>Rate confirmation has been sent to the broker at ${brokerEmail}.</p><p>— Qivori Dispatch AI</p>`
-          );
-        }
+    // 4. Notify the driver via SMS / email
+    // Driver-facing notifications use the carrier identity (driver expects
+    // mail from their own carrier, not from Qivori). The SMS body is also
+    // signed with the carrier name instead of "— Qivori AI".
+    if (resolvedUserId) {
+      const users = await supabaseQuery('users', `id=eq.${resolvedUserId}&select=phone,email,name&limit=1`);
+      const driver = users?.[0];
+      if (driver?.phone) {
+        await sendSMS(driver.phone,
+          `Load BOOKED! ${origin} to ${destination} at $${Number(agreedRate).toLocaleString()}. Pickup: ${pickupDate || 'TBD'}. Rate con sent to broker. — ${carrierName}`
+        );
+      }
+      if (driver?.email) {
+        await sendEmail(driver.email,
+          `Load Booked — ${origin} to ${destination}`,
+          `<h2>Your load has been booked!</h2><p><strong>Route:</strong> ${origin} to ${destination}</p><p><strong>Rate:</strong> $${Number(agreedRate).toLocaleString()}</p><p><strong>Pickup:</strong> ${pickupDate || 'TBD'}</p><p>Rate confirmation has been sent to the broker at ${brokerEmail}.</p><p>— ${carrierName}</p>`,
+          `${carrierName} <${carrierEmail}>`,
+          carrierEmail
+        );
       }
     }
 
-    // 5. Notify admin
+    // 5. Notify admin (Qivori internal — keep Qivori From for ops visibility)
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail) {
       await sendEmail(adminEmail,
         `[Qivori] Load Booked via AI — ${origin} to ${destination}`,
-        `<h3>AI Broker Call — Load Booked</h3><p><strong>Route:</strong> ${origin} to ${destination}</p><p><strong>Rate:</strong> $${Number(agreedRate).toLocaleString()}</p><p><strong>Carrier:</strong> ${carrierName} (MC: ${carrierMC})</p><p><strong>Broker Email:</strong> ${brokerEmail}</p><p><strong>Rate Con #:</strong> ${confirmNumber}</p>`
+        `<h3>AI Broker Call — Load Booked</h3><p><strong>Route:</strong> ${origin} to ${destination}</p><p><strong>Rate:</strong> $${Number(agreedRate).toLocaleString()}</p><p><strong>Carrier:</strong> ${carrierName} (MC: ${carrierMC})</p><p><strong>Broker Email:</strong> ${brokerEmail}</p><p><strong>Rate Con #:</strong> ${confirmNumber}</p>`,
+        'Qivori Internal <ops@qivori.com>',
+        'ops@qivori.com'
       );
     }
 

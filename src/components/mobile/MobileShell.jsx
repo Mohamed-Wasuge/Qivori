@@ -36,22 +36,16 @@ const TabLoader = () => (
 export default function MobileShell() {
   const { logout, user, profile, demoMode, showToast, isDriver, goToLogin } = useApp()
 
-  // ── AUTONOMOUS FLEET FORK ──────────────────────────────────────
-  // Solo OOs on the 3% plan use a purpose-built shell — no TMS surfaces.
-  // Existing TMS users (experience='tms' default) hit the legacy code path
-  // below, completely untouched.
+  // ── AutoShell fork DISABLED 2026-04-08 ──────────────────────────
+  // 3% Autonomous Fleet users now route through the full MobileShell
+  // (this file) so they get DVIR, ELD/HOS, IFTA, Invoices, Expenses,
+  // CSA, Clearinghouse, Profit dashboard, and every other feature
+  // that's already built. Hiding the full TMS behind AutoShell was
+  // undercutting our competitive advantage vs Numeo / DispatchMVP.
   //
-  // URL override: append #auto to qivori.com to force the AutoShell preview
-  // even when the profile flag isn't set (used for QA before DB migration).
-  const urlForcedAuto = typeof window !== 'undefined' && window.location.hash === '#auto'
-  if (profile?.experience === 'auto' || urlForcedAuto) {
-    return (
-      <Suspense fallback={<TabLoader />}>
-        <AutoShell />
-      </Suspense>
-    )
-  }
-
+  // The AutoShell components stay in src/components/auto/ and will
+  // be reintroduced as a "Q Hunt" tab inside this shell, not as a
+  // replacement shell.
 
   const { isTrialing, trialDaysLeft, isActive } = useSubscription()
   const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'

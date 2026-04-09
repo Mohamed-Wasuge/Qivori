@@ -283,6 +283,7 @@ function NegotiationFlow({ load }) {
         <DialingStep
           broker={broker}
           targetRate={targetRate}
+          callId={callId}
           onManualRate={(rate) => {
             // Driver finished the call — manually advance to final review
             setFinalRate(rate)
@@ -629,9 +630,46 @@ function TargetStep({ broker, gross, targetRate, setTargetRate, onSend, onBack, 
 // ═══════════════════════════════════════════════════════════════
 // STEP 2 — DIALING
 // ═══════════════════════════════════════════════════════════════
-function DialingStep({ broker, targetRate, onManualRate }) {
+function DialingStep({ broker, targetRate, callId, onManualRate }) {
   const [manualMode, setManualMode] = useState(false)
   const [manualRate, setManualRate] = useState(targetRate || 0)
+  const [messages, setMessages] = useState([])
+
+  // ── Live broker chatter ────────────────────────────────────────
+  // Q calls /api/q-notify mid-call whenever the broker says something
+  // meaningful. The endpoint writes to negotiation_messages. We subscribe
+  // here and slide each new message into the UI as it arrives (~1s lag).
+  useEffect(() => {
+    if (!callId) return
+    let mounted = true
+
+    // Initial fetch in case messages already exist for this call
+    supabase
+      .from('negotiation_messages')
+      .select('id, message, message_type, rate_value, created_at')
+      .eq('retell_call_id', callId)
+      .order('created_at', { ascending: true })
+      .limit(20)
+      .then(({ data }) => { if (mounted && data) setMessages(data) })
+
+    // Realtime subscription on inserts for THIS call
+    const channel = supabase
+      .channel(`negmsg_${callId}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'negotiation_messages', filter: `retell_call_id=eq.${callId}` },
+        (payload) => {
+          if (!mounted || !payload.new) return
+          setMessages((prev) => [...prev, payload.new])
+          haptic('light')
+        }
+      )
+      .subscribe()
+
+    return () => {
+      mounted = false
+      supabase.removeChannel(channel)
+    }
+  }, [callId])
 
   // ── Manual rate entry mode ──
   // Backup for when the Retell agent doesn't push agreed_rate via webhook.
@@ -750,6 +788,59 @@ function DialingStep({ broker, targetRate, onManualRate }) {
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 14 }}>
           Hang tight — Q is fighting for your number.
         </div>
+
+        {/* ── Live broker messages — Q reports as the call progresses ── */}
+        {messages.length > 0 && (
+          <div style={{
+            marginTop: 24,
+            width: '100%',
+            maxWidth: 360,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            textAlign: 'left',
+          }}>
+            {messages.slice(-5).map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: '12px 14px',
+                  background: m.message_type === 'broker_quoted' || m.message_type === 'broker_countered'
+                    ? 'rgba(34,197,94,0.08)'
+                    : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${
+                    m.message_type === 'broker_quoted' || m.message_type === 'broker_countered'
+                      ? 'rgba(34,197,94,0.25)'
+                      : 'rgba(255,255,255,0.08)'
+                  }`,
+                  borderRadius: 14,
+                  animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
+                <span style={{ fontSize: 14, lineHeight: 1, marginTop: 2 }}>💬</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: '#fff', fontWeight: 600, lineHeight: 1.4 }}>
+                    {m.message}
+                  </div>
+                  {m.rate_value && (
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 900,
+                      color: '#22c55e',
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      marginTop: 4,
+                    }}>
+                      ${Number(m.rate_value).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── Manual escape hatch — driver finished the call themselves ── */}
         {onManualRate && (

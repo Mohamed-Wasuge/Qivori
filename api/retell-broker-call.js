@@ -174,6 +174,10 @@ export default async function handler(req) {
           max_counter_rounds: String(maxRounds),
           miles: String(miles),
           driver_name: driverName || 'Driver',
+          // Used by the notify_driver function so Q can push live messages
+          // back to the driver app during the call.
+          user_id: user.id,
+          load_id_for_notify: body.loadId || '',
         },
       }),
     })

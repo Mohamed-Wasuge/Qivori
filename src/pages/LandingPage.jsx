@@ -863,6 +863,181 @@ export default function LandingPage({ onGetStarted }) {
 
 
       {/* ═══════════════════════════════════════════════════════════
+          THE PIPELINE — every load, every stage (dark premium)
+          The original section that made the app feel "modern AI screaming"
+      ═══════════════════════════════════════════════════════════ */}
+      <section style={{
+        background: 'radial-gradient(ellipse at top, #0c0f17 0%, #07090e 60%)',
+        color: '#fff',
+        padding: '80px 20px',
+        borderTop: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+      }}>
+        <div style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
+          <FadeIn>
+            <div style={{
+              fontSize: 12, fontWeight: 800, color: '#f0a500',
+              letterSpacing: 3, textTransform: 'uppercase', marginBottom: 14,
+            }}>
+              THE PIPELINE
+            </div>
+            <h2 style={{
+              fontFamily: "'Bebas Neue', sans-serif",
+              fontSize: 'clamp(36px, 7vw, 56px)',
+              lineHeight: 1.05,
+              letterSpacing: 1,
+              margin: '0 0 18px',
+              color: '#fff',
+            }}>
+              EVERY LOAD. EVERY STAGE.
+            </h2>
+            <p style={{
+              fontSize: 15, color: 'rgba(255,255,255,0.55)',
+              lineHeight: 1.6, margin: '0 auto 40px', maxWidth: 520,
+            }}>
+              From booking to invoice — Q moves your loads through every stage automatically.
+            </p>
+          </FadeIn>
+
+          {/* Tab pills with counts */}
+          <FadeIn delay={0.1}>
+            <div style={{
+              display: 'flex', gap: 10, justifyContent: 'center',
+              marginBottom: 36, flexWrap: 'wrap',
+            }}>
+              {[
+                { label: 'Booked', count: 2, active: false },
+                { label: 'Dispatched', count: 1, active: false },
+                { label: 'In Transit', count: 3, active: true },
+              ].map((tab) => (
+                <div key={tab.label} style={{
+                  padding: '10px 20px',
+                  borderRadius: 999,
+                  background: tab.active ? 'rgba(240,165,0,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${tab.active ? 'rgba(240,165,0,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: 13, fontWeight: 700,
+                  color: tab.active ? '#f0a500' : 'rgba(255,255,255,0.6)',
+                }}>
+                  <span>{tab.label}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 900,
+                    background: tab.active ? 'rgba(240,165,0,0.25)' : 'rgba(255,255,255,0.08)',
+                    padding: '2px 8px', borderRadius: 999,
+                    color: tab.active ? '#f0a500' : 'rgba(255,255,255,0.6)',
+                  }}>{tab.count}</span>
+                </div>
+              ))}
+            </div>
+          </FadeIn>
+
+          {/* Stacked stages */}
+          {[
+            {
+              label: 'BOOKED',
+              color: '#3b82f6',
+              loads: [
+                { route: 'PHX → LAX', sub: 'Open', amount: '$1,600' },
+                { route: 'SEA → PDX', sub: 'Open', amount: '$890' },
+              ],
+            },
+            {
+              label: 'DISPATCHED',
+              color: '#a855f7',
+              loads: [
+                { route: 'ATL → MIA', sub: 'Carlos R.', amount: '$2,100' },
+              ],
+            },
+            {
+              label: 'IN TRANSIT',
+              color: '#f0a500',
+              loads: [
+                { route: 'DAL → ATL', sub: 'Mike J.', amount: '$3,840', progress: 0.65 },
+                { route: 'CHI → DET', sub: 'Amir K.', amount: '$1,890', progress: 0.42 },
+              ],
+            },
+          ].map((stage, si) => (
+            <FadeIn key={si} delay={0.2 + si * 0.1}>
+              <div style={{ marginBottom: 24, textAlign: 'left' }}>
+                {/* Stage header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: stage.color,
+                    boxShadow: `0 0 12px ${stage.color}80`,
+                  }} />
+                  <span style={{
+                    fontSize: 11, fontWeight: 800,
+                    color: stage.color, letterSpacing: 2,
+                  }}>
+                    {stage.label}
+                  </span>
+                </div>
+
+                {/* Load cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {stage.loads.map((load, li) => (
+                    <div key={li} style={{
+                      position: 'relative',
+                      padding: '16px 18px',
+                      background: 'rgba(255,255,255,0.03)',
+                      borderLeft: `3px solid ${stage.color}`,
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: 16, fontWeight: 800, color: '#fff',
+                            marginBottom: 4, fontFamily: "'DM Sans', sans-serif",
+                          }}>
+                            {load.route}
+                          </div>
+                          <div style={{
+                            fontSize: 12, color: 'rgba(255,255,255,0.5)',
+                            fontWeight: 600,
+                          }}>
+                            {load.sub}
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: 22, fontWeight: 900,
+                          color: stage.color,
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          letterSpacing: 0.5,
+                        }}>
+                          {load.amount}
+                        </div>
+                      </div>
+                      {/* Progress bar for in-transit cards */}
+                      {load.progress != null && (
+                        <div style={{
+                          marginTop: 14,
+                          height: 3,
+                          background: 'rgba(255,255,255,0.06)',
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${load.progress * 100}%`,
+                            background: `linear-gradient(90deg, ${stage.color}, ${stage.color}aa)`,
+                            borderRadius: 2,
+                            boxShadow: `0 0 12px ${stage.color}60`,
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </section>
+
+
+      {/* ═══════════════════════════════════════════════════════════
           FEATURES — Alternating screenshot sections
       ═══════════════════════════════════════════════════════════ */}
       <section ref={featRef} id="features">

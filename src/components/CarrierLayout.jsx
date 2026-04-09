@@ -189,10 +189,36 @@ function CarrierLayoutInner() {
     setInviteSending(false)
   }
 
-  // Check if user needs onboarding (new user) or verification (existing user without MC/DOT)
-  const isNewUser = !isAdmin && !localStorage.getItem('qv_onboarded') && !company?.name && loads.length === 0
-  const needsVerification = !isNewUser && !demoMode && !isAdmin && localStorage.getItem('qv_onboarded') && !company?.mc_number && !company?.dot_number
-  const [showOnboarding, setShowOnboarding] = useState(isNewUser || needsVerification)
+  // ── Onboarding wizard gate ──
+  // Reactive: re-evaluates whenever `company` actually loads from CarrierContext.
+  // Was previously a one-shot useState initial value, which fired before
+  // CarrierContext had finished its Supabase fetch — so `company.name` was
+  // empty on first mount and the wizard showed for users who already had a
+  // real company row. Logging out + back in re-mounted the layout and
+  // reproduced the bug on every login. Fixed 2026-04-09.
+  //
+  // Auto-marks the user "onboarded" the first time we see a real company —
+  // so even if localStorage gets cleared (e.g. by signOut flow), the next
+  // session won't show the wizard once company data arrives.
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  useEffect(() => {
+    if (isAdmin) { setShowOnboarding(false); return }
+    const onboardedFlag = localStorage.getItem('qv_onboarded') === '1'
+    const hasRealCompany = !!(company?.id || company?.name)
+    const hasLoads = loads.length > 0
+
+    // First sighting of a real company → mark them onboarded forever
+    if (hasRealCompany && !onboardedFlag) {
+      localStorage.setItem('qv_onboarded', '1')
+    }
+
+    // True new user: no flag, no company, no loads
+    const isNewUser = !onboardedFlag && !hasRealCompany && !hasLoads
+    // Existing user but profile incomplete (MC/DOT missing): show verification step
+    const needsVerification = (onboardedFlag || hasRealCompany) && !demoMode && !company?.mc_number && !company?.dot_number
+
+    setShowOnboarding(isNewUser || needsVerification)
+  }, [company?.id, company?.name, company?.mc_number, company?.dot_number, loads.length, isAdmin, demoMode])
 
   const [activeView,    setActiveView]    = useState(isDriver ? 'loads' : 'dashboard')
   const [drawerLoadId,  setDrawerLoadId]  = useState(null)

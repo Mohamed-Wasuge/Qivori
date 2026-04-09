@@ -8,6 +8,7 @@ import { Ic } from '../shared'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { apiFetch } from '../../../lib/api'
+import { supabase as supabaseClient } from '../../../lib/supabase'
 import { RateBadge, StopTimeline } from '../LoadBoard'
 import QVerdictBadge from '../../../components/QVerdictBadge'
 
@@ -225,6 +226,11 @@ export function AILoadBoard() {
   const [rateConFile, setRateConFile] = useState(null)
   const [parsingRC, setParsingRC] = useState(false)
   const [lbSource, setLbSource] = useState('')
+  // ── Broker Intel from broker_urgency_scores ──
+  // Populated by Q's broker calls (api/retell-webhook.js → updateBrokerUrgency).
+  // Keyed by broker name. Surfaces real interaction history on load cards
+  // and the detail panel — replaces the empty LB_BROKER constant.
+  const [brokerIntel, setBrokerIntel] = useState({})
   const [lbLoading, setLbLoading] = useState(false)
   const rcFileRef = useRef(null)
 
@@ -276,6 +282,40 @@ export function AILoadBoard() {
     const interval = setInterval(fetchLiveLoads, 15 * 60 * 1000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [filters.equip])
+
+  // ── Fetch broker intel from broker_urgency_scores ──
+  // Real interaction data populated by every Q broker call (call_count,
+  // urgency_score, signals like 'booked' / 'no_answer' / 'counter_offered').
+  // Keyed by broker_name and merged into the load cards + detail panel.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: { user } } = await supabaseClient.auth.getUser()
+        if (!user || cancelled) return
+        const { data, error } = await supabaseClient
+          .from('broker_urgency_scores')
+          .select('broker_name, urgency_score, call_count, signals, updated_at')
+          .eq('owner_id', user.id)
+          .limit(500)
+        if (cancelled || error || !data) return
+        const map = {}
+        for (const row of data) {
+          if (!row.broker_name) continue
+          map[row.broker_name] = {
+            urgencyScore: row.urgency_score || 0,
+            callCount: row.call_count || 0,
+            signals: row.signals || [],
+            lastUpdated: row.updated_at,
+          }
+        }
+        setBrokerIntel(map)
+      } catch {
+        /* non-fatal — load board still works without broker intel */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const compressImage = (file) => new Promise((resolve) => {
     if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
@@ -360,6 +400,10 @@ export function AILoadBoard() {
   const load  = scored.find(l => l.id === selected)
   const lane  = load ? (LB_LANE[load.laneKey] || { avgRpm:2.70, trend:0, backhaul:50 }) : null
   const bkr   = load ? (LB_BROKER[load.broker] || { score:70, risk:'MEDIUM', pay:'< 5 days', color:'var(--warning)' }) : null
+  // Real broker intel from broker_urgency_scores (Q's call history). Falls
+  // back to null when Q has never spoken to this broker — UI shows nothing
+  // in that case rather than a fabricated score.
+  const intel = load ? (brokerIntel[load.broker] || null) : null
   const scoreC = load ? Math.min(99, Math.max(30, Math.round(calcAiScore(load)))) : 0
   const scoreColor = load ? (load.aiScore >= 75 ? 'var(--success)' : load.aiScore >= 55 ? 'var(--accent)' : 'var(--danger)') : 'var(--muted)'
 
@@ -476,6 +520,7 @@ export function AILoadBoard() {
           {filtered.map(l => {
             const isSel = selected === l.id
             const b     = LB_BROKER[l.broker] || { color:'var(--muted)', score:70 }
+            const lIntel = brokerIntel[l.broker] || null
             const sc    = l.aiScore
             const scC   = sc >= 75 ? 'var(--success)' : sc >= 55 ? 'var(--accent)' : 'var(--danger)'
             const isB   = booked[l.id]
@@ -501,7 +546,15 @@ export function AILoadBoard() {
                   <span style={{ fontSize:11, color:'var(--muted)' }}>{l.miles} mi</span>
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontSize:11, color:'var(--muted)' }}>{l.broker} · {l.equipment}</span>
+                  <span style={{ fontSize:11, color:'var(--muted)', display:'flex', alignItems:'center', gap:6 }}>
+                    {l.broker} · {l.equipment}
+                    {lIntel && lIntel.callCount > 0 && (
+                      <span title={`Q has called ${l.broker} ${lIntel.callCount}× — ${(lIntel.signals || []).slice(-3).join(', ') || 'no recent signals'}`}
+                        style={{ fontSize:9, fontWeight:800, padding:'1px 6px', borderRadius:5, background:'rgba(240,165,0,0.15)', color:'var(--accent)', letterSpacing:0.5 }}>
+                        Q · {lIntel.callCount}
+                      </span>
+                    )}
+                  </span>
                   <div style={{ display:'flex', gap:4, alignItems:'center' }}>
                     {l.stops?.length > 0 && (
                       <span style={{ fontSize:9, fontWeight:800, padding:'1px 5px', borderRadius:5, background:'rgba(77,142,240,0.15)', color:'var(--accent2)' }}>
@@ -595,6 +648,39 @@ export function AILoadBoard() {
 
               {/* Stop timeline — shown for multi-stop loads */}
               {load.stops?.length > 0 && <StopTimeline load={load} />}
+
+              {/* Q's Broker Intel — real interaction history from broker_urgency_scores.
+                  Only renders when Q has actually called this broker before. No
+                  fabrication: if intel is null, the panel doesn't appear. */}
+              {intel && intel.callCount > 0 && (
+                <div style={{ background:'var(--surface)', border:'1px solid rgba(240,165,0,0.3)', borderRadius:12, overflow:'hidden' }}>
+                  <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span><Ic icon={Bot} /> Q's Broker Intel</span>
+                    <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(34,197,94,0.15)', color:'var(--success)', letterSpacing:0.5 }}>LIVE</span>
+                  </div>
+                  <div style={{ padding:'14px 18px', display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14 }}>
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--muted)', fontWeight:700, letterSpacing:0.5 }}>CALLS PLACED</div>
+                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color:'var(--accent)', lineHeight:1, marginTop:2 }}>{intel.callCount}</div>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>by Q on your behalf</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--muted)', fontWeight:700, letterSpacing:0.5 }}>URGENCY SIGNAL</div>
+                      <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color: intel.urgencyScore >= 70 ? 'var(--success)' : intel.urgencyScore >= 40 ? 'var(--accent)' : 'var(--muted)', lineHeight:1, marginTop:2 }}>{intel.urgencyScore}<span style={{ fontSize:14, color:'var(--muted)' }}>/100</span></div>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginTop:2 }}>{intel.urgencyScore >= 70 ? 'HIGH — broker is pushing freight' : intel.urgencyScore >= 40 ? 'MEDIUM' : 'LOW'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--muted)', fontWeight:700, letterSpacing:0.5 }}>RECENT SIGNALS</div>
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:4 }}>
+                        {(intel.signals || []).slice(-3).map((s, i) => (
+                          <span key={i} style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:5, background:'var(--surface2)', color:'var(--text)' }}>{s.replace(/_/g, ' ')}</span>
+                        ))}
+                        {(!intel.signals || intel.signals.length === 0) && <span style={{ fontSize:10, color:'var(--muted)' }}>—</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Economics + Broker side by side */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>

@@ -871,11 +871,14 @@ function AIComplianceCenter({ defaultTab = 'overview' }) {
             <div style={{ background:'linear-gradient(135deg,rgba(240,165,0,0.06),rgba(0,212,170,0.04))', border:'1px solid rgba(240,165,0,0.15)', borderRadius:12, padding:'14px 18px', display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
               <GraduationCap size={20} color="var(--accent)" />
               <div style={{ flex:1, minWidth:200 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)', marginBottom:2 }}>FMCSA Drug & Alcohol Clearinghouse — 49 CFR Part 382</div>
-                <div style={{ fontSize:12, color:'var(--muted)' }}>Pre-employment queries required before hiring · Annual queries for all CDL drivers</div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)' }}>FMCSA Drug & Alcohol Clearinghouse — 49 CFR Part 382</div>
+                  <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.6)', letterSpacing:0.5, textTransform:'uppercase' }}>Manual Workflow</span>
+                </div>
+                <div style={{ fontSize:12, color:'var(--muted)' }}>Track queries you complete on <a href="https://clearinghouse.fmcsa.dot.gov" target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent)', textDecoration:'underline' }}>clearinghouse.fmcsa.dot.gov</a> · Auto-direct API integration coming soon</div>
               </div>
               <div style={{ textAlign:'right', flexShrink:0 }}>
-                <div style={{ fontSize:11, color:'var(--muted)' }}>Queries</div>
+                <div style={{ fontSize:11, color:'var(--muted)' }}>Queries Logged</div>
                 <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:'var(--accent)' }}>{chOrders.length}</div>
               </div>
             </div>

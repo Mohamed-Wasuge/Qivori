@@ -43,24 +43,28 @@ function calcAiScore(load) {
 const EQUIPMENT_LABEL = { 'Dry Van':'Dry Van', 'Reefer':'Reefer', 'Flatbed':'Flatbed' }
 
 // ── Load source attribution (required by load board partner agreements) ──────
-// 123Loadboard API agreement requires: "Your application must clearly show the
-// source of the information to be from 123Loadboard." Same applies for DAT and
-// Truckstop per their integration terms.
+// 123Loadboard API Usage Agreement (2026-04): "Your application must clearly
+// show the source of the information to be from 123Loadboard." Same applies
+// for DAT and Truckstop per their integration terms. We satisfy this with:
+//   1. Per-load badge: "from 123Loadboard" on every list card AND detail view
+//   2. Header disclaimer: "Loads sourced from..." subtitle below the page title
+// Compact mode still shows the FULL label, never just "123" — partner reviewers
+// must be able to read the attribution at a glance without hovering.
 const LOAD_SOURCES = {
-  '123loadboard': { label: '123Loadboard', color: '#3b82f6', short: '123' },
-  'dat':          { label: 'DAT',           color: '#22c55e', short: 'DAT' },
-  'truckstop':    { label: 'Truckstop',     color: '#f0a500', short: 'TS'  },
+  '123loadboard': { label: '123Loadboard', color: '#3b82f6' },
+  'dat':          { label: 'DAT',           color: '#22c55e' },
+  'truckstop':    { label: 'Truckstop',     color: '#f0a500' },
 }
 function SourceBadge({ source, compact }) {
   const s = LOAD_SOURCES[source]
   if (!s) return null
   return (
     <span style={{
-      fontSize: compact ? 9 : 10, fontWeight: 800, padding: compact ? '1px 6px' : '2px 8px',
+      fontSize: compact ? 9 : 10, fontWeight: 800, padding: compact ? '2px 7px' : '2px 8px',
       borderRadius: 5, background: s.color + '18', color: s.color,
       letterSpacing: 0.3, whiteSpace: 'nowrap',
     }}>
-      {compact ? s.short : `Source: ${s.label}`}
+      {compact ? `from ${s.label}` : `Source: ${s.label}`}
     </span>
   )
 }
@@ -492,7 +496,14 @@ export function AILoadBoard() {
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:2, lineHeight:1 }}>
             AI LOAD <span style={{ color:'var(--accent)' }}>BOARD</span>
           </div>
-          <div style={{ fontSize:11, color:'var(--muted)' }}>{filtered.length} loads · Updated just now</div>
+          <div style={{ fontSize:11, color:'var(--muted)' }}>
+            {filtered.length} loads · Updated just now
+            {lbSource && (
+              <span style={{ marginLeft: 8 }}>
+                · Sourced from <span style={{ color: 'var(--text)', fontWeight: 600 }}>{lbSource.split(',').map(s => LOAD_SOURCES[s.trim()]?.label || s.trim()).join(', ')}</span>
+              </span>
+            )}
+          </div>
         </div>
         <div style={{ display:'flex', gap:8, marginLeft:'auto', alignItems:'center' }}>
           <select value={filters.equip} onChange={e => sf('equip', e.target.value)} style={selectStyle}>

@@ -88,46 +88,45 @@ export default async function handler(req) {
     }
 
     // 2. Try 123Loadboard API
-    const lb123Creds = userCreds['123loadboard'] || (process.env.LB123_CLIENT_ID ? {
-      clientId: process.env.LB123_CLIENT_ID,
-      clientSecret: process.env.LB123_CLIENT_SECRET,
-      serviceUsername: process.env.LB123_SERVICE_USERNAME,
-      servicePassword: process.env.LB123_SERVICE_PASSWORD,
-    } : null)
+    // COMPLIANCE: 123Loadboard API Usage Agreement requires "your application
+    // should accommodate user end users have dedicated connections to our
+    // services." We MUST use the user's own 123lb account credentials —
+    // never a platform-shared env-var fallback. The previous fallback to
+    // process.env.LB123_CLIENT_ID was a violation. Removed 2026-04-09.
+    const lb123Creds = userCreds['123loadboard'] || null
     let lb123Expired = false
-    let lb123RateLimited = null // 'hour' | 'day' | 'month' | null
+    let lb123RateLimited = null // 'day' | 'month' | null
     if (lb123Creds) {
       // Tag OAuth creds with userId so token refresh can persist + expire in DB
-      if (userCreds['123loadboard']) lb123Creds.__userId = user.id
+      lb123Creds.__userId = user.id
 
       // Compliance: enforce 123Loadboard API Usage Agreement limits per user
-      // (100/hr, 300/day, 2000/month). Silent fail-open if Supabase is down.
-      const limitCheck = userCreds['123loadboard']
-        ? await check123LBLimit(user.id)
-        : { allowed: true, usage: null }
+      // (100 searches/day, 1000 searches/month per the partner agreement PDF).
+      // Silent fail-open if Supabase is down.
+      const limitCheck = await check123LBLimit(user.id)
 
       if (!limitCheck.allowed) {
         lb123RateLimited = limitCheck.reason
       } else {
         const lb123Loads = await fetch123Loadboard(filters, lb123Creds)
+        // Always count the call against the quota — the API request was made
+        // regardless of result count. Per 123lb compliance: track every search.
+        await increment123LBUsage(user.id, limitCheck.usage)
         if (lb123Loads.length > 0) {
           loads.push(...lb123Loads)
           providers.push('123loadboard')
-          // Count this real API call against the user's quota.
-          if (userCreds['123loadboard']) {
-            await increment123LBUsage(user.id, limitCheck.usage)
-          }
-        } else if (userCreds['123loadboard']) {
-          // Had OAuth creds but got nothing — likely expired/refresh-failed.
-          // get123Token will have marked the row as 'expired' in that case.
-          lb123Expired = true
-          userCaches.delete(user.id)
         }
+        // Empty result is normal (no matches for these filters). Don't mark
+        // expired on empty — get123Token marks the connection 'expired' itself
+        // when the auth flow fails, which is the authoritative signal.
       }
     }
 
     // 3. Try Truckstop.com API
-    const tsCreds = userCreds.truckstop || (process.env.TRUCKSTOP_CLIENT_ID ? { clientId: process.env.TRUCKSTOP_CLIENT_ID, clientSecret: process.env.TRUCKSTOP_CLIENT_SECRET } : null)
+    // COMPLIANCE: same rule as 123Loadboard — per-user dedicated connections only.
+    // No platform-shared env-var fallback. User must connect their own Truckstop
+    // account in Settings → Load Boards.
+    const tsCreds = userCreds.truckstop || null
     if (tsCreds) {
       const tsLoads = await fetchTruckstop(filters, tsCreds)
       if (tsLoads.length > 0) {
@@ -322,11 +321,17 @@ const LB123_BASE = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.c
 // ── 123Loadboard API Usage Limits (per their API Usage Agreement) ────────────
 // Hard caps enforced PER USER. We only count REAL search API calls (not cache
 // hits), so the 15-min in-memory cache means a typical user does ~4 calls/hr.
-// These limits are a compliance backstop, not a real throttle.
+// 123Loadboard API Usage Agreement limits (per the PDF agreement, 2026-04):
+//   - 100 searches per user per day
+//   - 1000 searches per user per month
+//   - 50 rate / rate-history lookups per user per day (we don't use this endpoint)
+//   - 40 load post details lookups per user per day (we don't use this endpoint)
+//   - 400 results per page per search
+// Aligned 2026-04-09 with the actual partner agreement (was previously 100/hr,
+// 300/day, 2000/month which was both wrong and over-limit).
 const LB123_LIMITS = {
-  hour:  100,
-  day:   300,
-  month: 2000,
+  day:   100,
+  month: 1000,
 }
 
 // Read api_usage JSONB from the user's load_board_credentials row, reset any
@@ -344,11 +349,9 @@ async function getLB123Usage(userId) {
     const rows = await res.json()
     const usage = rows?.[0]?.api_usage || {}
     const now = new Date()
-    const hourStart  = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours())).toISOString()
     const dayStart   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
     return {
-      hour:  usage.hour?.start  === hourStart  ? usage.hour  : { start: hourStart,  count: 0 },
       day:   usage.day?.start   === dayStart   ? usage.day   : { start: dayStart,   count: 0 },
       month: usage.month?.start === monthStart ? usage.month : { start: monthStart, count: 0 },
     }
@@ -362,7 +365,6 @@ async function getLB123Usage(userId) {
 async function check123LBLimit(userId) {
   const usage = await getLB123Usage(userId)
   if (!usage) return { allowed: true, usage: null } // fail-open
-  if (usage.hour.count  >= LB123_LIMITS.hour)  return { allowed: false, usage, reason: 'hour'  }
   if (usage.day.count   >= LB123_LIMITS.day)   return { allowed: false, usage, reason: 'day'   }
   if (usage.month.count >= LB123_LIMITS.month) return { allowed: false, usage, reason: 'month' }
   return { allowed: true, usage }
@@ -377,7 +379,6 @@ async function increment123LBUsage(userId, currentUsage) {
   const usage = currentUsage || (await getLB123Usage(userId))
   if (!usage) return
   const next = {
-    hour:  { start: usage.hour.start,  count: usage.hour.count  + 1 },
     day:   { start: usage.day.start,   count: usage.day.count   + 1 },
     month: { start: usage.month.start, count: usage.month.count + 1 },
   }

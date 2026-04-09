@@ -1,5 +1,9 @@
+import { useState, lazy, Suspense } from 'react'
 import { useApp } from '../context/AppContext'
 import { Search, Bell } from 'lucide-react'
+
+// Full carrier onboarding wizard — search FMCSA, fill profile, create login
+const AdminCarrierOnboarding = lazy(() => import('./AdminCarrierOnboarding'))
 
 const PAGE_TITLES = {
   dashboard: 'OVERVIEW', loadboard: 'ALL LOADS', carriers: 'USERS',
@@ -14,10 +18,15 @@ const PAGE_TITLES = {
 
 export default function Topbar() {
   const { currentPage, currentRole, roleConfig, navigatePage, toggleSidebar, showToast } = useApp()
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const handlePrimary = () => {
     if (currentRole === 'carrier') navigatePage('loadboard')
-    else if (currentRole === 'admin') showToast('', 'Invite Sent', 'User invitation email sent')
+    else if (currentRole === 'admin' || currentRole === 'manager') {
+      // Open the full carrier onboarding wizard (FMCSA lookup → account →
+      // preferences → review → done with copyable credentials)
+      setShowOnboarding(true)
+    }
     else showToast('', 'Post Load', 'Opening load posting form...')
   }
 
@@ -70,6 +79,19 @@ export default function Topbar() {
       <button className="btn btn-primary tb-btn" onClick={handlePrimary} style={{ fontSize: 12 }}>
         {roleConfig.primaryBtn}
       </button>
+
+      {/* Carrier onboarding wizard — opens when admin/manager taps "+ Invite User" */}
+      {showOnboarding && (
+        <Suspense fallback={null}>
+          <AdminCarrierOnboarding
+            onClose={() => setShowOnboarding(false)}
+            onCreated={() => {
+              setShowOnboarding(false)
+              showToast?.('success', 'Carrier Onboarded', 'Account ready')
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

@@ -124,6 +124,31 @@ export default async function handler(req) {
       return Response.json({ error: 'Profile creation failed: ' + errText }, { status: 500, headers: corsHeaders(req) })
     }
 
+    // ── Also insert a drivers row so the carrier shows up in HR ──
+    // For owner-operators, the carrier IS the driver. The drivers table
+    // owner_id points back to the carrier's auth user, so when they log
+    // in their HR / Drivers page sees themselves as their first driver.
+    if (sanitizedRole === 'carrier') {
+      await fetch(`${supabaseUrl}/rest/v1/drivers`, {
+        method: 'POST',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          owner_id: authData.id,
+          full_name: safeName,
+          email,
+          phone: phone || null,
+          status: 'Active',
+          hire_date: new Date().toISOString().split('T')[0],
+          notes: 'Auto-created from admin onboarding wizard',
+        }),
+      }).catch(() => {})
+    }
+
     return Response.json({ id: authData.id, email, role: sanitizedRole, full_name: safeName }, { headers: corsHeaders(req) })
   } catch (e) {
     return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })

@@ -1,23 +1,45 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '../../../context/AppContext'
+import { useCarrier } from '../../../context/CarrierContext'
 import { Zap, Clock, FileText, Check } from 'lucide-react'
 
 // ─── INVOICING SETTINGS ─────────────────────────────────────────────────────
+// Persists to companies.auto_invoice + companies.invoice_terms (added 2026-04-09).
+// CarrierContext.jsx:556 reads company.auto_invoice to gate the on-Delivery
+// auto-invoice flow. Changing the toggle here actually changes that behavior.
 export function InvoicingSettings() {
   const { showToast } = useApp()
-  const [autoInvoice, setAutoInvoice] = useState(() => localStorage.getItem('qivori_auto_invoice') === 'true')
-  const [defaultTerms, setDefaultTerms] = useState(() => localStorage.getItem('qivori_invoice_terms') || 'Net 30')
+  const { company, updateCompany } = useCarrier()
+  const [autoInvoice, setAutoInvoice] = useState(false)
+  const [defaultTerms, setDefaultTerms] = useState('Net 30')
 
-  const toggleAutoInvoice = () => {
+  // Sync local state from CarrierContext on mount + when company refetches.
+  useEffect(() => {
+    if (company) {
+      setAutoInvoice(!!company.auto_invoice)
+      setDefaultTerms(company.invoice_terms || 'Net 30')
+    }
+  }, [company?.auto_invoice, company?.invoice_terms])
+
+  const toggleAutoInvoice = async () => {
     const next = !autoInvoice
-    setAutoInvoice(next)
-    localStorage.setItem('qivori_auto_invoice', String(next))
-    showToast('', 'Auto-Invoice', next ? 'Enabled — invoices will be generated and emailed on delivery' : 'Disabled')
+    setAutoInvoice(next) // optimistic
+    try {
+      await updateCompany({ auto_invoice: next })
+      showToast('', 'Auto-Invoice', next ? 'Enabled — invoices will be generated on delivery' : 'Disabled')
+    } catch (err) {
+      setAutoInvoice(!next) // rollback
+      showToast('error', 'Save Failed', err.message || 'Could not update auto-invoice setting')
+    }
   }
 
-  const saveTerms = () => {
-    localStorage.setItem('qivori_invoice_terms', defaultTerms)
-    showToast('', 'Saved', 'Invoice settings updated')
+  const saveTerms = async () => {
+    try {
+      await updateCompany({ invoice_terms: defaultTerms })
+      showToast('', 'Saved', `Default terms set to ${defaultTerms}`)
+    } catch (err) {
+      showToast('error', 'Save Failed', err.message || 'Could not save invoice terms')
+    }
   }
 
   return (
@@ -99,7 +121,7 @@ export function InvoicingSettings() {
       {/* Info */}
       <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:14 }}>
         <div style={{ fontSize:12, color:'var(--muted)', lineHeight:1.6 }}>
-          Invoices are sent via email with Qivori branding. Broker replies go to your company email on file. Rate limited to 10 invoices per minute. You can view, print, or resend any invoice from the load detail drawer.
+          Invoices are emailed from your carrier identity (company name + email on Settings → Company Profile). Broker replies go to your company email. Rate limited to 10 invoices per minute. You can view, print, or resend any invoice from the load detail drawer.
         </div>
       </div>
     </div>

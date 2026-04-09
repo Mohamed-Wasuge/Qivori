@@ -552,17 +552,24 @@ export function CarrierProvider({ children }) {
       if (!match) return l
       const updated = normalizeLoad({ ...l, status: newStatus })
 
-      // Auto-create invoice on delivery
-      if (newStatus === 'Delivered' && l.status !== 'Delivered' && l.status !== 'Invoiced') {
+      // Auto-create invoice on delivery — gated by companies.auto_invoice
+      // toggle (Settings → Company Profile → Invoicing). When the toggle is
+      // off, the load goes to Delivered and STAYS there until the user
+      // manually creates an invoice. invoice_terms drives the due date.
+      const autoInvoiceEnabled = company?.auto_invoice === true
+      if (newStatus === 'Delivered' && l.status !== 'Delivered' && l.status !== 'Invoiced' && autoInvoiceEnabled) {
         const grossAmount = l.gross || l.gross_pay || l.rate || 0
         if (grossAmount <= 0) {
           console.warn('[Invoice] Skipped auto-invoice — no rate/gross on load', l.loadId || l.id)
           return updated
         }
 
+        // Net X terms — pull from settings, default 30
+        const termsStr = company?.invoice_terms || 'Net 30'
+        const termsDays = parseInt(termsStr.replace(/[^0-9]/g, ''), 10) || 30
         const today = new Date()
         const due = new Date(today)
-        due.setDate(due.getDate() + 30)
+        due.setDate(due.getDate() + termsDays)
 
         const originShort = (l.origin || '').split(',')[0].substring(0, 3).toUpperCase()
         const destShort = (l.dest || l.destination || '').split(',')[0].substring(0, 3).toUpperCase()
@@ -670,7 +677,7 @@ export function CarrierProvider({ children }) {
 
       return updated
     }))
-  }, [loads, useDb, demoGuard])
+  }, [loads, useDb, demoGuard, company])
 
   // Assign a driver to a load (updates both driver field and status)
   // Runs compliance pre-check: blocks if CDL expired, medical card expired, or driver unavailable

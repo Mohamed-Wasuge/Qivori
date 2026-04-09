@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Ic } from './shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { Truck, User, MapPin, Package, Radio, MessageCircle, Scale, Navigation, Bell } from 'lucide-react'
+import { Truck, User, MapPin, Package, Radio, MessageCircle, Scale, Navigation, Bell, Smartphone, RefreshCw } from 'lucide-react'
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps'
 import { supabase } from '../../lib/supabase'
 import * as db from '../../lib/database'
+import { apiFetch } from '../../lib/api'
 import QActivityFeed from '../../components/QActivityFeed'
 import QLiveNegotiation from '../../components/QLiveNegotiation'
 
@@ -53,6 +54,14 @@ export function FleetMapGoogle() {
   const [livePositions, setLivePositions] = useState({}) // { driverId: {lat,lng,speed,heading,ts} }
   const [breadcrumbs, setBreadcrumbs] = useState([])     // [{lat,lng}] for selected truck
   const [alerts, setAlerts] = useState([])
+  // ── ELD connection awareness ──
+  // Fleet Map's `liveTrucks` come from `driver_positions` (mobile app GPS).
+  // Motive/Samsara sync writes to `eld_vehicles` instead, so even with ELD
+  // connected the map can be empty unless drivers run the mobile app. Track
+  // ELD state so the empty state can tell the user what's actually going on.
+  const [eldProviders, setEldProviders] = useState([])  // [{provider, status, last_sync}]
+  const [eldVehicleCount, setEldVehicleCount] = useState(0)
+  const [eldSyncing, setEldSyncing] = useState(false)
   const mapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
   const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || 'qivori_fleet_map'
 
@@ -92,6 +101,67 @@ export function FleetMapGoogle() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
+
+  // ── ELD provider awareness ──
+  // Fetch which ELD providers (Motive/Samsara) the carrier has connected,
+  // and how many vehicles are sitting in eld_vehicles. Used by the empty
+  // state to tell the user "Motive is connected, 12 vehicles synced — install
+  // the mobile app to see live positions" instead of just showing an empty map.
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user || !mounted) return
+        const { data: conns } = await supabase
+          .from('eld_connections')
+          .select('provider, status, last_sync')
+          .eq('user_id', user.id)
+          .eq('status', 'connected')
+        if (mounted && conns) setEldProviders(conns)
+        const { count } = await supabase
+          .from('eld_vehicles')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+        if (mounted && typeof count === 'number') setEldVehicleCount(count)
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [])
+
+  // Trigger an ELD sync from the empty state's "Sync now" button
+  const handleEldSyncNow = async () => {
+    if (eldSyncing) return
+    setEldSyncing(true)
+    try {
+      const res = await apiFetch('/api/eld-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        showToast('success', 'ELD Synced', `${data.totals?.vehicles || 0} vehicles · ${data.totals?.hos_logs || 0} HOS logs`)
+        // Refresh the vehicle count
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { count } = await supabase
+              .from('eld_vehicles')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+            if (typeof count === 'number') setEldVehicleCount(count)
+          }
+        } catch {}
+      } else {
+        showToast('error', 'Sync Failed', data.error || 'Could not sync ELD data')
+      }
+    } catch (e) {
+      showToast('error', 'Sync Failed', e.message || 'Network error')
+    } finally {
+      setEldSyncing(false)
+    }
+  }
 
   // Build truck data from context — extended with driverId + live GPS
   const trucksData = useMemo(() => drivers.map((d, i) => {
@@ -167,6 +237,67 @@ export function FleetMapGoogle() {
     <div style={{ display:'flex', height:'100%', overflow:'hidden' }}>
       {/* Map area */}
       <div style={{ flex:1, position:'relative', background:'#0a0e1a', overflow:'hidden' }}>
+
+        {/* Empty-state overlay — drivers exist but no live GPS positions yet.
+            Tells the user the truth about why the map is empty AND gives them
+            an action (sync ELD or install mobile app) instead of a void. */}
+        {liveTrucks.length === 0 && (
+          <div style={{
+            position:'absolute', top:20, left:'50%', transform:'translateX(-50%)',
+            zIndex:10, maxWidth:480, width:'calc(100% - 40px)',
+            background:'rgba(10,14,26,0.95)', backdropFilter:'blur(8px)',
+            border:'1px solid rgba(240,165,0,0.3)', borderRadius:14,
+            padding:'18px 22px', boxShadow:'0 8px 32px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:10 }}>
+              <div style={{ width:40, height:40, borderRadius:10, background:'rgba(240,165,0,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Truck size={20} color="var(--accent)" />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:'#fff' }}>No live trucks on the map yet</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.55)' }}>{drivers.length} driver{drivers.length !== 1 ? 's' : ''} registered · 0 reporting GPS</div>
+              </div>
+            </div>
+
+            {eldProviders.length > 0 ? (
+              <>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.75)', lineHeight:1.55, marginBottom:12 }}>
+                  <strong style={{ color:'#22c55e' }}>{eldProviders[0].provider === 'motive' ? 'Motive' : eldProviders[0].provider} connected</strong> · {eldVehicleCount} vehicle{eldVehicleCount !== 1 ? 's' : ''} synced. Live GPS pins on this map currently come from the Qivori mobile app on each driver's phone. ELD vehicle telemetry import is rolling out soon.
+                </div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <button
+                    onClick={handleEldSyncNow}
+                    disabled={eldSyncing}
+                    style={{
+                      padding:'9px 16px', fontSize:12, fontWeight:700,
+                      background: eldSyncing ? 'rgba(240,165,0,0.4)' : 'var(--accent)',
+                      color:'#000', border:'none', borderRadius:8,
+                      cursor: eldSyncing ? 'wait' : 'pointer',
+                      display:'flex', alignItems:'center', gap:6,
+                      fontFamily:"'DM Sans',sans-serif",
+                    }}
+                  >
+                    <RefreshCw size={13} style={{ animation: eldSyncing ? 'spin 1s linear infinite' : 'none' }} />
+                    {eldSyncing ? 'Syncing…' : 'Sync ELD now'}
+                  </button>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', display:'flex', alignItems:'center', gap:4 }}>
+                    <Smartphone size={11} /> or have drivers install Qivori mobile
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.75)', lineHeight:1.55, marginBottom:12 }}>
+                  Live tracking activates when your drivers either (1) install the Qivori mobile app and grant location access, or (2) you connect an ELD provider in Settings → Integrations.
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'rgba(255,255,255,0.5)' }}>
+                  <Smartphone size={12} /> Qivori mobile app · or Motive / Samsara
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {mapsKey ? (
           <APIProvider apiKey={mapsKey}>
             <Map

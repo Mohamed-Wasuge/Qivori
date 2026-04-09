@@ -103,6 +103,9 @@ export default async function handler(req) {
         full_name: safeName,
         company_name: safeCompany,
         status: 'active',
+        // For solo owner-operators, the company_id IS the user's own auth id.
+        // This is the convention used by ensureOwnerMembership in AppContext.
+        company_id: authData.id,
         // Extended carrier fields from the admin onboarding wizard
         mc_number: mc_number || null,
         dot_number: dot_number || null,
@@ -145,6 +148,28 @@ export default async function handler(req) {
           status: 'Active',
           hire_date: new Date().toISOString().split('T')[0],
           notes: 'Auto-created from admin onboarding wizard',
+        }),
+      }).catch(() => {})
+
+      // ── Also insert a company_members row marking them as owner ──
+      // Without this row the carrier can't invite team members — the
+      // "Only owner can invite" check fails. Convention is company_id =
+      // user's own auth.users id for solo owner-operators (matches
+      // ensureOwnerMembership in AppContext). Carrier is now the owner
+      // of their own company and can invite drivers, dispatchers, admins.
+      await fetch(`${supabaseUrl}/rest/v1/company_members`, {
+        method: 'POST',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          company_id: authData.id,
+          user_id: authData.id,
+          role: 'owner',
+          status: 'active',
         }),
       }).catch(() => {})
     }

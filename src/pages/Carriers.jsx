@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
-import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock, Send, KeyRound } from 'lucide-react'
+import { Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, Zap, ChevronDown, UserPlus, X, Package, DollarSign, MapPin, Phone, Mail, Calendar, CreditCard, Clock, Send, KeyRound, Sparkles } from 'lucide-react'
+
+// Full carrier onboarding wizard — search FMCSA, fill profile, create login
+const AdminCarrierOnboarding = lazy(() => import('../components/AdminCarrierOnboarding'))
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 const FILTERS = ['All', 'active', 'trial', 'pending', 'suspended']
@@ -17,6 +20,7 @@ export default function Carriers() {
   const [loading, setLoading] = useState(true)
   const [editingRole, setEditingRole] = useState(null)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', company_name: '', role: 'carrier' })
   const [addingUser, setAddingUser] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
@@ -208,11 +212,27 @@ export default function Carriers() {
               <input className="form-input" placeholder="Search users..." value={search} onChange={e => setSearch(e.target.value)}
                 style={{ paddingLeft: 30, width: 180, height: 34, fontSize: 12 }} />
             </div>
-            <button className="btn btn-primary" onClick={() => setShowAddUser(true)}>
-              <Ic icon={UserPlus} size={14} /> Add User
+            <button className="btn btn-primary" onClick={() => setShowOnboarding(true)} style={{
+              background: 'linear-gradient(135deg, #f0a500, #f59e0b)', color: '#000', fontWeight: 800,
+              border: 'none', boxShadow: '0 4px 16px rgba(240,165,0,0.3)',
+            }}>
+              <Ic icon={Sparkles} size={14} /> Onboard Carrier
+            </button>
+            <button className="btn" onClick={() => setShowAddUser(true)}>
+              <Ic icon={UserPlus} size={14} /> Quick Add
             </button>
           </div>
         </div>
+
+        {/* Full Onboarding Wizard — search FMCSA, fill profile, create carrier */}
+        {showOnboarding && (
+          <Suspense fallback={null}>
+            <AdminCarrierOnboarding
+              onClose={() => setShowOnboarding(false)}
+              onCreated={() => { setShowOnboarding(false); fetchUsers() }}
+            />
+          </Suspense>
+        )}
 
         {/* Filters */}
         <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>

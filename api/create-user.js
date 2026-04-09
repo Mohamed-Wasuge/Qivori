@@ -33,7 +33,14 @@ export default async function handler(req) {
   }
 
   try {
-    const { email, password, full_name, company_name, role } = await req.json()
+    const body = await req.json()
+    const {
+      email, password, full_name, company_name, role,
+      // Extended carrier fields (set by admin onboarding wizard)
+      mc_number, dot_number, phone, address, city, state, zip,
+      equipment, home_base_city, home_base_state,
+      subscription_plan,
+    } = body
 
     if (!email || !password || !full_name) {
       return Response.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders(req) })
@@ -96,11 +103,25 @@ export default async function handler(req) {
         full_name: safeName,
         company_name: safeCompany,
         status: 'active',
+        // Extended carrier fields from the admin onboarding wizard
+        mc_number: mc_number || null,
+        dot_number: dot_number || null,
+        phone: phone || null,
+        address: address || null,
+        city: city || null,
+        state: state || null,
+        zip: zip || null,
+        equipment: equipment || null,
+        home_base_city: home_base_city || null,
+        home_base_state: home_base_state || null,
+        subscription_plan: subscription_plan || 'autonomous_fleet',
+        subscription_status: 'trialing',
       }),
     })
 
     if (!profileRes.ok) {
-      return Response.json({ error: 'Profile creation failed' }, { status: 500, headers: corsHeaders(req) })
+      const errText = await profileRes.text()
+      return Response.json({ error: 'Profile creation failed: ' + errText }, { status: 500, headers: corsHeaders(req) })
     }
 
     return Response.json({ id: authData.id, email, role: sanitizedRole, full_name: safeName }, { headers: corsHeaders(req) })

@@ -172,6 +172,32 @@ export default async function handler(req) {
           status: 'active',
         }),
       }).catch(() => {})
+
+      // ── Also insert a companies row pre-populated from FMCSA ──
+      // Without this row the carrier opens "Settings → Company Profile"
+      // and sees a blank form. When they save it has nothing to update
+      // (depending on how upsertCompany handles missing rows). Pre-creating
+      // the row with FMCSA data means everything is filled in on day 1
+      // and any future Save just updates the existing row.
+      const fullAddress = [address, city, state, zip].filter(Boolean).join(', ')
+      await fetch(`${supabaseUrl}/rest/v1/companies`, {
+        method: 'POST',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          owner_id: authData.id,
+          name: safeCompany || safeName,  // company name or fall back to driver name
+          mc_number: mc_number || null,
+          dot_number: dot_number || null,
+          address: fullAddress || null,
+          phone: phone || null,
+          email,
+        }),
+      }).catch(() => {})
     }
 
     return Response.json({ id: authData.id, email, role: sanitizedRole, full_name: safeName }, { headers: corsHeaders(req) })

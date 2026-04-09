@@ -7,7 +7,7 @@ export const config = { runtime: 'edge' };
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-const DOCUMENT_TYPES = ['insurance_certificate', 'w9_form', 'operating_authority', 'medical_card'];
+const DOCUMENT_TYPES = ['insurance_certificate', 'w9_form', 'operating_authority', 'medical_card', 'boc3_form', 'drug_alcohol_policy'];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

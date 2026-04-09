@@ -104,6 +104,8 @@ function generatePacketEmailHTML(data) {
       w9_form: 'W9 Form',
       operating_authority: 'Operating Authority',
       medical_card: 'Medical Card',
+      boc3_form: 'BOC-3 Process Agent',
+      drug_alcohol_policy: 'Drug & Alcohol Policy',
     };
     return `<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">${docNames[doc.document_type] || doc.document_type}</td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #22c55e;">Attached</td></tr>`;
   }).join('');
@@ -241,6 +243,8 @@ export default async function handler(req) {
               w9_form: 'W9_Form',
               operating_authority: 'Operating_Authority',
               medical_card: 'Medical_Card',
+              boc3_form: 'BOC3_Form',
+              drug_alcohol_policy: 'Drug_Alcohol_Policy',
             };
             attachments.push({
               filename: `${docNames[doc.document_type] || doc.document_type}_${safeFilenameBase}.pdf`,

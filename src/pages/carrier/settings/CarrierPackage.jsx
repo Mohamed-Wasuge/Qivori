@@ -62,14 +62,17 @@ export function CarrierPackage() {
   ]
 
   // ── Doc upload + register ─────────────────────────────────────
-  // Maps the UI doc keys (w9, authority, ...) to the carrier_documents.document_type
-  // values the backend's CHECK constraint accepts. Any UI key without a mapping
-  // here cannot be sent in the carrier packet — it would only live in storage
-  // as an orphan. For Phase 1 (MVP) only W9 is wired through.
+  // Maps the UI doc keys (w9, authority, boc3, drug) to the
+  // carrier_documents.document_type values the backend's CHECK constraint
+  // accepts. Any UI key without a mapping cannot be sent in the carrier
+  // packet — it would only live in storage as an orphan.
+  // boc3_form + drug_alcohol_policy were added to the CHECK constraint
+  // 2026-04-09 (see migration in supabase-carrier-doc-types.sql).
   const DOC_TYPE_MAP = {
     w9:        'w9_form',
     authority: 'operating_authority',
-    // boc3, drug — no carrier_documents.document_type yet, deferred
+    boc3:      'boc3_form',
+    drug:      'drug_alcohol_policy',
   }
 
   const handleDocUpload = async (file, uiKey, label) => {

@@ -278,13 +278,23 @@ export default function Carriers() {
 
   const Avatar = ({ name, size = 44, radius = 12, fontSize = 16 }) => {
     const c = avatarColor(name); const letter = (name || '?')[0].toUpperCase()
-    return <div style={{ width: size, height: size, borderRadius: radius, background: c + '20', color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 800, flexShrink: 0, fontFamily: "'Bebas Neue', sans-serif" }}>{letter}</div>
+    return <div style={{ width: size, height: size, borderRadius: radius, background: `linear-gradient(135deg, ${c}30, ${c}15)`, color: c, border: `1.5px solid ${c}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 800, flexShrink: 0, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>{letter}</div>
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading carriers...</div>
 
   return (
-    <div style={{ padding: 24, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 20 }} onClick={() => planDropdown && setPlanDropdown(null)}>
+    <div style={{ padding: '24px 28px', overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 24 }} onClick={() => planDropdown && setPlanDropdown(null)}>
+
+      {/* -- Page Header -- */}
+      <div>
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 2, lineHeight: 1 }}>
+          CARRIER <span style={{ color: 'var(--accent)' }}>MANAGEMENT</span>
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+          Manage your carrier accounts, plans, team members, and billing
+        </div>
+      </div>
 
       {/* -- Stats Bar -- */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
@@ -299,13 +309,13 @@ export default function Carriers() {
           const active = statFilter === s.key
           return (
             <button key={s.label} onClick={() => setStatFilter(active ? null : s.key)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12, border: `1px solid ${active ? s.color + '60' : 'var(--border)'}`, background: active ? s.color + '10' : 'var(--surface)', cursor: 'pointer', transition: 'all .15s', position: 'relative', overflow: 'hidden' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '20px 18px', borderRadius: 14, border: `1px solid ${active ? s.color + '60' : 'var(--border)'}`, background: active ? s.color + '10' : 'var(--surface)', cursor: 'pointer', transition: 'all .15s', position: 'relative', overflow: 'hidden' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = s.color + '50'; e.currentTarget.style.background = s.color + '08' }}
               onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)' } else { e.currentTarget.style.borderColor = s.color + '60' } }}>
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderRadius: '4px 0 0 4px', background: s.color }} />
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, lineHeight: 1, color: 'var(--text)' }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{s.label}</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, lineHeight: 1, color: active ? s.color : 'var(--text)' }}>{s.value}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'DM Sans', sans-serif", marginTop: 4, fontWeight: 600 }}>{s.label}</div>
               </div>
             </button>
           )
@@ -334,7 +344,7 @@ export default function Carriers() {
       </div>
 
       {/* -- Carrier Cards -- */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: 'var(--muted)', fontSize: 14, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <Ic icon={Building2} size={28} style={{ marginBottom: 8, opacity: 0.4 }} /><br />
@@ -365,9 +375,9 @@ export default function Carriers() {
             </div>
           )
           return (
-            <div key={co.id} style={{ background: 'var(--surface)', borderRadius: 12, border: `1px solid ${isExp ? 'var(--accent)30' : 'var(--border)'}`, transition: 'border-color .15s' }}>
+            <div key={co.id} style={{ background: 'var(--surface)', borderRadius: 14, border: `1px solid ${isExp ? 'rgba(240,165,0,0.3)' : 'var(--border)'}`, transition: 'border-color .15s, box-shadow .15s', boxShadow: isExp ? '0 4px 20px rgba(240,165,0,0.08)' : 'none' }}>
               {/* Main row */}
-              <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'background .1s', borderRadius: isExp ? '12px 12px 0 0' : 12 }}
+              <div style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer', transition: 'background .1s', borderRadius: isExp ? '14px 14px 0 0' : 14 }}
                 onClick={() => setExpanded(p => ({ ...p, [co.id]: !p[co.id] }))}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
@@ -556,7 +566,7 @@ export default function Carriers() {
       {drawer && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} onClick={() => setDrawer(null)} />
-          <div style={{ position: 'relative', width: 560, maxWidth: '94vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '-8px 0 32px rgba(0,0,0,.3)' }}>
+          <div style={{ position: 'relative', width: 560, maxWidth: '94vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '-8px 0 32px rgba(0,0,0,.3)' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>

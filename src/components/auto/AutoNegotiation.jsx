@@ -685,6 +685,9 @@ function DialingStep({ broker, targetRate, callId, onManualRate, onAccepted }) {
   const [messages, setMessages] = useState([])
   const [acceptingRate, setAcceptingRate] = useState(0) // rate_value currently being POSTed
   const [acceptedRate, setAcceptedRate] = useState(0)   // rate_value already accepted (hide card)
+  const [counterMode, setCounterMode] = useState(false) // driver is typing a counter
+  const [driverCounter, setDriverCounter] = useState(0) // the counter amount
+  const [sendingCounter, setSendingCounter] = useState(false)
 
   // ── Latest broker counter that hasn't been accepted yet ─────────
   // Scans messages from newest → oldest for the first one with a rate_value
@@ -736,6 +739,37 @@ function DialingStep({ broker, targetRate, callId, onManualRate, onAccepted }) {
       setAcceptingRate(0)
     }
   }, [callId, acceptingRate, onAccepted])
+
+  // ── COUNTER — driver sends their own number back to Q ──────────
+  // Same endpoint as Accept but with decision='counter'. Q's next
+  // check_driver_decision call sees decision='counter' + agreed_rate=X
+  // and tells the broker "our number is $X". The driver stays on the
+  // dialing screen watching for the broker's next response.
+  const handleSendDriverCounter = useCallback(async () => {
+    if (!callId || !driverCounter || driverCounter <= 0 || sendingCounter) return
+    haptic('medium')
+    setSendingCounter(true)
+    try {
+      const res = await apiFetch('/api/negotiation?action=driver_response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callId,
+          decision: 'counter',
+          counterRate: driverCounter,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) {
+        // Reset counter mode — driver waits for broker's next response.
+        // Don't transition to closing — Q relays the counter and the
+        // broker will respond with another quote via notify_driver.
+        setCounterMode(false)
+        setDriverCounter(0)
+      }
+    } catch {}
+    setSendingCounter(false)
+  }, [callId, driverCounter, sendingCounter])
 
   // ── Live broker chatter ────────────────────────────────────────
   // Q calls /api/q-notify mid-call whenever the broker says something
@@ -891,10 +925,11 @@ function DialingStep({ broker, targetRate, callId, onManualRate, onAccepted }) {
           Hang tight — Q is fighting for your number.
         </div>
 
-        {/* ── Counter-offer Accept card ── */}
-        {/* When the broker counters with a rate, slide up an Accept card.
-            Tap → POST /api/negotiation, then wait for parent to flip to 'final'.
-            Decline is intentionally NOT here — declines are post-call only. */}
+        {/* ── Broker offer card — Accept OR Counter ── */}
+        {/* When the broker quotes a rate, the driver decides: accept as-is,
+            or type their own counter. Q relays whichever the driver picks.
+            This is COLLABORATIVE negotiation — Q never commits without the
+            driver's explicit input. */}
         {latestCounter && (
           <div style={{
             marginTop: 24,
@@ -926,30 +961,102 @@ function DialingStep({ broker, targetRate, callId, onManualRate, onAccepted }) {
                 "{latestCounter.message}"
               </div>
             )}
-            <button
-              onClick={() => handleAcceptCounter(latestCounter)}
-              disabled={acceptingRate > 0}
-              style={{
-                ...PRIMARY_BTN,
-                width: '100%',
-                background: acceptingRate > 0 ? 'rgba(34,197,94,0.4)' : '#22c55e',
-                opacity: acceptingRate > 0 ? 0.7 : 1,
-                cursor: acceptingRate > 0 ? 'wait' : 'pointer',
-              }}
-              className={acceptingRate > 0 ? '' : 'press-scale'}
-            >
-              <CheckCircle size={20} color="#fff" />
-              <span style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: 1 }}>
-                {acceptingRate > 0
-                  ? 'Q IS CLOSING…'
-                  : `ACCEPT $${Number(latestCounter.rate_value).toLocaleString()}`}
-              </span>
-            </button>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 10, lineHeight: 1.4 }}>
-              Q will confirm with broker and close the call.
-              <br />
-              To decline, wait for Q to finish — you'll get options after.
-            </div>
+
+            {counterMode ? (
+              /* ── Counter input — driver types their number ── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 700, letterSpacing: 1 }}>
+                  YOUR COUNTER
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  background: 'rgba(240,165,0,0.08)',
+                  border: '2px solid var(--accent)',
+                  borderRadius: 14, padding: '8px 14px',
+                }}>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--accent)', fontFamily: "'Bebas Neue', sans-serif" }}>$</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={driverCounter || ''}
+                    onChange={(e) => setDriverCounter(parseInt(e.target.value) || 0)}
+                    autoFocus
+                    placeholder={String(Math.round(Number(latestCounter.rate_value) * 1.1))}
+                    style={{
+                      flex: 1, background: 'none', border: 'none', outline: 'none',
+                      fontSize: 32, fontWeight: 900, color: 'var(--accent)',
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      width: '100%', WebkitAppearance: 'none', padding: 0, marginLeft: 4,
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={handleSendDriverCounter}
+                    disabled={sendingCounter || driverCounter <= 0}
+                    style={{
+                      ...PRIMARY_BTN, flex: 1,
+                      background: sendingCounter ? 'rgba(240,165,0,0.4)' : 'var(--accent)',
+                      opacity: (sendingCounter || driverCounter <= 0) ? 0.5 : 1,
+                    }}
+                    className={sendingCounter ? '' : 'press-scale'}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 900, color: '#000', letterSpacing: 1 }}>
+                      {sendingCounter ? 'SENDING…' : `COUNTER $${(driverCounter || 0).toLocaleString()}`}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { setCounterMode(false); setDriverCounter(0) }}
+                    style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                  Q will tell {broker}: "Our number is ${(driverCounter || 0).toLocaleString()}"
+                </div>
+              </div>
+            ) : (
+              /* ── Accept / Counter buttons ── */
+              <>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => handleAcceptCounter(latestCounter)}
+                    disabled={acceptingRate > 0}
+                    style={{
+                      ...PRIMARY_BTN, flex: 1,
+                      background: acceptingRate > 0 ? 'rgba(34,197,94,0.4)' : '#22c55e',
+                      opacity: acceptingRate > 0 ? 0.7 : 1,
+                      cursor: acceptingRate > 0 ? 'wait' : 'pointer',
+                    }}
+                    className={acceptingRate > 0 ? '' : 'press-scale'}
+                  >
+                    <CheckCircle size={18} color="#fff" />
+                    <span style={{ fontSize: 14, fontWeight: 900, color: '#fff', letterSpacing: 1 }}>
+                      {acceptingRate > 0 ? 'CLOSING…' : 'ACCEPT'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { haptic('light'); setCounterMode(true); setDriverCounter(Math.round(Number(latestCounter.rate_value) * 1.1)) }}
+                    disabled={acceptingRate > 0}
+                    style={{
+                      ...PRIMARY_BTN, flex: 1,
+                      background: 'rgba(240,165,0,0.15)',
+                      border: '1.5px solid var(--accent)',
+                      opacity: acceptingRate > 0 ? 0.5 : 1,
+                    }}
+                    className="press-scale"
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--accent)', letterSpacing: 1 }}>
+                      COUNTER
+                    </span>
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 10, lineHeight: 1.4 }}>
+                  Accept closes the deal. Counter lets you send your own number.
+                </div>
+              </>
+            )}
           </div>
         )}
 

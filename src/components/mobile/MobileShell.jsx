@@ -438,25 +438,11 @@ export default function MobileShell() {
     }, 250)
   }, [])
 
-  // Q center button handlers
-  const onQTouchStart = () => {
-    setQPressed(true)
-    longPressTimer.current = setTimeout(() => {
-      haptic('medium')
-      openQ(null, null, true) // long press = voice call
-    }, 500)
-  }
-  const onQTouchEnd = () => {
-    setQPressed(false)
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }
+  // Q center button handlers — tap opens Q tab, no long-press voice
+  // (voice call removed 2026-04-10: cost control + abuse risk)
+  const onQTouchStart = () => { setQPressed(true) }
+  const onQTouchEnd = () => { setQPressed(false) }
   const onQClick = () => {
-    // Only fires if long press didn't trigger
-    // Tap Q FAB → switch to Q Hunt tab (the dispatching experience).
-    // Long press still opens voice chat (handled by onQTouchStart timer).
     if (!chatOpen) {
       haptic('light')
       setActiveTab('q')

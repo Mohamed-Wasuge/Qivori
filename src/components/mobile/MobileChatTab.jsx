@@ -4314,13 +4314,6 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
               style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 24, padding: '12px 16px', color: 'var(--text)', fontSize: 15, fontFamily: "'DM Sans',sans-serif", outline: 'none', boxSizing: 'border-box' }}
             />
 
-            {/* Call Q — start Retell real-time voice */}
-            <button onClick={() => { haptic('light'); startVoiceCall() }}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: 'none', border: '1.5px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s ease' }}
-              title="Call Q — real-time voice conversation">
-              <Ic icon={Phone} size={14} color="var(--success)" />
-            </button>
-
             {/* Send or Mic */}
             {input.trim() ? (
               <button onClick={() => { haptic('light'); lastInputWasVoiceRef.current = false; sendMessage() }} disabled={loading}

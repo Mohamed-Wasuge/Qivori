@@ -73,16 +73,21 @@
  *      c) Call check_driver_decision with call_id={{call_id}}.
  *      d) Read the response. It will be one of:
  *           - { decision: "accept", agreed_rate: NUMBER }
+ *           - { decision: "counter", agreed_rate: NUMBER }
  *           - { decision: "decline" }
  *           - { decision: "waiting" }
  *      e) Branch:
  *           - accept  → say "Great, my driver confirmed $AGREED_RATE works.
- *                       Can you send the rate con to dispatch@qivori.com?"
+ *                       Can you send the rate con to {{carrier_email}}?"
  *                       After confirming the email, invoke end_call.
+ *           - counter → say "My driver is looking for $AGREED_RATE on this
+ *                       one. Can you work with that?" Then wait for the
+ *                       broker's response, call notify_driver again with
+ *                       the broker's answer, and check_driver_decision again.
  *           - decline → say "I appreciate the offer but my driver passed on
  *                       this one. Have a great day." Invoke end_call.
- *           - waiting → keep negotiating. Counter at target_rate or hold
- *                       firm at floor_rate. Try one more round.
+ *           - waiting → keep negotiating. Make small talk ("let me check
+ *                       with my driver real quick") and call again in 3s.
  *
  *    NEVER commit to a rate without first checking the driver's decision.
  *    NEVER end the call with end_call until you've confirmed accept or decline.
@@ -212,12 +217,14 @@ export default async function handler(req) {
   }
 
   // Map outcome → decision the agent prompt expects
-  // outcome 'accepted'   → decision 'accept'  (driver tapped Accept)
-  // outcome 'declined'   → decision 'decline' (driver tapped Decline post-call)
-  // anything else        → decision 'waiting' (driver hasn't responded yet)
+  // outcome 'accepted'      → decision 'accept'  (driver tapped Accept)
+  // outcome 'counter_offer' → decision 'counter' (driver typed their own number)
+  // outcome 'declined'      → decision 'decline' (driver tapped Decline post-call)
+  // anything else           → decision 'waiting' (driver hasn't responded yet)
   const outcome = (row.outcome || '').toLowerCase()
   let decision = 'waiting'
   if (outcome === 'accepted') decision = 'accept'
+  else if (outcome === 'counter_offer') decision = 'counter'
   else if (outcome === 'declined') decision = 'decline'
 
   return Response.json(

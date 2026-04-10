@@ -484,8 +484,9 @@ export default function Carriers() {
                         <select className="form-input" value={subUserForm.role}
                           onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
                           style={{ height: 34, fontSize: 12, width: 110, cursor: 'pointer', borderRadius: 8 }}>
-                          <option value="driver">Driver</option>
+                          <option value="owner">Owner</option>
                           <option value="dispatcher">Dispatcher</option>
+                          <option value="driver">Driver</option>
                         </select>
                         <button disabled={addingSubUser} onClick={() => handleAddSubUser(co.id)}
                           style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 12, cursor: addingSubUser ? 'not-allowed' : 'pointer', opacity: addingSubUser ? 0.6 : 1 }}>
@@ -710,9 +711,9 @@ export default function Carriers() {
                   <select className="form-input" value={subUserForm.role}
                     onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
                     style={{ width: 110, height: 34, fontSize: 12, cursor: 'pointer', borderRadius: 8 }}>
-                    <option value="driver">Driver</option>
+                    <option value="owner">Owner</option>
                     <option value="dispatcher">Dispatcher</option>
-                    <option value="admin">Admin</option>
+                    <option value="driver">Driver</option>
                   </select>
                   <button disabled={addingSubUser || !subUserForm.email}
                     onClick={() => handleAddSubUser(drawer.carrier.company.id)}

@@ -52,6 +52,7 @@ export default function Carriers() {
   const [subUserForm, setSubUserForm] = useState({ email: '', role: 'driver' })
   const [addingSubUser, setAddingSubUser] = useState(false)
   const [planDropdown, setPlanDropdown] = useState(null)
+  const [drawerEdits, setDrawerEdits] = useState({}) // { field: value } for inline edits
 
   // -- Data fetching --
   const fetchData = useCallback(async () => {
@@ -230,6 +231,7 @@ export default function Carriers() {
   }, [showToast])
 
   const openDrawer = useCallback(async (carrier) => {
+    setDrawerEdits({})
     setDrawer({ carrier, auditLog: [], recentLoads: [] })
     setDrawerLoading(true)
     const [auditRes, loadsRes] = await Promise.all([
@@ -589,22 +591,44 @@ export default function Carriers() {
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Building2} size={12} /> Company Info</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 {[
-                  { label: 'Company Name', field: 'name', value: drawer.carrier.company.name },
-                  { label: 'MC Number', field: 'mc_number', value: drawer.carrier.company.mc_number },
-                  { label: 'DOT Number', field: 'dot_number', value: drawer.carrier.company.dot_number },
-                  { label: 'Email', field: 'email', value: drawer.carrier.company.email },
-                  { label: 'Phone', field: 'phone', value: drawer.carrier.company.phone },
-                  { label: 'Address', field: 'address', value: drawer.carrier.company.address },
-                ].map(d => (
-                  <div key={d.label}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{d.label}</div>
-                    <input className="form-input"
-                      style={{ width: '100%', height: 34, fontSize: 12, background: 'var(--surface2)', borderRadius: 8 }}
-                      defaultValue={d.value || ''}
-                      onBlur={e => { if (e.target.value !== (d.value || '')) updateCompanyField(drawer.carrier.company.id, d.field, e.target.value, d.label) }}
-                      placeholder={`Enter ${d.label.toLowerCase()}...`} />
-                  </div>
-                ))}
+                  { label: 'Company Name', field: 'name' },
+                  { label: 'MC Number', field: 'mc_number' },
+                  { label: 'DOT Number', field: 'dot_number' },
+                  { label: 'Email', field: 'email' },
+                  { label: 'Phone', field: 'phone' },
+                  { label: 'Address', field: 'address' },
+                ].map(d => {
+                  const dbValue = drawer.carrier.company[d.field] || ''
+                  const editValue = drawerEdits[d.field]
+                  const currentValue = editValue !== undefined ? editValue : dbValue
+                  const isDirty = editValue !== undefined && editValue !== dbValue
+                  return (
+                    <div key={d.field}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        {d.label}
+                        {isDirty && <span style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600 }}>unsaved</span>}
+                      </div>
+                      <input className="form-input"
+                        style={{ width: '100%', height: 34, fontSize: 12, background: 'var(--surface2)', borderRadius: 8, borderColor: isDirty ? 'var(--accent)' : undefined }}
+                        value={currentValue}
+                        onChange={e => setDrawerEdits(p => ({ ...p, [d.field]: e.target.value }))}
+                        onBlur={() => {
+                          if (isDirty) {
+                            updateCompanyField(drawer.carrier.company.id, d.field, editValue, d.label)
+                            setDrawerEdits(p => { const n = { ...p }; delete n[d.field]; return n })
+                          }
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && isDirty) {
+                            updateCompanyField(drawer.carrier.company.id, d.field, editValue, d.label)
+                            setDrawerEdits(p => { const n = { ...p }; delete n[d.field]; return n })
+                            e.target.blur()
+                          }
+                        }}
+                        placeholder={`Enter ${d.label.toLowerCase()}...`} />
+                    </div>
+                  )
+                })}
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Joined</div>
                   <div style={{ fontSize: 14, fontWeight: 600, padding: '7px 0' }}>{formatDate(drawer.carrier.company.created_at)}</div>

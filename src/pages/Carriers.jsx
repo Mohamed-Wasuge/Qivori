@@ -97,16 +97,26 @@ export default function Carriers() {
       const compMembers = membersByCompany[c.id] || []
       const owner = c.owner_id ? profileMap[c.owner_id] : compMembers.find(m => m.role === 'owner')?.profile
       const totalLoads = compMembers.reduce((sum, m) => sum + (loadCounts[m.user_id] || 0), 0) + (c.owner_id ? (loadCounts[c.owner_id] || 0) : 0)
+      // Resolve display name — never show blank. Fall back through company
+      // name → owner's company_name → owner's full_name → owner's email → "Unnamed"
+      const displayName = c.name || owner?.company_name || owner?.full_name || owner?.email || 'Unnamed Carrier'
+      const displayMC = c.mc_number || owner?.mc_number || null
+      const displayDOT = c.dot_number || owner?.dot_number || null
+      const displayEmail = c.email || owner?.email || null
+      const displayPhone = c.phone || owner?.phone || null
       return {
         id: c.id,
-        company: c,
+        company: { ...c, name: displayName, mc_number: displayMC, dot_number: displayDOT, email: displayEmail, phone: displayPhone },
         owner,
         members: compMembers.map(m => ({ ...m, profile: m.profile || profileMap[m.user_id] })),
         loadCount: totalLoads,
       }
     })
 
-    // Legacy users without company_members entry
+    // Also mark owner_id users as "in companies" so they don't duplicate in Individual Users
+    companies.forEach(c => { if (c.owner_id) usersInCompanies.add(c.owner_id) })
+
+    // Legacy users without any company link at all
     const legacyUsers = allProfiles.filter(p => !usersInCompanies.has(p.id) && p.role !== 'admin')
     if (legacyUsers.length > 0) {
       list.push({

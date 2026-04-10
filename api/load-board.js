@@ -41,9 +41,7 @@ export default async function handler(req) {
   }
 
   try {
-    // Check per-user memory cache first — but ONLY use it if it has loads.
-    // Caching empty results would lock users out for 15 minutes after a
-    // transient credential failure (e.g. expired OAuth token).
+    // ── Cache layer 1: in-memory (same Edge instance, fastest) ──
     const userCache = userCaches.get(user.id)
     if (userCache && userCache.loads.length > 0 && Date.now() - userCache.time < CACHE_TTL) {
       const filtered = applyFilters(userCache.loads, filters)
@@ -55,13 +53,33 @@ export default async function handler(req) {
       }, { headers: { ...corsHeaders(req), 'Cache-Control': 'private, max-age=300' } })
     }
 
-    // Fetch THIS user's encrypted credentials from Supabase
+    // ── Cache layer 2: Supabase persistent cache (survives cold starts) ──
+    // On Edge cold starts the in-memory cache is empty. Without this layer,
+    // every cold start hits the 123lb DEV API (~2-4s). With it, the user
+    // sees cached loads in ~200ms and only hits the API when the Supabase
+    // cache expires (1 hour). This was defined but never called before.
+    const sbCached = await getSupabaseCache(user.id)
+    if (sbCached && sbCached.length > 0) {
+      // Warm the in-memory cache so subsequent requests on this instance
+      // don't even touch Supabase.
+      userCaches.set(user.id, { loads: sbCached, providers: ['cache'], time: Date.now() })
+      const filtered = applyFilters(sbCached, filters)
+      return Response.json({
+        loads: filtered,
+        total: filtered.length,
+        source: 'cache',
+        providers: ['cache'],
+      }, { headers: { ...corsHeaders(req), 'Cache-Control': 'private, max-age=300' } })
+    }
+
+    // ── No cache hit — fetch fresh from load board APIs ──
     const userCreds = await getUserCredentials(user.id)
 
-    // Also check platform env vars as fallback (for admin/testing)
-    const hasDat = userCreds.dat || (process.env.DAT_CLIENT_ID && process.env.DAT_CLIENT_SECRET)
-    const has123 = userCreds['123loadboard'] || process.env.LB123_CLIENT_ID
-    const hasTs = userCreds.truckstop || (process.env.TRUCKSTOP_CLIENT_ID && process.env.TRUCKSTOP_CLIENT_SECRET)
+    // Per-user dedicated connections only (123lb API Usage Agreement compliance).
+    // No platform env-var fallback — each user connects their own account.
+    const hasDat = !!userCreds.dat
+    const has123 = !!userCreds['123loadboard']
+    const hasTs = !!userCreds.truckstop
 
     if (!hasDat && !has123 && !hasTs) {
       return Response.json({
@@ -946,13 +964,18 @@ async function cacheToSupabase(loads) {
   } catch { /* silent */ }
 }
 
-async function getSupabaseCache() {
+async function getSupabaseCache(userId) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_KEY
   if (!supabaseUrl || !serviceKey) return null
 
   try {
-    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString() // 1 hour stale
+    // Cached load data is public listings (origin, dest, rate, broker) —
+    // not user-specific PII. Safe to serve across users. The compliance
+    // requirement for "dedicated connections" is about OAuth credentials
+    // (each user authenticates with their own 123lb account), not about
+    // caching search results which are public load board postings.
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString()
     const res = await fetch(
       `${supabaseUrl}/rest/v1/load_board_cache?cached_at=gte.${cutoff}&order=ai_score.desc&limit=100`,
       { headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` } }

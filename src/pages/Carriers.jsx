@@ -3,9 +3,9 @@ import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
 import {
-  Truck, Search, CheckCircle, Ban, Eye, Shield, Building2, ChevronDown, ChevronRight,
+  Search, CheckCircle, Ban, Eye, Building2, ChevronDown, ChevronRight,
   UserPlus, X, Package, Mail, Calendar, KeyRound, Sparkles, Users, StickyNote,
-  Clock, Activity, FileText, Plus, AlertCircle, RotateCcw
+  Activity, Plus, RotateCcw
 } from 'lucide-react'
 
 const AdminCarrierOnboarding = lazy(() => import('../components/AdminCarrierOnboarding'))
@@ -13,26 +13,21 @@ const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
 const PLANS = ['trial', 'beta', 'basic', 'pro', 'enterprise']
 const PLAN_COLORS = { trial: '#6b7280', beta: '#3b82f6', basic: '#22c55e', pro: '#f0a500', enterprise: '#8b5cf6' }
-const PLAN_PRICING = { trial: 'Free · 14 days', beta: 'Free · unlimited', basic: '$79/mo', pro: '$199/mo', enterprise: 'Custom' }
-const STATUS_OPTIONS = ['active', 'pending', 'suspended', 'trial']
+const PLAN_PRICING = { trial: 'Free \u00b7 14 days', beta: 'Free \u00b7 no limit', basic: '$79/mo', pro: '$199/mo', enterprise: 'Custom' }
+const AVATAR_COLORS = ['#f0a500','#3b82f6','#22c55e','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316']
+const avatarColor = (name) => AVATAR_COLORS[Math.abs([...(name||'')].reduce((h,c) => (h*31+c.charCodeAt(0))|0, 0)) % AVATAR_COLORS.length]
+const STAT_COLORS = { total: 'var(--accent)', active: 'var(--success)', trial: '#3b82f6', beta: '#3b82f6', paid: 'var(--accent)', suspended: 'var(--danger)' }
 const SORT_OPTIONS = [
   { label: 'Joined (newest)', key: 'newest' },
   { label: 'Joined (oldest)', key: 'oldest' },
   { label: 'Name A-Z', key: 'name_asc' },
-  { label: 'Last Active', key: 'last_active' },
 ]
-
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'
-const statusColor = (s) => ({ active: 'var(--success)', trial: '#3b82f6', pending: 'var(--warning)', suspended: 'var(--danger)' }[s] || 'var(--muted)')
+const statusColor = (s) => ({ active: 'var(--success)', trial: '#3b82f6', pending: 'var(--warning)', suspended: 'var(--danger)', deactivated: 'var(--danger)' }[s] || 'var(--muted)')
 
 const logAudit = async (companyId, action, details = {}) => {
   const { data: { user } } = await supabase.auth.getUser()
-  await supabase.from('admin_audit_log').insert({
-    company_id: companyId,
-    action,
-    details,
-    performed_by: user?.id || null,
-  })
+  await supabase.from('admin_audit_log').insert({ company_id: companyId, action, details, performed_by: user?.id || null })
 }
 
 export default function Carriers() {
@@ -43,8 +38,6 @@ export default function Carriers() {
   const [members, setMembers] = useState([])
   const [loadCounts, setLoadCounts] = useState({})
   const [search, setSearch] = useState('')
-  const [planFilter, setPlanFilter] = useState('All')
-  const [statusFilter, setStatusFilter] = useState('All')
   const [statFilter, setStatFilter] = useState(null)
   const [sortBy, setSortBy] = useState('newest')
   const [expanded, setExpanded] = useState({})
@@ -52,14 +45,15 @@ export default function Carriers() {
   const [showAddUser, setShowAddUser] = useState(false)
   const [newUser, setNewUser] = useState({ email: '', password: '', full_name: '', company_name: '', role: 'carrier' })
   const [addingUser, setAddingUser] = useState(false)
-  const [drawer, setDrawer] = useState(null) // { carrier, auditLog, recentLoads }
+  const [drawer, setDrawer] = useState(null)
   const [drawerLoading, setDrawerLoading] = useState(false)
   const [editingNotes, setEditingNotes] = useState({})
-  const [addSubUser, setAddSubUser] = useState(null) // companyId
+  const [addSubUser, setAddSubUser] = useState(null)
   const [subUserForm, setSubUserForm] = useState({ email: '', role: 'driver' })
   const [addingSubUser, setAddingSubUser] = useState(false)
+  const [planDropdown, setPlanDropdown] = useState(null)
 
-  // ── Fetch all data ──────────────────────────────────────────
+  // -- Data fetching --
   const fetchData = useCallback(async () => {
     const [compRes, memRes, profRes] = await Promise.all([
       supabase.from('companies').select('*').order('created_at', { ascending: false }),
@@ -69,8 +63,6 @@ export default function Carriers() {
     setCompanies(compRes.data || [])
     setMembers(memRes.data || [])
     setAllProfiles(profRes.data || [])
-
-    // Load counts per owner_id
     const { data: loads } = await supabase.from('loads').select('user_id')
     const counts = {}
     ;(loads || []).forEach(l => { counts[l.user_id] = (counts[l.user_id] || 0) + 1 })
@@ -80,64 +72,43 @@ export default function Carriers() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // ── Build carrier list ──────────────────────────────────────
+  // -- Build carrier list --
   const carrierList = useMemo(() => {
     const membersByCompany = {}
-    members.forEach(m => {
-      if (!m.company_id) return
-      if (!membersByCompany[m.company_id]) membersByCompany[m.company_id] = []
-      membersByCompany[m.company_id].push(m)
-    })
+    members.forEach(m => { if (m.company_id) { if (!membersByCompany[m.company_id]) membersByCompany[m.company_id] = []; membersByCompany[m.company_id].push(m) } })
     const profileMap = {}
     allProfiles.forEach(p => { profileMap[p.id] = p })
-
     const usersInCompanies = new Set()
     members.forEach(m => { if (m.user_id) usersInCompanies.add(m.user_id) })
-
     const list = companies.map(c => {
       const compMembers = membersByCompany[c.id] || []
       const owner = c.owner_id ? profileMap[c.owner_id] : compMembers.find(m => m.role === 'owner')?.profile
       const totalLoads = compMembers.reduce((sum, m) => sum + (loadCounts[m.user_id] || 0), 0) + (c.owner_id ? (loadCounts[c.owner_id] || 0) : 0)
-      // Resolve display name — never show blank. Fall back through company
-      // name → owner's company_name → owner's full_name → owner's email → "Unnamed"
-      const displayName = c.name || owner?.company_name || owner?.full_name || owner?.email || 'Unnamed Carrier'
-      const displayMC = c.mc_number || owner?.mc_number || null
-      const displayDOT = c.dot_number || owner?.dot_number || null
-      const displayEmail = c.email || owner?.email || null
-      const displayPhone = c.phone || owner?.phone || null
+      const displayName = c.name || owner?.company_name || owner?.full_name || owner?.email || null
+      if (!displayName) return null
       return {
         id: c.id,
-        company: { ...c, name: displayName, mc_number: displayMC, dot_number: displayDOT, email: displayEmail, phone: displayPhone },
-        owner,
-        members: compMembers.map(m => ({ ...m, profile: m.profile || profileMap[m.user_id] })),
-        loadCount: totalLoads,
+        company: { ...c, name: displayName, mc_number: c.mc_number || owner?.mc_number || null, dot_number: c.dot_number || owner?.dot_number || null, email: c.email || owner?.email || null, phone: c.phone || owner?.phone || null },
+        owner, members: compMembers.map(m => ({ ...m, profile: m.profile || profileMap[m.user_id] })), loadCount: totalLoads,
       }
-    })
-
-    // Also mark owner_id users as "in companies" so they don't duplicate in Individual Users
+    }).filter(Boolean)
     companies.forEach(c => { if (c.owner_id) usersInCompanies.add(c.owner_id) })
-
-    // Legacy users without any company link at all
     const legacyUsers = allProfiles.filter(p => !usersInCompanies.has(p.id) && p.role !== 'admin')
     if (legacyUsers.length > 0) {
       list.push({
-        id: '__legacy__',
-        company: { id: '__legacy__', name: 'Individual Users', plan: '--', carrier_status: '--', created_at: null },
-        owner: null,
-        members: legacyUsers.map(p => ({ user_id: p.id, profile: p, role: p.role || 'carrier', status: p.status || 'active' })),
-        loadCount: legacyUsers.reduce((s, p) => s + (loadCounts[p.id] || 0), 0),
-        isLegacy: true,
+        id: '__legacy__', company: { id: '__legacy__', name: 'Individual Users', plan: '--', carrier_status: '--', created_at: null },
+        owner: null, members: legacyUsers.map(p => ({ user_id: p.id, profile: p, role: p.role || 'carrier', status: p.status || 'active' })),
+        loadCount: legacyUsers.reduce((s, p) => s + (loadCounts[p.id] || 0), 0), isLegacy: true,
       })
     }
     return list
   }, [companies, members, allProfiles, loadCounts])
 
-  // ── Stats ───────────────────────────────────────────────────
+  // -- Stats --
   const stats = useMemo(() => {
     const real = carrierList.filter(c => !c.isLegacy)
     return {
-      total: real.length,
-      active: real.filter(c => c.company.carrier_status === 'active').length,
+      total: real.length, active: real.filter(c => c.company.carrier_status === 'active').length,
       trial: real.filter(c => c.company.carrier_status === 'trial' || c.company.plan === 'trial').length,
       beta: real.filter(c => c.company.plan === 'beta').length,
       paid: real.filter(c => ['basic', 'pro', 'enterprise'].includes(c.company.plan)).length,
@@ -145,11 +116,9 @@ export default function Carriers() {
     }
   }, [carrierList])
 
-  // ── Filtering + sorting ─────────────────────────────────────
+  // -- Filtering + sorting --
   const filtered = useMemo(() => {
     let list = [...carrierList]
-
-    // Stat chip filter
     if (statFilter) {
       list = list.filter(c => {
         if (c.isLegacy) return false
@@ -161,428 +130,369 @@ export default function Carriers() {
         return true
       })
     }
-
-    // Plan filter
-    if (planFilter !== 'All') {
-      list = list.filter(c => c.company.plan === planFilter.toLowerCase())
-    }
-    // Status filter
-    if (statusFilter !== 'All') {
-      list = list.filter(c => c.company.carrier_status === statusFilter.toLowerCase())
-    }
-    // Search
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(c => {
         const co = c.company
-        return (co.name || '').toLowerCase().includes(q) ||
-          (co.mc_number || '').toLowerCase().includes(q) ||
-          (co.dot_number || '').toLowerCase().includes(q) ||
-          (co.email || '').toLowerCase().includes(q) ||
-          (c.owner?.email || '').toLowerCase().includes(q)
+        return (co.name || '').toLowerCase().includes(q) || (co.mc_number || '').toLowerCase().includes(q) ||
+          (co.dot_number || '').toLowerCase().includes(q) || (co.email || '').toLowerCase().includes(q) || (c.owner?.email || '').toLowerCase().includes(q)
       })
     }
-    // Sort
     list.sort((a, b) => {
-      if (a.isLegacy) return 1
-      if (b.isLegacy) return -1
+      if (a.isLegacy) return 1; if (b.isLegacy) return -1
       if (sortBy === 'newest') return new Date(b.company.created_at || 0) - new Date(a.company.created_at || 0)
       if (sortBy === 'oldest') return new Date(a.company.created_at || 0) - new Date(b.company.created_at || 0)
       if (sortBy === 'name_asc') return (a.company.name || '').localeCompare(b.company.name || '')
       return 0
     })
     return list
-  }, [carrierList, statFilter, planFilter, statusFilter, search, sortBy])
+  }, [carrierList, statFilter, search, sortBy])
 
-  // ── Action handlers ─────────────────────────────────────────
-  const updatePlan = async (companyId, newPlan, companyName) => {
+  // -- Handlers --
+  const updatePlan = useCallback(async (companyId, newPlan, companyName) => {
     const old = companies.find(c => c.id === companyId)
     await supabase.from('companies').update({ plan: newPlan }).eq('id', companyId)
     await logAudit(companyId, 'plan_change', { old_plan: old?.plan, new_plan: newPlan })
     showToast('', 'Plan Updated', `${companyName} changed to ${newPlan.toUpperCase()}`)
     fetchData()
-  }
+  }, [companies, showToast, fetchData])
 
-  const updateStatus = async (companyId, newStatus, companyName) => {
+  const updateStatus = useCallback(async (companyId, newStatus, companyName) => {
     const old = companies.find(c => c.id === companyId)
     await supabase.from('companies').update({ carrier_status: newStatus }).eq('id', companyId)
     await logAudit(companyId, 'status_change', { old_status: old?.carrier_status, new_status: newStatus })
     const verb = newStatus === 'active' ? 'Approved' : newStatus === 'suspended' ? 'Suspended' : 'Updated'
     showToast('', verb, `${companyName} -- ${newStatus}`)
     fetchData()
-  }
+  }, [companies, showToast, fetchData])
 
-  const saveNotes = async (companyId, notes) => {
+  const saveNotes = useCallback(async (companyId, notes) => {
     await supabase.from('companies').update({ admin_notes: notes }).eq('id', companyId)
     await logAudit(companyId, 'notes_updated', { notes })
     showToast('', 'Notes Saved', 'Admin notes updated')
     setEditingNotes(prev => { const n = { ...prev }; delete n[companyId]; return n })
     fetchData()
-  }
+  }, [showToast, fetchData])
 
-  // Generic company field updater (for inline editing in the drawer)
-  const updateCompanyField = async (companyId, field, value, label) => {
+  const updateCompanyField = useCallback(async (companyId, field, value, label) => {
     await supabase.from('companies').update({ [field]: value }).eq('id', companyId)
     await logAudit(companyId, 'field_updated', { field, value })
     showToast('', 'Updated', `${label || field} saved`)
     fetchData()
-    // Also update drawer if open
     if (drawer?.carrier?.company?.id === companyId) {
       setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, [field]: value } } }))
     }
-  }
+  }, [showToast, fetchData, drawer])
 
-  const handleAddUser = async () => {
-    if (!newUser.email || !newUser.password || !newUser.full_name) {
-      showToast('', 'Error', 'Fill in name, email, and password'); return
-    }
+  const handleAddUser = useCallback(async () => {
+    if (!newUser.email || !newUser.password || !newUser.full_name) { showToast('', 'Error', 'Fill in name, email, and password'); return }
     setAddingUser(true)
     try {
-      const res = await apiFetch('/api/create-user', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newUser.email, password: newUser.password, full_name: newUser.full_name, company_name: newUser.company_name || null, role: newUser.role }),
-      })
+      const res = await apiFetch('/api/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: newUser.email, password: newUser.password, full_name: newUser.full_name, company_name: newUser.company_name || null, role: newUser.role }) })
       const data = await res.json()
-      if (data.id) {
-        showToast('', 'User Created', `${newUser.full_name} added as ${newUser.role}`)
-        setShowAddUser(false)
-        setNewUser({ email: '', password: '', full_name: '', company_name: '', role: 'carrier' })
-        fetchData()
-      } else showToast('', 'Error', data.error || 'Failed to create user')
+      if (data.id) { showToast('', 'User Created', `${newUser.full_name} added as ${newUser.role}`); setShowAddUser(false); setNewUser({ email: '', password: '', full_name: '', company_name: '', role: 'carrier' }); fetchData() }
+      else showToast('', 'Error', data.error || 'Failed to create user')
     } catch { showToast('', 'Error', 'Failed to create user') }
     setAddingUser(false)
-  }
+  }, [newUser, showToast, fetchData])
 
-  const handleAddSubUser = async (companyId) => {
+  const handleAddSubUser = useCallback(async (companyId) => {
     if (!subUserForm.email) { showToast('', 'Error', 'Enter an email'); return }
     setAddingSubUser(true)
     try {
-      const res = await apiFetch('/api/create-user', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: subUserForm.email, password: 'Temp1234!', full_name: subUserForm.email.split('@')[0], role: 'carrier', company_id: companyId, company_role: subUserForm.role }),
-      })
+      const res = await apiFetch('/api/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: subUserForm.email, password: 'Temp1234!', full_name: subUserForm.email.split('@')[0], role: 'carrier', company_id: companyId, company_role: subUserForm.role }) })
       const data = await res.json()
-      if (data.id || data.success) {
-        await logAudit(companyId, 'sub_user_added', { email: subUserForm.email, role: subUserForm.role })
-        showToast('', 'Sub-User Added', `${subUserForm.email} added as ${subUserForm.role}`)
-        setAddSubUser(null)
-        setSubUserForm({ email: '', role: 'driver' })
-        fetchData()
-      } else showToast('', 'Error', data.error || 'Failed')
+      if (data.id || data.success) { await logAudit(companyId, 'sub_user_added', { email: subUserForm.email, role: subUserForm.role }); showToast('', 'Sub-User Added', `${subUserForm.email} added as ${subUserForm.role}`); setAddSubUser(null); setSubUserForm({ email: '', role: 'driver' }); fetchData(); if (drawer?.carrier?.company?.id === companyId) openDrawer(drawer.carrier) }
+      else showToast('', 'Error', data.error || 'Failed')
     } catch { showToast('', 'Error', 'Failed to add sub-user') }
     setAddingSubUser(false)
-  }
+  }, [subUserForm, showToast, fetchData, drawer])
 
-  const suspendSubUser = async (memberId, companyId, email) => {
+  const suspendSubUser = useCallback(async (memberId, companyId, email) => {
     await supabase.from('company_members').update({ status: 'deactivated' }).eq('id', memberId)
     await logAudit(companyId, 'sub_user_suspended', { email })
-    showToast('', 'User Suspended', email)
-    fetchData()
-  }
+    showToast('', 'User Suspended', email); fetchData()
+  }, [showToast, fetchData])
 
-  const reactivateSubUser = async (memberId, companyId, email) => {
+  const reactivateSubUser = useCallback(async (memberId, companyId, email) => {
     await supabase.from('company_members').update({ status: 'active' }).eq('id', memberId)
     await logAudit(companyId, 'sub_user_reactivated', { email })
-    showToast('', 'User Reactivated', email)
-    fetchData()
-  }
+    showToast('', 'User Reactivated', email); fetchData()
+  }, [showToast, fetchData])
 
-  const sendPasswordReset = async (email) => {
+  const sendPasswordReset = useCallback(async (email) => {
     try {
-      const res = await apiFetch('/api/admin-reset-password', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, action: 'send_reset_link' }),
-      })
+      const res = await apiFetch('/api/admin-reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, action: 'send_reset_link' }) })
       const data = await res.json()
       if (data.success) showToast('', 'Reset Link Sent', `Sent to ${email}`)
       else showToast('', 'Error', data.error || 'Failed')
     } catch { showToast('', 'Error', 'Failed to send reset') }
-  }
+  }, [showToast])
 
-  // ── Detail Drawer ───────────────────────────────────────────
-  const openDrawer = async (carrier) => {
+  const openDrawer = useCallback(async (carrier) => {
     setDrawer({ carrier, auditLog: [], recentLoads: [] })
     setDrawerLoading(true)
     const [auditRes, loadsRes] = await Promise.all([
-      carrier.company.id !== '__legacy__'
-        ? supabase.from('admin_audit_log').select('*').eq('company_id', carrier.company.id).order('created_at', { ascending: false }).limit(50)
-        : Promise.resolve({ data: [] }),
-      carrier.owner?.id
-        ? supabase.from('loads').select('load_id, origin, destination, rate, gross_pay, status, created_at').eq('user_id', carrier.owner.id).order('created_at', { ascending: false }).limit(10)
-        : Promise.resolve({ data: [] }),
+      carrier.company.id !== '__legacy__' ? supabase.from('admin_audit_log').select('*').eq('company_id', carrier.company.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
+      carrier.owner?.id ? supabase.from('loads').select('load_id, origin, destination, rate, gross_pay, status, created_at').eq('user_id', carrier.owner.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     ])
     setDrawer({ carrier, auditLog: auditRes.data || [], recentLoads: loadsRes.data || [] })
     setDrawerLoading(false)
+  }, [])
+
+  // -- Render helpers --
+  const PlanBadge = ({ plan, companyId, companyName, clickable = false }) => {
+    const color = PLAN_COLORS[plan] || '#6b7280'
+    const isOpen = planDropdown === companyId
+    return (
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <button onClick={e => { e.stopPropagation(); if (clickable) setPlanDropdown(isOpen ? null : companyId) }}
+          style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6, textTransform: 'uppercase', background: color + '18', color, border: `1px solid ${color}30`, cursor: clickable ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 4, transition: 'all .15s' }}>
+          {plan || 'trial'}{clickable && <Ic icon={ChevronDown} size={10} />}
+        </button>
+        {isOpen && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, zIndex: 20, minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,.4)' }}
+            onClick={e => e.stopPropagation()}>
+            {PLANS.map(p => {
+              const pc = PLAN_COLORS[p]
+              return (
+                <button key={p} onClick={() => { updatePlan(companyId, p, companyName); setPlanDropdown(null); if (drawer?.carrier?.company?.id === companyId) setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, plan: p } } })) }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '8px 12px', border: 'none', borderRadius: 6, background: plan === p ? pc + '15' : 'transparent', color: 'var(--text)', cursor: 'pointer', fontSize: 12, fontWeight: plan === p ? 700 : 400, transition: 'background .1s' }}
+                  onMouseEnter={e => { if (plan !== p) e.currentTarget.style.background = 'var(--surface2)' }}
+                  onMouseLeave={e => { if (plan !== p) e.currentTarget.style.background = 'transparent' }}>
+                  <span style={{ color: pc, fontWeight: 700, textTransform: 'capitalize' }}>{p}</span>
+                  <span style={{ color: 'var(--muted)', fontSize: 10 }}>{PLAN_PRICING[p]}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
   }
 
-  // ── Styles ──────────────────────────────────────────────────
-  const S = {
-    chip: (active) => ({
-      padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-      border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-      background: active ? 'rgba(240,165,0,0.12)' : 'var(--surface)',
-      color: active ? 'var(--accent)' : 'var(--muted)', transition: 'all 0.15s',
-    }),
-    planBadge: (plan) => ({
-      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, textTransform: 'uppercase',
-      background: (PLAN_COLORS[plan] || '#6b7280') + '20', color: PLAN_COLORS[plan] || '#6b7280',
-    }),
-    statusPill: (s) => ({
-      fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, textTransform: 'capitalize',
-      background: statusColor(s) + '18', color: statusColor(s),
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-    }),
-    row: {
-      display: 'grid', gridTemplateColumns: '2fr 1fr 0.8fr 0.8fr 1.5fr 0.7fr 0.7fr 1.4fr',
-      alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--border)',
-      fontSize: 12, gap: 8, cursor: 'pointer', transition: 'background 0.1s',
-    },
-    th: { fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 },
-    btn: (color = 'var(--muted)') => ({
-      padding: '4px 10px', fontSize: 10, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
-      border: `1px solid ${color}30`, background: `${color}10`, color, display: 'inline-flex',
-      alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
-    }),
+  const StatusPill = ({ status }) => {
+    const s = status || 'pending'; const c = statusColor(s)
+    return <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, textTransform: 'capitalize', background: c + '15', color: c, display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />{s}</span>
   }
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading carriers...</div>
+  const Avatar = ({ name, size = 44, radius = 12, fontSize = 16 }) => {
+    const c = avatarColor(name); const letter = (name || '?')[0].toUpperCase()
+    return <div style={{ width: size, height: size, borderRadius: radius, background: c + '20', color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize, fontWeight: 800, flexShrink: 0, fontFamily: "'Bebas Neue', sans-serif" }}>{letter}</div>
+  }
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 14 }}>Loading carriers...</div>
 
   return (
-    <div style={{ padding: 20, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ padding: 24, overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 20 }} onClick={() => planDropdown && setPlanDropdown(null)}>
 
-      {/* ── Stats Bar ──────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} className="fade-in">
+      {/* -- Stats Bar -- */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
         {[
-          { label: 'Total Carriers', value: stats.total, key: null },
-          { label: 'Active', value: stats.active, key: 'active' },
-          { label: 'Trial', value: stats.trial, key: 'trial' },
-          { label: 'Beta', value: stats.beta, key: 'beta' },
-          { label: 'Paid', value: stats.paid, key: 'paid' },
-          { label: 'Suspended', value: stats.suspended, key: 'suspended' },
-        ].map(s => (
-          <button key={s.label} onClick={() => setStatFilter(statFilter === s.key ? null : s.key)}
-            style={{
-              ...S.chip(statFilter === s.key),
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{s.value}</span>
-            {s.label}
-          </button>
-        ))}
+          { label: 'Total Carriers', value: stats.total, key: null, color: STAT_COLORS.total },
+          { label: 'Active', value: stats.active, key: 'active', color: STAT_COLORS.active },
+          { label: 'Trial', value: stats.trial, key: 'trial', color: STAT_COLORS.trial },
+          { label: 'Beta', value: stats.beta, key: 'beta', color: STAT_COLORS.beta },
+          { label: 'Paid', value: stats.paid, key: 'paid', color: STAT_COLORS.paid },
+          { label: 'Suspended', value: stats.suspended, key: 'suspended', color: STAT_COLORS.suspended },
+        ].map(s => {
+          const active = statFilter === s.key
+          return (
+            <button key={s.label} onClick={() => setStatFilter(active ? null : s.key)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12, border: `1px solid ${active ? s.color + '60' : 'var(--border)'}`, background: active ? s.color + '10' : 'var(--surface)', cursor: 'pointer', transition: 'all .15s', position: 'relative', overflow: 'hidden' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = s.color + '50'; e.currentTarget.style.background = s.color + '08' }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)' } else { e.currentTarget.style.borderColor = s.color + '60' } }}>
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderRadius: '4px 0 0 4px', background: s.color }} />
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, lineHeight: 1, color: 'var(--text)' }}>{s.value}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>{s.label}</div>
+              </div>
+            </button>
+          )
+        })}
       </div>
 
-      {/* ── Search + Filters ───────────────────────────────── */}
-      <div className="panel fade-in">
-        <div className="panel-header" style={{ flexWrap: 'wrap', gap: 10 }}>
-          <div className="panel-title"><Ic icon={Building2} size={14} /> Carrier Management</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative' }}>
-              <Ic icon={Search} size={13} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--muted)' }} />
-              <input className="form-input" placeholder="Search name, MC#, email..." value={search} onChange={e => setSearch(e.target.value)}
-                style={{ paddingLeft: 30, width: 200, height: 34, fontSize: 12 }} />
-            </div>
-            <select className="form-input" value={sortBy} onChange={e => setSortBy(e.target.value)}
-              style={{ height: 34, fontSize: 11, width: 140, cursor: 'pointer' }}>
-              {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
-            <button className="btn btn-primary" onClick={() => setShowOnboarding(true)} style={{
-              background: 'linear-gradient(135deg, #f0a500, #f59e0b)', color: '#000', fontWeight: 800,
-              border: 'none', boxShadow: '0 4px 16px rgba(240,165,0,0.3)',
-            }}>
-              <Ic icon={Sparkles} size={14} /> Onboard Carrier
-            </button>
-            <button className="btn" onClick={() => setShowAddUser(true)}>
-              <Ic icon={UserPlus} size={14} /> Quick Add
-            </button>
-          </div>
+      {/* -- Search + Actions Bar -- */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+          <Ic icon={Search} size={14} style={{ position: 'absolute', left: 12, top: 11, color: 'var(--muted)' }} />
+          <input className="form-input" placeholder="Search by name, MC#, DOT#, email..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 34, width: '100%', height: 38, fontSize: 13, borderRadius: 10 }} />
         </div>
+        <select className="form-input" value={sortBy} onChange={e => setSortBy(e.target.value)}
+          style={{ height: 38, fontSize: 12, width: 150, cursor: 'pointer', borderRadius: 10 }}>
+          {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+        <button className="btn btn-primary" onClick={() => setShowOnboarding(true)} style={{ background: 'linear-gradient(135deg, #f0a500, #f59e0b)', color: '#000', fontWeight: 800, border: 'none', boxShadow: '0 4px 16px rgba(240,165,0,0.25)', height: 38, padding: '0 18px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+          <Ic icon={Sparkles} size={14} /> Onboard Carrier
+        </button>
+        <button className="btn" onClick={() => setShowAddUser(true)} style={{ height: 38, padding: '0 16px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}>
+          <Ic icon={UserPlus} size={14} /> Quick Add
+        </button>
+      </div>
 
-        {/* Filter chips row */}
-        <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginRight: 4 }}>PLAN:</span>
-          {['All', ...PLANS].map(f => (
-            <button key={f} style={S.chip(planFilter === (f === 'All' ? 'All' : f))}
-              onClick={() => setPlanFilter(f === 'All' ? 'All' : f)}>
-              {f === 'All' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-          <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 6px' }} />
-          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, marginRight: 4 }}>STATUS:</span>
-          {['All', ...STATUS_OPTIONS].map(f => (
-            <button key={f} style={S.chip(statusFilter === (f === 'All' ? 'All' : f))}
-              onClick={() => setStatusFilter(f === 'All' ? 'All' : f)}>
-              {f === 'All' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Table Header ───────────────────────────────────── */}
-        <div style={{ ...S.row, cursor: 'default', background: 'var(--surface)' }}>
-          <span style={S.th}>Carrier</span>
-          <span style={S.th}>MC#</span>
-          <span style={S.th}>Plan</span>
-          <span style={S.th}>Status</span>
-          <span style={S.th}>Owner Email</span>
-          <span style={S.th}>Joined</span>
-          <span style={S.th}>Loads</span>
-          <span style={S.th}>Actions</span>
-        </div>
-
-        {/* ── Carrier Rows ───────────────────────────────────── */}
+      {/* -- Carrier Cards -- */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No carriers match your filters.</div>
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--muted)', fontSize: 14, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <Ic icon={Building2} size={28} style={{ marginBottom: 8, opacity: 0.4 }} /><br />
+            No carriers match your filters.
+          </div>
         ) : filtered.map(c => {
-          const co = c.company
-          const isExpanded = expanded[co.id]
-          const isLegacy = c.isLegacy
-          return (
-            <div key={co.id}>
-              <div style={{ ...S.row, background: isExpanded ? 'var(--surface)' : 'transparent' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface)' }}
-                onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = 'transparent' }}>
-                {/* Name + expand chevron */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                  onClick={() => !isLegacy && setExpanded(p => ({ ...p, [co.id]: !p[co.id] }))}>
-                  {!isLegacy && <Ic icon={isExpanded ? ChevronDown : ChevronRight} size={14} color="var(--muted)" />}
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{co.name || 'Unnamed'}</div>
-                    {co.dot_number && <div style={{ fontSize: 10, color: 'var(--muted)' }}>DOT: {co.dot_number}</div>}
+          const co = c.company; const isExp = expanded[co.id]; const isLegacy = c.isLegacy
+          if (isLegacy) return (
+            <div key="__legacy__" style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', opacity: 0.7 }}>
+              <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => setExpanded(p => ({ ...p, __legacy__: !p.__legacy__ }))}>
+                <Ic icon={isExp ? ChevronDown : ChevronRight} size={14} color="var(--muted)" />
+                <Ic icon={Users} size={16} color="var(--muted)" />
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--muted)' }}>Individual Users ({c.members.length})</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>Users not assigned to a company</span>
+              </div>
+              {isExp && c.members.map(m => {
+                const p = m.profile || {}
+                return (
+                  <div key={m.user_id} style={{ padding: '10px 16px 10px 48px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{p.full_name || p.email || '--'}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', flex: 1 }}>{p.email || '--'}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent2)', textTransform: 'uppercase' }}>{m.role}</span>
+                    <StatusPill status={m.status} />
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>{loadCounts[m.user_id] || 0} loads</span>
                   </div>
+                )
+              })}
+            </div>
+          )
+          return (
+            <div key={co.id} style={{ background: 'var(--surface)', borderRadius: 12, border: `1px solid ${isExp ? 'var(--accent)30' : 'var(--border)'}`, transition: 'border-color .15s' }}>
+              {/* Main row */}
+              <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'background .1s', borderRadius: isExp ? '12px 12px 0 0' : 12 }}
+                onClick={() => setExpanded(p => ({ ...p, [co.id]: !p[co.id] }))}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                <Ic icon={isExp ? ChevronDown : ChevronRight} size={14} color="var(--muted)" style={{ flexShrink: 0 }} />
+                <Avatar name={co.name} />
+                <div style={{ minWidth: 0, flex: '1.5 1 0' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{co.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{co.mc_number ? `MC-${co.mc_number}` : co.dot_number ? `DOT-${co.dot_number}` : 'No MC/DOT'}</div>
                 </div>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{co.mc_number || '--'}</span>
-                <span>{!isLegacy && (
-                  <select
-                    value={co.plan || 'trial'}
-                    onChange={e => { e.stopPropagation(); updatePlan(co.id, e.target.value, co.name) }}
-                    onClick={e => e.stopPropagation()}
-                    style={{
-                      fontSize: 10, fontWeight: 700, padding: '3px 6px', borderRadius: 6, cursor: 'pointer',
-                      border: `1px solid ${PLAN_COLORS[co.plan] || '#6b7280'}30`,
-                      background: `${PLAN_COLORS[co.plan] || '#6b7280'}15`,
-                      color: PLAN_COLORS[co.plan] || '#6b7280',
-                      fontFamily: "'DM Sans', sans-serif", outline: 'none',
-                    }}>
-                    {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} — {PLAN_PRICING[p]}</option>)}
-                  </select>
-                )}</span>
-                <span>{!isLegacy && <span style={S.statusPill(co.carrier_status)}><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />{co.carrier_status || 'pending'}</span>}</span>
-                <span style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.owner?.email || '--'}</span>
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(co.created_at)}</span>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>{c.loadCount}</span>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {!isLegacy && (
-                    <>
-                      <button style={S.btn('var(--accent)')} onClick={(e) => { e.stopPropagation(); openDrawer(c) }}>
-                        <Ic icon={Eye} size={11} /> View
-                      </button>
-                      {co.carrier_status === 'pending' && (
-                        <button style={S.btn('var(--success)')} onClick={(e) => { e.stopPropagation(); updateStatus(co.id, 'active', co.name) }}>
-                          <Ic icon={CheckCircle} size={11} /> Approve
-                        </button>
-                      )}
-                      {co.carrier_status === 'suspended' && (
-                        <button style={S.btn('var(--success)')} onClick={(e) => { e.stopPropagation(); updateStatus(co.id, 'active', co.name) }}>
-                          <Ic icon={RotateCcw} size={11} /> Reactivate
-                        </button>
-                      )}
-                      {(co.carrier_status === 'active' || co.carrier_status === 'trial') && (
-                        <button style={S.btn('var(--danger)')} onClick={(e) => { e.stopPropagation(); updateStatus(co.id, 'suspended', co.name) }}>
-                          <Ic icon={Ban} size={11} />
-                        </button>
-                      )}
-                    </>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, flex: '0.8 1 0' }}>
+                  <PlanBadge plan={co.plan} companyId={co.id} companyName={co.name} clickable />
+                  <span style={{ fontSize: 10, color: PLAN_COLORS[co.plan] || 'var(--muted)' }}>{PLAN_PRICING[co.plan] || ''}</span>
+                </div>
+                <div style={{ flex: '0.5 1 0' }}><StatusPill status={co.carrier_status} /></div>
+                <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}><Ic icon={Mail} size={11} />{c.owner?.email || '--'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}><Ic icon={Calendar} size={10} />{formatDate(co.created_at)}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0.4 1 0', justifyContent: 'center' }}>
+                  <Ic icon={Package} size={11} color="var(--muted)" />
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{c.loadCount}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => openDrawer(c)} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--accent)30', background: 'var(--accent)10', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, transition: 'all .1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = '#000' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--accent)10'; e.currentTarget.style.color = 'var(--accent)' }}>
+                    <Ic icon={Eye} size={12} /> View
+                  </button>
+                  {co.carrier_status === 'pending' && (
+                    <button onClick={() => updateStatus(co.id, 'active', co.name)} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--success)30', background: 'var(--success)10', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Ic icon={CheckCircle} size={12} /> Approve
+                    </button>
+                  )}
+                  {co.carrier_status === 'suspended' && (
+                    <button onClick={() => updateStatus(co.id, 'active', co.name)} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--success)30', background: 'var(--success)10', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Ic icon={RotateCcw} size={12} /> Reactivate
+                    </button>
+                  )}
+                  {(co.carrier_status === 'active' || co.carrier_status === 'trial') && (
+                    <button onClick={() => updateStatus(co.id, 'suspended', co.name)} style={{ padding: '6px 10px', fontSize: 11, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--danger)30', background: 'var(--danger)10', color: 'var(--danger)', display: 'flex', alignItems: 'center' }}
+                      title="Suspend carrier">
+                      <Ic icon={Ban} size={12} />
+                    </button>
                   )}
                 </div>
               </div>
 
-              {/* ── Expanded sub-users ─────────────────────────── */}
-              {(isExpanded || isLegacy) && c.members.length > 0 && (
-                <div style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
-                  {/* Notes row for non-legacy */}
-                  {!isLegacy && (
-                    <div style={{ padding: '8px 18px 8px 50px', display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-                      <Ic icon={StickyNote} size={12} color="var(--warning)" />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>NOTES:</span>
-                      <input className="form-input"
-                        style={{ flex: 1, height: 28, fontSize: 11, background: 'var(--surface)' }}
-                        value={editingNotes[co.id] !== undefined ? editingNotes[co.id] : (co.admin_notes || '')}
-                        onChange={e => setEditingNotes(p => ({ ...p, [co.id]: e.target.value }))}
-                        onBlur={() => { if (editingNotes[co.id] !== undefined) saveNotes(co.id, editingNotes[co.id]) }}
-                        placeholder="Add admin notes..."
-                      />
-                      {/* Plan dropdown */}
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>PLAN:</span>
-                      <select className="form-input"
-                        style={{ height: 28, fontSize: 11, width: 110, background: 'var(--surface)', cursor: 'pointer' }}
-                        value={co.plan || 'trial'}
-                        onChange={e => updatePlan(co.id, e.target.value, co.name)}>
-                        {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-                      </select>
+              {/* Expanded sub-users */}
+              {isExp && (
+                <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface2)', borderRadius: '0 0 12px 12px' }}>
+                  {c.members.length === 0 && addSubUser !== co.id ? (
+                    <div style={{ padding: '24px 56px', color: 'var(--muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Ic icon={Users} size={16} style={{ opacity: 0.4 }} />
+                      No team members yet -- add your first dispatcher or driver
                     </div>
-                  )}
-                  {/* Sub-user header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1.5fr', padding: '8px 18px 6px 50px', gap: 8 }}>
-                    <span style={S.th}>Name</span>
-                    <span style={S.th}>Email</span>
-                    <span style={S.th}>Role</span>
-                    <span style={S.th}>Status</span>
-                    <span style={S.th}>Actions</span>
-                  </div>
-                  {c.members.map(m => {
+                  ) : c.members.map(m => {
                     const p = m.profile || {}
                     return (
-                      <div key={m.id || m.user_id} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1.5fr', padding: '8px 18px 8px 50px', gap: 8, alignItems: 'center', borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>{p.full_name || '--'}</span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email || '--'}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent2)', textTransform: 'uppercase' }}>{m.role || '--'}</span>
-                        <span style={S.statusPill(m.status || 'active')}><span style={{ width: 4, height: 4, borderRadius: '50%', background: 'currentColor' }} />{m.status || 'active'}</span>
+                      <div key={m.id || m.user_id} style={{ padding: '10px 16px 10px 56px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.02)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                        <Avatar name={p.full_name || p.email} size={32} radius={8} fontSize={13} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{p.full_name || '--'}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.email || '--'}</div>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase', background: 'var(--accent2, #3b82f6)15', color: 'var(--accent2, #3b82f6)' }}>{m.role || '--'}</span>
+                        <StatusPill status={m.status || 'active'} />
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button style={S.btn('var(--accent2)')} onClick={() => sendPasswordReset(p.email)} title="Reset password">
-                            <Ic icon={KeyRound} size={10} />
+                          <button onClick={() => sendPasswordReset(p.email)} title="Send password reset"
+                            style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                            <Ic icon={KeyRound} size={12} />
                           </button>
-                          {m.status !== 'deactivated' ? (
-                            <button style={S.btn('var(--danger)')} onClick={() => suspendSubUser(m.id, co.id, p.email)} title="Suspend">
-                              <Ic icon={Ban} size={10} />
+                          {(m.status || 'active') !== 'deactivated' ? (
+                            <button onClick={() => suspendSubUser(m.id, co.id, p.email)} title="Suspend user"
+                              style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--danger)'; e.currentTarget.style.color = 'var(--danger)' }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                              <Ic icon={Ban} size={12} />
                             </button>
                           ) : (
-                            <button style={S.btn('var(--success)')} onClick={() => reactivateSubUser(m.id, co.id, p.email)} title="Reactivate">
-                              <Ic icon={RotateCcw} size={10} />
+                            <button onClick={() => reactivateSubUser(m.id, co.id, p.email)} title="Reactivate user"
+                              style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--success)'; e.currentTarget.style.color = 'var(--success)' }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                              <Ic icon={RotateCcw} size={12} />
                             </button>
                           )}
                         </div>
                       </div>
                     )
                   })}
-                  {/* Add sub-user */}
-                  {!isLegacy && (
-                    <div style={{ padding: '8px 18px 10px 50px' }}>
-                      {addSubUser === co.id ? (
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input className="form-input" placeholder="email@example.com" value={subUserForm.email}
-                            onChange={e => setSubUserForm(p => ({ ...p, email: e.target.value }))}
-                            style={{ height: 30, fontSize: 11, flex: 1 }} />
-                          <select className="form-input" value={subUserForm.role}
-                            onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
-                            style={{ height: 30, fontSize: 11, width: 100, cursor: 'pointer' }}>
-                            <option value="driver">Driver</option>
-                            <option value="dispatcher">Dispatcher</option>
-                          </select>
-                          <button style={S.btn('var(--success)')} disabled={addingSubUser}
-                            onClick={() => handleAddSubUser(co.id)}>
-                            {addingSubUser ? '...' : 'Add'}
-                          </button>
-                          <button style={S.btn()} onClick={() => { setAddSubUser(null); setSubUserForm({ email: '', role: 'driver' }) }}>
-                            <Ic icon={X} size={10} />
-                          </button>
-                        </div>
-                      ) : (
-                        <button style={{ ...S.btn('var(--accent)'), padding: '5px 12px' }}
-                          onClick={() => setAddSubUser(co.id)}>
-                          <Ic icon={Plus} size={10} /> Add Sub-User
+                  {/* Add sub-user inline form */}
+                  <div style={{ padding: '10px 16px 12px 56px' }}>
+                    {addSubUser === co.id ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input className="form-input" placeholder="email@example.com" value={subUserForm.email}
+                          onChange={e => setSubUserForm(p => ({ ...p, email: e.target.value }))}
+                          style={{ height: 34, fontSize: 12, flex: 1, borderRadius: 8 }} />
+                        <select className="form-input" value={subUserForm.role}
+                          onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
+                          style={{ height: 34, fontSize: 12, width: 110, cursor: 'pointer', borderRadius: 8 }}>
+                          <option value="driver">Driver</option>
+                          <option value="dispatcher">Dispatcher</option>
+                        </select>
+                        <button disabled={addingSubUser} onClick={() => handleAddSubUser(co.id)}
+                          style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 12, cursor: addingSubUser ? 'not-allowed' : 'pointer', opacity: addingSubUser ? 0.6 : 1 }}>
+                          {addingSubUser ? '...' : 'Add'}
                         </button>
-                      )}
-                    </div>
-                  )}
+                        <button onClick={() => { setAddSubUser(null); setSubUserForm({ email: '', role: 'driver' }) }}
+                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
+                          <Ic icon={X} size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setAddSubUser(co.id)}
+                        style={{ padding: '7px 14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, transition: 'all .15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                        <Ic icon={Plus} size={12} /> Add Member
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -590,254 +500,234 @@ export default function Carriers() {
         })}
       </div>
 
-      {/* ── Quick Add Modal ────────────────────────────────── */}
+      {/* -- Quick Add Modal -- */}
       {showAddUser && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setShowAddUser(false)}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, width: 400, maxWidth: '90%' }}
-            onClick={e => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAddUser(false)}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, width: 420, maxWidth: '92%', boxShadow: '0 16px 48px rgba(0,0,0,.5)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>Quick Add User</div>
-              <button onClick={() => setShowAddUser(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><Ic icon={X} size={18} /></button>
+              <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>Quick Add User</div>
+              <button onClick={() => setShowAddUser(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}><Ic icon={X} size={20} /></button>
             </div>
-            <div className="form-group">
-              <label className="form-label">Role</label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {['carrier', 'broker', 'admin'].map(r => (
-                  <button key={r} onClick={() => setNewUser(p => ({ ...p, role: r }))}
-                    style={{
-                      flex: 1, padding: '8px 0', border: `1px solid ${newUser.role === r ? 'var(--accent)' : 'var(--border)'}`,
-                      borderRadius: 8, background: newUser.role === r ? 'rgba(240,165,0,0.1)' : 'var(--surface2)',
-                      color: newUser.role === r ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer',
-                      fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
-                    }}>
-                    {r}
-                  </button>
-                ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Role</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['carrier', 'broker', 'admin'].map(r => (
+                    <button key={r} onClick={() => setNewUser(p => ({ ...p, role: r }))}
+                      style={{ flex: 1, padding: '10px 0', border: `1px solid ${newUser.role === r ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 10, background: newUser.role === r ? 'rgba(240,165,0,0.1)' : 'transparent', color: newUser.role === r ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', transition: 'all .15s' }}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
               </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Full Name *</div>
+                <input className="form-input" value={newUser.full_name} onChange={e => setNewUser(p => ({ ...p, full_name: e.target.value }))} placeholder="John Smith" style={{ width: '100%', height: 38, fontSize: 13, borderRadius: 10 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Company Name</div>
+                <input className="form-input" value={newUser.company_name} onChange={e => setNewUser(p => ({ ...p, company_name: e.target.value }))} placeholder="ABC Trucking LLC" style={{ width: '100%', height: 38, fontSize: 13, borderRadius: 10 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Email *</div>
+                <input className="form-input" type="email" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} placeholder="user@company.com" style={{ width: '100%', height: 38, fontSize: 13, borderRadius: 10 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Password *</div>
+                <input className="form-input" type="text" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} placeholder="min 6 characters" style={{ width: '100%', height: 38, fontSize: 13, borderRadius: 10 }} />
+              </div>
+              <button onClick={handleAddUser} disabled={addingUser}
+                style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 800, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #f0a500, #f59e0b)', color: '#000', cursor: addingUser ? 'not-allowed' : 'pointer', opacity: addingUser ? 0.6 : 1, marginTop: 4, transition: 'opacity .15s' }}>
+                {addingUser ? 'Creating...' : 'Create User'}
+              </button>
             </div>
-            <div className="form-group">
-              <label className="form-label">Full Name *</label>
-              <input className="form-input" value={newUser.full_name} onChange={e => setNewUser(p => ({ ...p, full_name: e.target.value }))} placeholder="John Smith" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Company Name</label>
-              <input className="form-input" value={newUser.company_name} onChange={e => setNewUser(p => ({ ...p, company_name: e.target.value }))} placeholder="ABC Trucking LLC" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email *</label>
-              <input className="form-input" type="email" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} placeholder="user@company.com" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password *</label>
-              <input className="form-input" type="text" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} placeholder="min 6 characters" />
-            </div>
-            <button className="btn btn-primary" onClick={handleAddUser} disabled={addingUser}
-              style={{ width: '100%', justifyContent: 'center', padding: 12, fontSize: 13, marginTop: 8, opacity: addingUser ? 0.7 : 1 }}>
-              {addingUser ? 'Creating...' : 'Create User'}
-            </button>
           </div>
         </div>
       )}
 
-      {/* ── Onboarding Wizard ──────────────────────────────── */}
+      {/* -- Onboarding Wizard -- */}
       {showOnboarding && (
         <Suspense fallback={null}>
-          <AdminCarrierOnboarding
-            onClose={() => setShowOnboarding(false)}
-            onCreated={() => { setShowOnboarding(false); fetchData() }}
-          />
+          <AdminCarrierOnboarding onClose={() => setShowOnboarding(false)} onCreated={() => { setShowOnboarding(false); fetchData() }} />
         </Suspense>
       )}
 
-      {/* ── Detail Drawer ──────────────────────────────────── */}
+      {/* -- Detail Drawer -- */}
       {drawer && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} onClick={() => setDrawer(null)} />
-          <div style={{ position: 'relative', width: 520, maxWidth: '92vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Drawer Header */}
+          <div style={{ position: 'relative', width: 560, maxWidth: '94vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '-8px 0 32px rgba(0,0,0,.3)' }}>
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
-                  {drawer.carrier.company.name}
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  <span style={S.planBadge(drawer.carrier.company.plan)}>{drawer.carrier.company.plan || 'trial'}</span>
-                  <span style={S.statusPill(drawer.carrier.company.carrier_status)}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />
-                    {drawer.carrier.company.carrier_status || 'pending'}
-                  </span>
+                <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1.5 }}>{drawer.carrier.company.name}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <PlanBadge plan={drawer.carrier.company.plan} companyId={drawer.carrier.company.id} companyName={drawer.carrier.company.name} clickable />
+                  <StatusPill status={drawer.carrier.company.carrier_status} />
                 </div>
               </div>
-              <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><Ic icon={X} size={20} /></button>
+              <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)' }}>
+                <Ic icon={X} size={22} />
+              </button>
             </div>
 
-            {/* Company Info — editable fields */}
-            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {[
-                { label: 'Company Name', field: 'name', value: drawer.carrier.company.name },
-                { label: 'MC Number', field: 'mc_number', value: drawer.carrier.company.mc_number },
-                { label: 'DOT Number', field: 'dot_number', value: drawer.carrier.company.dot_number },
-                { label: 'Email', field: 'email', value: drawer.carrier.company.email },
-                { label: 'Phone', field: 'phone', value: drawer.carrier.company.phone },
-                { label: 'Address', field: 'address', value: drawer.carrier.company.address },
-              ].map(d => (
-                <div key={d.label}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{d.label}</div>
-                  <input className="form-input"
-                    style={{ width: '100%', height: 30, fontSize: 12, background: 'var(--surface2)' }}
-                    defaultValue={d.value || ''}
-                    onBlur={e => {
-                      if (e.target.value !== (d.value || '')) {
-                        updateCompanyField(drawer.carrier.company.id, d.field, e.target.value, d.label)
-                      }
-                    }}
-                    placeholder={`Enter ${d.label.toLowerCase()}...`}
-                  />
+            {/* Company Info */}
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Building2} size={12} /> Company Info</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                {[
+                  { label: 'Company Name', field: 'name', value: drawer.carrier.company.name },
+                  { label: 'MC Number', field: 'mc_number', value: drawer.carrier.company.mc_number },
+                  { label: 'DOT Number', field: 'dot_number', value: drawer.carrier.company.dot_number },
+                  { label: 'Email', field: 'email', value: drawer.carrier.company.email },
+                  { label: 'Phone', field: 'phone', value: drawer.carrier.company.phone },
+                  { label: 'Address', field: 'address', value: drawer.carrier.company.address },
+                ].map(d => (
+                  <div key={d.label}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{d.label}</div>
+                    <input className="form-input"
+                      style={{ width: '100%', height: 34, fontSize: 12, background: 'var(--surface2)', borderRadius: 8 }}
+                      defaultValue={d.value || ''}
+                      onBlur={e => { if (e.target.value !== (d.value || '')) updateCompanyField(drawer.carrier.company.id, d.field, e.target.value, d.label) }}
+                      placeholder={`Enter ${d.label.toLowerCase()}...`} />
+                  </div>
+                ))}
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Joined</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, padding: '7px 0' }}>{formatDate(drawer.carrier.company.created_at)}</div>
                 </div>
-              ))}
-              {/* Read-only fields */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Joined</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{formatDate(drawer.carrier.company.created_at)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Loads</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{drawer.carrier.loadCount}</div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Total Loads</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, padding: '7px 0' }}>{drawer.carrier.loadCount}</div>
+                </div>
               </div>
             </div>
 
-            {/* Plan + Pricing */}
-            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Current Plan</div>
-                <select className="form-input" style={{ width: '100%', height: 34, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-                  value={drawer.carrier.company.plan || 'trial'}
-                  onChange={e => { updatePlan(drawer.carrier.company.id, e.target.value, drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, plan: e.target.value } } })) }}>
-                  {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} — {PLAN_PRICING[p]}</option>)}
-                </select>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Price</div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: PLAN_COLORS[drawer.carrier.company.plan] || '#6b7280', fontFamily: "'Bebas Neue', sans-serif" }}>
-                  {PLAN_PRICING[drawer.carrier.company.plan] || 'Free'}
+            {/* Plan & Billing */}
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Plan & Billing</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <select className="form-input" style={{ width: '100%', height: 38, fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 8 }}
+                    value={drawer.carrier.company.plan || 'trial'}
+                    onChange={e => { updatePlan(drawer.carrier.company.id, e.target.value, drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, plan: e.target.value } } })) }}>
+                    {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} -- {PLAN_PRICING[p]}</option>)}
+                  </select>
+                </div>
+                <div style={{ textAlign: 'right', minWidth: 100 }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: PLAN_COLORS[drawer.carrier.company.plan] || '#6b7280', fontFamily: "'Bebas Neue', sans-serif" }}>
+                    {PLAN_PRICING[drawer.carrier.company.plan] || 'Free'}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               {drawer.carrier.company.carrier_status === 'pending' && (
-                <button style={S.btn('var(--success)')} onClick={() => { updateStatus(drawer.carrier.company.id, 'active', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'active' } } })) }}>
-                  <Ic icon={CheckCircle} size={12} /> Approve
+                <button onClick={() => { updateStatus(drawer.carrier.company.id, 'active', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'active' } } })) }}
+                  style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--success)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ic icon={CheckCircle} size={14} /> Approve Carrier
                 </button>
               )}
               {(drawer.carrier.company.carrier_status === 'active' || drawer.carrier.company.carrier_status === 'trial') && (
-                <button style={S.btn('var(--danger)')} onClick={() => { updateStatus(drawer.carrier.company.id, 'suspended', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'suspended' } } })) }}>
-                  <Ic icon={Ban} size={12} /> Suspend
+                <button onClick={() => { updateStatus(drawer.carrier.company.id, 'suspended', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'suspended' } } })) }}
+                  style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: '1px solid var(--danger)', background: 'var(--danger)10', color: 'var(--danger)', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ic icon={Ban} size={14} /> Suspend Carrier
                 </button>
               )}
               {drawer.carrier.company.carrier_status === 'suspended' && (
-                <button style={S.btn('var(--success)')} onClick={() => { updateStatus(drawer.carrier.company.id, 'active', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'active' } } })) }}>
-                  <Ic icon={RotateCcw} size={12} /> Reactivate
+                <button onClick={() => { updateStatus(drawer.carrier.company.id, 'active', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'active' } } })) }}
+                  style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--success)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <Ic icon={RotateCcw} size={14} /> Reactivate Carrier
                 </button>
               )}
             </div>
 
             {/* Admin Notes */}
-            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Ic icon={StickyNote} size={11} /> Admin Notes
-              </div>
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={StickyNote} size={12} /> Admin Notes</div>
               <textarea className="form-input"
-                style={{ width: '100%', minHeight: 60, fontSize: 12, resize: 'vertical', background: 'var(--surface2)' }}
+                style={{ width: '100%', minHeight: 70, fontSize: 12, resize: 'vertical', background: 'var(--surface2)', borderRadius: 8 }}
                 defaultValue={drawer.carrier.company.admin_notes || ''}
                 onBlur={e => saveNotes(drawer.carrier.company.id, e.target.value)}
-                placeholder="Add internal notes about this carrier..."
-              />
+                placeholder="Add internal notes about this carrier..." />
             </div>
 
-            {/* Sub-users */}
+            {/* Team Members */}
             <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Users} size={12} /> Team Members ({drawer.carrier.members.length})</span>
-                <button style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'var(--accent)', color: '#000', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
-                  onClick={() => setAddSubUser(drawer.carrier.company.id)}>
-                  <Ic icon={Plus} size={10} /> Add
+              <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Users} size={13} /> Team Members ({drawer.carrier.members.length})</span>
+                <button onClick={() => setAddSubUser(drawer.carrier.company.id)}
+                  style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: 'var(--accent)', color: '#000', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'opacity .1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.85' }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+                  <Ic icon={Plus} size={11} /> Add Member
                 </button>
               </div>
-              {/* Inline add sub-user form */}
               {addSubUser === drawer.carrier.company.id && (
-                <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(240,165,0,0.04)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input className="form-input" placeholder="Email" value={subUserForm.email}
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', background: 'rgba(240,165,0,0.03)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input className="form-input" placeholder="Email address" value={subUserForm.email}
                     onChange={e => setSubUserForm(p => ({ ...p, email: e.target.value }))}
-                    style={{ flex: 1, height: 30, fontSize: 12 }} />
+                    style={{ flex: 1, height: 34, fontSize: 12, borderRadius: 8 }} />
                   <select className="form-input" value={subUserForm.role}
                     onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
-                    style={{ width: 100, height: 30, fontSize: 11, cursor: 'pointer' }}>
-                    <option value="dispatcher">Dispatcher</option>
+                    style={{ width: 110, height: 34, fontSize: 12, cursor: 'pointer', borderRadius: 8 }}>
                     <option value="driver">Driver</option>
+                    <option value="dispatcher">Dispatcher</option>
                     <option value="admin">Admin</option>
                   </select>
-                  <button style={{ fontSize: 10, fontWeight: 700, padding: '6px 12px', borderRadius: 6, background: 'var(--accent)', color: '#000', border: 'none', cursor: 'pointer' }}
-                    disabled={addingSubUser || !subUserForm.email}
-                    onClick={async () => {
-                      if (!subUserForm.email) return
-                      setAddingSubUser(true)
-                      try {
-                        const res = await apiFetch('/api/create-user', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            email: subUserForm.email,
-                            password: 'Welcome123!',
-                            full_name: subUserForm.email.split('@')[0],
-                            role: subUserForm.role,
-                            company_id: drawer.carrier.company.id,
-                          }),
-                        })
-                        const data = await res.json()
-                        if (data.id || data.user_id) {
-                          showToast('', 'User Added', `${subUserForm.email} added as ${subUserForm.role}`)
-                          setSubUserForm({ email: '', role: 'driver' })
-                          setAddSubUser(null)
-                          await logAudit(drawer.carrier.company.id, 'sub_user_added', { email: subUserForm.email, role: subUserForm.role })
-                          fetchData()
-                          // Refresh drawer
-                          openDrawer(drawer.carrier)
-                        } else {
-                          showToast('', 'Error', data.error || 'Failed to add user')
-                        }
-                      } catch (e) {
-                        showToast('', 'Error', e.message || 'Failed')
-                      }
-                      setAddingSubUser(false)
-                    }}>
+                  <button disabled={addingSubUser || !subUserForm.email}
+                    onClick={() => handleAddSubUser(drawer.carrier.company.id)}
+                    style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 12, cursor: addingSubUser ? 'not-allowed' : 'pointer', opacity: addingSubUser ? 0.6 : 1 }}>
                     {addingSubUser ? 'Adding...' : 'Add'}
                   </button>
-                  <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}
-                    onClick={() => setAddSubUser(null)}>
-                    <Ic icon={X} size={14} />
-                  </button>
+                  <button onClick={() => setAddSubUser(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}><Ic icon={X} size={14} /></button>
                 </div>
               )}
               {drawer.carrier.members.length === 0 && addSubUser !== drawer.carrier.company.id ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No team members</div>
+                <div style={{ padding: '24px 18px', textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                  <Ic icon={Users} size={20} style={{ opacity: 0.3, marginBottom: 6 }} /><br />
+                  No team members yet -- add your first dispatcher or driver
+                </div>
               ) : drawer.carrier.members.map(m => {
                 const p = m.profile || {}
                 return (
-                  <div key={m.id || m.user_id} style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
-                      {(p.full_name || p.email || '?')[0].toUpperCase()}
-                    </div>
+                  <div key={m.id || m.user_id} style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, transition: 'background .1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                    <Avatar name={p.full_name || p.email} size={36} radius={8} fontSize={14} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{p.full_name || '--'}</div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.email || '--'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{p.full_name || '--'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.email || '--'}</div>
                     </div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent2)', textTransform: 'uppercase' }}>{m.role}</span>
-                    <button style={S.btn('var(--accent2)')} onClick={() => sendPasswordReset(p.email)} title="Reset password">
-                      <Ic icon={KeyRound} size={10} />
-                    </button>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent2, #3b82f6)', textTransform: 'uppercase' }}>{m.role}</span>
+                    <StatusPill status={m.status || 'active'} />
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => sendPasswordReset(p.email)} title="Send password reset"
+                        style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)' }}>
+                        <Ic icon={KeyRound} size={12} />
+                      </button>
+                      {(m.status || 'active') !== 'deactivated' ? (
+                        <button onClick={() => suspendSubUser(m.id, drawer.carrier.company.id, p.email)} title="Suspend"
+                          style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)' }}>
+                          <Ic icon={Ban} size={12} />
+                        </button>
+                      ) : (
+                        <button onClick={() => reactivateSubUser(m.id, drawer.carrier.company.id, p.email)} title="Reactivate"
+                          style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                          onMouseEnter={e => { e.currentTarget.style.color = 'var(--success)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)' }}>
+                          <Ic icon={RotateCcw} size={12} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -845,22 +735,22 @@ export default function Carriers() {
 
             {/* Recent Loads */}
             <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Package} size={12} /> Recent Loads</span>
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>{drawer.carrier.loadCount} total</span>
+              <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Package} size={13} /> Recent Loads</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{drawer.carrier.loadCount} total</span>
               </div>
               {drawerLoading ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Loading...</div>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Loading...</div>
               ) : drawer.recentLoads.length === 0 ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No loads yet</div>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No loads yet</div>
               ) : drawer.recentLoads.map((l, i) => (
-                <div key={l.load_id || i} style={{ padding: '8px 14px', borderBottom: i < drawer.recentLoads.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Ic icon={Package} size={11} color="var(--accent)" />
+                <div key={l.load_id || i} style={{ padding: '10px 18px', borderBottom: i < drawer.recentLoads.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {l.load_id || '--'} -- {l.origin || '?'} to {l.destination || '?'}
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>${Number(l.rate || l.gross_pay || 0).toLocaleString()} -- {l.status || '--'}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.load_id || '--'} -- {l.origin || '?'} to {l.destination || '?'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>${Number(l.rate || l.gross_pay || 0).toLocaleString()} -- {l.status || '--'} -- {formatDate(l.created_at)}</div>
                   </div>
                 </div>
               ))}
@@ -868,28 +758,34 @@ export default function Carriers() {
 
             {/* Audit Log */}
             <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Activity} size={12} /> Audit Log</span>
+              <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}><Ic icon={Activity} size={13} /> Audit Log</span>
               </div>
               {drawerLoading ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Loading...</div>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>Loading...</div>
               ) : drawer.auditLog.length === 0 ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No audit entries yet</div>
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No audit entries yet</div>
               ) : (
-                <div style={{ maxHeight: 250, overflowY: 'auto' }}>
-                  {drawer.auditLog.map((a, i) => (
-                    <div key={a.id || i} style={{ padding: '8px 14px', borderBottom: i < drawer.auditLog.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'capitalize' }}>{(a.action || '').replace(/_/g, ' ')}</span>
-                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{formatDate(a.created_at)}</span>
-                      </div>
-                      {a.details && Object.keys(a.details).length > 0 && (
-                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
-                          {Object.entries(a.details).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  {drawer.auditLog.map((a, i) => {
+                    const actionColor = a.action?.includes('suspend') ? 'var(--danger)' : a.action?.includes('plan') ? 'var(--accent)' : a.action?.includes('reactivat') || a.action?.includes('approv') ? 'var(--success)' : '#3b82f6'
+                    return (
+                      <div key={a.id || i} style={{ padding: '10px 18px', borderBottom: i < drawer.auditLog.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: actionColor, marginTop: 4, flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'capitalize' }}>{(a.action || '').replace(/_/g, ' ')}</span>
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{formatDate(a.created_at)}</span>
+                          </div>
+                          {a.details && Object.keys(a.details).length > 0 && (
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                              {Object.entries(a.details).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

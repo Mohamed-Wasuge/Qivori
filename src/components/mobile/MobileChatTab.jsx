@@ -9,6 +9,7 @@ import {
 import { apiFetch } from '../../lib/api'
 import { useTranslation } from '../../lib/i18n'
 import { Ic, haptic, haversine, ActionBadge, getGPSCoords as getGPSCoordsHelper, mobileAnimations } from './shared'
+import AudioWaveform from './AudioWaveform'
 
 // Board loads cache — shared across renders but scoped to module lifecycle
 // Using module-level ref pattern to avoid stale closures in 30+ callbacks
@@ -2432,6 +2433,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
   const realtimePcRef = useRef(null) // RTCPeerConnection
   const realtimeDcRef = useRef(null) // data channel
   const realtimeAudioRef = useRef(null) // <audio> for playback
+  const [remoteStream, setRemoteStream] = useState(null) // WebRTC remote audio for waveform
 
   const startVoiceCall = useCallback(async () => {
     if (inCall || callConnecting) return
@@ -2502,6 +2504,8 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
 
       // Wire up remote audio track BEFORE getUserMedia so it's ready when audio arrives
       pc.ontrack = (e) => {
+        // Save stream for AudioWaveform visualization
+        setRemoteStream(e.streams[0])
         // Set the WebRTC stream as the source — replaces silent audio
         audioEl.srcObject = e.streams[0]
         // volume up in case anything muted it
@@ -2648,6 +2652,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
     setInCall(false)
     setCallConnecting(false)
     setSpeaking(false)
+    setRemoteStream(null)
     // Extract memories from the voice call conversation (background)
     extractMemories(messages)
   }, [messages, extractMemories])
@@ -4246,11 +4251,7 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
                 </div>
               ) : speaking ? (
                 <>
-                  <div style={{ display: 'flex', gap: 3, alignItems: 'center', height: 24 }}>
-                    {[0, 1, 2, 3, 4, 5, 6].map(i => (
-                      <div key={i} style={{ width: 3, borderRadius: 2, background: 'var(--success)', animation: `qSpeakingWave 0.4s ease-in-out ${i * 0.06}s infinite alternate` }} />
-                    ))}
-                  </div>
+                  <AudioWaveform stream={remoteStream} active={speaking} barCount={7} color="var(--success)" idleColor="var(--accent)" />
                   <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Q speaking</span>
                 </>
               ) : (

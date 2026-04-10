@@ -766,7 +766,62 @@ export default function Carriers() {
                   <Ic icon={Plus} size={10} /> Add
                 </button>
               </div>
-              {drawer.carrier.members.length === 0 ? (
+              {/* Inline add sub-user form */}
+              {addSubUser === drawer.carrier.company.id && (
+                <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(240,165,0,0.04)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input className="form-input" placeholder="Email" value={subUserForm.email}
+                    onChange={e => setSubUserForm(p => ({ ...p, email: e.target.value }))}
+                    style={{ flex: 1, height: 30, fontSize: 12 }} />
+                  <select className="form-input" value={subUserForm.role}
+                    onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
+                    style={{ width: 100, height: 30, fontSize: 11, cursor: 'pointer' }}>
+                    <option value="dispatcher">Dispatcher</option>
+                    <option value="driver">Driver</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button style={{ fontSize: 10, fontWeight: 700, padding: '6px 12px', borderRadius: 6, background: 'var(--accent)', color: '#000', border: 'none', cursor: 'pointer' }}
+                    disabled={addingSubUser || !subUserForm.email}
+                    onClick={async () => {
+                      if (!subUserForm.email) return
+                      setAddingSubUser(true)
+                      try {
+                        const res = await apiFetch('/api/create-user', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            email: subUserForm.email,
+                            password: 'Welcome123!',
+                            full_name: subUserForm.email.split('@')[0],
+                            role: subUserForm.role,
+                            company_id: drawer.carrier.company.id,
+                          }),
+                        })
+                        const data = await res.json()
+                        if (data.id || data.user_id) {
+                          showToast('', 'User Added', `${subUserForm.email} added as ${subUserForm.role}`)
+                          setSubUserForm({ email: '', role: 'driver' })
+                          setAddSubUser(null)
+                          await logAudit(drawer.carrier.company.id, 'sub_user_added', { email: subUserForm.email, role: subUserForm.role })
+                          fetchData()
+                          // Refresh drawer
+                          openDrawer(drawer.carrier)
+                        } else {
+                          showToast('', 'Error', data.error || 'Failed to add user')
+                        }
+                      } catch (e) {
+                        showToast('', 'Error', e.message || 'Failed')
+                      }
+                      setAddingSubUser(false)
+                    }}>
+                    {addingSubUser ? 'Adding...' : 'Add'}
+                  </button>
+                  <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}
+                    onClick={() => setAddSubUser(null)}>
+                    <Ic icon={X} size={14} />
+                  </button>
+                </div>
+              )}
+              {drawer.carrier.members.length === 0 && addSubUser !== drawer.carrier.company.id ? (
                 <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No team members</div>
               ) : drawer.carrier.members.map(m => {
                 const p = m.profile || {}

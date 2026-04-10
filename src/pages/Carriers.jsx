@@ -13,6 +13,7 @@ const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
 const PLANS = ['trial', 'beta', 'basic', 'pro', 'enterprise']
 const PLAN_COLORS = { trial: '#6b7280', beta: '#3b82f6', basic: '#22c55e', pro: '#f0a500', enterprise: '#8b5cf6' }
+const PLAN_PRICING = { trial: 'Free · 14 days', beta: 'Free · unlimited', basic: '$79/mo', pro: '$199/mo', enterprise: 'Custom' }
 const STATUS_OPTIONS = ['active', 'pending', 'suspended', 'trial']
 const SORT_OPTIONS = [
   { label: 'Joined (newest)', key: 'newest' },
@@ -217,6 +218,18 @@ export default function Carriers() {
     showToast('', 'Notes Saved', 'Admin notes updated')
     setEditingNotes(prev => { const n = { ...prev }; delete n[companyId]; return n })
     fetchData()
+  }
+
+  // Generic company field updater (for inline editing in the drawer)
+  const updateCompanyField = async (companyId, field, value, label) => {
+    await supabase.from('companies').update({ [field]: value }).eq('id', companyId)
+    await logAudit(companyId, 'field_updated', { field, value })
+    showToast('', 'Updated', `${label || field} saved`)
+    fetchData()
+    // Also update drawer if open
+    if (drawer?.carrier?.company?.id === companyId) {
+      setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, [field]: value } } }))
+    }
   }
 
   const handleAddUser = async () => {
@@ -437,7 +450,21 @@ export default function Carriers() {
                   </div>
                 </div>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>{co.mc_number || '--'}</span>
-                <span>{!isLegacy && <span style={S.planBadge(co.plan)}>{co.plan || 'trial'}</span>}</span>
+                <span>{!isLegacy && (
+                  <select
+                    value={co.plan || 'trial'}
+                    onChange={e => { e.stopPropagation(); updatePlan(co.id, e.target.value, co.name) }}
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      fontSize: 10, fontWeight: 700, padding: '3px 6px', borderRadius: 6, cursor: 'pointer',
+                      border: `1px solid ${PLAN_COLORS[co.plan] || '#6b7280'}30`,
+                      background: `${PLAN_COLORS[co.plan] || '#6b7280'}15`,
+                      color: PLAN_COLORS[co.plan] || '#6b7280',
+                      fontFamily: "'DM Sans', sans-serif", outline: 'none',
+                    }}>
+                    {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} — {PLAN_PRICING[p]}</option>)}
+                  </select>
+                )}</span>
                 <span>{!isLegacy && <span style={S.statusPill(co.carrier_status)}><span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />{co.carrier_status || 'pending'}</span>}</span>
                 <span style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.owner?.email || '--'}</span>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(co.created_at)}</span>
@@ -645,35 +672,61 @@ export default function Carriers() {
               <button onClick={() => setDrawer(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><Ic icon={X} size={20} /></button>
             </div>
 
-            {/* Company Info */}
+            {/* Company Info — editable fields */}
             <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[
-                { label: 'MC Number', value: drawer.carrier.company.mc_number || '--' },
-                { label: 'DOT Number', value: drawer.carrier.company.dot_number || '--' },
-                { label: 'Owner', value: drawer.carrier.owner?.full_name || '--' },
-                { label: 'Email', value: drawer.carrier.owner?.email || drawer.carrier.company.email || '--' },
-                { label: 'Phone', value: drawer.carrier.company.phone || '--' },
-                { label: 'Joined', value: formatDate(drawer.carrier.company.created_at) },
-                { label: 'Load Count', value: String(drawer.carrier.loadCount) },
-                { label: 'Invoice Terms', value: drawer.carrier.company.invoice_terms || '--' },
+                { label: 'Company Name', field: 'name', value: drawer.carrier.company.name },
+                { label: 'MC Number', field: 'mc_number', value: drawer.carrier.company.mc_number },
+                { label: 'DOT Number', field: 'dot_number', value: drawer.carrier.company.dot_number },
+                { label: 'Email', field: 'email', value: drawer.carrier.company.email },
+                { label: 'Phone', field: 'phone', value: drawer.carrier.company.phone },
+                { label: 'Address', field: 'address', value: drawer.carrier.company.address },
               ].map(d => (
                 <div key={d.label}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>{d.label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{d.value}</div>
+                  <input className="form-input"
+                    style={{ width: '100%', height: 30, fontSize: 12, background: 'var(--surface2)' }}
+                    defaultValue={d.value || ''}
+                    onBlur={e => {
+                      if (e.target.value !== (d.value || '')) {
+                        updateCompanyField(drawer.carrier.company.id, d.field, e.target.value, d.label)
+                      }
+                    }}
+                    placeholder={`Enter ${d.label.toLowerCase()}...`}
+                  />
                 </div>
               ))}
+              {/* Read-only fields */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Joined</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{formatDate(drawer.carrier.company.created_at)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Loads</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{drawer.carrier.loadCount}</div>
+              </div>
+            </div>
+
+            {/* Plan + Pricing */}
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Current Plan</div>
+                <select className="form-input" style={{ width: '100%', height: 34, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  value={drawer.carrier.company.plan || 'trial'}
+                  onChange={e => { updatePlan(drawer.carrier.company.id, e.target.value, drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, plan: e.target.value } } })) }}>
+                  {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} — {PLAN_PRICING[p]}</option>)}
+                </select>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Price</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: PLAN_COLORS[drawer.carrier.company.plan] || '#6b7280', fontFamily: "'Bebas Neue', sans-serif" }}>
+                  {PLAN_PRICING[drawer.carrier.company.plan] || 'Free'}
+                </div>
+              </div>
             </div>
 
             {/* Quick Actions */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>PLAN:</span>
-                <select className="form-input" style={{ height: 30, fontSize: 11, width: 110, cursor: 'pointer' }}
-                  value={drawer.carrier.company.plan || 'trial'}
-                  onChange={e => { updatePlan(drawer.carrier.company.id, e.target.value, drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, plan: e.target.value } } })) }}>
-                  {PLANS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-                </select>
-              </div>
               {drawer.carrier.company.carrier_status === 'pending' && (
                 <button style={S.btn('var(--success)')} onClick={() => { updateStatus(drawer.carrier.company.id, 'active', drawer.carrier.company.name); setDrawer(d => ({ ...d, carrier: { ...d.carrier, company: { ...d.carrier.company, carrier_status: 'active' } } })) }}>
                   <Ic icon={CheckCircle} size={12} /> Approve
@@ -708,6 +761,10 @@ export default function Carriers() {
             <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
               <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><Ic icon={Users} size={12} /> Team Members ({drawer.carrier.members.length})</span>
+                <button style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: 'var(--accent)', color: '#000', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                  onClick={() => setAddSubUser(drawer.carrier.company.id)}>
+                  <Ic icon={Plus} size={10} /> Add
+                </button>
               </div>
               {drawer.carrier.members.length === 0 ? (
                 <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No team members</div>

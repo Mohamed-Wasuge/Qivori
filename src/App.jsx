@@ -100,7 +100,7 @@ const PAGES = {
   'edi-admin': EDIAccessManager,
   activity: ActivityLog,
   'ai-agent': MasterAgent,
-  'users': UserManagement,
+  'users': Carriers,
   // Broker
   'broker-dashboard': BrokerDashboard,
   'broker-post': BrokerPostLoad,

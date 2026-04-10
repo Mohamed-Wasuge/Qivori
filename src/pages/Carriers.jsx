@@ -566,7 +566,8 @@ export default function Carriers() {
       {drawer && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} onClick={() => setDrawer(null)} />
-          <div style={{ position: 'relative', width: 560, maxWidth: '94vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '-8px 0 32px rgba(0,0,0,.3)' }}>
+          <div style={{ position: 'relative', width: 560, maxWidth: '94vw', height: '100%', background: 'var(--bg)', borderLeft: '1px solid var(--border)', overflowY: 'auto', overflowX: 'hidden', padding: '28px 24px 80px', boxShadow: '-8px 0 32px rgba(0,0,0,.3)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
@@ -799,6 +800,7 @@ export default function Carriers() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
       )}

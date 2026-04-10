@@ -484,7 +484,7 @@ export default function Carriers() {
                         <select className="form-input" value={subUserForm.role}
                           onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
                           style={{ height: 34, fontSize: 12, width: 110, cursor: 'pointer', borderRadius: 8 }}>
-                          <option value="owner">Owner</option>
+                          <option value="owner">Owner / Driver</option>
                           <option value="dispatcher">Dispatcher</option>
                           <option value="driver">Driver</option>
                         </select>
@@ -711,7 +711,7 @@ export default function Carriers() {
                   <select className="form-input" value={subUserForm.role}
                     onChange={e => setSubUserForm(p => ({ ...p, role: e.target.value }))}
                     style={{ width: 110, height: 34, fontSize: 12, cursor: 'pointer', borderRadius: 8 }}>
-                    <option value="owner">Owner</option>
+                    <option value="owner">Owner / Driver</option>
                     <option value="dispatcher">Dispatcher</option>
                     <option value="driver">Driver</option>
                   </select>

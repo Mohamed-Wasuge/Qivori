@@ -90,8 +90,8 @@ export default async function handler(req) {
     let resolvedTruckId = body.truckId || ''
     let resolvedDriverId = body.driverId || user.id
     if (!resolvedTruckId && company.id) {
-      const members = await sbGet(`company_members?company_id=eq.${company.id}&select=profile_id&limit=20`)
-      const ids = members.map(m => m.profile_id).filter(Boolean)
+      const members = await sbGet(`company_members?company_id=eq.${company.id}&status=eq.active&select=user_id&limit=20`)
+      const ids = members.map(m => m.user_id).filter(Boolean)
       if (ids.length) {
         // Get all members with an assigned truck
         const profiles = await sbGet(`profiles?id=in.(${ids.join(',')})&assigned_truck_id=not.is.null&select=id,assigned_truck_id&limit=10`)

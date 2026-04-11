@@ -195,7 +195,7 @@ function PostCallSummary({ summary, onClose }) {
 // ══════════════════════════════════════════════════════════════════════════════
 export function QDispatchAI() {
   const { showToast, user } = useApp()
-  const { loads, activeLoads, drivers, fuelCostPerMile, brokerStats, allLoads, assignLoadToDriver } = useCarrier()
+  const { loads, activeLoads, drivers, vehicles, fuelCostPerMile, brokerStats, allLoads, assignLoadToDriver } = useCarrier()
 
   // State
   const [callStage, setCallStage] = useState('idle')
@@ -365,9 +365,14 @@ export function QDispatchAI() {
     setLiveInsight({ text:'Initiating call to broker...', color:'var(--accent)' })
 
     try {
-      const driverId = selectedLoad.driver_id || null
+      const driverId = selectedLoad.driver_id || drivers?.[0]?.id || null
       const driverRec = (drivers || []).find(d => d.id === driverId) || drivers?.[0] || null
-      const truckId = driverRec?.vehicle_id || ''
+      // For load-board loads (DAT/Truckstop) no driver is pre-assigned.
+      // Fall back to the first available vehicle so the mobile feed gets the cards.
+      const truckId = driverRec?.vehicle_id
+        || (vehicles || []).find(v => v.status === 'available')?.id
+        || vehicles?.[0]?.id
+        || ''
 
       const rawRes = await apiFetch('/api/retell-broker-call', {
         method: 'POST',

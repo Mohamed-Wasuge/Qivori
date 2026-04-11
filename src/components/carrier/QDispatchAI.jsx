@@ -368,9 +368,10 @@ export function QDispatchAI() {
       const driverId = selectedLoad.driver_id || drivers?.[0]?.id || null
       const driverRec = (drivers || []).find(d => d.id === driverId) || drivers?.[0] || null
       // For load-board loads (DAT/Truckstop) no driver is pre-assigned.
-      // Fall back to the first available vehicle so the mobile feed gets the cards.
+      // Priority: load's driver vehicle → first driver with a vehicle → first active vehicle
       const truckId = driverRec?.vehicle_id
-        || (vehicles || []).find(v => v.status === 'available')?.id
+        || (drivers || []).find(d => d.vehicle_id)?.vehicle_id
+        || (vehicles || []).find(v => v.status?.toLowerCase() === 'active')?.id
         || vehicles?.[0]?.id
         || ''
 

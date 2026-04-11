@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as db from '../lib/database'
 import { supabase } from '../lib/supabase'
-import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
+import { MemoryProvider, useMemory } from './MemoryContext'
 import { setInvoiceCompany } from '../utils/generatePDF'
 import { checkCDL, checkMedicalCard, checkDriverAvailability, checkRegistration, checkInsurance, checkOutOfService } from '../lib/compliance'
 import { canDriverTakeLoad } from '../lib/hosSimulation'
@@ -177,8 +177,19 @@ function normalizeCompany(c) {
 // ─── No mock data — production uses Supabase only ───────────
 
 // ─── Provider ────────────────────────────────────────────────
+// Thin shell — wraps MemoryProvider so all consumers get memory values
+// via useCarrier() without any consumer-side changes.
 export function CarrierProvider({ children }) {
+  return (
+    <MemoryProvider>
+      <CarrierInner>{children}</CarrierInner>
+    </MemoryProvider>
+  )
+}
+
+function CarrierInner({ children }) {
   const { demoMode, showToast, isDriver, myDriverId, companyRole, profile, user, authLoading } = useApp() || {}
+  const { qMemories, aiFees, fuelCostPerMile, carrierMpg, addQMemory, removeQMemory } = useMemory() || {}
 
   // Helper: block write operations in demo mode
   const demoGuard = useCallback((label) => {
@@ -194,12 +205,8 @@ export function CarrierProvider({ children }) {
   const [drivers, setDrivers] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [company, setCompany] = useState(normalizeCompany({}))
-  const [qMemories, setQMemories] = useState([])
   const [consolidations, setConsolidations] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
-  const [aiFees, setAiFees] = useState([])
-  const [fuelCostPerMile, setFuelCostPerMile] = useState(0.55) // default ~$3.85/gal at 7 MPG, updated from EIA
-  const [carrierMpg, setCarrierMpg] = useState(null) // carrier's truck MPG (null = use 7.0 default)
   const [dataReady, setDataReady] = useState(false)
   const [useDb, setUseDb] = useState(true)
   const initRef = useRef(false)
@@ -247,16 +254,14 @@ export function CarrierProvider({ children }) {
 
     async function init() {
       try {
-        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbMemories, dbConsolidations, dbAiFees] = await Promise.all([
+        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbConsolidations] = await Promise.all([
           db.fetchLoads(),
           db.fetchInvoices(),
           db.fetchExpenses(),
           db.fetchCompany(),
           db.fetchDrivers(),
           db.fetchVehicles(),
-          db.fetchMemories(),
           db.fetchConsolidations(),
-          db.fetchAIFees(),
         ])
 
         setLoads(dbLoads.map(normalizeLoad))
@@ -264,20 +269,13 @@ export function CarrierProvider({ children }) {
         setExpenses(dbExpenses.map(normalizeExpense))
         setDrivers(dbDrivers)
         setVehicles(dbVehicles)
-        setQMemories(dbMemories)
         setConsolidations(dbConsolidations || [])
-        setAiFees(dbAiFees || [])
         if (dbCompany) {
           const nc = normalizeCompany(dbCompany)
           setCompany(nc)
           setInvoiceCompany(nc)
         }
         setUseDb(true)
-        // Fetch carrier MPG setting if available
-        try {
-          const { data: settings } = await supabase.from('carrier_settings').select('truck_mpg').limit(1).single()
-          if (settings?.truck_mpg) setCarrierMpg(parseFloat(settings.truck_mpg))
-        } catch {} // no settings yet = use default
       } catch (e) {
         console.error('[CarrierContext] Init failed:', e.message || e)
         setLoads([])
@@ -352,23 +350,6 @@ export function CarrierProvider({ children }) {
       channels.forEach(ch => supabase.removeChannel(ch))
     }
   }, [demoMode, useDb])
-
-  // ─── Fetch real diesel prices from EIA API ─────────────────────
-  useEffect(() => {
-    if (demoMode) return
-    apiFetch('/api/diesel-prices').then(r => r.json()).then(data => {
-      const prices = data?.prices
-      if (prices && prices.length > 0) {
-        const usAvg = prices.find(p => p.region === 'US AVG')
-        const price = usAvg ? usAvg.price : prices[0].price
-        if (price && price > 0) {
-          // Convert $/gallon to $/mile (default 7.0 MPG, carrier can override in settings)
-          const mpg = carrierMpg || 7.0
-          setFuelCostPerMile(+(price / mpg).toFixed(3))
-        }
-      }
-    }).catch(() => {}) // keep default $0.55/mi on failure (EIA unavailable)
-  }, [demoMode])
 
   // ─── Load operations ─────────────────────────────────────────
   const addLoad = useCallback(async (load) => {
@@ -1206,20 +1187,6 @@ export function CarrierProvider({ children }) {
     }
   }, [company, useDb, demoGuard])
 
-  // ─── Q Memories (cross-session AI intelligence) ─────────────────
-  const addQMemory = useCallback(async (memory) => {
-    if (demoGuard()) return null
-    const saved = await db.createMemory(memory)
-    if (saved) setQMemories(prev => [saved, ...prev])
-    return saved
-  }, [useDb])
-
-  const removeQMemory = useCallback(async (id) => {
-    if (demoGuard()) return
-    await db.deleteMemory(id)
-    setQMemories(prev => prev.filter(m => m.id !== id))
-  }, [useDb])
-
   // ─── Consolidation operations (LTL/Partial grouping) ──────────────
   const addConsolidation = useCallback(async (consolidation) => {
     if (demoGuard('create consolidations')) return null
@@ -1254,7 +1221,6 @@ export function CarrierProvider({ children }) {
     setVehicles([])
     setCompany(normalizeCompany({}))
     setCheckCalls({})
-    setQMemories([])
     setConsolidations([])
   }, [])
 

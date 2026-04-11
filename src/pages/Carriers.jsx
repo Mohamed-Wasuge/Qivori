@@ -30,6 +30,52 @@ const logAudit = async (companyId, action, details = {}) => {
   await supabase.from('admin_audit_log').insert({ company_id: companyId, action, details, performed_by: user?.id || null })
 }
 
+function UserActionModal({ modal, onClose, onSetPassword, onUpdateEmail, onDelete }) {
+  const [val, setVal] = useState('')
+  const [busy, setBusy] = useState(false)
+  const S = {
+    overlay: { position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    box: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, width: 380, maxWidth: '92vw' },
+    title: { fontSize: 16, fontWeight: 700, marginBottom: 4 },
+    sub: { fontSize: 13, color: 'var(--muted)', marginBottom: 20 },
+    input: { width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', color: 'var(--text)', fontSize: 14, marginBottom: 16, boxSizing: 'border-box' },
+    row: { display: 'flex', gap: 8, justifyContent: 'flex-end' },
+    cancel: { padding: '9px 18px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 },
+    confirm: (danger) => ({ padding: '9px 18px', borderRadius: 10, border: 'none', background: danger ? 'var(--danger)' : 'var(--accent)', color: danger ? '#fff' : '#000', cursor: 'pointer', fontSize: 13, fontWeight: 700, opacity: busy ? 0.6 : 1 }),
+  }
+  const handle = async () => {
+    if (busy) return
+    setBusy(true)
+    if (modal.type === 'password') await onSetPassword(modal.userId, val)
+    else if (modal.type === 'email') await onUpdateEmail(modal.userId, val)
+    else if (modal.type === 'delete') await onDelete(modal.userId, modal.companyId, modal.name)
+    setBusy(false)
+  }
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.box} onClick={e => e.stopPropagation()}>
+        {modal.type === 'password' && <>
+          <div style={S.title}>Set Password</div>
+          <div style={S.sub}>{modal.name} · {modal.email}</div>
+          <input style={S.input} type="password" placeholder="New password (min 6 chars)" value={val} onChange={e => setVal(e.target.value)} autoFocus />
+          <div style={S.row}><button style={S.cancel} onClick={onClose}>Cancel</button><button style={S.confirm(false)} onClick={handle} disabled={val.length < 6}>{busy ? 'Saving...' : 'Set Password'}</button></div>
+        </>}
+        {modal.type === 'email' && <>
+          <div style={S.title}>Change Email</div>
+          <div style={S.sub}>{modal.name} · current: {modal.email}</div>
+          <input style={S.input} type="email" placeholder="New email address" value={val} onChange={e => setVal(e.target.value)} autoFocus />
+          <div style={S.row}><button style={S.cancel} onClick={onClose}>Cancel</button><button style={S.confirm(false)} onClick={handle} disabled={!val.includes('@')}>{busy ? 'Saving...' : 'Update Email'}</button></div>
+        </>}
+        {modal.type === 'delete' && <>
+          <div style={S.title}>Delete User</div>
+          <div style={S.sub}>This permanently removes <strong>{modal.name}</strong> from Qivori — auth account, company, and all data. This cannot be undone.</div>
+          <div style={S.row}><button style={S.cancel} onClick={onClose}>Cancel</button><button style={S.confirm(true)} onClick={handle}>{busy ? 'Deleting...' : 'Delete Permanently'}</button></div>
+        </>}
+      </div>
+    </div>
+  )
+}
+
 export default function Carriers() {
   const { showToast } = useApp()
   const [loading, setLoading] = useState(true)
@@ -53,6 +99,7 @@ export default function Carriers() {
   const [addingSubUser, setAddingSubUser] = useState(false)
   const [planDropdown, setPlanDropdown] = useState(null)
   const [drawerEdits, setDrawerEdits] = useState({}) // { field: value } for inline edits
+  const [userModal, setUserModal] = useState(null) // { type: 'password'|'email'|'delete', userId, email, name }
 
   // -- Data fetching --
   const fetchData = useCallback(async () => {
@@ -289,6 +336,29 @@ export default function Carriers() {
     } catch { showToast('', 'Error', 'Failed to send reset') }
   }, [showToast])
 
+  const adminSetPassword = useCallback(async (userId, newPassword) => {
+    const res = await apiFetch('/api/admin-reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, newPassword, action: 'force_reset' }) })
+    const data = await res.json()
+    if (data.success) { showToast('', 'Password Set', 'Password updated'); setUserModal(null) }
+    else showToast('', 'Error', data.error || 'Failed')
+  }, [showToast])
+
+  const adminUpdateEmail = useCallback(async (userId, newEmail) => {
+    const res = await apiFetch('/api/admin-reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, newEmail, action: 'update_email' }) })
+    const data = await res.json()
+    if (data.success) { showToast('', 'Email Updated', newEmail); setUserModal(null); fetchData() }
+    else showToast('', 'Error', data.error || 'Failed')
+  }, [showToast, fetchData])
+
+  const adminDeleteUser = useCallback(async (userId, companyId, name) => {
+    const res = await apiFetch('/api/admin-reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, action: 'delete_user' }) })
+    const data = await res.json()
+    if (data.success) {
+      if (companyId) await deleteCarrier(companyId, name)
+      else { showToast('', 'Deleted', `${name} removed`); setUserModal(null); fetchData() }
+    } else showToast('', 'Error', data.error || 'Failed')
+  }, [showToast, deleteCarrier, fetchData])
+
   const openDrawer = useCallback(async (carrier) => {
     setDrawerEdits({})
     setDrawer({ carrier, auditLog: [], recentLoads: [] })
@@ -515,16 +585,22 @@ export default function Carriers() {
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase', background: 'var(--accent2, #3b82f6)15', color: 'var(--accent2, #3b82f6)' }}>{m.role || '--'}</span>
                         <StatusPill status={m.status || 'active'} />
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => sendPasswordReset(p.email)} title="Send password reset"
+                          <button onClick={() => setUserModal({ type: 'password', userId: p.id, email: p.email, name: p.full_name })} title="Set password"
                             style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
                             <Ic icon={KeyRound} size={12} />
                           </button>
+                          <button onClick={() => setUserModal({ type: 'email', userId: p.id, email: p.email, name: p.full_name })} title="Change email"
+                            style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                            <Ic icon={Mail} size={12} />
+                          </button>
                           {(m.status || 'active') !== 'deactivated' ? (
                             <button onClick={() => suspendSubUser(m.id, co.id, p.email)} title="Suspend user"
                               style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
-                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--danger)'; e.currentTarget.style.color = 'var(--danger)' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--warning)'; e.currentTarget.style.color = 'var(--warning)' }}
                               onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
                               <Ic icon={Ban} size={12} />
                             </button>
@@ -536,6 +612,12 @@ export default function Carriers() {
                               <Ic icon={RotateCcw} size={12} />
                             </button>
                           )}
+                          <button onClick={() => setUserModal({ type: 'delete', userId: p.id, companyId: co.id, email: p.email, name: p.full_name || p.email })} title="Delete user"
+                            style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--danger)'; e.currentTarget.style.color = 'var(--danger)' }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                            <Ic icon={X} size={12} />
+                          </button>
                         </div>
                       </div>
                     )
@@ -623,6 +705,9 @@ export default function Carriers() {
           </div>
         </div>
       )}
+
+      {/* -- User Action Modal (set password / change email / delete) -- */}
+      {userModal && <UserActionModal modal={userModal} onClose={() => setUserModal(null)} onSetPassword={adminSetPassword} onUpdateEmail={adminUpdateEmail} onDelete={adminDeleteUser} />}
 
       {/* -- Onboarding Wizard -- */}
       {showOnboarding && (

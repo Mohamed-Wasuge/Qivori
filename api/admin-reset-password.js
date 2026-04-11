@@ -34,7 +34,7 @@ export default async function handler(req) {
   }
 
   try {
-    const { userId, email, action } = await req.json()
+    const { userId, email, action, newPassword, newEmail } = await req.json()
 
     if (!userId && !email) {
       return new Response(JSON.stringify({ error: 'userId or email required' }), {
@@ -116,42 +116,50 @@ export default async function handler(req) {
 
     // Action: force_reset — admin sets a new password directly
     if (action === 'force_reset') {
-      const { newPassword } = await req.json().catch(() => ({}))
-
-      if (!newPassword || newPassword.length < 6) {
-        return new Response(JSON.stringify({ error: 'Password must be at least 6 characters' }), {
-          status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
-        })
-      }
+      if (!userId) return new Response(JSON.stringify({ error: 'userId required' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
+      if (!newPassword || newPassword.length < 6) return new Response(JSON.stringify({ error: 'Password must be at least 6 characters' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
 
       const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
         method: 'PUT',
-        headers: {
-          apikey: SUPABASE_SERVICE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword }),
       })
-
-      if (!res.ok) {
-        const data = await res.json()
-        return new Response(JSON.stringify({ error: data.msg || 'Failed to reset password' }), {
-          status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
-        })
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: `Password updated for user ${userId}`,
-      }), {
-        status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
-      })
+      if (!res.ok) { const d = await res.json(); return new Response(JSON.stringify({ error: d.msg || 'Failed to reset password' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }) }
+      return new Response(JSON.stringify({ success: true, message: 'Password updated' }), { status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid action. Use send_reset_link or force_reset' }), {
-      status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
-    })
+    // Action: update_email — admin changes a user's email
+    if (action === 'update_email') {
+      if (!userId || !newEmail) return new Response(JSON.stringify({ error: 'userId and newEmail required' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
+
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail, email_confirm: true }),
+      })
+      if (!res.ok) { const d = await res.json(); return new Response(JSON.stringify({ error: d.msg || 'Failed to update email' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }) }
+      // Also update profiles table
+      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail }),
+      }).catch(() => {})
+      return new Response(JSON.stringify({ success: true, message: 'Email updated' }), { status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
+    }
+
+    // Action: delete_user — remove from auth.users (cascades to profiles via FK)
+    if (action === 'delete_user') {
+      if (!userId) return new Response(JSON.stringify({ error: 'userId required' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
+
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
+      })
+      if (!res.ok && res.status !== 404) { const d = await res.json().catch(() => ({})); return new Response(JSON.stringify({ error: d.msg || 'Failed to delete user' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }) }
+      return new Response(JSON.stringify({ success: true, message: 'User deleted from auth' }), { status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
+    }
+
+    return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } })
 
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {

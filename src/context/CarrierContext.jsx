@@ -1,21 +1,17 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as db from '../lib/database'
 import { supabase } from '../lib/supabase'
+import { apiFetch } from '../lib/api'
 import { useApp } from './AppContext'
 import { MemoryProvider, useMemory } from './MemoryContext'
 import { FinancialsProvider, useFinancials } from './FinancialsContext'
-import { setInvoiceCompany } from '../utils/generatePDF'
+import { FleetProvider, useFleet } from './FleetContext'
 import { checkCDL, checkMedicalCard, checkDriverAvailability, checkRegistration, checkInsurance, checkOutOfService } from '../lib/compliance'
 import { canDriverTakeLoad } from '../lib/hosSimulation'
 import { calculateCrashRisk } from '../lib/crashRiskEngine'
 import { DELIVERED_STATUSES } from '../lib/constants'
-import { normalizeLoad, normalizeInvoice, normalizeCompany } from '../lib/normalizers'
-import {
-  DEMO_LOADS,
-  DEMO_DRIVERS,
-  DEMO_VEHICLES,
-  DEMO_COMPANY,
-} from '../data/demoData'
+import { normalizeLoad, normalizeInvoice } from '../lib/normalizers'
+import { DEMO_LOADS } from '../data/demoData'
 
 // ─── No mock data — production uses Supabase only ───────────
 
@@ -26,7 +22,9 @@ export function CarrierProvider({ children }) {
   return (
     <MemoryProvider>
       <FinancialsProvider>
-        <CarrierInner>{children}</CarrierInner>
+        <FleetProvider>
+          <CarrierInner>{children}</CarrierInner>
+        </FleetProvider>
       </FinancialsProvider>
     </MemoryProvider>
   )
@@ -43,6 +41,12 @@ function CarrierInner({ children }) {
     appendInvoice, pruneInvoicesByLoadId,
     registerLoadsUpdater,
   } = useFinancials() || {}
+  const {
+    drivers, vehicles, company, driverMap,
+    addDriver, editDriver, removeDriver,
+    addVehicle, editVehicle, removeVehicle,
+    updateCompany, resetFleet,
+  } = useFleet() || {}
 
   // Helper: block write operations in demo mode
   const demoGuard = useCallback((label) => {
@@ -53,9 +57,6 @@ function CarrierInner({ children }) {
     return false
   }, [demoMode, showToast])
   const [loads, setLoads] = useState([])
-  const [drivers, setDrivers] = useState([])
-  const [vehicles, setVehicles] = useState([])
-  const [company, setCompany] = useState(normalizeCompany({}))
   const [consolidations, setConsolidations] = useState([])
   const [checkCalls, setCheckCalls] = useState({})
   const [dataReady, setDataReady] = useState(false)
@@ -89,9 +90,6 @@ function CarrierInner({ children }) {
       if (initRef.current) return
       initRef.current = true
       setLoads(DEMO_LOADS.map(normalizeLoad))
-      setDrivers(DEMO_DRIVERS)
-      setVehicles(DEMO_VEHICLES)
-      setCompany(normalizeCompany(DEMO_COMPANY))
       setUseDb(false)
       setDataReady(true)
       return
@@ -113,29 +111,17 @@ function CarrierInner({ children }) {
 
     async function init() {
       try {
-        const [dbLoads, dbCompany, dbDrivers, dbVehicles, dbConsolidations] = await Promise.all([
+        const [dbLoads, dbConsolidations] = await Promise.all([
           db.fetchLoads(),
-          db.fetchCompany(),
-          db.fetchDrivers(),
-          db.fetchVehicles(),
           db.fetchConsolidations(),
         ])
 
         setLoads(dbLoads.map(normalizeLoad))
-        setDrivers(dbDrivers)
-        setVehicles(dbVehicles)
         setConsolidations(dbConsolidations || [])
-        if (dbCompany) {
-          const nc = normalizeCompany(dbCompany)
-          setCompany(nc)
-          setInvoiceCompany(nc)
-        }
         setUseDb(true)
       } catch (e) {
         console.error('[CarrierContext] Init failed:', e.message || e)
         setLoads([])
-        setDrivers([])
-        setVehicles([])
         setUseDb(false)
       }
       setDataReady(true)
@@ -796,140 +782,6 @@ function CarrierInner({ children }) {
     })
   }, [loads, useDb, demoGuard])
 
-  // ─── Driver operations ──────────────────────────────────────────
-  const addDriver = useCallback(async (driver) => {
-    if (demoGuard('add drivers')) return null
-    // Duplicate driver detection
-    const driverName = (driver.full_name || driver.name || '').toLowerCase().trim()
-    if (driverName) {
-      const dup = drivers.find(d => (d.full_name || d.name || '').toLowerCase().trim() === driverName)
-      if (dup) {
-        showToast?.('', 'Duplicate Driver', `${driverName} already exists`)
-        return null
-      }
-    }
-    if (useDb) {
-      try {
-        const newDriver = await db.createDriver(driver)
-        setDrivers(ds => [newDriver, ...ds])
-        db.createAuditLog({ action: 'driver.created', entity_type: 'driver', entity_id: newDriver.id, new_value: { name: driver.full_name || driver.name, pay_model: driver.pay_model, pay_rate: driver.pay_rate, phone: driver.phone } }).catch(() => {})
-        return newDriver
-      } catch (e) { console.error('DB operation failed:', e) }
-    }
-    const fake = { ...driver, id: 'local-drv-' + Date.now() }
-    setDrivers(ds => [fake, ...ds])
-    return fake
-  }, [useDb, demoGuard])
-
-  const editDriver = useCallback(async (id, updates) => {
-    if (demoGuard('edit drivers')) return
-    const existing = drivers.find(d => d.id === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateDriver(id, updates) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'driver.updated', entity_type: 'driver', entity_id: id, old_value: existing ? { name: existing.full_name || existing.name, pay_model: existing.pay_model, pay_rate: existing.pay_rate } : null, new_value: updates }).catch(() => {})
-    }
-    setDrivers(ds => ds.map(d => d.id === id ? { ...d, ...updates } : d))
-  }, [useDb, demoGuard, drivers])
-
-  const removeDriver = useCallback(async (id) => {
-    if (demoGuard('remove drivers')) return
-    const existing = drivers.find(d => d.id === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteDriver(id) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'driver.deleted', entity_type: 'driver', entity_id: id, old_value: existing ? { name: existing.full_name || existing.name, phone: existing.phone } : null }).catch(() => {})
-    }
-    setDrivers(ds => ds.filter(d => d.id !== id))
-  }, [useDb, demoGuard, drivers])
-
-  // ─── Vehicle operations ─────────────────────────────────────────
-  const addVehicle = useCallback(async (vehicle) => {
-    if (demoGuard('add vehicles')) return null
-    // Duplicate vehicle detection (by VIN or unit number)
-    const vin = (vehicle.vin || '').trim().toUpperCase()
-    const unit = (vehicle.unit_number || '').trim()
-    if (vin) {
-      const dupVin = vehicles.find(v => (v.vin || '').trim().toUpperCase() === vin)
-      if (dupVin) { showToast?.('', 'Duplicate Vehicle', `VIN ${vin} already exists`); return null }
-    }
-    if (unit) {
-      const dupUnit = vehicles.find(v => (v.unit_number || '').trim() === unit)
-      if (dupUnit) { showToast?.('', 'Duplicate Vehicle', `Unit #${unit} already exists`); return null }
-    }
-    let result
-    if (useDb) {
-      try {
-        const newVeh = await db.createVehicle(vehicle)
-        setVehicles(vs => [newVeh, ...vs])
-        result = newVeh
-      } catch (e) { console.error('DB operation failed:', e) }
-    }
-    if (result && useDb) {
-      db.createAuditLog({ action: 'vehicle.created', entity_type: 'vehicle', entity_id: result.id, new_value: { unit_number: vehicle.unit_number, make: vehicle.make, model: vehicle.model, vin: vehicle.vin, type: vehicle.type } }).catch(() => {})
-    }
-    if (!result) {
-      result = { ...vehicle, id: 'local-veh-' + Date.now() }
-      setVehicles(vs => [result, ...vs])
-    }
-    // Update Stripe billing with new truck count
-    setVehicles(vs => {
-      const newCount = vs.length
-      apiFetch('/api/update-truck-count', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ truckCount: newCount }),
-      }).catch(err => { console.error('DB operation failed:', err) })
-      return vs
-    })
-    return result
-  }, [useDb, demoGuard])
-
-  const editVehicle = useCallback(async (id, updates) => {
-    if (demoGuard('edit vehicles')) return
-    const existing = vehicles.find(v => v.id === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateVehicle(id, updates) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'vehicle.updated', entity_type: 'vehicle', entity_id: id, old_value: existing ? { unit_number: existing.unit_number, status: existing.status } : null, new_value: updates }).catch(() => {})
-    }
-    setVehicles(vs => vs.map(v => v.id === id ? { ...v, ...updates } : v))
-  }, [useDb, demoGuard, vehicles])
-
-  const removeVehicle = useCallback(async (id) => {
-    if (demoGuard('remove vehicles')) return
-    const existing = vehicles.find(v => v.id === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteVehicle(id) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'vehicle.deleted', entity_type: 'vehicle', entity_id: id, old_value: existing ? { unit_number: existing.unit_number, make: existing.make, vin: existing.vin } : null }).catch(() => {})
-    }
-    setVehicles(vs => {
-      const updated = vs.filter(v => v.id !== id)
-      // Update Stripe billing with new truck count
-      const newCount = Math.max(1, updated.length)
-      apiFetch('/api/update-truck-count', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ truckCount: newCount }),
-      }).catch(err => { console.error('DB operation failed:', err) })
-      return updated
-    })
-  }, [useDb, demoGuard])
-
-  // ─── Company operations ───────────────────────────────────────
-  const updateCompany = useCallback(async (updates) => {
-    if (demoGuard('update company info')) return
-    const merged = { ...company, ...updates }
-    const nc = normalizeCompany(merged)
-    setCompany(nc)
-    setInvoiceCompany(nc)
-    if (useDb) {
-      try {
-        await db.upsertCompany(merged)
-        db.createAuditLog({ action: 'company.updated', entity_type: 'company', entity_id: 'company', old_value: { name: company?.name, mc_number: company?.mc_number }, new_value: updates }).catch(() => {})
-      } catch (e) {
-        console.error('DB operation failed:', e)
-      }
-    }
-  }, [company, useDb, demoGuard])
-
   // ─── Consolidation operations (LTL/Partial grouping) ──────────────
   const addConsolidation = useCallback(async (consolidation) => {
     if (demoGuard('create consolidations')) return null
@@ -955,15 +807,13 @@ function CarrierInner({ children }) {
     setConsolidations(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
   }, [useDb, demoGuard])
 
-  // ─── Reset (clears loads/fleet data owned by this context) ─────────
+  // ─── Reset (clears all owned state, delegates fleet reset to FleetContext) ──
   const resetData = useCallback(() => {
     setLoads([])
-    setDrivers([])
-    setVehicles([])
-    setCompany(normalizeCompany({}))
     setCheckCalls({})
     setConsolidations([])
-  }, [])
+    resetFleet?.()
+  }, [resetFleet])
 
   // ─── Load driver-role filtering ──────────────────────────────
   const driverName = isDriver ? (profile?.full_name || '') : ''
@@ -990,17 +840,6 @@ function CarrierInner({ children }) {
     () => deliveredLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0),
     [deliveredLoads]
   )
-
-  // Pre-indexed driver map for O(1) lookups
-  const driverMap = useMemo(() => {
-    const map = new Map()
-    drivers.forEach(d => {
-      if (d.full_name) map.set(d.full_name, d)
-      if (d.name && d.name !== d.full_name) map.set(d.name, d)
-      if (d.id) map.set(d.id, d)
-    })
-    return map
-  }, [drivers])
 
   // Broker intelligence — uses loads + invoices from FinancialsContext
   const brokerStats = useMemo(() => {
@@ -1055,16 +894,19 @@ function CarrierInner({ children }) {
       allInvoices, allExpenses,
       unpaidInvoices, totalExpenses,
       updateInvoiceStatus, addExpense, editExpense, removeExpense, removeInvoice,
-      // Fleet
-      drivers, vehicles, company, checkCalls, consolidations,
+      // Fleet (from FleetContext — re-exported for useCarrier() compat)
+      drivers, vehicles, company, driverMap,
+      addDriver, editDriver, removeDriver,
+      addVehicle, editVehicle, removeVehicle,
+      updateCompany,
+      // Loads (owned here)
+      checkCalls, consolidations,
       // Memory (from MemoryContext)
       qMemories, aiFees, fuelCostPerMile, carrierMpg,
       // Operations
       updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
-      addDriver, editDriver, removeDriver,
-      addVehicle, editVehicle, removeVehicle,
       addConsolidation, editConsolidation,
-      logCheckCall, updateCompany, resetData,
+      logCheckCall, resetData,
       addQMemory, removeQMemory,
       dataReady, useDb, demoMode,
     }}>

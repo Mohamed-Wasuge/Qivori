@@ -1,5 +1,6 @@
 import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 import { rateLimit, getClientIP, rateLimitResponse } from './_lib/rate-limit.js'
+import { requireFields } from './_lib/validate.js'
 
 export const config = { runtime: 'edge' }
 
@@ -43,6 +44,11 @@ export default async function handler(req) {
   try {
     const body = await req.json()
     const { loadId, cron, lineItems } = body
+
+    if (!cron) {
+      const err = requireFields(body, ['loadId'], corsHeaders(req))
+      if (err) return err
+    }
 
     // ── Cron mode: find all delivered loads without invoices ──
     if (cron) {

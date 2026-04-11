@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { requireFields, validatePositiveNumber, isPositiveNumber } from './_lib/validate.js'
 
 export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -40,6 +41,7 @@ export default async function handler(req){
     if(action==='payment_received'){
       const{loadId,invoiceId,amount,driverId,driverPayOverride}=body
       if(!loadId) return json({error:'loadId required'},400)
+      if(amount !== undefined && !isPositiveNumber(amount)) return json({error:'amount must be a positive number'},400)
       const agreedRate=parseFloat(amount)||0
 
       // Fetch driver pay config if driverId provided

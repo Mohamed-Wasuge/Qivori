@@ -231,6 +231,19 @@ export default function Carriers() {
     }
   }, [showToast, fetchData, drawer])
 
+  const deleteCarrier = useCallback(async (companyId, companyName) => {
+    if (!window.confirm(`Delete "${companyName}" and all their data? This cannot be undone.`)) return
+    // Delete company_members first (FK constraint)
+    await supabase.from('company_members').delete().eq('company_id', companyId)
+    // Delete audit log
+    await supabase.from('admin_audit_log').delete().eq('company_id', companyId)
+    // Delete the company
+    await supabase.from('companies').delete().eq('id', companyId)
+    showToast('', 'Deleted', `${companyName} removed`)
+    if (drawer?.carrier?.company?.id === companyId) setDrawer(null)
+    fetchData()
+  }, [showToast, fetchData, drawer])
+
   const handleAddUser = useCallback(async () => {
     if (!newUser.email || !newUser.password || !newUser.full_name) { showToast('', 'Error', 'Fill in name, email, and password'); return }
     setAddingUser(true)
@@ -470,6 +483,13 @@ export default function Carriers() {
                       <Ic icon={Ban} size={12} />
                     </button>
                   )}
+                  <button onClick={() => deleteCarrier(co.id, co.name)}
+                    style={{ padding: '6px 10px', fontSize: 11, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--danger)', background: 'transparent', color: 'var(--danger)', display: 'flex', alignItems: 'center', transition: 'all .1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--danger)' }}
+                    title="Delete carrier">
+                    <Ic icon={X} size={12} />
+                  </button>
                 </div>
               </div>
 
@@ -726,6 +746,12 @@ export default function Carriers() {
                   <Ic icon={RotateCcw} size={14} /> Reactivate Carrier
                 </button>
               )}
+              <button onClick={() => deleteCarrier(drawer.carrier.company.id, drawer.carrier.company.name)}
+                style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: '1px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--danger)' }}>
+                <Ic icon={X} size={14} /> Delete Carrier
+              </button>
             </div>
 
             {/* Admin Notes */}

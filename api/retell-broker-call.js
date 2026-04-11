@@ -47,10 +47,11 @@ export default async function handler(req) {
   }
 
   const RETELL_API_KEY = process.env.RETELL_API_KEY
-  const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID
+  const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID || process.env.RETELL_BROKER_AGENT_ID
   const FROM_NUMBER = process.env.RETELL_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER
+  console.log('[retell-broker-call] reached. agentId:', RETELL_AGENT_ID ? RETELL_AGENT_ID.slice(0,8)+'...' : 'MISSING', 'fromNumber:', FROM_NUMBER || 'MISSING', 'apiKey:', RETELL_API_KEY ? 'set' : 'MISSING')
   if (!RETELL_API_KEY || !RETELL_AGENT_ID || !FROM_NUMBER) {
-    return Response.json({ error: 'Retell not configured' }, { status: 500, headers: corsHeaders(req) })
+    return Response.json({ error: 'Retell not configured', missing: { apiKey: !RETELL_API_KEY, agentId: !RETELL_AGENT_ID, fromNumber: !FROM_NUMBER } }, { status: 500, headers: corsHeaders(req) })
   }
 
   try {
@@ -186,6 +187,7 @@ export default async function handler(req) {
 
     if (!res.ok) {
       const err = await res.text()
+      console.error('[retell-broker-call] Retell API error', res.status, err)
       return Response.json({ error: 'Retell error: ' + err }, { status: 502, headers: corsHeaders(req) })
     }
 

@@ -365,30 +365,31 @@ export function QDispatchAI() {
     setLiveInsight({ text:'Initiating call to broker...', color:'var(--accent)' })
 
     try {
-      const res = await apiFetch('/api/ai-caller', {
+      const rawRes = await apiFetch('/api/retell-broker-call', {
         method: 'POST',
         body: JSON.stringify({
           phone: brokerPhone,
           loadId: selectedLoad.loadId || selectedLoad.id,
-          origin: selectedLoad.origin,
-          destination: selectedLoad.dest || selectedLoad.destination,
+          originCity: (selectedLoad.origin || '').split(',')[0].trim(),
+          destinationCity: (selectedLoad.dest || selectedLoad.destination || '').split(',')[0].trim(),
           rate: selectedLoad.gross || selectedLoad.rate,
           miles: selectedLoad.miles,
           equipment: selectedLoad.equipment || 'Dry Van',
           brokerName: selectedLoad.broker,
           driverName: selectedLoad.driver || drivers?.[0]?.full_name || '',
-          autoNegotiate,
+          loadDetails: `${(selectedLoad.origin || '').split(',')[0]} → ${(selectedLoad.dest || selectedLoad.destination || '').split(',')[0]}. Rate: $${selectedLoad.gross || selectedLoad.rate || 0}${selectedLoad.miles ? ` (${selectedLoad.miles}mi)` : ''}. Equipment: ${selectedLoad.equipment || 'Dry Van'}.`,
         })
       })
+      const res = await rawRes.json()
 
-      if (res.error) {
+      if (!rawRes.ok || res.error) {
         setCallStage('idle')
         setLiveInsight(null)
-        showToast('error', 'Call Failed', res.error || res.reason || 'Could not initiate call')
+        showToast('error', 'Call Failed', res.error || 'Could not initiate call')
         return
       }
 
-      setCallId(res.callSid || res.call_id)
+      setCallId(res.call_id)
       setCallStage('connected')
       setTranscript(t => [...t, { speaker:'Q', text:`Good afternoon, this is Q from Qivori Dispatch. I'm calling about load ${selectedLoad.loadId || ''} — ${selectedLoad.origin?.split(',')[0]} to ${(selectedLoad.dest || selectedLoad.destination || '').split(',')[0]}.`, time:'0:02' }])
       setLiveInsight({ text:'Connected. Q is reading load details to broker.', color:'var(--success)' })

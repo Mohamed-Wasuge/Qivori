@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck, X } from 'lucide-react'
+import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck, X, Truck, Users, Settings, UserPlus, Plus, Edit3, Trash2 } from 'lucide-react'
 import { Ic, haptic } from './shared'
 import { apiFetch } from '../../lib/api'
+import * as db from '../../lib/database'
 import MobileIFTATab from './MobileIFTATab'
 import { DVIRInspection } from './DriverMoreTab'
 import QActivityFeed from '../QActivityFeed'
@@ -54,8 +55,12 @@ function MobileDVIRHistory() {
 
 const MENU_ITEMS = [
   { id: 'dvir', label: 'Pre-Trip Inspection', sub: 'DOT DVIR — 46-point checklist', icon: ClipboardCheck, color: '#22c55e' },
+  { id: 'fleet', label: 'Fleet', sub: 'Trucks & trailers', icon: Truck, color: '#3b82f6' },
+  { id: 'drivers', label: 'Drivers', sub: 'Add & manage drivers', icon: Users, color: '#8b5cf6' },
   { id: 'compliance', label: 'Compliance', sub: 'ELD, DVIR, CSA, HOS', icon: Shield, color: 'var(--success)' },
   { id: 'ifta', label: 'IFTA Report', sub: 'Fuel tax calculator', icon: Fuel, color: '#8b5cf6' },
+  { id: 'settings', label: 'Company Settings', sub: 'Profile, integrations, billing', icon: Settings, color: '#6b7280' },
+  { id: 'team', label: 'Team & Invite', sub: 'Invite dispatchers & drivers', icon: UserPlus, color: '#f59e0b' },
   { id: 'profile', label: 'Profile', sub: 'Your account details', icon: User, color: 'var(--accent)' },
   { id: 'help', label: 'Help & Support', sub: 'Get help from the team', icon: HelpCircle, color: 'var(--accent2)' },
 ]
@@ -260,6 +265,307 @@ export default function MobileMoreTab({ onNavigate, onClose }) {
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>IFTA</div>
             </button>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fleet Management ──────────────────────────────────────────────
+  if (activeSection === 'fleet') {
+    const vehicles = ctx.vehicles || []
+    const [showAddForm, setShowAddForm] = useState(false)
+    const [vForm, setVForm] = useState({ unit_number: '', year: '', make: '', model: '', vin: '', license_plate: '', plate_state: '' })
+    const saveVehicle = async () => {
+      if (!vForm.unit_number) return alert('Unit number is required')
+      try {
+        await db.createVehicle({ ...vForm, status: 'active', owner_id: user.id })
+        haptic('success')
+        setShowAddForm(false)
+        setVForm({ unit_number: '', year: '', make: '', model: '', vin: '', license_plate: '', plate_state: '' })
+        ctx.refreshVehicles?.()
+      } catch (e) { alert('Failed to add vehicle: ' + e.message) }
+    }
+    const BackBtn = () => (
+      <button onClick={() => { haptic(); setActiveSection(null) }}
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+        <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+      </button>
+    )
+    const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", color: 'var(--text)', outline: 'none' }
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <BackBtn />
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 1 }}>Fleet ({vehicles.length})</div>
+            <button onClick={() => { haptic(); setShowAddForm(!showAddForm) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: 'var(--accent)', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              <Plus size={14} color="#000" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#000' }}>Add Truck</span>
+            </button>
+          </div>
+          {showAddForm && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: 16, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>NEW VEHICLE</div>
+              <input placeholder="Unit # *" value={vForm.unit_number} onChange={e => setVForm(p => ({ ...p, unit_number: e.target.value }))} style={inputStyle} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input placeholder="Year" value={vForm.year} onChange={e => setVForm(p => ({ ...p, year: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                <input placeholder="Make" value={vForm.make} onChange={e => setVForm(p => ({ ...p, make: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+              </div>
+              <input placeholder="Model" value={vForm.model} onChange={e => setVForm(p => ({ ...p, model: e.target.value }))} style={inputStyle} />
+              <input placeholder="VIN" value={vForm.vin} onChange={e => setVForm(p => ({ ...p, vin: e.target.value }))} style={inputStyle} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input placeholder="License Plate" value={vForm.license_plate} onChange={e => setVForm(p => ({ ...p, license_plate: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                <input placeholder="State" value={vForm.plate_state} onChange={e => setVForm(p => ({ ...p, plate_state: e.target.value }))} style={{ ...inputStyle, width: 80, flex: 'none' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={() => setShowAddForm(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>Cancel</button>
+                <button onClick={saveVehicle} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>Save</button>
+              </div>
+            </div>
+          )}
+          {vehicles.length === 0 && !showAddForm ? (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, textAlign: 'center' }}>
+              <Truck size={28} color="var(--muted)" style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>No vehicles yet</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Tap "Add Truck" to register your first vehicle.</div>
+            </div>
+          ) : vehicles.map(v => (
+            <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 8 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Truck size={17} color="#3b82f6" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Unit {v.unit_number}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{[v.year, v.make, v.model].filter(Boolean).join(' ') || 'No details'}</div>
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: v.status === 'active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: v.status === 'active' ? 'var(--success)' : 'var(--danger)' }}>
+                {(v.status || 'active').toUpperCase()}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Driver Management ──────────────────────────────────────────────
+  if (activeSection === 'drivers') {
+    const allDrivers = ctx.drivers || []
+    const [showAddDriver, setShowAddDriver] = useState(false)
+    const [dForm, setDForm] = useState({ full_name: '', email: '', phone: '', license_class: 'CDL-A', pay_model: 'percent', pay_rate: '28' })
+    const saveDriver = async () => {
+      if (!dForm.full_name) return alert('Driver name is required')
+      try {
+        await db.createDriver({ ...dForm, status: 'Active', owner_id: user.id })
+        haptic('success')
+        setShowAddDriver(false)
+        setDForm({ full_name: '', email: '', phone: '', license_class: 'CDL-A', pay_model: 'percent', pay_rate: '28' })
+        ctx.refreshDrivers?.()
+      } catch (e) { alert('Failed to add driver: ' + e.message) }
+    }
+    const BackBtn = () => (
+      <button onClick={() => { haptic(); setActiveSection(null) }}
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+        <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+      </button>
+    )
+    const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", color: 'var(--text)', outline: 'none' }
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <BackBtn />
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 1 }}>Drivers ({allDrivers.length})</div>
+            <button onClick={() => { haptic(); setShowAddDriver(!showAddDriver) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: 'var(--accent)', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+              <Plus size={14} color="#000" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#000' }}>Add Driver</span>
+            </button>
+          </div>
+          {showAddDriver && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: 16, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>NEW DRIVER</div>
+              <input placeholder="Full Name *" value={dForm.full_name} onChange={e => setDForm(p => ({ ...p, full_name: e.target.value }))} style={inputStyle} />
+              <input placeholder="Email" value={dForm.email} onChange={e => setDForm(p => ({ ...p, email: e.target.value }))} style={inputStyle} />
+              <input placeholder="Phone" value={dForm.phone} onChange={e => setDForm(p => ({ ...p, phone: e.target.value }))} style={inputStyle} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={dForm.license_class} onChange={e => setDForm(p => ({ ...p, license_class: e.target.value }))} style={{ ...inputStyle, flex: 1 }}>
+                  <option value="CDL-A">CDL-A</option>
+                  <option value="CDL-B">CDL-B</option>
+                  <option value="CDL-C">CDL-C</option>
+                </select>
+                <select value={dForm.pay_model} onChange={e => setDForm(p => ({ ...p, pay_model: e.target.value }))} style={{ ...inputStyle, flex: 1 }}>
+                  <option value="percent">% of Load</option>
+                  <option value="permile">Per Mile</option>
+                  <option value="flat">Flat Rate</option>
+                </select>
+              </div>
+              <input placeholder="Pay Rate (e.g. 28)" value={dForm.pay_rate} onChange={e => setDForm(p => ({ ...p, pay_rate: e.target.value }))} style={inputStyle} type="number" />
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button onClick={() => setShowAddDriver(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>Cancel</button>
+                <button onClick={saveDriver} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif" }}>Save</button>
+              </div>
+            </div>
+          )}
+          {allDrivers.length === 0 && !showAddDriver ? (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 24, textAlign: 'center' }}>
+              <Users size={28} color="var(--muted)" style={{ marginBottom: 8 }} />
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>No drivers yet</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Tap "Add Driver" to add your first driver.</div>
+            </div>
+          ) : allDrivers.map(d => (
+            <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 8 }}>
+              <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#8b5cf6', fontFamily: "'Bebas Neue',sans-serif" }}>{(d.full_name || d.name || '?')[0]}</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{d.full_name || d.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{d.license_class || 'CDL-A'} · {d.pay_model === 'percent' ? `${d.pay_rate}%` : d.pay_model === 'permile' ? `$${d.pay_rate}/mi` : `$${d.pay_rate}`}</div>
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: d.status === 'Active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: d.status === 'Active' ? 'var(--success)' : 'var(--danger)' }}>
+                {(d.status || 'Active').toUpperCase()}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Company Settings ──────────────────────────────────────────────
+  if (activeSection === 'settings') {
+    const [cForm, setCForm] = useState({
+      name: company.name || company.company_name || '',
+      mc_number: company.mc_number || company.mc || '',
+      dot_number: company.dot_number || company.dot || '',
+      phone: company.phone || '',
+      email: company.email || '',
+      address: company.address || '',
+    })
+    const [saving, setSaving] = useState(false)
+    const saveCompany = async () => {
+      setSaving(true)
+      try {
+        await db.upsertCompany(cForm)
+        haptic('success')
+        ctx.refreshCompany?.()
+        alert('Company info saved')
+      } catch (e) { alert('Save failed: ' + e.message) }
+      setSaving(false)
+    }
+    const BackBtn = () => (
+      <button onClick={() => { haptic(); setActiveSection(null) }}
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+        <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+      </button>
+    )
+    const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", color: 'var(--text)', outline: 'none' }
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <BackBtn />
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, letterSpacing: 1 }}>Company Settings</div>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Company Name</div>
+              <input value={cForm.name} onChange={e => setCForm(p => ({ ...p, name: e.target.value }))} style={inputStyle} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>MC #</div>
+                <input value={cForm.mc_number} onChange={e => setCForm(p => ({ ...p, mc_number: e.target.value }))} style={inputStyle} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>DOT #</div>
+                <input value={cForm.dot_number} onChange={e => setCForm(p => ({ ...p, dot_number: e.target.value }))} style={inputStyle} />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Phone</div>
+              <input value={cForm.phone} onChange={e => setCForm(p => ({ ...p, phone: e.target.value }))} style={inputStyle} type="tel" />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Email</div>
+              <input value={cForm.email} onChange={e => setCForm(p => ({ ...p, email: e.target.value }))} style={inputStyle} type="email" />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Business Address</div>
+              <input value={cForm.address} onChange={e => setCForm(p => ({ ...p, address: e.target.value }))} style={inputStyle} />
+            </div>
+            <button onClick={saveCompany} disabled={saving}
+              style={{ width: '100%', padding: '12px', borderRadius: 8, border: 'none', background: 'var(--accent)', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", marginTop: 4, opacity: saving ? 0.6 : 1 }}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Team & Invite ──────────────────────────────────────────────
+  if (activeSection === 'team') {
+    const members = ctx.teamMembers || []
+    const [inviteEmail, setInviteEmail] = useState('')
+    const [inviteRole, setInviteRole] = useState('driver')
+    const [sending, setSending] = useState(false)
+    const sendInvite = async () => {
+      if (!inviteEmail) return alert('Enter an email address')
+      setSending(true)
+      try {
+        await apiFetch('/api/invite-member', { method: 'POST', body: JSON.stringify({ email: inviteEmail, role: inviteRole }) })
+        haptic('success')
+        setInviteEmail('')
+        alert('Invite sent!')
+      } catch (e) { alert('Failed to send invite: ' + (e.message || 'Unknown error')) }
+      setSending(false)
+    }
+    const BackBtn = () => (
+      <button onClick={() => { haptic(); setActiveSection(null) }}
+        style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+        <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+      </button>
+    )
+    const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', fontSize: 13, fontFamily: "'DM Sans',sans-serif", color: 'var(--text)', outline: 'none' }
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <BackBtn />
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, letterSpacing: 1 }}>Team & Invite</div>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1, marginBottom: 12 }}>INVITE A TEAM MEMBER</div>
+            <input placeholder="Email address" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} type="email" />
+            <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }}>
+              <option value="driver">Driver</option>
+              <option value="dispatcher">Dispatcher</option>
+            </select>
+            <button onClick={sendInvite} disabled={sending}
+              style={{ width: '100%', padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#000', fontFamily: "'DM Sans',sans-serif", opacity: sending ? 0.6 : 1 }}>
+              {sending ? 'Sending...' : 'Send Invite'}
+            </button>
+          </div>
+          {/* Current members */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: 1, marginBottom: 8 }}>TEAM MEMBERS ({members.length})</div>
+          {members.length === 0 ? (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>No team members yet. Send an invite above.</div>
+            </div>
+          ) : members.map(m => (
+            <div key={m.id || m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 6 }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Users size={14} color="#f59e0b" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{m.full_name || m.email || '—'}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.role || 'member'}</div>
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>{(m.status || 'active').toUpperCase()}</span>
+            </div>
+          ))}
         </div>
       </div>
     )

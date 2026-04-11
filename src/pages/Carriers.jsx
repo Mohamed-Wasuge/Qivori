@@ -150,20 +150,66 @@ export default function Carriers() {
   }, [carrierList, statFilter, search, sortBy])
 
   // -- Handlers --
+  // Map admin plan names → carrier subscription_plan names
+  // Admin uses: trial, beta, basic, pro, enterprise
+  // Carrier side uses: null (trial), tms_pro, ai_dispatch, autonomous_fleet
+  const PLAN_TO_SUBSCRIPTION = {
+    trial: null,
+    beta: 'autonomous_fleet',   // beta = full access = autonomous_fleet
+    basic: 'tms_pro',
+    pro: 'ai_dispatch',
+    enterprise: 'autonomous_fleet',
+  }
+
   const updatePlan = useCallback(async (companyId, newPlan, companyName) => {
     const old = companies.find(c => c.id === companyId)
+    // 1. Update companies.plan (admin dashboard reads this)
     await supabase.from('companies').update({ plan: newPlan }).eq('id', companyId)
-    await logAudit(companyId, 'plan_change', { old_plan: old?.plan, new_plan: newPlan })
-    showToast('', 'Plan Updated', `${companyName} changed to ${newPlan.toUpperCase()}`)
+    // 2. Sync to profiles.subscription_plan for ALL users in this company
+    // so the carrier-side Subscription page shows the correct plan
+    const subscriptionPlan = PLAN_TO_SUBSCRIPTION[newPlan] || null
+    const { data: companyMembers } = await supabase
+      .from('company_members')
+      .select('user_id')
+      .eq('company_id', companyId)
+    const memberIds = (companyMembers || []).map(m => m.user_id).filter(Boolean)
+    // Also include the company owner_id
+    const company = companies.find(c => c.id === companyId)
+    if (company?.owner_id && !memberIds.includes(company.owner_id)) {
+      memberIds.push(company.owner_id)
+    }
+    if (memberIds.length > 0) {
+      await supabase.from('profiles')
+        .update({ subscription_plan: subscriptionPlan, plan: newPlan })
+        .in('id', memberIds)
+    }
+    await logAudit(companyId, 'plan_change', { old_plan: old?.plan, new_plan: newPlan, synced_profiles: memberIds.length })
+    showToast('', 'Plan Updated', `${companyName} changed to ${newPlan.toUpperCase()} · ${memberIds.length} user(s) synced`)
     fetchData()
   }, [companies, showToast, fetchData])
 
   const updateStatus = useCallback(async (companyId, newStatus, companyName) => {
     const old = companies.find(c => c.id === companyId)
+    // 1. Update companies.carrier_status
     await supabase.from('companies').update({ carrier_status: newStatus }).eq('id', companyId)
-    await logAudit(companyId, 'status_change', { old_status: old?.carrier_status, new_status: newStatus })
+    // 2. Sync to profiles.status for all users in this company
+    const { data: companyMembers } = await supabase
+      .from('company_members')
+      .select('user_id')
+      .eq('company_id', companyId)
+    const memberIds = (companyMembers || []).map(m => m.user_id).filter(Boolean)
+    const company = companies.find(c => c.id === companyId)
+    if (company?.owner_id && !memberIds.includes(company.owner_id)) {
+      memberIds.push(company.owner_id)
+    }
+    if (memberIds.length > 0) {
+      await supabase.from('profiles')
+        .update({ status: newStatus })
+        .in('id', memberIds)
+    }
+    await logAudit(companyId, 'status_change', { old_status: old?.carrier_status, new_status: newStatus, synced_profiles: memberIds.length })
     const verb = newStatus === 'active' ? 'Approved' : newStatus === 'suspended' ? 'Suspended' : 'Updated'
-    showToast('', verb, `${companyName} -- ${newStatus}`)
+    showToast('', verb, `${companyName} -- ${newStatus} · ${memberIds.length} user(s) synced`)
     fetchData()
   }, [companies, showToast, fetchData])
 

@@ -266,7 +266,9 @@ export async function deleteExpense(id) {
 
 // ─── COMPANY ─────────────────────────────────────────────────
 export async function fetchCompany() {
-  const { data } = await supabase.from('companies').select('*').limit(1).maybeSingle()
+  const userId = await getUserId()
+  if (!userId) return null
+  const { data } = await supabase.from('companies').select('*').eq('owner_id', userId).limit(1).maybeSingle()
   return data || null
 }
 

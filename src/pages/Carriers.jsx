@@ -477,7 +477,7 @@ export default function Carriers() {
       {/* -- Carrier Table -- */}
       <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
         {/* Table Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.4fr 60px 100px 160px', gap: 0, padding: '10px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 85px 1.2fr 55px 90px minmax(180px,auto)', gap: 0, padding: '10px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
           {['Company', 'Plan', 'Status', 'Owner', 'Loads', 'Joined', 'Actions'].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</div>
           ))}
@@ -494,7 +494,7 @@ export default function Carriers() {
 
           if (isLegacy) return (
             <div key="__legacy__" style={{ borderTop: idx > 0 ? '1px solid var(--border)' : 'none', opacity: 0.6 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.4fr 60px 100px 160px', gap: 0, padding: '13px 20px', cursor: 'pointer', alignItems: 'center' }}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 85px 1.2fr 55px 90px minmax(180px,auto)', gap: 0, padding: '13px 20px', cursor: 'pointer', alignItems: 'center' }}
                 onClick={() => setExpanded(p => ({ ...p, __legacy__: !p.__legacy__ }))}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Ic icon={isExp ? ChevronDown : ChevronRight} size={13} color="var(--muted)" />
@@ -508,7 +508,7 @@ export default function Carriers() {
               {isExp && c.members.map((m, mi) => {
                 const p = m.profile || {}
                 return (
-                  <div key={m.user_id} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.4fr 60px 100px 160px', gap: 0, padding: '10px 20px 10px 52px', borderTop: '1px solid var(--border)', alignItems: 'center', background: 'var(--surface2)' }}>
+                  <div key={m.user_id} style={{ display: 'grid', gridTemplateColumns: '2fr 90px 85px 1.2fr 55px 90px minmax(180px,auto)', gap: 0, padding: '10px 20px 10px 52px', borderTop: '1px solid var(--border)', alignItems: 'center', background: 'var(--surface2)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Avatar name={p.full_name || p.email} size={28} radius={7} fontSize={11} />
                       <div>
@@ -544,7 +544,7 @@ export default function Carriers() {
           return (
             <div key={co.id} style={{ borderTop: idx > 0 ? '1px solid var(--border)' : 'none' }}>
               {/* Main row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.4fr 60px 100px 160px', gap: 0, padding: '14px 20px', alignItems: 'center', cursor: 'pointer', transition: 'background .12s', background: isExp ? 'rgba(240,165,0,0.03)' : 'transparent' }}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 85px 1.2fr 55px 90px minmax(180px,auto)', gap: 0, padding: '14px 20px', alignItems: 'center', cursor: 'pointer', transition: 'background .12s', background: isExp ? 'rgba(240,165,0,0.03)' : 'transparent' }}
                 onClick={() => setExpanded(p => ({ ...p, [co.id]: !p[co.id] }))}
                 onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'var(--surface2)' }}
                 onMouseLeave={e => { if (!isExp) e.currentTarget.style.background = 'transparent' }}>
@@ -629,7 +629,7 @@ export default function Carriers() {
               {isExp && (
                 <div style={{ borderTop: '1px solid rgba(240,165,0,0.15)', background: 'rgba(240,165,0,0.02)' }}>
                   {/* Sub-user header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.4fr 60px 100px 160px', padding: '8px 20px 8px 52px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 85px 1.2fr 55px 90px minmax(180px,auto)', padding: '8px 20px 8px 52px', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
                     {['Member', 'Role', 'Status', 'Email', 'Loads', '', 'Actions'].map(h => (
                       <div key={h} style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</div>
                     ))}
@@ -645,7 +645,7 @@ export default function Carriers() {
                   {c.members.map(m => {
                     const p = m.profile || {}
                     return (
-                      <div key={m.id || m.user_id} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 1.4fr 60px 100px 160px', padding: '11px 20px 11px 52px', borderBottom: '1px solid var(--border)', alignItems: 'center', transition: 'background .1s' }}
+                      <div key={m.id || m.user_id} style={{ display: 'grid', gridTemplateColumns: '2fr 90px 85px 1.2fr 55px 90px minmax(180px,auto)', padding: '11px 20px 11px 52px', borderBottom: '1px solid var(--border)', alignItems: 'center', transition: 'background .1s' }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

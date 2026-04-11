@@ -584,6 +584,14 @@ export default function Carriers() {
                     onMouseLeave={e => { e.currentTarget.style.background = 'rgba(240,165,0,0.08)'; e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'rgba(240,165,0,0.3)' }}>
                     <Ic icon={Eye} size={12} /> View
                   </button>
+                  {c.owner?.id && (
+                    <button onClick={() => setUserModal({ type: 'password', userId: c.owner.id, email: c.owner.email, name: c.owner.full_name || co.name })} title="Set owner password"
+                      style={{ padding: '6px 9px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', transition: 'all .12s', display: 'flex', alignItems: 'center' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' }}>
+                      <Ic icon={KeyRound} size={12} />
+                    </button>
+                  )}
                   {co.carrier_status === 'pending' && (
                     <button onClick={() => updateStatus(co.id, 'active', co.name)}
                       style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--success)', background: 'transparent', color: 'var(--success)', transition: 'all .12s' }}

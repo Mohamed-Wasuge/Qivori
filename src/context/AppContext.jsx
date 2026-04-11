@@ -148,6 +148,8 @@ export function AppProvider({ children }) {
 
   // Auto-create owner membership for existing users who don't have one
   const ensureOwnerMembership = useCallback(async (userId, prof) => {
+    // Admins don't belong to a carrier company — skip entirely
+    if (prof?.role === 'admin') return null
     try {
       // Use the user's own ID as company_id for solo owner-operators
       const cid = prof?.company_id || userId
@@ -207,7 +209,7 @@ export function AppProvider({ children }) {
 
         // Fetch company membership
         const membership = await fetchCompanyMembership(session.user.id)
-        if (!membership && (role === 'carrier' || role === 'admin')) {
+        if (!membership && role === 'carrier') {
           // Existing user with no membership — auto-create as owner
           await ensureOwnerMembership(session.user.id, prof)
         }
@@ -306,7 +308,7 @@ export function AppProvider({ children }) {
 
         // Fetch company membership
         const membership = await fetchCompanyMembership(data.user.id)
-        if (!membership && (prof?.role === 'carrier' || prof?.role === 'admin' || quickRole === 'carrier')) {
+        if (!membership && (prof?.role === 'carrier' || quickRole === 'carrier')) {
           await ensureOwnerMembership(data.user.id, prof)
         }
 

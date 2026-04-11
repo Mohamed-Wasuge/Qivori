@@ -74,7 +74,7 @@ export default async function handler(req) {
     const phone10 = digits.slice(-10)
 
     const [companies, negSettings, urgencyRows, dieselRows] = await Promise.all([
-      sbGet(`companies?owner_id=eq.${user.id}&select=name,mc_number,dot_number&limit=1`),
+      sbGet(`companies?owner_id=eq.${user.id}&select=name,mc_number,dot_number,id&limit=1`),
       sbGet(`negotiation_settings?user_id=eq.${user.id}&select=min_rate_per_mile,counter_offer_markup_pct,max_counter_rounds,auto_accept_above_minimum&limit=1`),
       brokerName
         ? sbGet(`broker_urgency_scores?owner_id=eq.${user.id}&broker_name=eq.${encodeURIComponent(brokerName)}&select=urgency_score,signals,call_count&limit=1`)
@@ -83,6 +83,24 @@ export default async function handler(req) {
     ])
 
     const company = companies[0] || {}
+
+    // ── Resolve truckId / driverId server-side ───────────────────────────
+    // Frontend passes these for carrier sessions. For admin dispatching on
+    // behalf of a carrier, resolve via company_members → profiles.
+    let resolvedTruckId = body.truckId || ''
+    let resolvedDriverId = body.driverId || user.id
+    if (!resolvedTruckId && company.id) {
+      const members = await sbGet(`company_members?company_id=eq.${company.id}&select=profile_id&limit=20`)
+      const ids = members.map(m => m.profile_id).filter(Boolean)
+      if (ids.length) {
+        const drivers = await sbGet(`profiles?id=in.(${ids.join(',')})&assigned_truck_id=not.is.null&select=id,assigned_truck_id&limit=1`)
+        if (drivers[0]) {
+          resolvedTruckId = drivers[0].assigned_truck_id
+          resolvedDriverId = drivers[0].id
+        }
+      }
+    }
+    console.log('[retell-broker-call] truckId:', resolvedTruckId, 'driverId:', resolvedDriverId)
     const neg = negSettings[0] || { min_rate_per_mile: 2.50, counter_offer_markup_pct: 10, max_counter_rounds: 2 }
     const urgency = urgencyRows[0] || null
     const dieselPrice = dieselRows[0]?.price || 4.00
@@ -147,8 +165,8 @@ export default async function handler(req) {
           destination: destCity,
           rate: String(rate),
           userId: user.id,
-          driverId: body.driverId || user.id,
-          truckId: body.truckId || '',
+          driverId: resolvedDriverId,
+          truckId: resolvedTruckId,
           // Carries the source experience so the webhook can skip legacy
           // TMS pipelines for AutoShell users (auto-book, retry, etc).
           experience: body.experience || 'tms',

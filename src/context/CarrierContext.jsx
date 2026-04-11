@@ -3,176 +3,19 @@ import * as db from '../lib/database'
 import { supabase } from '../lib/supabase'
 import { useApp } from './AppContext'
 import { MemoryProvider, useMemory } from './MemoryContext'
+import { FinancialsProvider, useFinancials } from './FinancialsContext'
 import { setInvoiceCompany } from '../utils/generatePDF'
 import { checkCDL, checkMedicalCard, checkDriverAvailability, checkRegistration, checkInsurance, checkOutOfService } from '../lib/compliance'
 import { canDriverTakeLoad } from '../lib/hosSimulation'
 import { calculateCrashRisk } from '../lib/crashRiskEngine'
-import { fmtDate } from '../lib/formatters'
 import { DELIVERED_STATUSES } from '../lib/constants'
+import { normalizeLoad, normalizeInvoice, normalizeCompany } from '../lib/normalizers'
 import {
   DEMO_LOADS,
-  DEMO_INVOICES,
-  DEMO_EXPENSES,
   DEMO_DRIVERS,
   DEMO_VEHICLES,
   DEMO_COMPANY,
 } from '../data/demoData'
-
-const CarrierContext = createContext(null)
-
-// ─── Compatibility layer ─────────────────────────────────────
-// Canonical Load shape (what every component should use):
-//   id            — DB primary key (uuid)
-//   loadId        — user-facing reference (e.g. "QV-0012"), same as load_id / load_number
-//   origin        — string
-//   destination   — string (alias: dest)
-//   gross         — total gross pay in $ (alias: gross_pay)
-//   rate          — rate per mile in $/mi (alias: rate_per_mile)
-//   miles         — integer
-//   driver        — display name (alias: driver_name, carrier_name)
-//   broker        — display name (alias: broker_name)
-//   status        — load pipeline status string
-//   pickup        — formatted "Apr 11" or "Apr 11 · 08:00" string
-//   delivery      — formatted "Apr 12" string
-//   stops         — normalized stop array
-//
-// DB aliases (load_id, load_number, destination, gross_pay, etc.) are kept
-// so both old and new code works during migration. Do not add new aliases.
-
-/**
- * @param {object} l - raw DB load row
- * @returns {object} normalized load with canonical + alias fields
- */
-function normalizeLoad(l) {
-  if (!l) return l
-  const fmtLoadDate = (d, t) => {
-    const base = fmtDate(d)
-    return (base && t) ? `${base} · ${t}` : base
-  }
-  // Preserve original DB rate (gross $) — avoid re-normalizing RPM back as gross
-  const dbRate = Number(l._dbRate) || Number(l.rate) || 0
-  const grossVal = (dbRate > 100 ? dbRate : 0) || Number(l.gross_pay) || Number(l.gross) || 0
-  const milesVal = Number(l.miles) || 0
-  const rpm = milesVal > 0 ? +(grossVal / milesVal).toFixed(2) : 0
-  return {
-    ...l,
-    // Frontend aliases
-    loadId: l.load_id || l.load_number || l.loadId || '',
-    dest: l.destination || l.dest || '',
-    gross: grossVal,
-    _dbRate: dbRate || grossVal,  // preserve original DB rate across re-normalizations
-    rate: rpm || Number(l.rate_per_mile) || 0,
-    driver: l.carrier_name || l.driver_name || l.driver || '',
-    broker: l.broker_name || l.broker || '',
-    refNum: l.reference_number || l.refNum || '',
-    pickup: fmtLoadDate(l.pickup_date, l.pickup_time),
-    delivery: fmtLoadDate(l.delivery_date, l.delivery_time),
-    commodity: l.notes || l.commodity || '',
-    miles: milesVal,
-    weight: l.weight || '',
-    // DB aliases (so both old and new code works)
-    load_id: l.load_id || l.load_number || l.loadId || '',
-    load_number: l.load_id || l.load_number || l.loadId || '',
-    destination: l.destination || l.dest || '',
-    gross_pay: grossVal,
-    rate_per_mile: rpm,
-    driver_name: l.carrier_name || l.driver_name || l.driver || '',
-    carrier_name: l.carrier_name || l.driver_name || l.driver || '',
-    reference_number: l.reference_number || l.refNum || '',
-    // Team driver
-    co_driver_name: l.co_driver_name || '',
-    co_driver_id: l.co_driver_id || null,
-    // Stops — normalize new fields
-    stops: (l.load_stops || l.stops || []).map(s => ({
-      ...s,
-      contact_name: s.contact_name || '',
-      contact_phone: s.contact_phone || '',
-      reference_number: s.reference_number || '',
-      notes: s.notes || '',
-      scheduled_date: s.scheduled_date || '',
-      actual_arrival: s.actual_arrival || null,
-      actual_departure: s.actual_departure || null,
-      state: s.state || '',
-      zip_code: s.zip_code || '',
-    })),
-    stopCount: (l.load_stops || l.stops || []).length,
-    currentStop: l.load_stops
-      ? (l.load_stops.findIndex(s => s.status === 'current') ?? 0)
-      : (l.currentStop ?? 0),
-    // LTL / Partial fields
-    load_type: l.load_type || 'FTL',
-    freight_class: l.freight_class || null,
-    pallet_count: l.pallet_count || null,
-    stackable: l.stackable || false,
-    length_inches: l.length_inches || null,
-    width_inches: l.width_inches || null,
-    height_inches: l.height_inches || null,
-    handling_unit: l.handling_unit || null,
-    consolidation_id: l.consolidation_id || null,
-    // Source tracking
-    load_source: l.load_source || null,
-    amazon_block_id: l.amazon_block_id || null,
-    payment_terms: l.payment_terms || null,
-  }
-}
-
-/**
- * @param {object} inv - raw DB invoice row
- * @returns {object} normalized invoice
- */
-function normalizeInvoice(inv) {
-  if (!inv) return inv
-  return {
-    ...inv,
-    // Aliases
-    id: inv.invoice_number || inv.id,
-    _dbId: inv.id, // preserve real DB id
-    loadId: inv.load_number || inv.loadId,
-    date: fmtDate(inv.invoice_date) || inv.date || '',
-    dueDate: fmtDate(inv.due_date) || inv.dueDate || '',
-    driver: inv.driver_name || inv.driver || '',
-    // Keep DB names
-    invoice_number: inv.invoice_number || inv.id,
-    load_number: inv.load_number || inv.loadId,
-    invoice_date: inv.invoice_date || '',
-    due_date: inv.due_date || '',
-    driver_name: inv.driver_name || inv.driver || '',
-    amount: Number(inv.amount) || 0,
-    line_items: inv.line_items || [],
-  }
-}
-
-/**
- * @param {object} e - raw DB expense row
- * @returns {object} normalized expense
- */
-function normalizeExpense(e) {
-  if (!e) return e
-  return {
-    ...e,
-    // Aliases
-    cat: e.category || e.cat,
-    load: e.load_number || e.load || '',
-    driver: e.driver_name || e.driver || '',
-    date: fmtDate(e.date) || '',
-    // Keep DB names
-    category: e.category || e.cat,
-    load_number: e.load_number || e.load || '',
-    driver_name: e.driver_name || e.driver || '',
-    amount: Number(e.amount) || 0,
-  }
-}
-
-function normalizeCompany(c) {
-  if (!c) return c
-  return {
-    ...c,
-    mc: c.mc_number || c.mc || '',
-    dot: c.dot_number || c.dot || '',
-    mc_number: c.mc_number || c.mc || '',
-    dot_number: c.dot_number || c.dot || '',
-  }
-}
 
 // ─── No mock data — production uses Supabase only ───────────
 
@@ -182,7 +25,9 @@ function normalizeCompany(c) {
 export function CarrierProvider({ children }) {
   return (
     <MemoryProvider>
-      <CarrierInner>{children}</CarrierInner>
+      <FinancialsProvider>
+        <CarrierInner>{children}</CarrierInner>
+      </FinancialsProvider>
     </MemoryProvider>
   )
 }
@@ -190,6 +35,14 @@ export function CarrierProvider({ children }) {
 function CarrierInner({ children }) {
   const { demoMode, showToast, isDriver, myDriverId, companyRole, profile, user, authLoading } = useApp() || {}
   const { qMemories, aiFees, fuelCostPerMile, carrierMpg, addQMemory, removeQMemory } = useMemory() || {}
+  const {
+    invoices: visibleInvoices, expenses: visibleExpenses,
+    allInvoices, allExpenses,
+    unpaidInvoices, totalExpenses,
+    updateInvoiceStatus, addExpense, editExpense, removeExpense, removeInvoice,
+    appendInvoice, pruneInvoicesByLoadId,
+    registerLoadsUpdater,
+  } = useFinancials() || {}
 
   // Helper: block write operations in demo mode
   const demoGuard = useCallback((label) => {
@@ -200,8 +53,6 @@ function CarrierInner({ children }) {
     return false
   }, [demoMode, showToast])
   const [loads, setLoads] = useState([])
-  const [invoices, setInvoices] = useState([])
-  const [expenses, setExpenses] = useState([])
   const [drivers, setDrivers] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [company, setCompany] = useState(normalizeCompany({}))
@@ -211,6 +62,16 @@ function CarrierInner({ children }) {
   const [useDb, setUseDb] = useState(true)
   const initRef = useRef(false)
   const prevUserRef = useRef(null)
+
+  // Register loads updater with FinancialsContext so updateInvoiceStatus can sync load status
+  useEffect(() => {
+    registerLoadsUpdater?.((inv) => {
+      setLoads(ls => ls.map(l => {
+        const match = l.loadId === inv.loadId || l.load_number === inv.load_number
+        return match ? normalizeLoad({ ...l, status: 'Invoiced' }) : l
+      }))
+    })
+  }, [registerLoadsUpdater])
 
   // Reset init flag when user changes (logout → login)
   useEffect(() => {
@@ -228,8 +89,6 @@ function CarrierInner({ children }) {
       if (initRef.current) return
       initRef.current = true
       setLoads(DEMO_LOADS.map(normalizeLoad))
-      setInvoices(DEMO_INVOICES.map(normalizeInvoice))
-      setExpenses(DEMO_EXPENSES.map(normalizeExpense))
       setDrivers(DEMO_DRIVERS)
       setVehicles(DEMO_VEHICLES)
       setCompany(normalizeCompany(DEMO_COMPANY))
@@ -254,10 +113,8 @@ function CarrierInner({ children }) {
 
     async function init() {
       try {
-        const [dbLoads, dbInvoices, dbExpenses, dbCompany, dbDrivers, dbVehicles, dbConsolidations] = await Promise.all([
+        const [dbLoads, dbCompany, dbDrivers, dbVehicles, dbConsolidations] = await Promise.all([
           db.fetchLoads(),
-          db.fetchInvoices(),
-          db.fetchExpenses(),
           db.fetchCompany(),
           db.fetchDrivers(),
           db.fetchVehicles(),
@@ -265,8 +122,6 @@ function CarrierInner({ children }) {
         ])
 
         setLoads(dbLoads.map(normalizeLoad))
-        setInvoices(dbInvoices.map(normalizeInvoice))
-        setExpenses(dbExpenses.map(normalizeExpense))
         setDrivers(dbDrivers)
         setVehicles(dbVehicles)
         setConsolidations(dbConsolidations || [])
@@ -279,8 +134,6 @@ function CarrierInner({ children }) {
       } catch (e) {
         console.error('[CarrierContext] Init failed:', e.message || e)
         setLoads([])
-        setInvoices([])
-        setExpenses([])
         setDrivers([])
         setVehicles([])
         setUseDb(false)
@@ -328,23 +181,11 @@ function CarrierInner({ children }) {
     }
 
     const loadsHandler = createDebouncedHandler(setLoads, normalizeLoad)
-    const invoicesHandler = createDebouncedHandler(setInvoices, normalizeInvoice)
-    const expensesHandler = createDebouncedHandler(setExpenses, normalizeExpense)
 
     const loadsChannel = supabase.channel('realtime-loads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'loads' }, loadsHandler)
       .subscribe()
     channels.push(loadsChannel)
-
-    const invoicesChannel = supabase.channel('realtime-invoices')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, invoicesHandler)
-      .subscribe()
-    channels.push(invoicesChannel)
-
-    const expensesChannel = supabase.channel('realtime-expenses')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, expensesHandler)
-      .subscribe()
-    channels.push(expensesChannel)
 
     return () => {
       channels.forEach(ch => supabase.removeChannel(ch))
@@ -419,7 +260,7 @@ function CarrierInner({ children }) {
       db.createAuditLog({ action: 'load.deleted', entity_type: 'load', entity_id: load.id, old_value: { loadId: load.loadId, origin: load.origin, destination: load.dest, gross: load.gross, status: load.status }, metadata: { driver: load.driver, broker: load.broker } }).catch(() => {})
     }
     setLoads(ls => ls.filter(l => !(l.loadId === loadId || l.load_id === loadId || l.load_number === loadId || l.id === loadId)))
-    setInvoices(invs => invs.filter(i => i.loadId !== loadId && i.load_number !== loadId))
+    pruneInvoicesByLoadId?.(loadId)
     showToast?.('', 'Load Deleted', `${load.loadId || load.load_number || loadId} removed`)
   }, [loads, useDb, demoGuard, showToast])
 
@@ -583,7 +424,7 @@ function CarrierInner({ children }) {
           const createInvoiceWithRetry = async (attempt = 1) => {
             try {
               const dbInv = await db.createInvoice({ ...inv, load_id: dbLoadId })
-              setInvoices(invs => [normalizeInvoice(dbInv), ...invs])
+              appendInvoice?.(normalizeInvoice(dbInv))
               // Audit log: invoice auto-created on delivery
               db.createAuditLog({
                 action: 'invoice_created',
@@ -659,11 +500,10 @@ function CarrierInner({ children }) {
             }).then(r => r.json()).catch(err => { console.error('[Pilot] AI fee charge failed:', err) })
           }
         } else {
-          const fakeInv = normalizeInvoice({
+          appendInvoice?.(normalizeInvoice({
             ...inv, id: 'local-inv-' + Date.now(),
             invoice_number: 'INV-' + String(Math.floor(Math.random() * 9000) + 1000),
-          })
-          setInvoices(invs => [fakeInv, ...invs])
+          }))
         }
       }
 
@@ -931,103 +771,6 @@ function CarrierInner({ children }) {
     }))
   }, [useDb])
 
-  // ─── Invoice operations ───────────────────────────────────────
-  const updateInvoiceStatus = useCallback(async (invoiceId, status) => {
-    if (demoGuard('update invoices')) return
-    const inv = invoices.find(i => i.id === invoiceId || i.invoice_number === invoiceId || i._dbId === invoiceId)
-
-    if (useDb && inv && inv._dbId && !String(inv._dbId).startsWith('mock') && !String(inv._dbId).startsWith('local')) {
-      try {
-        await db.updateInvoice(inv._dbId, { status, ...(status === 'Paid' ? { paid_at: new Date().toISOString() } : {}) })
-        // Create payment record for QB sync when marked Paid
-        if (status === 'Paid') {
-          db.createPayment({
-            invoice_id: inv._dbId,
-            amount: inv.factoring_net || inv.amount || 0,
-            broker: inv.broker || inv.customer || null,
-            customer: inv.broker || inv.customer || null,
-            reference: inv.invoice_number || inv.id,
-            date: new Date().toISOString().split('T')[0],
-            source: inv.factoring_company ? 'factoring' : 'broker',
-            factoring_company: inv.factoring_company || null,
-          }).catch(() => {})
-        }
-        // Audit log: invoice payment status change
-        db.createAuditLog({
-          action: 'invoice_status_change',
-          entity_type: 'invoice',
-          entity_id: inv._dbId,
-          old_value: { status: inv.status },
-          new_value: { status },
-          metadata: { invoice_number: inv.invoice_number, amount: inv.amount, load_number: inv.load_number || inv.loadId },
-        }).catch(() => {})
-      } catch (e) {
-        console.error('DB operation failed:', e)
-      }
-    }
-
-    setInvoices(invs => invs.map(i => {
-      const match = i.id === invoiceId || i.invoice_number === invoiceId || i._dbId === invoiceId
-      return match ? normalizeInvoice({ ...i, status }) : i
-    }))
-
-    // Mark linked load as Invoiced
-    if (inv && status !== 'Unpaid') {
-      setLoads(ls => ls.map(l => {
-        const match = l.loadId === inv.loadId || l.load_number === inv.load_number
-        return match ? normalizeLoad({ ...l, status: 'Invoiced' }) : l
-      }))
-    }
-  }, [invoices, useDb, demoGuard])
-
-  // ─── Expense operations ───────────────────────────────────────
-  const addExpense = useCallback(async (exp) => {
-    if (demoGuard('add expenses')) return null
-    if (useDb) {
-      try {
-        const newExp = await db.createExpense(exp)
-        setExpenses(es => [normalizeExpense(newExp), ...es])
-        db.createAuditLog({ action: 'expense.created', entity_type: 'expense', entity_id: newExp.id, new_value: { category: exp.category, amount: exp.amount, vendor: exp.vendor || exp.description }, metadata: { driver: exp.driver_name, date: exp.expense_date || exp.date } }).catch(() => {})
-        return normalizeExpense(newExp)
-      } catch (e) {
-        console.error('DB operation failed:', e)
-      }
-    }
-    const fakeExp = normalizeExpense({ ...exp, id: 'local-exp-' + Date.now() })
-    setExpenses(es => [fakeExp, ...es])
-    return fakeExp
-  }, [useDb, demoGuard])
-
-  const editExpense = useCallback(async (id, updates) => {
-    if (demoGuard('edit expenses')) return
-    const existing = expenses.find(e => e.id === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.updateExpense(id, updates) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'expense.updated', entity_type: 'expense', entity_id: id, old_value: existing ? { amount: existing.amount, category: existing.category } : null, new_value: updates }).catch(() => {})
-    }
-    setExpenses(es => es.map(e => e.id === id ? normalizeExpense({ ...e, ...updates }) : e))
-  }, [useDb, demoGuard, expenses])
-
-  const removeExpense = useCallback(async (id) => {
-    if (demoGuard('remove expenses')) return
-    const existing = expenses.find(e => e.id === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteExpense(id) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'expense.deleted', entity_type: 'expense', entity_id: id, old_value: existing ? { amount: existing.amount, category: existing.category, vendor: existing.vendor || existing.description } : null }).catch(() => {})
-    }
-    setExpenses(es => es.filter(e => e.id !== id))
-  }, [useDb, demoGuard, expenses])
-
-  const removeInvoice = useCallback(async (id) => {
-    if (demoGuard('remove invoices')) return
-    const existing = invoices.find(i => i.id === id || i._dbId === id)
-    if (useDb && !String(id).startsWith('mock') && !String(id).startsWith('local')) {
-      try { await db.deleteInvoice(id) } catch (e) { console.error('DB operation failed:', e) }
-      db.createAuditLog({ action: 'invoice.deleted', entity_type: 'invoice', entity_id: id, old_value: existing ? { invoice_number: existing.invoice_number, amount: existing.amount, status: existing.status } : null }).catch(() => {})
-    }
-    setInvoices(is => is.filter(i => i.id !== id && i._dbId !== id))
-  }, [useDb, demoGuard, invoices])
-
   // ─── Check calls ──────────────────────────────────────────────
   const logCheckCall = useCallback(async (loadNumber, call) => {
     if (demoGuard('log check calls')) return
@@ -1212,11 +955,9 @@ function CarrierInner({ children }) {
     setConsolidations(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
   }, [useDb, demoGuard])
 
-  // ─── Reset (clears all local data) ──────────────────────────────
+  // ─── Reset (clears loads/fleet data owned by this context) ─────────
   const resetData = useCallback(() => {
     setLoads([])
-    setInvoices([])
-    setExpenses([])
     setDrivers([])
     setVehicles([])
     setCompany(normalizeCompany({}))
@@ -1224,39 +965,19 @@ function CarrierInner({ children }) {
     setConsolidations([])
   }, [])
 
-  // ─── Driver filtering ────────────────────────────────────────
-  // For driver-role users, filter data to only their assigned loads/expenses
+  // ─── Load driver-role filtering ──────────────────────────────
   const driverName = isDriver ? (profile?.full_name || '') : ''
 
   const isMyLoad = useCallback((load) => {
     if (!isDriver) return true
-    // Match by driver_id if available
     if (myDriverId && load.driver_id === myDriverId) return true
-    // Fallback: match by driver_name
     if (driverName && (load.driver_name || load.driver || load.carrier_name || '').toLowerCase() === driverName.toLowerCase()) return true
     return false
   }, [isDriver, myDriverId, driverName])
 
-  const isMyExpense = useCallback((exp) => {
-    if (!isDriver) return true
-    if (myDriverId && exp.driver_id === myDriverId) return true
-    if (driverName && (exp.driver_name || exp.driver || '').toLowerCase() === driverName.toLowerCase()) return true
-    return false
-  }, [isDriver, myDriverId, driverName])
-
-  const isMyInvoice = useCallback((inv) => {
-    if (!isDriver) return true
-    // Match by driver_name or by load linkage
-    if (driverName && (inv.driver_name || inv.driver || '').toLowerCase() === driverName.toLowerCase()) return true
-    return false
-  }, [isDriver, driverName])
-
-  // Filtered data views for driver role
   const visibleLoads = useMemo(() => isDriver ? loads.filter(isMyLoad) : loads, [loads, isDriver, isMyLoad])
-  const visibleExpenses = useMemo(() => isDriver ? expenses.filter(isMyExpense) : expenses, [expenses, isDriver, isMyExpense])
-  const visibleInvoices = useMemo(() => isDriver ? invoices.filter(isMyInvoice) : invoices, [invoices, isDriver, isMyInvoice])
 
-  // ─── Computed values (memoized — only recalculate when source data changes) ──
+  // ─── Computed values ─────────────────────────────────────────
   const deliveredLoads = useMemo(
     () => visibleLoads.filter(l => DELIVERED_STATUSES.includes(l.status)),
     [visibleLoads]
@@ -1265,20 +986,12 @@ function CarrierInner({ children }) {
     () => visibleLoads.filter(l => !DELIVERED_STATUSES.includes(l.status) && l.status !== 'Cancelled'),
     [visibleLoads]
   )
-  const unpaidInvoices = useMemo(
-    () => visibleInvoices.filter(i => i.status === 'Unpaid'),
-    [visibleInvoices]
-  )
   const totalRevenue = useMemo(
     () => deliveredLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0),
     [deliveredLoads]
   )
-  const totalExpenses = useMemo(
-    () => visibleExpenses.reduce((s, e) => s + (e.amount || 0), 0),
-    [visibleExpenses]
-  )
 
-  // Pre-indexed driver map for O(1) lookups (scales to 100+ drivers)
+  // Pre-indexed driver map for O(1) lookups
   const driverMap = useMemo(() => {
     const map = new Map()
     drivers.forEach(d => {
@@ -1289,7 +1002,7 @@ function CarrierInner({ children }) {
     return map
   }, [drivers])
 
-  // Broker intelligence — score brokers from load + invoice history
+  // Broker intelligence — uses loads + invoices from FinancialsContext
   const brokerStats = useMemo(() => {
     const map = {}
     loads.forEach(l => {
@@ -1300,56 +1013,54 @@ function CarrierInner({ children }) {
       b.loads += 1
       b.totalRevenue += Number(l.rate || l.gross || 0)
       b.miles += Number(l.miles || 0)
-      // on-time: delivered before or on scheduled date (if available)
       if (l.status === 'Delivered' || l.status === 'Invoiced' || l.status === 'Paid') {
         b.total += 1
         if (l.delivery_date && l.actual_delivery) {
           if (new Date(l.actual_delivery) <= new Date(l.delivery_date)) b.onTime += 1
-          else b.onTime += 0
         } else {
-          b.onTime += 1 // assume on-time if no dates to compare
+          b.onTime += 1
         }
       }
     })
-    // Match invoices to brokers via load_id
     const loadBrokerMap = {}
-    loads.forEach(l => {
-      const name = l.broker_name || l.broker
-      if (name && l.id) loadBrokerMap[l.id] = name
-    })
-    invoices.forEach(inv => {
+    loads.forEach(l => { const name = l.broker_name || l.broker; if (name && l.id) loadBrokerMap[l.id] = name })
+    ;(allInvoices || []).forEach(inv => {
       const brokerName = inv.broker_name || inv.broker || loadBrokerMap[inv.load_id]
       if (!brokerName || !map[brokerName]) return
       if (inv.status === 'Paid') {
         const created = new Date(inv.created_at || inv.date)
         const paid = new Date(inv.paid_at || inv.updated_at)
         if (!isNaN(created) && !isNaN(paid)) {
-          const days = Math.max(0, Math.round((paid - created) / 86400000))
-          map[brokerName].payDays.push(days)
+          map[brokerName].payDays.push(Math.max(0, Math.round((paid - created) / 86400000)))
         }
       }
     })
     return Object.values(map)
       .map(b => ({
-        name: b.name,
-        totalLoads: b.loads,
-        totalRevenue: b.totalRevenue,
+        name: b.name, totalLoads: b.loads, totalRevenue: b.totalRevenue,
         avgRpm: b.miles > 0 ? (b.totalRevenue / b.miles).toFixed(2) : 'N/A',
         avgDaysToPay: b.payDays.length > 0 ? Math.round(b.payDays.reduce((s, d) => s + d, 0) / b.payDays.length) : null,
         onTimeRate: b.total > 0 ? Math.round((b.onTime / b.total) * 100) : null,
       }))
       .sort((a, b) => b.totalLoads - a.totalLoads)
-  }, [loads, invoices])
+  }, [loads, allInvoices])
 
   return (
     <CarrierContext.Provider value={{
-      loads: visibleLoads, invoices: visibleInvoices, expenses: visibleExpenses,
-      allLoads: loads, allInvoices: invoices, allExpenses: expenses,
-      drivers, vehicles, company, checkCalls, qMemories, consolidations, aiFees,
-      deliveredLoads, activeLoads, unpaidInvoices,
-      totalRevenue, totalExpenses, brokerStats, driverMap, fuelCostPerMile, carrierMpg,
-      updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
+      // Loads (owned here)
+      loads: visibleLoads, allLoads: loads,
+      deliveredLoads, activeLoads, totalRevenue, brokerStats, driverMap,
+      // Financials (from FinancialsContext — re-exported for useCarrier() compat)
+      invoices: visibleInvoices, expenses: visibleExpenses,
+      allInvoices, allExpenses,
+      unpaidInvoices, totalExpenses,
       updateInvoiceStatus, addExpense, editExpense, removeExpense, removeInvoice,
+      // Fleet
+      drivers, vehicles, company, checkCalls, consolidations,
+      // Memory (from MemoryContext)
+      qMemories, aiFees, fuelCostPerMile, carrierMpg,
+      // Operations
+      updateLoadStatus, assignLoadToDriver, addLoad, addLoadWithStops, removeLoad, advanceStop,
       addDriver, editDriver, removeDriver,
       addVehicle, editVehicle, removeVehicle,
       addConsolidation, editConsolidation,

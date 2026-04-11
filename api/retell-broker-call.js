@@ -146,6 +146,8 @@ export default async function handler(req) {
           destination: destCity,
           rate: String(rate),
           userId: user.id,
+          driverId: body.driverId || user.id,
+          truckId: body.truckId || '',
           // Carries the source experience so the webhook can skip legacy
           // TMS pipelines for AutoShell users (auto-book, retry, etc).
           experience: body.experience || 'tms',

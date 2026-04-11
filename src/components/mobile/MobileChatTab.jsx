@@ -910,6 +910,8 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
                 brokerName: action.broker || brokerLoad?.broker_name || 'the broker',
                 loadDetails,
                 driverName: driverName || 'Driver',
+                truckId: profile?.assigned_truck_id || '',
+                driverId: profile?.id || '',
               }),
             })
             const callData = await callRes.json()

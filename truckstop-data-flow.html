@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Qivori AI — Integration Data Flow</title>
+<style>
+  @page { size: landscape; margin: 0.3in; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #1a1a1a;
+    padding: 20px;
+  }
+
+  .page {
+    width: 1050px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid #f0a500;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+  .logo { font-size: 26px; font-weight: 800; letter-spacing: 5px; color: #f0a500; }
+  .logo span { color: #666; font-weight: 400; font-size: 15px; margin-left: 8px; }
+  .header-right { text-align: right; }
+  .header-right h1 { font-size: 18px; color: #1a1a1a; }
+  .header-right p { font-size: 11px; color: #666; margin-top: 2px; }
+
+  /* Flow diagram - simplified horizontal */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 16px 0 20px;
+    padding: 16px 10px;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+  }
+  .box {
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 10px 14px;
+    text-align: center;
+    min-width: 130px;
+    background: #fff;
+  }
+  .box-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+  .box-sub { font-size: 10px; color: #666; line-height: 1.4; }
+  .box.carrier { border-color: #f0a500; }
+  .box.carrier .box-title { color: #f0a500; }
+  .box.frontend { border-color: #3b82f6; }
+  .box.frontend .box-title { color: #3b82f6; }
+  .box.backend { border-color: #22c55e; background: #f0fdf4; }
+  .box.backend .box-title { color: #16a34a; }
+  .box.partner { border-color: #ef4444; }
+  .box.partner .box-title { color: #ef4444; }
+  .box.db { border-color: #f0a500; }
+  .box.db .box-title { color: #f0a500; }
+  .box.ai { border-color: #8b5cf6; }
+  .box.ai .box-title { color: #8b5cf6; }
+
+  .arrow {
+    font-size: 22px;
+    color: #333;
+    padding: 0 6px;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .arrow-label { font-size: 8px; color: #666; font-weight: 600; letter-spacing: 0.5px; }
+
+  /* Bottom row */
+  .bottom-row {
+    display: flex;
+    justify-content: center;
+    gap: 80px;
+    margin-top: -6px;
+    margin-bottom: 18px;
+  }
+  .bottom-conn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .bottom-conn .vert-arrow { font-size: 16px; color: #666; }
+
+  /* Steps */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .step {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #f0a500;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-text { font-size: 11px; line-height: 1.4; }
+  .step-text strong { display: block; font-size: 11px; color: #1a1a1a; }
+  .step-text span { color: #555; }
+
+  /* Security grid */
+  .security-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f0a500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-top: 12px;
+    border-top: 1px solid #ddd;
+  }
+  .security-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .sec-item {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .sec-item strong { color: #1a1a1a; display: block; margin-bottom: 2px; font-size: 11px; }
+  .sec-item span { color: #555; }
+
+  /* Footer */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #999;
+    padding-top: 8px;
+    border-top: 1px solid #ddd;
+  }
+
+  /* TLS banner */
+  .tls-banner {
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #22c55e;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 4px;
+    padding: 4px 0;
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="logo">QIVORI<span>AI</span></div>
+    <div class="header-right">
+      <h1>Integration Data Flow</h1>
+      <p>Architecture & Security Overview — Confidential</p>
+    </div>
+  </div>
+
+  <div class="tls-banner">ALL COMMUNICATION ENCRYPTED VIA HTTPS / TLS 1.3</div>
+
+  <!-- SVG Diagram with connected arrows -->
+  <div style="margin: 12px 0 16px; padding: 12px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 8px;">
+    <svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto;">
+      <defs>
+        <marker id="a-gold" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,3.5 L0,7z" fill="#f0a500"/></marker>
+        <marker id="a-blue" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,3.5 L0,7z" fill="#3b82f6"/></marker>
+        <marker id="a-green" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,3.5 L0,7z" fill="#22c55e"/></marker>
+        <marker id="a-red" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,3.5 L0,7z" fill="#ef4444"/></marker>
+        <marker id="a-purple" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,3.5 L0,7z" fill="#8b5cf6"/></marker>
+        <marker id="a-gray" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="9" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,3.5 L0,7z" fill="#999"/></marker>
+      </defs>
+
+      <!-- BOXES -->
+      <!-- Carrier -->
+      <rect x="10" y="60" width="150" height="80" rx="8" fill="#fff" stroke="#f0a500" stroke-width="2"/>
+      <text x="85" y="88" text-anchor="middle" fill="#f0a500" font-size="12" font-weight="700" letter-spacing="1">CARRIER</text>
+      <text x="85" y="106" text-anchor="middle" fill="#555" font-size="10">End User</text>
+      <text x="85" y="120" text-anchor="middle" fill="#888" font-size="9">Browser / Mobile</text>
+
+      <!-- Frontend -->
+      <rect x="240" y="60" width="170" height="80" rx="8" fill="#fff" stroke="#3b82f6" stroke-width="2"/>
+      <text x="325" y="88" text-anchor="middle" fill="#3b82f6" font-size="12" font-weight="700" letter-spacing="1">QIVORI FRONTEND</text>
+      <text x="325" y="106" text-anchor="middle" fill="#555" font-size="10">React SPA</text>
+      <text x="325" y="120" text-anchor="middle" fill="#888" font-size="9">Vercel CDN (US)</text>
+
+      <!-- Backend -->
+      <rect x="490" y="50" width="180" height="100" rx="8" fill="#f0fdf4" stroke="#22c55e" stroke-width="2"/>
+      <text x="580" y="78" text-anchor="middle" fill="#16a34a" font-size="12" font-weight="700" letter-spacing="1">QIVORI BACKEND</text>
+      <text x="580" y="96" text-anchor="middle" fill="#555" font-size="10">Vercel Edge Functions</text>
+      <text x="580" y="112" text-anchor="middle" fill="#888" font-size="9">JWT Validation</text>
+      <text x="580" y="126" text-anchor="middle" fill="#888" font-size="9">Token Decryption</text>
+
+      <!-- Partner API -->
+      <rect x="760" y="60" width="170" height="80" rx="8" fill="#fff" stroke="#ef4444" stroke-width="2"/>
+      <text x="845" y="88" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="700" letter-spacing="1">PARTNER API</text>
+      <text x="845" y="106" text-anchor="middle" fill="#555" font-size="10">Load Board / ELD / Fuel</text>
+      <text x="845" y="120" text-anchor="middle" fill="#888" font-size="9">OAuth 2.0 / API Key</text>
+
+      <!-- Supabase -->
+      <rect x="350" y="250" width="170" height="90" rx="8" fill="#fff" stroke="#f0a500" stroke-width="2"/>
+      <text x="435" y="278" text-anchor="middle" fill="#f0a500" font-size="12" font-weight="700" letter-spacing="1">SUPABASE</text>
+      <text x="435" y="296" text-anchor="middle" fill="#555" font-size="10">PostgreSQL + Auth</text>
+      <text x="435" y="312" text-anchor="middle" fill="#888" font-size="9">RLS Enforced · US Region</text>
+
+      <!-- Claude AI removed — keep diagram focused on integration flow -->
+
+      <!-- ARROWS -->
+      <!-- Carrier → Frontend -->
+      <line x1="160" y1="90" x2="238" y2="90" stroke="#f0a500" stroke-width="2" marker-end="url(#a-gold)"/>
+      <line x1="238" y1="110" x2="160" y2="110" stroke="#f0a500" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-gold)"/>
+      <text x="199" y="84" text-anchor="middle" fill="#f0a500" font-size="9" font-weight="600">HTTPS</text>
+      <text x="199" y="126" text-anchor="middle" fill="#888" font-size="8">UI Response</text>
+
+      <!-- Frontend → Backend -->
+      <line x1="410" y1="90" x2="488" y2="90" stroke="#3b82f6" stroke-width="2" marker-end="url(#a-blue)"/>
+      <line x1="488" y1="110" x2="410" y2="110" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-blue)"/>
+      <text x="449" y="84" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="600">JWT + Request</text>
+      <text x="449" y="126" text-anchor="middle" fill="#888" font-size="8">JSON Response</text>
+
+      <!-- Backend → Partner -->
+      <line x1="670" y1="90" x2="758" y2="90" stroke="#22c55e" stroke-width="2" marker-end="url(#a-green)"/>
+      <line x1="758" y1="110" x2="670" y2="110" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-green)"/>
+      <text x="714" y="84" text-anchor="middle" fill="#22c55e" font-size="9" font-weight="600">OAuth Token</text>
+      <text x="714" y="126" text-anchor="middle" fill="#888" font-size="8">Load Data</text>
+
+      <!-- Backend → Supabase -->
+      <line x1="540" y1="150" x2="470" y2="248" stroke="#f0a500" stroke-width="2" marker-end="url(#a-gold)"/>
+      <line x1="460" y1="248" x2="530" y2="150" stroke="#f0a500" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#a-gold)"/>
+      <text x="475" y="190" text-anchor="middle" fill="#f0a500" font-size="9" font-weight="600">Read / Write</text>
+      <text x="475" y="204" text-anchor="middle" fill="#888" font-size="8">Encrypted Tokens</text>
+
+      <!-- Claude AI arrows removed -->
+
+      <!-- Frontend → Supabase Auth -->
+      <line x1="290" y1="140" x2="380" y2="248" stroke="#999" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#a-gray)"/>
+      <text x="310" y="200" text-anchor="middle" fill="#999" font-size="8" transform="rotate(-38, 310, 200)">Supabase Auth (JWT)</text>
+
+    </svg>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text"><strong>Authentication</strong><span>Carrier signs in → JWT issued → attached to all requests</span></div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text"><strong>OAuth Connect</strong><span>Carrier links account → token encrypted (AES-256-GCM) → stored</span></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text"><strong>Load Search</strong><span>Backend decrypts token → calls Partner API → returns results</span></div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-text"><strong>Data Sync</strong><span>Backend calls Partner API → confirms → stores in Supabase</span></div>
+    </div>
+  </div>
+
+  <!-- Security -->
+  <div class="security-title">Security Controls</div>
+  <div class="security-grid">
+    <div class="sec-item"><strong>Row Level Security (RLS)</strong><span>Every table enforces RLS via owner_id. Each carrier only accesses their own data.</span></div>
+    <div class="sec-item"><strong>AES-256-GCM Encryption</strong><span>Partner OAuth tokens encrypted at rest with unique IV before database storage.</span></div>
+    <div class="sec-item"><strong>JWT Authentication</strong><span>Every API request requires a valid Supabase JWT. Backend validates before processing.</span></div>
+    <div class="sec-item"><strong>US-Only Infrastructure</strong><span>All servers (Vercel, Supabase, Anthropic) are US-based. No cross-border transfer.</span></div>
+    <div class="sec-item"><strong>Token Isolation</strong><span>Partner OAuth tokens never leave the backend. Only used server-side for authorized API calls.</span></div>
+    <div class="sec-item"><strong>Audit Logging</strong><span>Every data mutation is logged with timestamps, old/new values, and user ID for full traceability.</span></div>
+  </div>
+
+  <div class="footer">
+    <div>Qivori LLC | qivori.com | hello@qivori.com</div>
+    <div>Confidential — Prepared for Integration Partner Review</div>
+  </div>
+
+</div>
+</body>
+</html>

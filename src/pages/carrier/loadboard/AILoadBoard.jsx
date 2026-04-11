@@ -464,6 +464,8 @@ export function AILoadBoard() {
             originCity: load.origin,
             destinationCity: load.dest,
             equipment: load.equipment,
+            truckId: profile?.assigned_truck_id || '',
+            driverId: profile?.id || '',
           }),
         }).catch(() => {
           // Non-fatal — load is already booked, dispatcher can retry from Loads tab

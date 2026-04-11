@@ -138,6 +138,8 @@ function NegotiationFlow({ load }) {
           // handlers (handleBookedLoad, notifyDriverOfOffer, scheduleRetryCall).
           // The driver decides accept/pass — Q never auto-books.
           experience: 'auto',
+          truckId: profile?.assigned_truck_id || '',
+          driverId: profile?.id || '',
         }),
       })
       const data = await res.json().catch(() => ({}))

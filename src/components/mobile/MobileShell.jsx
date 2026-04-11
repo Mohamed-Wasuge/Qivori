@@ -206,6 +206,8 @@ export default function MobileShell() {
             equipment: load.equipment || 'dry van',
             loadDetails: `${(load.origin || '').split(',')[0]} → ${(load.destination || load.dest || '').split(',')[0]}. Rate: $${load.gross || load.rate || 0}${load.miles ? ` (${load.miles}mi)` : ''}. Equipment: ${load.equipment || 'dry van'}.`,
             driverName: profile?.full_name || 'Driver',
+            truckId: profile?.assigned_truck_id || '',
+            driverId: profile?.id || '',
           }),
         })
         const data = res?.json ? await res.json() : res

@@ -47,12 +47,52 @@ export default async function handler(req) {
     const table = callType === 'check_call' ? 'check_calls' : 'retell_calls'
     const idField = callType === 'check_call' ? 'retell_call_id' : 'retell_call_id'
 
+    // Q mobile feed targets
+    const truckId = metadata.truckId || null
+    const driverId = metadata.driverId || metadata.userId || null
+
     // Update call record based on event
     if (event === 'call_started') {
       await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + idField + '=eq.' + callId, {
         method: 'PATCH', headers: sbHeaders(),
         body: JSON.stringify({ call_status: 'in_progress', started_at: new Date().toISOString() })
       })
+      if (truckId && driverId) {
+        await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+          method: 'POST', headers: sbHeaders(),
+          body: JSON.stringify({
+            truck_id: truckId,
+            driver_id: driverId,
+            type: 'call_started',
+            content: {
+              brokerName: metadata.brokerName || 'Broker',
+              message: 'Calling broker now, negotiating your rate...',
+            },
+            requires_action: false,
+          })
+        })
+      }
+    }
+
+    if (event === 'transcript') {
+      const transcript = call?.transcript
+      const lastTwo = Array.isArray(transcript) ? transcript.slice(-2) : []
+      if (truckId && driverId && lastTwo.length === 2) {
+        await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+          method: 'POST', headers: sbHeaders(),
+          body: JSON.stringify({
+            truck_id: truckId,
+            driver_id: driverId,
+            type: 'transcript',
+            content: {
+              brokerName: metadata.brokerName || 'Broker',
+              brokerText: lastTwo.find(t => t.role === 'agent')?.content || '',
+              qText: lastTwo.find(t => t.role === 'user')?.content || '',
+            },
+            requires_action: false,
+          })
+        })
+      }
     }
 
     if (event === 'call_ended') {
@@ -139,6 +179,22 @@ export default async function handler(req) {
           notes: notes || (call?.call_analysis?.call_summary || '')
         })
       })
+
+      if (truckId && driverId) {
+        await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+          method: 'POST', headers: sbHeaders(),
+          body: JSON.stringify({
+            truck_id: truckId,
+            driver_id: driverId,
+            type: 'status_update',
+            content: {
+              message: 'Call ended. Waiting for booking confirmation...',
+              icon: '📞',
+            },
+            requires_action: false,
+          })
+        })
+      }
 
       // ── AutoShell calls handle their own post-call flow ──
       // The driver app subscribes to retell_calls realtime, sees the

@@ -365,6 +365,10 @@ export function QDispatchAI() {
     setLiveInsight({ text:'Initiating call to broker...', color:'var(--accent)' })
 
     try {
+      const driverId = selectedLoad.driver_id || null
+      const driverRec = (drivers || []).find(d => d.id === driverId) || drivers?.[0] || null
+      const truckId = driverRec?.vehicle_id || ''
+
       const rawRes = await apiFetch('/api/retell-broker-call', {
         method: 'POST',
         body: JSON.stringify({
@@ -376,7 +380,9 @@ export function QDispatchAI() {
           miles: selectedLoad.miles,
           equipment: selectedLoad.equipment || 'Dry Van',
           brokerName: selectedLoad.broker,
-          driverName: selectedLoad.driver || drivers?.[0]?.full_name || '',
+          driverName: driverRec?.full_name || selectedLoad.driver || '',
+          driverId: driverId || '',
+          truckId,
           loadDetails: `${(selectedLoad.origin || '').split(',')[0]} → ${(selectedLoad.dest || selectedLoad.destination || '').split(',')[0]}. Rate: $${selectedLoad.gross || selectedLoad.rate || 0}${selectedLoad.miles ? ` (${selectedLoad.miles}mi)` : ''}. Equipment: ${selectedLoad.equipment || 'Dry Van'}.`,
         })
       })

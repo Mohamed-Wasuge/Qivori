@@ -77,21 +77,26 @@ export default async function handler(req) {
     if (event === 'transcript') {
       const transcript = call?.transcript
       const lastTwo = Array.isArray(transcript) ? transcript.slice(-2) : []
-      if (truckId && driverId && lastTwo.length === 2) {
-        await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
-          method: 'POST', headers: sbHeaders(),
-          body: JSON.stringify({
-            truck_id: truckId,
-            driver_id: driverId,
-            type: 'transcript',
-            content: {
-              brokerName: metadata.brokerName || 'Broker',
-              brokerText: lastTwo.find(t => t.role === 'agent')?.content || '',
-              qText: lastTwo.find(t => t.role === 'user')?.content || '',
-            },
-            requires_action: false,
+      if (truckId && driverId && lastTwo.length > 0) {
+        // In Retell outbound calls: role='agent' = Q speaking, role='user' = broker speaking
+        const qLine = lastTwo.find(t => t.role === 'agent')?.content || ''
+        const brokerLine = lastTwo.find(t => t.role === 'user')?.content || ''
+        if (qLine || brokerLine) {
+          await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+            method: 'POST', headers: sbHeaders(),
+            body: JSON.stringify({
+              truck_id: truckId,
+              driver_id: driverId,
+              type: 'transcript',
+              content: {
+                brokerName: metadata.brokerName || 'Broker',
+                brokerText: brokerLine,
+                qText: qLine,
+              },
+              requires_action: false,
+            })
           })
-        })
+        }
       }
     }
 
@@ -181,19 +186,56 @@ export default async function handler(req) {
       })
 
       if (truckId && driverId) {
-        await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
-          method: 'POST', headers: sbHeaders(),
-          body: JSON.stringify({
-            truck_id: truckId,
-            driver_id: driverId,
-            type: 'status_update',
-            content: {
-              message: 'Call ended. Waiting for booking confirmation...',
-              icon: '📞',
-            },
-            requires_action: false,
+        const origin = metadata.origin || ''
+        const dest = metadata.destination || ''
+        const routeStr = origin && dest ? `${origin} → ${dest}` : ''
+
+        if (outcome === 'booked' && agreedRate) {
+          // Load is booked — show confirmation card
+          await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+            method: 'POST', headers: sbHeaders(),
+            body: JSON.stringify({
+              truck_id: truckId, driver_id: driverId, type: 'booked',
+              content: {
+                message: `Load booked at $${agreedRate.toLocaleString()}${routeStr ? ` — ${routeStr}` : ''}. Rate con incoming.`,
+                rate: agreedRate, brokerName: metadata.brokerName || 'Broker',
+              },
+              requires_action: false,
+            })
           })
-        })
+        } else if (agreedRate && outcome !== 'load_unavailable') {
+          // Q got a rate — driver needs to decide
+          await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+            method: 'POST', headers: sbHeaders(),
+            body: JSON.stringify({
+              truck_id: truckId, driver_id: driverId, type: 'decision_needed',
+              content: {
+                message: `Broker ${metadata.brokerName || ''} offered $${agreedRate.toLocaleString()}${routeStr ? ` for ${routeStr}` : ''}. Accept this load?`,
+                rate: agreedRate, brokerName: metadata.brokerName || 'Broker',
+                originCity: origin, destinationCity: dest,
+                options: [
+                  { label: `Accept $${agreedRate.toLocaleString()}`, value: 'accept' },
+                  { label: 'Pass', value: 'decline' },
+                ],
+              },
+              requires_action: true,
+            })
+          })
+        } else {
+          // No rate — show summary
+          const summaryMsg = outcome === 'voicemail' ? 'Voicemail — Q will retry in 30 min.'
+            : outcome === 'no_answer' ? 'No answer — Q will retry.'
+            : outcome === 'load_unavailable' ? 'Load already taken.'
+            : call?.call_analysis?.call_summary || 'Call complete.'
+          await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
+            method: 'POST', headers: sbHeaders(),
+            body: JSON.stringify({
+              truck_id: truckId, driver_id: driverId, type: 'status_update',
+              content: { message: summaryMsg, icon: '📞' },
+              requires_action: false,
+            })
+          })
+        }
       }
 
       // ── AutoShell calls handle their own post-call flow ──

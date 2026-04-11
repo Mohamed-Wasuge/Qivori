@@ -8,6 +8,7 @@ import {
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { apiFetch } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 import { Ic } from './shared'
 
 // ── Q DISPATCH AI — Voice + Negotiation Intelligence ────────────────────────
@@ -401,13 +402,41 @@ export function QDispatchAI() {
         return
       }
 
-      setCallId(res.call_id)
+      const retellCallId = res.call_id
+      setCallId(retellCallId)
       setCallStage('connected')
-      setTranscript(t => [...t, { speaker:'Q', text:`Good afternoon, this is Q from Qivori Dispatch. I'm calling about load ${selectedLoad.loadId || ''} — ${selectedLoad.origin?.split(',')[0]} to ${(selectedLoad.dest || selectedLoad.destination || '').split(',')[0]}.`, time:'0:02' }])
-      setLiveInsight({ text:'Connected. Q is reading load details to broker.', color:'var(--success)' })
+      setLiveInsight({ text:'Connected — Q is negotiating with broker.', color:'var(--success)' })
 
-      // Simulate call flow progression (real updates come from webhook)
-      simulateCallFlow()
+      // Subscribe to real call updates from Supabase
+      if (retellCallId) {
+        const sub = supabase
+          .channel('retell-call-' + retellCallId)
+          .on('postgres_changes', {
+            event: 'UPDATE', schema: 'public', table: 'retell_calls',
+            filter: `retell_call_id=eq.${retellCallId}`,
+          }, (payload) => {
+            const row = payload.new
+            if (row.call_status === 'completed' || row.call_status === 'failed') {
+              setCallStage('ended')
+              const rate = row.agreed_rate
+              setCallSummary({
+                decision: row.outcome === 'booked' ? 'Accept' : row.outcome,
+                broker: row.broker_name,
+                finalRate: rate || null,
+                duration: row.duration_seconds ? `${Math.floor(row.duration_seconds / 60)}:${String(row.duration_seconds % 60).padStart(2,'0')}` : '—',
+                summary: row.notes || '',
+              })
+              setLiveInsight({
+                text: row.outcome === 'booked' ? `Booked at $${rate?.toLocaleString()}` : row.notes || 'Call ended',
+                color: row.outcome === 'booked' ? 'var(--success)' : 'var(--muted)',
+              })
+              sub.unsubscribe()
+            } else if (row.call_status === 'in_progress') {
+              setCallStage('negotiating')
+            }
+          })
+          .subscribe()
+      }
     } catch (err) {
       setCallStage('idle')
       setLiveInsight(null)
@@ -415,22 +444,6 @@ export function QDispatchAI() {
     }
   }, [selectedLoad, autoNegotiate, drivers, showToast])
 
-  // Simulated call flow for UI (real calls get webhook updates)
-  const simulateCallFlow = useCallback(() => {
-    const stages = [
-      { delay:3000, stage:'reading', msg:{ speaker:'Q', text:'Confirming pickup and delivery details with broker.', time:'0:08' }, insight:'Reading load details to broker.' },
-      { delay:6000, stage:'evaluating', insight:'Evaluating broker response and tone.' },
-      { delay:9000, stage:'negotiating', msg:{ speaker:'broker', text:'We can do this load at the posted rate.', time:'0:14' }, insight:'Broker responded. Evaluating rate against profit targets.' },
-      { delay:12000, stage:'waiting', msg:{ speaker:'Q', text:`Based on current market conditions and our operational costs, we need $${loadEval?.targetRate?.toLocaleString() || '—'} for this lane.`, time:'0:18' }, insight:'Q countered with target rate. Waiting on response.' },
-    ]
-    stages.forEach(({ delay, stage, msg, insight }) => {
-      setTimeout(() => {
-        setCallStage(s => s === 'idle' || s === 'ended' ? s : stage)
-        if (msg) setTranscript(t => [...t, msg])
-        if (insight) setLiveInsight({ text:insight, color:CALL_STAGES.find(s => s.id === stage)?.color || 'var(--accent)' })
-      }, delay)
-    })
-  }, [loadEval])
 
   // ── Instant Book ──────────────────────────────────────────────────────────
   const handleInstantBook = useCallback(async () => {

@@ -224,7 +224,7 @@ export default async function handler(req) {
 
     // ── Insert retell_calls row so live negotiation screen can subscribe ──
     if (SUPABASE_URL && data?.call_id) {
-      fetch(`${SUPABASE_URL}/rest/v1/retell_calls`, {
+      const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/retell_calls`, {
         method: 'POST',
         headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
         body: JSON.stringify({
@@ -240,7 +240,13 @@ export default async function handler(req) {
           driver_id: resolvedDriverId || null,
           created_at: new Date().toISOString(),
         }),
-      }).catch(() => {})
+      }).catch(e => ({ ok: false, _err: e.message }))
+      if (insertRes && !insertRes.ok) {
+        const errText = await insertRes.text?.().catch(() => '')
+        console.error('[retell-broker-call] retell_calls insert failed:', insertRes.status, errText)
+      } else {
+        console.log('[retell-broker-call] retell_calls insert ok, truckId:', resolvedTruckId, 'driverId:', resolvedDriverId)
+      }
     }
 
     // ── Q activity feed: log broker call ──

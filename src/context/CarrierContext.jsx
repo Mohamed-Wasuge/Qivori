@@ -7,6 +7,8 @@ import { setInvoiceCompany } from '../utils/generatePDF'
 import { checkCDL, checkMedicalCard, checkDriverAvailability, checkRegistration, checkInsurance, checkOutOfService } from '../lib/compliance'
 import { canDriverTakeLoad } from '../lib/hosSimulation'
 import { calculateCrashRisk } from '../lib/crashRiskEngine'
+import { fmtDate } from '../lib/formatters'
+import { DELIVERED_STATUSES } from '../lib/constants'
 import {
   DEMO_LOADS,
   DEMO_INVOICES,
@@ -19,20 +21,33 @@ import {
 const CarrierContext = createContext(null)
 
 // ─── Compatibility layer ─────────────────────────────────────
-// Actual DB loads table: id, load_id, origin, destination, rate, broker_id,
-//   broker_name, carrier_id, carrier_name, load_type, equipment, weight,
-//   status, posted_at, pickup_date, delivery_date, created_at, rate_con_url, notes
-// Frontend expects: loadId, dest, gross, rate, driver, refNum, pickup, delivery, miles, weight
+// Canonical Load shape (what every component should use):
+//   id            — DB primary key (uuid)
+//   loadId        — user-facing reference (e.g. "QV-0012"), same as load_id / load_number
+//   origin        — string
+//   destination   — string (alias: dest)
+//   gross         — total gross pay in $ (alias: gross_pay)
+//   rate          — rate per mile in $/mi (alias: rate_per_mile)
+//   miles         — integer
+//   driver        — display name (alias: driver_name, carrier_name)
+//   broker        — display name (alias: broker_name)
+//   status        — load pipeline status string
+//   pickup        — formatted "Apr 11" or "Apr 11 · 08:00" string
+//   delivery      — formatted "Apr 12" string
+//   stops         — normalized stop array
+//
+// DB aliases (load_id, load_number, destination, gross_pay, etc.) are kept
+// so both old and new code works during migration. Do not add new aliases.
 
+/**
+ * @param {object} l - raw DB load row
+ * @returns {object} normalized load with canonical + alias fields
+ */
 function normalizeLoad(l) {
   if (!l) return l
-  const fmtDate = (d, t) => {
-    if (!d) return ''
-    try {
-      const dt = new Date(d)
-      const mon = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      return t ? `${mon} · ${t}` : mon
-    } catch { return d }
+  const fmtLoadDate = (d, t) => {
+    const base = fmtDate(d)
+    return (base && t) ? `${base} · ${t}` : base
   }
   // Preserve original DB rate (gross $) — avoid re-normalizing RPM back as gross
   const dbRate = Number(l._dbRate) || Number(l.rate) || 0
@@ -50,8 +65,8 @@ function normalizeLoad(l) {
     driver: l.carrier_name || l.driver_name || l.driver || '',
     broker: l.broker_name || l.broker || '',
     refNum: l.reference_number || l.refNum || '',
-    pickup: fmtDate(l.pickup_date, l.pickup_time),
-    delivery: fmtDate(l.delivery_date, l.delivery_time),
+    pickup: fmtLoadDate(l.pickup_date, l.pickup_time),
+    delivery: fmtLoadDate(l.delivery_date, l.delivery_time),
     commodity: l.notes || l.commodity || '',
     miles: milesVal,
     weight: l.weight || '',
@@ -101,22 +116,20 @@ function normalizeLoad(l) {
   }
 }
 
+/**
+ * @param {object} inv - raw DB invoice row
+ * @returns {object} normalized invoice
+ */
 function normalizeInvoice(inv) {
   if (!inv) return inv
-  const fmtShort = (d) => {
-    if (!d) return ''
-    try {
-      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    } catch { return d }
-  }
   return {
     ...inv,
     // Aliases
     id: inv.invoice_number || inv.id,
     _dbId: inv.id, // preserve real DB id
     loadId: inv.load_number || inv.loadId,
-    date: fmtShort(inv.invoice_date) || inv.date || '',
-    dueDate: fmtShort(inv.due_date) || inv.dueDate || '',
+    date: fmtDate(inv.invoice_date) || inv.date || '',
+    dueDate: fmtDate(inv.due_date) || inv.dueDate || '',
     driver: inv.driver_name || inv.driver || '',
     // Keep DB names
     invoice_number: inv.invoice_number || inv.id,
@@ -129,21 +142,19 @@ function normalizeInvoice(inv) {
   }
 }
 
+/**
+ * @param {object} e - raw DB expense row
+ * @returns {object} normalized expense
+ */
 function normalizeExpense(e) {
   if (!e) return e
-  const fmtShort = (d) => {
-    if (!d) return ''
-    try {
-      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    } catch { return d }
-  }
   return {
     ...e,
     // Aliases
     cat: e.category || e.cat,
     load: e.load_number || e.load || '',
     driver: e.driver_name || e.driver || '',
-    date: fmtShort(e.date) || '',
+    date: fmtDate(e.date) || '',
     // Keep DB names
     category: e.category || e.cat,
     load_number: e.load_number || e.load || '',
@@ -1279,12 +1290,27 @@ export function CarrierProvider({ children }) {
   const visibleExpenses = useMemo(() => isDriver ? expenses.filter(isMyExpense) : expenses, [expenses, isDriver, isMyExpense])
   const visibleInvoices = useMemo(() => isDriver ? invoices.filter(isMyInvoice) : invoices, [invoices, isDriver, isMyInvoice])
 
-  // ─── Computed values ──────────────────────────────────────────
-  const deliveredLoads = visibleLoads.filter(l => l.status === 'Delivered' || l.status === 'Invoiced')
-  const activeLoads = visibleLoads.filter(l => !['Delivered', 'Invoiced', 'Cancelled'].includes(l.status))
-  const unpaidInvoices = visibleInvoices.filter(i => i.status === 'Unpaid')
-  const totalRevenue = deliveredLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0)
-  const totalExpenses = visibleExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+  // ─── Computed values (memoized — only recalculate when source data changes) ──
+  const deliveredLoads = useMemo(
+    () => visibleLoads.filter(l => DELIVERED_STATUSES.includes(l.status)),
+    [visibleLoads]
+  )
+  const activeLoads = useMemo(
+    () => visibleLoads.filter(l => !DELIVERED_STATUSES.includes(l.status) && l.status !== 'Cancelled'),
+    [visibleLoads]
+  )
+  const unpaidInvoices = useMemo(
+    () => visibleInvoices.filter(i => i.status === 'Unpaid'),
+    [visibleInvoices]
+  )
+  const totalRevenue = useMemo(
+    () => deliveredLoads.reduce((s, l) => s + (l.gross || l.rate || 0), 0),
+    [deliveredLoads]
+  )
+  const totalExpenses = useMemo(
+    () => visibleExpenses.reduce((s, e) => s + (e.amount || 0), 0),
+    [visibleExpenses]
+  )
 
   // Pre-indexed driver map for O(1) lookups (scales to 100+ drivers)
   const driverMap = useMemo(() => {

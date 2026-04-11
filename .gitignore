@@ -9,3 +9,4 @@ backups/
 coverage/
 # build artifacts
 .env*.local
+.claude/

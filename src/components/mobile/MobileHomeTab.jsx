@@ -371,9 +371,10 @@ export default function MobileHomeTab({ onNavigate, onOpenQ }) {
       actions.push({ icon: Package, label: 'Ask Q for Load', color: 'var(--accent)', action: () => onOpenQ?.('Find me a good paying load', qGreeting, false) })
     }
 
+    actions.push({ icon: Zap, label: 'Find Loads', color: 'var(--accent)', action: () => onNavigate?.('find') })
     actions.push({ icon: ScanLine, label: 'Upload Rate Con', color: 'var(--accent2)', action: () => onNavigate?.('loads') })
     actions.push({ icon: Camera, label: 'Upload Receipt', color: '#8b5cf6', action: () => onNavigate?.('money', 'expenses') })
-    return actions.slice(0, 3)
+    return actions.slice(0, 4)
   }
 
   const handleQSubmit = () => {

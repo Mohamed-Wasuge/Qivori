@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck, X, Truck, Users, Settings, UserPlus, Plus, Edit3, Trash2 } from 'lucide-react'
+import { User, HelpCircle, LogOut, ChevronRight, Shield, Fuel, Mail, MessageCircle, ChevronDown, Upload, FileText, CheckCircle, XCircle, Clock, ClipboardCheck, X, Truck, Users, Settings, UserPlus, Plus, Edit3, Trash2, Zap, Radio, Bot, Activity } from 'lucide-react'
 import { Ic, haptic } from './shared'
 import { apiFetch } from '../../lib/api'
 import * as db from '../../lib/database'
@@ -9,6 +9,22 @@ import MobileIFTATab from './MobileIFTATab'
 import { DVIRInspection } from './DriverMoreTab'
 import QActivityFeed from '../QActivityFeed'
 import QLiveNegotiation from '../QLiveNegotiation'
+
+// Lazy-load desktop components for mobile More tab sections
+const EDIDashboard = lazy(() => import('../../pages/carrier/EDIDashboard').then(m => ({ default: m.EDIDashboard })))
+const AIDispatchDashboard = lazy(() => import('../carrier/AIDispatchDashboard').then(m => ({ default: m.AIDispatchDashboard })))
+const QOperationsHub = lazy(() => import('../carrier/Hubs').then(m => ({ default: m.QOperationsHub })))
+
+const SectionLoader = () => (
+  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, color: '#000', fontWeight: 800 }}>Q</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Loading...</div>
+    </div>
+  </div>
+)
 
 // Recent DVIR history for mobile
 function MobileDVIRHistory() {
@@ -54,11 +70,15 @@ function MobileDVIRHistory() {
 }
 
 const MENU_ITEMS = [
+  { id: 'find', label: 'Find Loads', sub: 'AI Load Board — scored & ranked', icon: Zap, color: 'var(--accent)', nav: 'find' },
   { id: 'dvir', label: 'Pre-Trip Inspection', sub: 'DOT DVIR — 46-point checklist', icon: ClipboardCheck, color: '#22c55e' },
   { id: 'fleet', label: 'Fleet', sub: 'Trucks & trailers', icon: Truck, color: '#3b82f6' },
   { id: 'drivers', label: 'Drivers', sub: 'Add & manage drivers', icon: Users, color: '#8b5cf6' },
   { id: 'compliance', label: 'Compliance', sub: 'ELD, DVIR, CSA, HOS', icon: Shield, color: 'var(--success)' },
   { id: 'ifta', label: 'IFTA Report', sub: 'Fuel tax calculator', icon: Fuel, color: '#8b5cf6' },
+  { id: 'edi', label: 'EDI Hub', sub: 'Electronic data interchange', icon: Radio, color: '#06b6d4' },
+  { id: 'ai-dashboard', label: 'AI Control Center', sub: 'AI dispatch intelligence', icon: Bot, color: '#8b5cf6' },
+  { id: 'q-ops', label: 'Q Operations', sub: 'Q decisions, calls & activity', icon: Activity, color: 'var(--accent)' },
   { id: 'settings', label: 'Company Settings', sub: 'Profile, integrations, billing', icon: Settings, color: '#6b7280' },
   { id: 'team', label: 'Team & Invite', sub: 'Invite dispatchers & drivers', icon: UserPlus, color: '#f59e0b' },
   { id: 'profile', label: 'Profile', sub: 'Your account details', icon: User, color: 'var(--accent)' },
@@ -571,6 +591,60 @@ export default function MobileMoreTab({ onNavigate, onClose }) {
     )
   }
 
+  // ── EDI Hub ──
+  if (activeSection === 'edi') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <button onClick={() => { haptic(); setActiveSection(null) }}
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+        </button>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <Suspense fallback={<SectionLoader />}>
+            <EDIDashboard />
+          </Suspense>
+        </div>
+      </div>
+    )
+  }
+
+  // ── AI Control Center ──
+  if (activeSection === 'ai-dashboard') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <button onClick={() => { haptic(); setActiveSection(null) }}
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+        </button>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <Suspense fallback={<SectionLoader />}>
+            <AIDispatchDashboard />
+          </Suspense>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Q Operations ──
+  if (activeSection === 'q-ops') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <button onClick={() => { haptic(); setActiveSection(null) }}
+          style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+          <ChevronRight size={14} color="var(--accent)" style={{ transform: 'rotate(180deg)' }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>Back</span>
+        </button>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <Suspense fallback={<SectionLoader />}>
+            <QOperationsHub />
+          </Suspense>
+        </div>
+      </div>
+    )
+  }
+
   if (activeSection === 'help') {
     const faqs = [
       { q: 'How do I add a load?', a: "Tap 'Add Load' on the Loads tab or snap a rate con." },
@@ -715,7 +789,7 @@ export default function MobileMoreTab({ onNavigate, onClose }) {
       {/* Menu items */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {MENU_ITEMS.map((item, index) => (
-          <button key={item.id} onClick={() => { haptic(); setActiveSection(item.id) }}
+          <button key={item.id} onClick={() => { haptic(); item.nav ? onNavigate?.(item.nav) : setActiveSection(item.id) }}
             style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
               background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,

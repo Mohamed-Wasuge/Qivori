@@ -45,7 +45,14 @@ export default async function handler(req) {
     const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload))
     const expectedSig = Array.from(new Uint8Array(signatureBytes)).map(b => b.toString(16).padStart(2, '0')).join('')
 
-    if (expectedSig !== v1Sig) {
+    // Constant-time comparison to prevent timing attacks
+    const safeEqual = (a, b) => {
+      if (a.length !== b.length) return false
+      let diff = 0
+      for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+      return diff === 0
+    }
+    if (!safeEqual(expectedSig, v1Sig)) {
       console.error('[stripe-webhook] Signature mismatch')
       return Response.json({ error: 'Invalid signature' }, { status: 400 })
     }

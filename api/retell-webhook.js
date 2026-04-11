@@ -10,10 +10,32 @@ const TWILIO_FROM = process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_N
 function json(data, s = 200) { return new Response(JSON.stringify(data), { status: s, headers: { 'Content-Type': 'application/json' } }) }
 const sbHeaders = () => ({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' })
 
+async function verifyRetellSignature(rawBody, signature) {
+  try {
+    const apiKey = process.env.RETELL_API_KEY
+    if (!apiKey || !signature) return false
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey('raw', encoder.encode(apiKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const sigBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody))
+    const expected = Array.from(new Uint8Array(sigBytes)).map(b => b.toString(16).padStart(2, '0')).join('')
+    if (expected.length !== signature.length) return false
+    let diff = 0
+    for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
+    return diff === 0
+  } catch {
+    return false
+  }
+}
+
 export default async function handler(req) {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   try {
-    const body = await req.json()
+    const rawBody = await req.text()
+    const signature = req.headers.get('x-retell-signature')
+    if (!await verifyRetellSignature(rawBody, signature)) {
+      return json({ error: 'Invalid webhook signature' }, 401)
+    }
+    const body = JSON.parse(rawBody)
     const { event, call } = body
     const callId = call?.call_id || body.call_id
     const metadata = call?.metadata || body.metadata || {}

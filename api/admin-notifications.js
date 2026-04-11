@@ -4,7 +4,7 @@ export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const RESEND_API_KEY = process.env.RESEND_API_KEY
-const ADMIN_EMAIL = 'hello@qivori.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hello@qivori.com'
 const CRON_SECRET = process.env.CRON_SECRET
 function json(d,s=200){return new Response(JSON.stringify(d),{status:s,headers:{'Content-Type':'application/json'}})}
 const sb=()=>({apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'})

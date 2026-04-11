@@ -93,10 +93,21 @@ export default async function handler(req) {
       const members = await sbGet(`company_members?company_id=eq.${company.id}&select=profile_id&limit=20`)
       const ids = members.map(m => m.profile_id).filter(Boolean)
       if (ids.length) {
-        const drivers = await sbGet(`profiles?id=in.(${ids.join(',')})&assigned_truck_id=not.is.null&select=id,assigned_truck_id&limit=1`)
-        if (drivers[0]) {
-          resolvedTruckId = drivers[0].assigned_truck_id
-          resolvedDriverId = drivers[0].id
+        // Get all members with an assigned truck
+        const profiles = await sbGet(`profiles?id=in.(${ids.join(',')})&assigned_truck_id=not.is.null&select=id,assigned_truck_id&limit=10`)
+        // Pick the one whose vehicle is Active
+        for (const p of profiles) {
+          const veh = await sbGet(`vehicles?id=eq.${p.assigned_truck_id}&status=eq.Active&select=id&limit=1`)
+          if (veh[0]) {
+            resolvedTruckId = p.assigned_truck_id
+            resolvedDriverId = p.id
+            break
+          }
+        }
+        // Fallback: any assigned truck if none are Active
+        if (!resolvedTruckId && profiles[0]) {
+          resolvedTruckId = profiles[0].assigned_truck_id
+          resolvedDriverId = profiles[0].id
         }
       }
     }
@@ -225,6 +236,8 @@ export default async function handler(req) {
           carrier_name: carrierName,
           call_status: 'initiating',
           call_type: 'broker_outbound',
+          truck_id: resolvedTruckId || null,
+          driver_id: resolvedDriverId || null,
           created_at: new Date().toISOString(),
         }),
       }).catch(() => {})

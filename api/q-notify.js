@@ -1,33 +1,12 @@
 /**
- * /api/q-notify — Q reports broker chatter to the driver mid-call
+ * /api/q-notify — Retell tool: broker offer → driver mobile feed
  *
- * Called by the Retell agent via a custom function (`notify_driver`)
- * whenever the broker says something meaningful during a negotiation:
- *   - Quotes a rate
- *   - Asks for insurance, MC, equipment specs
- *   - Asks for pickup/delivery times
- *   - Counters
- *   - Walks away
+ * Called by the Retell agent (notify_driver tool) whenever the broker
+ * quotes or counters a rate. Pushes a decision_needed card to q_activity
+ * so the driver sees it live in the mobile app and can tap Accept/Counter/Decline.
  *
- * Body shape (from Retell tool call):
- * {
- *   call_id: "retell_call_xyz",
- *   user_id: "uuid",         (passed via dynamic variable)
- *   load_id: "uuid",
- *   broker_name: "Werner Enterprises",
- *   message_type: "broker_quoted" | "broker_asking" | "broker_countered" | "general",
- *   message: "Werner offered $2,400",
- *   rate_value: 2400         (optional, when there's a number)
- * }
- *
- * Inserts a row into negotiation_messages. The driver app subscribes
- * to that table via Supabase realtime and renders the message on the
- * dialing screen within ~1 second.
- *
- * IMPORTANT: this endpoint is called by Retell servers, not by the user's
- * browser. It uses the service key directly — no JWT auth. We trust the
- * call_id + user_id sent in the body (both came from the original
- * /api/retell-broker-call we initiated).
+ * Retell sends tool calls as:
+ *   { name, args: { call_id, user_id, message, ... }, call: { call_id, metadata } }
  */
 import { handleCors, corsHeaders } from './_lib/auth.js'
 
@@ -35,6 +14,19 @@ export const config = { runtime: 'edge' }
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+const sbHeaders = () => ({
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+})
+
+async function sbGet(path) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: sbHeaders() })
+    return res.ok ? res.json() : []
+  } catch { return [] }
+}
 
 export default async function handler(req) {
   const corsResponse = handleCors(req)
@@ -44,56 +36,93 @@ export default async function handler(req) {
     return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
   }
 
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return Response.json({ error: 'Server misconfigured' }, { status: 500, headers: corsHeaders(req) })
-  }
-
   try {
     const body = await req.json().catch(() => ({}))
-    const {
-      call_id,
-      user_id,
-      load_id,
-      broker_name,
-      message_type,
-      message,
-      rate_value,
-    } = body
 
-    if (!call_id || !user_id || !message) {
-      return Response.json(
-        { error: 'Missing required fields: call_id, user_id, message' },
-        { status: 400, headers: corsHeaders(req) }
-      )
+    // Retell sends args nested under body.args — fall back to top-level for direct calls
+    const args = body.args || body
+    const callContext = body.call || {}
+
+    // call_id: from args first, then from call context
+    const callId = args.call_id || callContext.call_id || ''
+    // user_id: from args (dynamic variable {{user_id}}), then call metadata
+    const userId = args.user_id || callContext.metadata?.userId || ''
+    const message = args.message || ''
+
+    console.log('[q-notify] callId:', callId, 'userId:', userId, 'message:', message?.slice(0, 60))
+
+    if (!message) {
+      return Response.json({ error: 'message is required' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // Insert the message
-    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/negotiation_messages`, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({
-        user_id,
-        retell_call_id: call_id,
-        load_id: load_id || null,
-        broker_name: broker_name || null,
-        message_type: message_type || 'general',
-        message,
-        rate_value: rate_value ? Number(rate_value) : null,
-      }),
-    })
+    const brokerName = args.broker_name || callContext.metadata?.brokerName || 'Broker'
+    const messageType = args.message_type || 'general'
+    const rateValue = args.rate_value ? Number(args.rate_value) : null
+    const loadId = args.load_id || callContext.metadata?.loadId || null
 
-    if (!insertRes.ok) {
-      const err = await insertRes.text()
-      return Response.json({ error: 'DB insert failed: ' + err }, { status: 500, headers: corsHeaders(req) })
+    // Resolve truckId + driverId from retell_calls row (set when call was created)
+    let truckId = callContext.metadata?.truckId || ''
+    let driverId = callContext.metadata?.driverId || userId || ''
+
+    if (!truckId && callId) {
+      const rows = await sbGet(`retell_calls?retell_call_id=eq.${encodeURIComponent(callId)}&select=truck_id,driver_id&limit=1`)
+      if (rows[0]) {
+        truckId = rows[0].truck_id || truckId
+        driverId = rows[0].driver_id || driverId
+      }
+    }
+
+    console.log('[q-notify] truckId:', truckId, 'driverId:', driverId, 'rate:', rateValue)
+
+    // 1. Write to negotiation_messages (web AutoNegotiation overlay)
+    if (callId && userId) {
+      await fetch(`${SUPABASE_URL}/rest/v1/negotiation_messages`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          user_id: userId,
+          retell_call_id: callId,
+          load_id: loadId,
+          broker_name: brokerName,
+          message_type: messageType,
+          message,
+          rate_value: rateValue,
+        }),
+      }).catch(() => {})
+    }
+
+    // 2. Push decision card to q_activity so mobile feed shows the offer
+    if (truckId && driverId) {
+      const isOffer = rateValue && (messageType === 'broker_quoted' || messageType === 'broker_countered')
+      await fetch(`${SUPABASE_URL}/rest/v1/q_activity`, {
+        method: 'POST',
+        headers: { ...sbHeaders(), Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          truck_id: truckId,
+          driver_id: driverId,
+          type: isOffer ? 'decision_needed' : 'transcript',
+          content: isOffer ? {
+            message: `${brokerName} offered $${rateValue.toLocaleString()}. Accept this load?`,
+            rate: rateValue,
+            brokerName,
+            options: [
+              { label: `Accept $${rateValue.toLocaleString()}`, value: 'accept' },
+              { label: 'Counter', value: 'counter' },
+              { label: 'Pass', value: 'decline' },
+            ],
+          } : {
+            brokerName,
+            brokerText: message,
+            qText: '',
+          },
+          requires_action: isOffer,
+        }),
+      })
     }
 
     return Response.json({ ok: true }, { headers: corsHeaders(req) })
   } catch (err) {
-    return Response.json({ error: 'Server error: ' + err.message }, { status: 500, headers: corsHeaders(req) })
+    console.error('[q-notify] error:', err.message)
+    return Response.json({ error: err.message }, { status: 500, headers: corsHeaders(req) })
   }
 }

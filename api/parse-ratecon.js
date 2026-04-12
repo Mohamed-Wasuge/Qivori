@@ -127,7 +127,7 @@ Rules:
       headers: anthropicHeaders,
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{ role: 'user', content }],
       }),
     })
@@ -140,11 +140,14 @@ Rules:
     }
 
     const text = data.content?.[0]?.text || ''
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    // Strip markdown code fences if present
+    const cleaned = text.replace(/```(?:json)?\s*/g, '').replace(/```/g, '').trim()
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       try {
         return json(JSON.parse(jsonMatch[0]), 200, req)
       } catch {
+        console.log('[parse-ratecon] json parse failed, text:', cleaned.slice(0, 200))
         return json({ error: 'Invalid JSON from AI' }, 500, req)
       }
     }

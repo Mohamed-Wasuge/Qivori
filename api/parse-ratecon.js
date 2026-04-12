@@ -1,6 +1,6 @@
 import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 
-export const config = { runtime: 'edge', maxDuration: 30 }
+export const config = { runtime: 'edge' }
 
 export default async function handler(req) {
   const corsResponse = handleCors(req)

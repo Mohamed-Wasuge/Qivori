@@ -1,6 +1,7 @@
 import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 
-export const config = { runtime: 'edge' }
+// Serverless (not edge) — edge runtime has 1MB body limit, images exceed that
+export const config = { maxDuration: 30 }
 
 export default async function handler(req) {
   const corsResponse = handleCors(req)

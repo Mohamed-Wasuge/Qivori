@@ -278,6 +278,12 @@ export default async function handler(req) {
       // for these calls — no auto-book, no email rate con, no auto-retry.
       const isAutoShellCall = metadata.experience === 'auto'
 
+      // ── Broker intelligence: track all booked loads ──────────────────────────
+      // Runs for ALL call types (auto + legacy) so BrokerIntelScreen has real data.
+      if (outcome === 'booked' && agreedRate && metadata.userId && metadata.brokerName) {
+        updateBrokerIntelligence(metadata, agreedRate).catch(() => {})
+      }
+
       if (!isAutoShellCall) {
         // Legacy TMS post-call flow (carriers on $79/$199 plans)
 
@@ -436,6 +442,65 @@ async function updateBrokerUrgency(meta, outcome, duration, sentiment) {
       )
     }
   } catch {}
+}
+
+// ── Broker Intelligence: track loads booked per broker ─────────────────────────
+// Upserts into broker_intelligence table so BrokerIntelScreen has real data.
+// Called on every successful booking regardless of call type (auto or legacy).
+async function updateBrokerIntelligence(meta, agreedRate) {
+  const { brokerName, userId } = meta
+  if (!brokerName || !userId) return
+
+  try {
+    // Fetch existing record
+    const existing = await fetch(
+      SUPABASE_URL + '/rest/v1/broker_intelligence?owner_id=eq.' + userId + '&broker_name=eq.' + encodeURIComponent(brokerName) + '&limit=1',
+      { headers: sbHeaders() }
+    )
+    const rows = existing.ok ? await existing.json() : []
+    const current = rows[0] || null
+
+    const today = new Date().toISOString().split('T')[0]
+    const rate = parseFloat(agreedRate) || 0
+
+    if (current) {
+      // Update existing record: increment loads_booked, recalculate avg_rate_final
+      const prevTotal = (current.avg_rate_final || 0) * (current.loads_booked || 0)
+      const newCount = (current.loads_booked || 0) + 1
+      const newAvg = rate > 0 ? (prevTotal + rate) / newCount : (current.avg_rate_final || 0)
+
+      await fetch(
+        SUPABASE_URL + '/rest/v1/broker_intelligence?id=eq.' + current.id,
+        {
+          method: 'PATCH', headers: sbHeaders(),
+          body: JSON.stringify({
+            loads_booked: newCount,
+            avg_rate_final: Math.round(newAvg * 100) / 100,
+            last_load_date: today,
+            updated_at: new Date().toISOString(),
+          })
+        }
+      )
+    } else {
+      // Insert new record
+      await fetch(
+        SUPABASE_URL + '/rest/v1/broker_intelligence',
+        {
+          method: 'POST', headers: sbHeaders(),
+          body: JSON.stringify({
+            owner_id: userId,
+            broker_name: brokerName,
+            broker_mc: meta.brokerMC || null,
+            loads_booked: 1,
+            avg_rate_final: rate,
+            last_load_date: today,
+          })
+        }
+      )
+    }
+  } catch (err) {
+    console.error('[retell-webhook] updateBrokerIntelligence error:', err)
+  }
 }
 
 // Schedule a retry call in 30 min (max 3 per load+broker)

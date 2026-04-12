@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS settlements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  owner_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   load_id TEXT,
   load_number TEXT,
   gross NUMERIC NOT NULL,
@@ -21,11 +21,11 @@ ALTER TABLE settlements ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users view own settlements"
   ON settlements FOR SELECT
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = owner_id);
 
 CREATE POLICY "Users insert own settlements"
   ON settlements FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (auth.uid() = owner_id);
 
 CREATE POLICY "Admins manage all settlements"
   ON settlements FOR ALL
@@ -33,4 +33,4 @@ CREATE POLICY "Admins manage all settlements"
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
   );
 
-CREATE INDEX IF NOT EXISTS settlements_user_id ON settlements(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS settlements_owner_id ON settlements(owner_id, created_at DESC);

@@ -137,8 +137,55 @@ const LoadingFallback = () => (
 )
 
 // Detect mobile (under 768px width or touch-primary device)
+function MobileDownloadGate() {
+  return (
+    <div style={{
+      minHeight: '100vh', backgroundColor: '#080808',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      padding: '32px 24px', textAlign: 'center',
+      fontFamily: 'DM Sans, sans-serif',
+    }}>
+      <div style={{
+        width: 80, height: 80, borderRadius: 20,
+        backgroundColor: '#f5a623', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: 24, fontSize: 40, fontWeight: 900,
+        color: '#000',
+      }}>Q</div>
+      <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 800, margin: '0 0 12px' }}>
+        Get the Q App
+      </h1>
+      <p style={{ color: '#888', fontSize: 15, lineHeight: 1.6, margin: '0 0 32px', maxWidth: 300 }}>
+        The Q driver experience is now a dedicated mobile app. Download it on your iPhone to access dispatch, loads, compliance, and more.
+      </p>
+      <div style={{
+        backgroundColor: '#f5a623', color: '#000',
+        borderRadius: 14, padding: '16px 32px',
+        fontWeight: 800, fontSize: 16, marginBottom: 16,
+        cursor: 'default',
+      }}>
+        Coming to App Store
+      </div>
+      <p style={{ color: '#444', fontSize: 12, margin: 0 }}>
+        Already have the app? Open it from your home screen.
+      </p>
+      <div style={{ marginTop: 48, borderTop: '1px solid #1e1e1e', paddingTop: 24, width: '100%' }}>
+        <p style={{ color: '#333', fontSize: 12 }}>
+          Fleet managers and brokers —{' '}
+          <a href="?desktop=1" style={{ color: '#f5a623', textDecoration: 'none' }}
+            onClick={e => { e.preventDefault(); window.location.href = window.location.href + (window.location.search ? '&' : '?') + 'desktop=1' }}>
+            use desktop view
+          </a>
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
+  const forceDesktop = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('desktop') === '1'
+  const [isMobile, setIsMobile] = useState(() => !forceDesktop && window.innerWidth <= 768)
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
     window.addEventListener('resize', check)
@@ -333,7 +380,7 @@ function AppContent() {
         )}
 
         {view === 'app' && currentRole === 'carrier' && !showAutoShell && (
-          isMobile ? <MobileLayout /> : <CarrierLayout />
+          isMobile ? <MobileDownloadGate /> : <CarrierLayout />
         )}
 
         {/* Admin / Broker â sidebar layout */}

@@ -2,43 +2,47 @@ import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 
 export const config = { runtime: 'edge' }
 
+const json = (data, status, req) =>
+  new Response(JSON.stringify(data), {
+    status: status || 200,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders(req) },
+  })
+
 export default async function handler(req) {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
   if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405, headers: corsHeaders(req) })
+    return json({ error: 'POST only' }, 405, req)
   }
 
   const { user, error: authError } = await verifyAuth(req)
   if (authError) {
     console.log('[parse-ratecon] auth failed:', authError)
-    return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
+    return json({ error: 'Unauthorized' }, 401, req)
   }
 
   try {
     const rawText = await req.text()
 
-    // Validate payload size (20MB max for base64 documents)
     if (rawText.length > 20 * 1024 * 1024) {
-      return Response.json({ error: 'Payload too large' }, { status: 413, headers: corsHeaders(req) })
+      return json({ error: 'Payload too large' }, 413, req)
     }
 
     let body
-    try { body = JSON.parse(rawText) } catch (parseErr) {
-      return Response.json({ error: 'JSON parse error' }, { status: 400, headers: corsHeaders(req) })
+    try { body = JSON.parse(rawText) } catch {
+      return json({ error: 'JSON parse error' }, 400, req)
     }
 
     const file = body.file
     const mediaType = body.mediaType
 
     if (!file) {
-      return Response.json({ error: 'No file in request body' }, { status: 400, headers: corsHeaders(req) })
+      return json({ error: 'No file in request body' }, 400, req)
     }
 
-    // Validate media type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
     if (mediaType && !allowedTypes.some(t => mediaType.includes(t.split('/')[1]))) {
-      return Response.json({ error: 'Invalid file type' }, { status: 400, headers: corsHeaders(req) })
+      return json({ error: 'Invalid file type' }, 400, req)
     }
 
     const isPdf = (mediaType || '').includes('pdf')
@@ -111,16 +115,16 @@ Rules:
           { type: 'text', text: promptText },
         ]
 
-    const headers = {
+    const anthropicHeaders = {
       'Content-Type': 'application/json',
       'x-api-key': process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     }
-    if (isPdf) headers['anthropic-beta'] = 'pdfs-2024-09-25'
+    if (isPdf) anthropicHeaders['anthropic-beta'] = 'pdfs-2024-09-25'
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers,
+      headers: anthropicHeaders,
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1024,
@@ -132,22 +136,22 @@ Rules:
     console.log('[parse-ratecon] anthropic status:', response.status, 'error:', data.error?.type, data.error?.message)
 
     if (data.error) {
-      return Response.json({ error: data.error.message || data.error.type }, { status: 500, headers: corsHeaders(req) })
+      return json({ error: data.error.message || data.error.type }, 500, req)
     }
 
     const text = data.content?.[0]?.text || ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       try {
-        return Response.json(JSON.parse(jsonMatch[0]), { headers: corsHeaders(req) })
+        return json(JSON.parse(jsonMatch[0]), 200, req)
       } catch {
-        return Response.json({ error: 'Invalid JSON from AI' }, { status: 500, headers: corsHeaders(req) })
+        return json({ error: 'Invalid JSON from AI' }, 500, req)
       }
     }
 
-    return Response.json({ error: 'Could not extract data. Try a clearer image.' }, { status: 500, headers: corsHeaders(req) })
+    return json({ error: 'Could not extract data. Try a clearer image.' }, 500, req)
   } catch (e) {
     console.error('[parse-ratecon] caught:', e.message)
-    return Response.json({ error: e.message || 'Server error' }, { status: 500, headers: corsHeaders(req) })
+    return json({ error: e.message || 'Server error' }, 500, req)
   }
 }

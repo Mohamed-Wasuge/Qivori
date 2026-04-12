@@ -577,7 +577,7 @@ export default function MobileShell() {
             </>
           ) : (
             <>
-              {activeTab === 'home' && <MobileHomeTab onNavigate={handleNavigate} onOpenQ={openChat} />}
+              {activeTab === 'home' && <MobileHomeTab onNavigate={handleNavigate} onOpenQ={(msg) => { setChatInitMsg(msg); setChatOpen(true) }} />}
               {activeTab === 'loads' && <MobileLoadsTab />}
               {activeTab === 'find' && <MobileLoadBoard onNavigate={handleNavigate} />}
               {activeTab === 'money' && <MobileMoneyTab initialSubTab={moneySubTab} />}

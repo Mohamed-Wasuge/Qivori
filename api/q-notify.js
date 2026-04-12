@@ -9,6 +9,7 @@
  *   { name, args: { call_id, user_id, message, ... }, call: { call_id, metadata } }
  */
 import { handleCors, corsHeaders } from './_lib/auth.js'
+import { sendPush, getPushToken, buildQActivityPush } from './_lib/push.js'
 
 export const config = { runtime: 'edge' }
 
@@ -118,6 +119,19 @@ export default async function handler(req) {
           requires_action: isOffer,
         }),
       })
+    }
+
+    // 3. Push notification — driver may be backgrounded
+    if (driverId) {
+      const pushToken = await getPushToken(driverId, SUPABASE_URL, SUPABASE_KEY)
+      if (pushToken) {
+        const isOffer = rateValue && (messageType === 'broker_quoted' || messageType === 'broker_countered')
+        const p = buildQActivityPush(
+          isOffer ? 'decision_needed' : 'load_found',
+          { brokerName, rate: rateValue, origin: callContext.metadata?.origin, destination: callContext.metadata?.destination }
+        )
+        if (p) sendPush(pushToken, p.title, p.body, p.data).catch(() => {})
+      }
     }
 
     return Response.json({ ok: true }, { headers: corsHeaders(req) })

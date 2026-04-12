@@ -1,5 +1,7 @@
 export const config = { runtime: 'edge' }
 
+import { sendPush, getPushTokenByTruck, getPushToken, buildQActivityPush } from './_lib/push.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const RESEND_API_KEY = process.env.RESEND_API_KEY
@@ -83,6 +85,12 @@ export default async function handler(req) {
             requires_action: false,
           })
         })
+        // Push notification — app may be backgrounded
+        const pushToken = await getPushToken(driverId, SUPABASE_URL, SUPABASE_KEY)
+        if (pushToken) {
+          const p = buildQActivityPush('call_started', { brokerName: metadata.brokerName })
+          if (p) sendPush(pushToken, p.title, p.body, p.data).catch(() => {})
+        }
       }
     }
 
@@ -204,35 +212,48 @@ export default async function handler(req) {
 
         if (outcome === 'booked' && agreedRate) {
           // Load is booked — show confirmation card
+          const bookedContent = {
+            message: `Load booked at $${agreedRate.toLocaleString()}${routeStr ? ` — ${routeStr}` : ''}. Rate con incoming.`,
+            rate: agreedRate, brokerName: metadata.brokerName || 'Broker',
+            origin, destination: dest,
+          }
           await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
             method: 'POST', headers: sbHeaders(),
             body: JSON.stringify({
               truck_id: truckId, driver_id: driverId, type: 'booked',
-              content: {
-                message: `Load booked at $${agreedRate.toLocaleString()}${routeStr ? ` — ${routeStr}` : ''}. Rate con incoming.`,
-                rate: agreedRate, brokerName: metadata.brokerName || 'Broker',
-              },
-              requires_action: false,
+              content: bookedContent, requires_action: false,
             })
           })
+          // Push: "Load booked"
+          const pushToken = await getPushToken(driverId, SUPABASE_URL, SUPABASE_KEY)
+          if (pushToken) {
+            const p = buildQActivityPush('booked', bookedContent)
+            if (p) sendPush(pushToken, p.title, p.body, p.data).catch(() => {})
+          }
         } else if (agreedRate && outcome !== 'load_unavailable') {
           // Q got a rate — driver needs to decide
+          const decisionContent = {
+            message: `Broker ${metadata.brokerName || ''} offered $${agreedRate.toLocaleString()}${routeStr ? ` for ${routeStr}` : ''}. Accept this load?`,
+            rate: agreedRate, brokerName: metadata.brokerName || 'Broker',
+            originCity: origin, destinationCity: dest,
+            options: [
+              { label: `Accept $${agreedRate.toLocaleString()}`, value: 'accept' },
+              { label: 'Pass', value: 'decline' },
+            ],
+          }
           await fetch(SUPABASE_URL + '/rest/v1/q_activity', {
             method: 'POST', headers: sbHeaders(),
             body: JSON.stringify({
               truck_id: truckId, driver_id: driverId, type: 'decision_needed',
-              content: {
-                message: `Broker ${metadata.brokerName || ''} offered $${agreedRate.toLocaleString()}${routeStr ? ` for ${routeStr}` : ''}. Accept this load?`,
-                rate: agreedRate, brokerName: metadata.brokerName || 'Broker',
-                originCity: origin, destinationCity: dest,
-                options: [
-                  { label: `Accept $${agreedRate.toLocaleString()}`, value: 'accept' },
-                  { label: 'Pass', value: 'decline' },
-                ],
-              },
-              requires_action: true,
+              content: decisionContent, requires_action: true,
             })
           })
+          // Push: "Q needs your call" — high priority, driver must act
+          const pushToken = await getPushToken(driverId, SUPABASE_URL, SUPABASE_KEY)
+          if (pushToken) {
+            const p = buildQActivityPush('decision_needed', decisionContent)
+            if (p) sendPush(pushToken, p.title, p.body, p.data).catch(() => {})
+          }
         } else {
           // No rate — show summary
           const summaryMsg = outcome === 'voicemail' ? 'Voicemail — Q will retry in 30 min.'

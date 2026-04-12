@@ -59,7 +59,25 @@ export default async function handler(req, res) {
       requires_action: false,
     });
 
-    return res.status(200).json({ ok: true, bolData });
+    // Fetch the active load for this truck so mobile can show settlement breakdown
+    let activeLoad = null;
+    try {
+      const { data: loads } = await supabase
+        .from('loads')
+        .select('id, load_number, rate, gross_pay, origin, destination, broker, broker_email')
+        .eq('truck_id', truckId)
+        .in('status', ['in_transit', 'picked_up', 'assigned', 'en_route'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (loads?.[0]) {
+        activeLoad = {
+          ...loads[0],
+          rate: parseFloat(loads[0].rate || loads[0].gross_pay || 0),
+        };
+      }
+    } catch { /* non-fatal */ }
+
+    return res.status(200).json({ ok: true, bolData, load: activeLoad });
   } catch (err) {
     console.error('BOL upload error:', err);
     return res.status(500).json({ error: err.message });

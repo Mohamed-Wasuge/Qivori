@@ -1,5 +1,4 @@
-import { handleCors, corsHeaders, verifyAuth, requireActiveSubscription } from './_lib/auth.js'
-import { checkRateLimit, rateLimitResponse } from './_lib/rate-limit.js'
+import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
 
 export const config = { runtime: 'edge' }
 
@@ -12,14 +11,9 @@ export default async function handler(req) {
 
   const { user, error: authError } = await verifyAuth(req)
   if (authError) {
+    console.log('[parse-ratecon] auth failed:', authError)
     return Response.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders(req) })
   }
-  const subErr = await requireActiveSubscription(req, user)
-  if (subErr) return subErr
-
-  // Rate limit: 10 requests per 60 seconds per user (Supabase-backed)
-  const { limited, resetSeconds } = await checkRateLimit(user.id, 'parse-ratecon', 10, 60)
-  if (limited) return rateLimitResponse(req, corsHeaders, resetSeconds)
 
   try {
     const rawText = await req.text()

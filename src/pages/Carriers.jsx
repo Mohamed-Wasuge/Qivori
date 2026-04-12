@@ -157,6 +157,7 @@ export default function Carriers() {
     const real = carrierList.filter(c => !c.isLegacy)
     return {
       total: real.length, active: real.filter(c => c.company.carrier_status === 'active').length,
+      pending: real.filter(c => c.company.carrier_status === 'pending' || c.company.plan === 'pending').length,
       trial: real.filter(c => c.company.carrier_status === 'trial' || c.company.plan === 'trial').length,
       beta: real.filter(c => c.company.plan === 'beta').length,
       paid: real.filter(c => ['basic', 'pro', 'enterprise'].includes(c.company.plan)).length,
@@ -174,6 +175,7 @@ export default function Carriers() {
         if (statFilter === 'trial') return c.company.carrier_status === 'trial' || c.company.plan === 'trial'
         if (statFilter === 'beta') return c.company.plan === 'beta'
         if (statFilter === 'paid') return ['basic', 'pro', 'enterprise'].includes(c.company.plan)
+        if (statFilter === 'pending') return c.company.carrier_status === 'pending' || c.company.plan === 'pending'
         if (statFilter === 'suspended') return c.company.carrier_status === 'suspended'
         return true
       })
@@ -428,10 +430,11 @@ export default function Carriers() {
       </div>
 
       {/* -- Stats Bar -- */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10 }}>
         {[
           { label: 'Total Carriers', value: stats.total, key: null, color: STAT_COLORS.total },
           { label: 'Active', value: stats.active, key: 'active', color: STAT_COLORS.active },
+          { label: 'Pending', value: stats.pending, key: 'pending', color: 'var(--warning)' },
           { label: 'Trial', value: stats.trial, key: 'trial', color: STAT_COLORS.trial },
           { label: 'Beta', value: stats.beta, key: 'beta', color: STAT_COLORS.beta },
           { label: 'Paid', value: stats.paid, key: 'paid', color: STAT_COLORS.paid },
@@ -593,7 +596,7 @@ export default function Carriers() {
                     </button>
                   )}
                   {co.carrier_status === 'pending' && (
-                    <button onClick={() => updateStatus(co.id, 'active', co.name)}
+                    <button onClick={async () => { await updateStatus(co.id, 'active', co.name); await updatePlan(co.id, 'basic', co.name) }}
                       style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--success)', background: 'transparent', color: 'var(--success)', transition: 'all .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'var(--success)'; e.currentTarget.style.color = '#fff' }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)' }}>

@@ -128,16 +128,17 @@ Rules:
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-opus-4-5',
         max_tokens: 1024,
         messages: [{ role: 'user', content }],
       }),
     })
 
     const data = await response.json()
+    console.log('[parse-ratecon] anthropic status:', response.status, 'error:', data.error?.type, data.error?.message)
 
     if (data.error) {
-      return Response.json({ error: data.error.message }, { status: 500, headers: corsHeaders(req) })
+      return Response.json({ error: data.error.message || data.error.type }, { status: 500, headers: corsHeaders(req) })
     }
 
     const text = data.content?.[0]?.text || ''
@@ -152,6 +153,7 @@ Rules:
 
     return Response.json({ error: 'Could not extract data. Try a clearer image.' }, { status: 500, headers: corsHeaders(req) })
   } catch (e) {
-    return Response.json({ error: 'Server error' }, { status: 500, headers: corsHeaders(req) })
+    console.error('[parse-ratecon] caught:', e.message)
+    return Response.json({ error: e.message || 'Server error' }, { status: 500, headers: corsHeaders(req) })
   }
 }

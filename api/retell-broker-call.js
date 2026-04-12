@@ -89,29 +89,40 @@ export default async function handler(req) {
     // behalf of a carrier, resolve via company_members → profiles.
     let resolvedTruckId = body.truckId || ''
     let resolvedDriverId = body.driverId || user.id
+
     if (!resolvedTruckId && company.id) {
+      // Check company_members first (multi-driver fleets)
       const members = await sbGet(`company_members?company_id=eq.${company.id}&status=eq.active&select=user_id&limit=20`)
       const ids = members.map(m => m.user_id).filter(Boolean)
       if (ids.length) {
-        // Get all members with an assigned truck
         const profiles = await sbGet(`profiles?id=in.(${ids.join(',')})&assigned_truck_id=not.is.null&select=id,assigned_truck_id&limit=10`)
-        // Pick the one whose vehicle is Active
         for (const p of profiles) {
-          const veh = await sbGet(`vehicles?id=eq.${p.assigned_truck_id}&status=eq.Active&select=id&limit=1`)
-          if (veh[0]) {
-            resolvedTruckId = p.assigned_truck_id
-            resolvedDriverId = p.id
-            break
-          }
+          const veh = await sbGet(`vehicles?id=eq.${p.assigned_truck_id}&status=in.(Active,active,available)&select=id&limit=1`)
+          if (veh[0]) { resolvedTruckId = p.assigned_truck_id; resolvedDriverId = p.id; break }
         }
-        // Fallback: any assigned truck if none are Active
         if (!resolvedTruckId && profiles[0]) {
           resolvedTruckId = profiles[0].assigned_truck_id
           resolvedDriverId = profiles[0].id
         }
       }
     }
-    console.log('[retell-broker-call] truckId:', resolvedTruckId, 'driverId:', resolvedDriverId)
+
+    // Solo OO fallback — owner is not in company_members, just check their own profile
+    if (!resolvedTruckId) {
+      const ownerProfiles = await sbGet(`profiles?id=eq.${user.id}&assigned_truck_id=not.is.null&select=id,assigned_truck_id&limit=1`)
+      if (ownerProfiles[0]?.assigned_truck_id) {
+        resolvedTruckId = ownerProfiles[0].assigned_truck_id
+        resolvedDriverId = user.id
+      }
+    }
+
+    // Last resort — any vehicle belonging to this company
+    if (!resolvedTruckId && company.id) {
+      const anyVeh = await sbGet(`vehicles?company_id=eq.${company.id}&select=id&limit=1`)
+      if (anyVeh[0]) resolvedTruckId = anyVeh[0].id
+    }
+
+    console.log('[retell-broker-call] resolved truckId:', resolvedTruckId || 'NULL', 'driverId:', resolvedDriverId)
     const neg = negSettings[0] || { min_rate_per_mile: 2.50, counter_offer_markup_pct: 10, max_counter_rounds: 2 }
     const urgency = urgencyRows[0] || null
     const dieselPrice = dieselRows[0]?.price || 4.00
@@ -175,11 +186,10 @@ export default async function handler(req) {
           origin: originCity,
           destination: destCity,
           rate: String(rate),
+          targetRate: String(targetRate),
           userId: user.id,
           driverId: resolvedDriverId,
           truckId: resolvedTruckId,
-          // Carries the source experience so the webhook can skip legacy
-          // TMS pipelines for AutoShell users (auto-book, retry, etc).
           experience: body.experience || 'tms',
         },
         retell_llm_dynamic_variables: {

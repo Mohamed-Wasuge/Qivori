@@ -35,10 +35,18 @@ export default async function handler(req) {
     const rawBody = await req.text()
     const signature = req.headers.get('x-retell-signature')
 
-    // Diagnostic: log every hit before signature check
     let bodyPreview = {}
     try { bodyPreview = JSON.parse(rawBody) } catch {}
-    console.log('[retell-webhook] HIT event:', bodyPreview.event, 'callId:', bodyPreview.call?.call_id, 'sig:', signature ? signature.slice(0,16)+'...' : 'MISSING')
+
+    // Spec Fix 1 — diagnostic log at very top so we can confirm truckId is arriving
+    console.log('[webhook]', JSON.stringify({
+      event: bodyPreview.event,
+      callId: bodyPreview.call?.call_id,
+      truckId: bodyPreview.call?.metadata?.truckId,
+      driverId: bodyPreview.call?.metadata?.driverId,
+      userId: bodyPreview.call?.metadata?.userId,
+      sig: signature ? signature.slice(0, 16) + '...' : 'MISSING',
+    }))
 
     const sigValid = await verifyRetellSignature(rawBody, signature)
     if (!sigValid) {
@@ -51,8 +59,6 @@ export default async function handler(req) {
     const { event, call } = body
     const callId = call?.call_id || body.call_id
     const metadata = call?.metadata || body.metadata || {}
-
-    console.log('[retell-webhook] event:', event, 'callId:', callId, 'truckId:', metadata.truckId, 'driverId:', metadata.driverId)
 
     if (!callId) return json({ error: 'Missing call_id' }, 400)
 

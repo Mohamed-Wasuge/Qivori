@@ -361,6 +361,27 @@ export default function Carriers() {
     } else showToast('', 'Error', data.error || 'Failed')
   }, [showToast, deleteCarrier, fetchData])
 
+  const approveCarrier = useCallback(async (companyId, companyName) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await apiFetch('/api/approve-carrier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ companyId }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        const smsNote = data.smsSent ? ' · Approval SMS sent' : data.smsError ? ` · SMS failed: ${data.smsError}` : ''
+        showToast('', 'Approved', `${companyName} is now active${smsNote}`)
+      } else {
+        showToast('', 'Error', data.error || 'Approval failed')
+      }
+    } catch {
+      showToast('', 'Error', 'Approval request failed')
+    }
+    fetchData()
+  }, [showToast, fetchData])
+
   const openDrawer = useCallback(async (carrier) => {
     setDrawerEdits({})
     setDrawer({ carrier, auditLog: [], recentLoads: [] })
@@ -596,7 +617,7 @@ export default function Carriers() {
                     </button>
                   )}
                   {co.carrier_status === 'pending' && (
-                    <button onClick={async () => { await updateStatus(co.id, 'active', co.name); await updatePlan(co.id, 'basic', co.name) }}
+                    <button onClick={() => approveCarrier(co.id, co.name)}
                       style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--success)', background: 'transparent', color: 'var(--success)', transition: 'all .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'var(--success)'; e.currentTarget.style.color = '#fff' }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--success)' }}>

@@ -288,6 +288,8 @@ export default async function handler(req) {
       // Runs for ALL call types (auto + legacy) so BrokerIntelScreen has real data.
       if (outcome === 'booked' && agreedRate && metadata.userId && metadata.brokerName) {
         updateBrokerIntelligence(metadata, agreedRate).catch(() => {})
+        // Rate intelligence: record lane + rate for pattern tracking
+        recordRateIntelligence(metadata, agreedRate).catch(() => {})
       }
 
       if (!isAutoShellCall) {
@@ -533,6 +535,33 @@ async function scheduleRetryCall(meta, originalCallId) {
         scheduled_at: retryAt.toISOString(),
         notes: 'Auto-retry #' + (existing.length + 1) + ' — original call ' + originalCallId
       })
+    })
+  } catch {}
+}
+
+// ── Rate intelligence: record booked lane + rate for pattern tracking ──────────
+async function recordRateIntelligence(meta, agreedRate) {
+  const { userId, brokerName } = meta
+  if (!userId || !agreedRate) return
+  try {
+    // Pull load details for origin/destination/miles
+    let origin = meta.origin || null
+    let destination = meta.destination || null
+    let miles = meta.miles ? parseFloat(meta.miles) : null
+    if (!origin && meta.loadId) {
+      const loadRes = await fetch(
+        SUPABASE_URL + '/rest/v1/loads?id=eq.' + meta.loadId + '&select=origin,destination,miles&limit=1',
+        { headers: sbHeaders() }
+      )
+      const loads = loadRes.ok ? await loadRes.json() : []
+      if (loads[0]) { origin = loads[0].origin; destination = loads[0].destination; miles = parseFloat(loads[0].miles) || null }
+    }
+    if (!origin || !destination) return
+    const rate = parseFloat(agreedRate)
+    const rpm = miles && miles > 0 ? Math.round((rate / miles) * 100) / 100 : null
+    await fetch(SUPABASE_URL + '/rest/v1/rate_intelligence', {
+      method: 'POST', headers: sbHeaders(),
+      body: JSON.stringify({ owner_id: userId, origin, destination, rate, miles, rpm, broker_name: brokerName || null, booked_at: new Date().toISOString() })
     })
   } catch {}
 }

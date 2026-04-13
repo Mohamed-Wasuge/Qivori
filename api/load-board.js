@@ -50,7 +50,14 @@ export default async function handler(req) {
     }
     try {
       const userCreds = await getUserCredentials(user.id)
-      const creds123 = userCreds['123loadboard']
+      const platformFlex = (process.env.LB123_CLIENT_ID && process.env.LB123_SERVICE_USERNAME) ? {
+        clientId: process.env.LB123_CLIENT_ID,
+        clientSecret: process.env.LB123_CLIENT_SECRET,
+        serviceUsername: process.env.LB123_SERVICE_USERNAME,
+        servicePassword: process.env.LB123_SERVICE_PASSWORD,
+        useFlex: true,
+      } : null
+      const creds123 = userCreds['123loadboard'] || platformFlex
       if (!creds123) {
         return Response.json({ error: '123Loadboard not connected' }, { status: 400, headers: corsHeaders(req) })
       }
@@ -154,12 +161,17 @@ export default async function handler(req) {
     }
 
     // 2. Try 123Loadboard API
-    // COMPLIANCE: 123Loadboard API Usage Agreement requires "your application
-    // should accommodate user end users have dedicated connections to our
-    // services." We MUST use the user's own 123lb account credentials —
-    // never a platform-shared env-var fallback. The previous fallback to
-    // process.env.LB123_CLIENT_ID was a violation. Removed 2026-04-09.
-    const lb123Creds = userCreds['123loadboard'] || null
+    // Use user's own connected account if available; fall back to the
+    // platform service account (qivori@flex) provisioned by 123Loadboard for
+    // Qivori's platform access (confirmed by Awais Ali 2026-04-13).
+    const platformFlex123 = (process.env.LB123_CLIENT_ID && process.env.LB123_SERVICE_USERNAME) ? {
+      clientId: process.env.LB123_CLIENT_ID,
+      clientSecret: process.env.LB123_CLIENT_SECRET,
+      serviceUsername: process.env.LB123_SERVICE_USERNAME,
+      servicePassword: process.env.LB123_SERVICE_PASSWORD,
+      useFlex: true,
+    } : null
+    const lb123Creds = userCreds['123loadboard'] || platformFlex123
     let lb123Expired = false
     let lb123RateLimited = null // 'day' | 'month' | null
     if (lb123Creds) {
@@ -602,12 +614,40 @@ async function get123Token(creds) {
     return null
   }
 
-  // Per 123Loadboard guidance (Awais Ali, Apr 2026): the Flex service-account
-  // credentials must NOT be used unless we are integrating against the Flex API.
-  // Qivori uses the standard OAuth authorization_code flow, so the password and
-  // client_credentials grants are not authorized for our client and have been
-  // removed. If we ever add Flex support, gate that path behind an explicit
-  // `creds.useFlex` flag instead of resurrecting the fallback.
+  // Flex / service-account path — used when creds.useFlex is set (platform account)
+  // Awais Ali confirmed 2026-04-13: the qivori@flex service account is provisioned
+  // specifically for platform-level access. password grant IS authorized for this account.
+  if (creds.useFlex && creds.serviceUsername && creds.servicePassword && creds.clientId && creds.clientSecret) {
+    const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
+    try {
+      const res = await fetch(`${LB123_BASE}/token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          '123LB-Api-Version': '1.3',
+          'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          username: creds.serviceUsername,
+          password: creds.servicePassword,
+        }).toString(),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        lb123Token = data.access_token
+        lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
+        return lb123Token
+      } else {
+        const errText = await res.text().catch(() => '')
+        console.error(`123LB Flex auth failed: ${res.status} ${errText.slice(0, 200)}`)
+      }
+    } catch (err) {
+      console.error(`123LB Flex auth threw: ${err.message}`)
+    }
+  }
+
   return null
 }
 

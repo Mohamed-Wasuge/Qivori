@@ -37,6 +37,54 @@ export default async function handler(req) {
       equipment: url.searchParams.get('equipment') || '',
       minRate: url.searchParams.get('minRate') || '',
       maxDeadhead: url.searchParams.get('maxDeadhead') || '',
+      loadId: url.searchParams.get('loadId') || '',
+      action: url.searchParams.get('action') || '',
+    }
+  }
+
+  // ── GET /loads/{id} — load detail endpoint ──────────────────────────────
+  if (filters.action === 'load_detail' || filters.loadId) {
+    const loadId = filters.loadId
+    if (!loadId) {
+      return Response.json({ error: 'loadId required' }, { status: 400, headers: corsHeaders(req) })
+    }
+    try {
+      const userCreds = await getUserCredentials(user.id)
+      const creds123 = userCreds['123loadboard']
+      if (!creds123) {
+        return Response.json({ error: '123Loadboard not connected' }, { status: 400, headers: corsHeaders(req) })
+      }
+      const token = await get123LBToken(creds123)
+      if (!token) {
+        return Response.json({ error: '123Loadboard auth failed' }, { status: 401, headers: corsHeaders(req) })
+      }
+      const deviceId = 'qivori-dispatch-' + (creds123.clientId || 'oauth').slice(-8)
+      const detailRes = await fetch(`${LB123_BASE}/loads/${loadId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          '123LB-Api-Version': '1.3',
+          '123LB-AID': deviceId,
+          'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+          'Accept': 'application/json',
+        },
+      })
+      if (!detailRes.ok) {
+        const errText = await detailRes.text().catch(() => '')
+        console.error(`123LB load detail failed: ${detailRes.status} ${errText}`)
+        return Response.json({ error: `123LB detail error: ${detailRes.status}` }, { status: detailRes.status, headers: corsHeaders(req) })
+      }
+      const detail = await detailRes.json()
+      // Normalize to our format and include raw response for full detail
+      const normalized = normalize123Load(detail)
+      return Response.json({
+        load: normalized,
+        raw: detail,
+        source: '123loadboard',
+      }, { headers: corsHeaders(req) })
+    } catch (err) {
+      console.error(`123LB load detail error: ${err.message}`)
+      return Response.json({ error: err.message }, { status: 500, headers: corsHeaders(req) })
     }
   }
 

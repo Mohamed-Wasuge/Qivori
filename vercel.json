@@ -67,6 +67,7 @@
     { "path": "/api/carrier-score", "schedule": "0 3 * * 0" },
     { "path": "/api/apply-referral-rewards", "schedule": "0 9 * * *" },
     { "path": "/api/health-monitor", "schedule": "0 4 * * *" },
-    { "path": "/api/auto-rollback", "schedule": "0 4 * * *" }
+    { "path": "/api/auto-rollback", "schedule": "0 4 * * *" },
+    { "path": "/api/compliance-alerts-cron", "schedule": "0 13 * * *" }
   ]
 }

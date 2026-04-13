@@ -113,7 +113,7 @@ async function fetchEIAPrices(apiKey) {
 
 async function getCachedPrices(supabaseUrl, serviceKey, allowStale = false) {
   try {
-    const maxAge = allowStale ? '168' : '18'
+    const maxAge = allowStale ? '168' : '4'
     const cutoff = new Date(Date.now() - parseInt(maxAge) * 3600000).toISOString()
 
     const res = await fetch(

@@ -26,8 +26,6 @@ export const LB_PROVIDERS = [
     fields: [
       { key: 'clientId', label: 'Client ID', placeholder: 'Your 123Loadboard Client ID' },
       { key: 'clientSecret', label: 'Client Secret', placeholder: 'Your 123Loadboard Client Secret' },
-      { key: 'serviceUsername', label: 'Service Username', placeholder: 'Service account username' },
-      { key: 'servicePassword', label: 'Service Password', placeholder: 'Service account password' },
     ],
     color: '#3b82f6',
     signupUrl: 'https://www.123loadboard.com',

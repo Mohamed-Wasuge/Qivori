@@ -751,6 +751,24 @@ function normalize123Load(load) {
     refNum: load.postReference || load.referenceNumber || '',
     postedAt: load.lastRefreshed || new Date().toISOString(),
     laneKey: `${originCity.slice(0, 3).toUpperCase()}→${destCity.slice(0, 3).toUpperCase()}`,
+    // ── Detail fields — populated by GET /loads/{id}, empty in search results ──
+    contactName:  load.poster?.contactInfo?.name || '',
+    contactPhone: load.poster?.contactInfo?.phone || load.poster?.phone || '',
+    contactEmail: load.poster?.contactInfo?.email || load.poster?.email || '',
+    posterName:   load.poster?.name || '',
+    loadType:     load.loadType || load.shipmentType || '',
+    fullPartial:  load.loadSize || load.fullPartial || '',
+    teamRequired: !!(load.equipments?.[0]?.teamRequired || load.teamRequired),
+    hazmat:       !!(load.equipments?.[0]?.hazmatRequired || load.hazmat),
+    tarpRequired: !!(load.equipments?.[0]?.tarpRequired || load.tarpRequired),
+    expiresAt:    load.expiresAt || load.expiration || '',
+    notes:        load.specialRequirements || load.notes || load.loadNotes || load.comments || '',
+    stops:        (load.stops || []).map(s => ({
+      type:    s.type || '',
+      city:    s.address?.city || s.city || '',
+      state:   s.address?.state || s.state || '',
+      pickup:  s.pickupDate || '',
+    })),
   }
 }
 

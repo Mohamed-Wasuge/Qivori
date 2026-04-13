@@ -236,7 +236,37 @@ export function AILoadBoard() {
   // and the detail panel — replaces the empty LB_BROKER constant.
   const [brokerIntel, setBrokerIntel] = useState({})
   const [lbLoading, setLbLoading] = useState(false)
+  const [loadDetail, setLoadDetail] = useState({}) // keyed by load id — cached detail from GET /loads/{id}
+  const [detailLoading, setDetailLoading] = useState(false)
   const rcFileRef = useRef(null)
+
+  // Fetch load detail from GET /loads/{id} when a load is selected
+  useEffect(() => {
+    if (!selected) return
+    // Already cached
+    if (loadDetail[selected]) return
+    const load = boardLoads.find(l => l.id === selected)
+    // Only call for 123LB loads — they have a numeric/string external ID
+    if (!load || load.source !== '123loadboard') return
+    let cancelled = false
+    async function fetchDetail() {
+      setDetailLoading(true)
+      try {
+        const res = await apiFetch(`/api/load-board?action=load_detail&loadId=${encodeURIComponent(selected)}`)
+        if (!res.ok) throw new Error('detail fetch failed')
+        const data = await res.json()
+        if (!cancelled && data.load) {
+          setLoadDetail(prev => ({ ...prev, [selected]: data.load }))
+        }
+      } catch (_) {
+        // Non-fatal — detail panel falls back to search result data
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    }
+    fetchDetail()
+    return () => { cancelled = true }
+  }, [selected])
 
   // Fetch live loads from API
   useEffect(() => {
@@ -661,6 +691,66 @@ export function AILoadBoard() {
 
               {/* Stop timeline — shown for multi-stop loads */}
               {load.stops?.length > 0 && <StopTimeline load={load} />}
+
+              {/* 123LB Load Detail — extra fields from GET /loads/{id}, only shown for 123loadboard */}
+              {load.source === '123loadboard' && (
+                <div style={{ background:'var(--surface)', border:'1px solid rgba(59,130,246,0.3)', borderRadius:12, overflow:'hidden' }}>
+                  <div style={{ padding:'12px 18px', borderBottom:'1px solid var(--border)', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ fontSize:10, fontWeight:800, padding:'2px 7px', borderRadius:5, background:'#3b82f615', color:'#3b82f6', marginRight:4 }}>123LB</span>
+                      Full Load Detail
+                    </span>
+                    {detailLoading && (
+                      <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, color:'var(--muted)' }}>
+                        <span style={{ width:10, height:10, border:'2px solid var(--accent)', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
+                        Fetching…
+                      </span>
+                    )}
+                    {loadDetail[selected] && !detailLoading && (
+                      <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(34,197,94,0.15)', color:'var(--success)', letterSpacing:0.5 }}>LIVE</span>
+                    )}
+                  </div>
+                  {loadDetail[selected] ? (() => {
+                    const d = loadDetail[selected]
+                    const rows = [
+                      d.contactName  && { l:'Contact',          v: d.contactName },
+                      d.contactPhone && { l:'Phone',            v: d.contactPhone },
+                      d.contactEmail && { l:'Email',            v: d.contactEmail },
+                      d.posterName   && { l:'Posted By',        v: d.posterName },
+                      d.loadType     && { l:'Load Type',        v: d.loadType },
+                      d.fullPartial  && { l:'Full / Partial',   v: d.fullPartial },
+                      d.teamRequired && { l:'Team Required',    v: 'Yes' },
+                      d.hazmat       && { l:'Hazmat',           v: 'Yes' },
+                      d.tarpRequired && { l:'Tarp Required',    v: 'Yes' },
+                      d.postedAt     && { l:'Posted',           v: new Date(d.postedAt).toLocaleString() },
+                      d.expiresAt    && { l:'Expires',          v: new Date(d.expiresAt).toLocaleString() },
+                    ].filter(Boolean)
+                    return (
+                      <div style={{ padding:'4px 0' }}>
+                        {rows.length > 0 && rows.map(row => (
+                          <div key={row.l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 18px', borderBottom:'1px solid var(--border)' }}>
+                            <span style={{ fontSize:11, color:'var(--muted)' }}>{row.l}</span>
+                            <span style={{ fontSize:11, fontWeight:600, color:'var(--text)', maxWidth:'55%', textAlign:'right' }}>{row.v}</span>
+                          </div>
+                        ))}
+                        {d.notes && (
+                          <div style={{ padding:'12px 18px' }}>
+                            <div style={{ fontSize:11, color:'var(--muted)', marginBottom:6, fontWeight:700, letterSpacing:0.5 }}>SPECIAL INSTRUCTIONS</div>
+                            <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.6, background:'var(--surface2)', borderRadius:8, padding:'10px 14px' }}>{d.notes}</div>
+                          </div>
+                        )}
+                        {rows.length === 0 && !d.notes && (
+                          <div style={{ padding:'14px 18px', fontSize:12, color:'var(--muted)' }}>No additional detail returned by 123Loadboard for this load.</div>
+                        )}
+                      </div>
+                    )
+                  })() : (
+                    <div style={{ padding:'14px 18px', fontSize:12, color:'var(--muted)' }}>
+                      {detailLoading ? 'Loading full detail from 123Loadboard…' : 'Select a 123Loadboard load to fetch full contact & detail info.'}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Q's Broker Intel — real interaction history from broker_urgency_scores.
                   Only renders when Q has actually called this broker before. No

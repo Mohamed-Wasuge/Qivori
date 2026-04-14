@@ -225,13 +225,54 @@ export default async function handler(req) {
       created_at: new Date().toISOString()
     });
 
-    // 3. Update load status to booked (if loadId exists)
+    // 3. Update load status to Rate Con Received (if loadId exists)
+    // 'Rate Con Received' is the correct schema enum value — 'booked' is not valid.
     if (loadId) {
       await supabaseUpdate('loads', `id=eq.${loadId}`, {
-        status: 'booked',
-        booked_rate: Number(agreedRate),
-        booked_at: new Date().toISOString()
+        status: 'Rate Con Received',
+        gross_pay: Number(agreedRate),
+        updated_at: new Date().toISOString()
       });
+    }
+
+    // 3b. Store rate con HTML to Supabase Storage + insert user_documents row
+    // so the driver can find it in the mobile app under Documents → Rate Confirmations.
+    if (resolvedUserId) {
+      try {
+        const storagePath = `rate-cons/${resolvedUserId}/${confirmNumber}.html`;
+        const htmlBytes = new TextEncoder().encode(html);
+        const storageRes = await fetch(`${supabaseUrl}/storage/v1/object/documents/${storagePath}`, {
+          method: 'POST',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'text/html',
+            'x-upsert': 'true',
+          },
+          body: html,
+        });
+        if (storageRes.ok || storageRes.status === 200) {
+          // Resolve load_number for the row (fetch from loads table if we have loadId)
+          let loadNumber = null;
+          if (loadId) {
+            const loadRows = await supabaseQuery('loads', `id=eq.${loadId}&select=load_number&limit=1`);
+            loadNumber = loadRows?.[0]?.load_number || null;
+          }
+          await supabaseInsert('user_documents', {
+            owner_id: resolvedUserId,
+            name: `Rate Con ${confirmNumber} — ${origin} to ${destination}`,
+            category: 'rate_con',
+            mime_type: 'text/html',
+            storage_path: storagePath,
+            size_bytes: htmlBytes.length,
+            load_number: loadNumber,
+            created_at: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        // Non-fatal — rate con was already emailed, storage is best-effort
+        console.warn('[rate-confirm] user_documents insert failed:', e.message);
+      }
     }
 
     // 4. Notify the driver via SMS / email

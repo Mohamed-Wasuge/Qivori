@@ -138,7 +138,7 @@ export default async function handler(req) {
 
       if (!alerts.length) continue
 
-      // Send each alert as a push to all drivers in this state
+      // Send each alert as push + write to q_activity feed
       for (const alert of alerts) {
         const urgencyPrefix = alert.urgency === 'high' ? 'High demand: ' : ''
         const pushTitle = `${urgencyPrefix}${alert.title}`
@@ -159,6 +159,29 @@ export default async function handler(req) {
           })
 
           if (ok) notified++
+
+          // Write to q_activity so MarketAlertsScreen has a feed to display
+          fetch(`${SUPABASE_URL}/rest/v1/q_activity`, {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              Prefer: 'return=minimal',
+            },
+            body: JSON.stringify({
+              driver_id: driver.id,
+              type: 'market_alert',
+              content: {
+                title: alert.title,
+                message: alert.body,
+                state,
+                urgency: alert.urgency,
+                lane: alert.lane || null,
+              },
+              requires_action: false,
+            }),
+          }).catch(() => {})
         }
       }
     }

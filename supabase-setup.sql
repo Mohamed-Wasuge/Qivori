@@ -403,6 +403,36 @@ CREATE POLICY "Users can view documents" ON storage.objects
 CREATE POLICY "Users can delete own documents" ON storage.objects
   FOR DELETE USING (bucket_id = 'documents' AND auth.uid()::text = (storage.foldername(name))[1]);
 
+-- ─── 11. FAMILY CONTACTS ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS family_contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  relationship TEXT,
+  notify_on_delivery BOOLEAN DEFAULT true,
+  notify_on_pickup BOOLEAN DEFAULT false,
+  notify_on_delay BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE family_contacts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_family_contacts" ON family_contacts USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+
+-- ─── 12. USER DOCUMENTS (receipt/doc metadata) ───────────────
+CREATE TABLE IF NOT EXISTS user_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  expense_id UUID REFERENCES expenses(id) ON DELETE SET NULL,
+  storage_path TEXT NOT NULL,
+  public_url TEXT,
+  doc_type TEXT DEFAULT 'receipt',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE user_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_documents" ON user_documents USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+
 -- ═══════════════════════════════════════════════════════════════
 -- DONE — Now set up your admin account:
 -- 1. Go to Authentication → Users → Add User

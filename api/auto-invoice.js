@@ -74,7 +74,7 @@ export default async function handler(req) {
       const results = []
       for (const load of toInvoice) {
         try {
-          const result = await processLoad(load, user, supabaseUrl, headers, resendKey)
+          const result = await processLoad(load, user, supabaseUrl, headers, resendKey, null, {}, supabaseKey)
           results.push({ loadId: load.load_number || load.id, success: true, invoiceNumber: result.invoiceNumber })
         } catch (e) {
           results.push({ loadId: load.load_number || load.id, success: false, error: e.message })
@@ -122,7 +122,7 @@ export default async function handler(req) {
       }
     }
 
-    const result = await processLoad(load, user, supabaseUrl, headers, resendKey, lineItems)
+    const result = await processLoad(load, user, supabaseUrl, headers, resendKey, lineItems, body, supabaseKey)
 
     return Response.json({
       success: true,
@@ -139,7 +139,7 @@ export default async function handler(req) {
 /**
  * Process a single load: create invoice, send email, update load status.
  */
-async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItems) {
+async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItems, body = {}) {
   const now = new Date()
   const dueDate = new Date(now)
   dueDate.setDate(dueDate.getDate() + 30)
@@ -219,6 +219,27 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
     }
   } catch { /* use defaults */ }
 
+  // Resolve factoring info: body override > companies table > profiles table
+  let factoringEmail = body.factoringEmail || companyInfo.factoring_email || ''
+  let factoringName = body.factoringName || companyInfo.factoring_company || 'Factoring Company'
+
+  // If still no factoring email, check profiles table
+  if (!factoringEmail) {
+    try {
+      const profRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=factoring_email,factoring_company&limit=1`,
+        { headers }
+      )
+      if (profRes.ok) {
+        const profData = await profRes.json()
+        factoringEmail = profData?.[0]?.factoring_email || ''
+        if (!factoringName || factoringName === 'Factoring Company') {
+          factoringName = profData?.[0]?.factoring_company || 'Factoring Company'
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
   // ── 4. Fetch all documents attached to this load (rate con, BOL, POD, etc.) ──
   let loadDocs = []
   try {
@@ -249,7 +270,6 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
 
   // ── 5. Send invoice email to broker ──
   let emailSent = false
-  const factoringEmail = companyInfo.factoring_email || ''
 
   const invoiceHtml = buildInvoiceEmailHtml({
     invoiceNumber, invoiceDate: now, dueDate,
@@ -267,7 +287,7 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
           'Authorization': `Bearer ${resendKey}`,
         },
         body: JSON.stringify({
-          from: 'Qivori AI <hello@qivori.com>',
+          from: companyInfo.email ? `${companyInfo.name || 'Carrier'} <${companyInfo.email}>` : 'Qivori Dispatch <hello@qivori.com>',
           reply_to: companyInfo.email || 'hello@qivori.com',
           to: [brokerEmail],
           subject: `Invoice ${invoiceNumber} — ${route} — $${(totalAmount || rate).toLocaleString()}`,
@@ -289,10 +309,11 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
         origin, dest, miles, refNumber, driverName,
         rate, route, lineItems: items, totalAmount,
         docCount: loadDocs.length,
+        factoringName, factoringEmail,
       })
 
       const factoringPayload = {
-        from: 'Qivori AI <hello@qivori.com>',
+        from: companyInfo.email ? `${companyInfo.name || 'Carrier'} <${companyInfo.email}>` : 'Qivori Dispatch <hello@qivori.com>',
         reply_to: companyInfo.email || 'hello@qivori.com',
         to: [factoringEmail],
         subject: factoringSubject,
@@ -311,6 +332,35 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
       factoringEmailed = factRes.ok
     } catch { factoringEmailed = false }
   }
+
+  // ── 7. Store invoice HTML in Supabase Storage + user_documents table for mobile visibility ──
+  try {
+    const storagePath = `invoices/${user.id}/${invoiceNumber}.html`
+    await fetch(`${supabaseUrl}/storage/v1/object/documents/${storagePath}`, {
+      method: 'POST',
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'text/html',
+        'x-upsert': 'true',
+      },
+      body: invoiceHtml,
+    })
+    await fetch(`${supabaseUrl}/rest/v1/user_documents`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        owner_id: user.id,
+        name: `Invoice ${invoiceNumber} — ${route}`,
+        category: 'invoice',
+        mime_type: 'text/html',
+        storage_path: storagePath,
+        size_bytes: new TextEncoder().encode(invoiceHtml).length,
+        load_number: load.load_number || null,
+        created_at: now.toISOString(),
+      }),
+    })
+  } catch { /* non-fatal */ }
 
   return { invoiceId, invoiceNumber, emailSent, factoringEmailed, docsAttached: attachments.length }
 }

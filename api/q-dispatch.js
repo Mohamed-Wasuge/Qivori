@@ -11,6 +11,7 @@
  */
 
 import { handleCors, corsHeaders, verifyAuth } from './_lib/auth.js'
+import { sendPush, getPushToken, buildQActivityPush } from './_lib/push.js'
 
 export const config = { runtime: 'edge' }
 
@@ -92,7 +93,6 @@ export default async function handler(req) {
       .slice(0, 3) // Top 3 only — don't flood brokers
 
     if (scored.length === 0) {
-      // Log that Q searched but found nothing qualifying
       await logQActivity(user.id, origin, destination, 0)
       return Response.json({
         ok: true, dispatched: 0,
@@ -137,6 +137,20 @@ export default async function handler(req) {
 
     const dispatched = calls.filter(c => c.ok).length
     await logQActivity(user.id, origin, destination, dispatched, calls)
+
+    // Push notification — app may be backgrounded when Q finds loads
+    if (dispatched > 0) {
+      const topLoad = scored[0]
+      const pushToken = await getPushToken(user.id, SB_URL(), SB_KEY())
+      if (pushToken) {
+        const p = buildQActivityPush('load_found', {
+          origin: topLoad.originCity || origin,
+          destination: topLoad.destinationCity || destination,
+          rate: topLoad._rate,
+        })
+        if (p) sendPush(pushToken, p.title, p.body, p.data).catch(() => {})
+      }
+    }
 
     return Response.json({
       ok: true,

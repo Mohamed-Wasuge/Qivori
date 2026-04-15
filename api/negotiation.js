@@ -1,4 +1,5 @@
 import { handleCors, corsHeaders, requireAuth } from './_lib/auth.js'
+import { sendPush, getPushToken, buildQActivityPush } from './_lib/push.js'
 
 export const config = { runtime: 'edge' }
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -167,6 +168,17 @@ export default async function handler(req) {
                 requires_action: false,
               })
             }).catch(() => {})
+          }
+
+          // Push notification — driver may be backgrounded
+          const pushToken = await getPushToken(userId, SUPABASE_URL, SUPABASE_KEY)
+          if (pushToken) {
+            const p = buildQActivityPush('booked', {
+              origin: call.origin || '',
+              destination: call.destination || '',
+              rate: finalRate,
+            })
+            if (p) sendPush(pushToken, p.title, p.body, p.data).catch(() => {})
           }
         } catch (e) {
           console.error('[negotiation] post-accept error:', e.message)

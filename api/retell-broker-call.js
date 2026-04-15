@@ -248,6 +248,11 @@ export default async function handler(req) {
           call_type: 'broker_outbound',
           truck_id: resolvedTruckId || null,
           driver_id: resolvedDriverId || null,
+          origin: originCity || null,
+          destination: destCity || null,
+          posted_rate: rate || null,
+          equipment: body.equipment || null,
+          broker_email: body.brokerEmail || null,
           created_at: new Date().toISOString(),
         }),
       }).catch(e => ({ ok: false, _err: e.message }))

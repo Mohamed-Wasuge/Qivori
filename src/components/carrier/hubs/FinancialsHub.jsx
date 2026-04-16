@@ -40,7 +40,7 @@ export function FinancialsHub() {
   const avgPayPct = (() => {
     const pctDrivers = (ctxDrivers || []).filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28 // fallback — per-driver rate preferred
+    return 0 // no pay model configured — set driver.pay_model + pay_rate in settings
   })()
   const profitPerTruck = Math.round(netProfit / truckCount)
   const marginColor = margin >= 30 ? 'var(--success)' : margin >= 20 ? 'var(--warning,#f59e0b)' : 'var(--danger)'

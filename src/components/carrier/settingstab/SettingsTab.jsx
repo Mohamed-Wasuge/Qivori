@@ -17,7 +17,7 @@ const lazyN = (fn, name) => lazy(() => fn().then(m => ({ default: m[name] })))
 const SMSSettings = lazyN(() => import('../../../pages/carrier/Settings'), 'SMSSettings')
 const InvoicingSettings = lazyN(() => import('../../../pages/carrier/Settings'), 'InvoicingSettings')
 const TeamManagement = lazyN(() => import('../../../pages/carrier/Settings'), 'TeamManagement')
-const InsuranceHub = lazyN(() => import('../../CarrierLayout'), 'InsuranceHub')
+const InsuranceHub = lazyN(() => import('../Hubs'), 'InsuranceHub')
 const CarrierPackage = lazyN(() => import('../../../pages/carrier/Settings'), 'CarrierPackage')
 
 // ── Settings tab ───────────────────────────────────────────────────────────────

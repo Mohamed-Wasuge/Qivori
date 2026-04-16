@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 import { useApp } from '../context/AppContext'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -30,11 +31,14 @@ const EQUIPMENT_OPTIONS = [
   { id: 'Flatbed', label: 'Flatbed', icon: Package, color: '#22c55e' },
 ]
 
-const PLAN_OPTIONS = [
-  { id: 'tms_pro',          label: 'TMS Pro',          price: '$79/mo first truck',      color: '#3b82f6', icon: Briefcase },
-  { id: 'ai_dispatch',      label: 'AI Dispatch',      price: '$199/mo first truck',     color: '#f0a500', icon: Bot },
-  { id: 'autonomous_fleet', label: 'Autonomous Fleet', price: '3% per booked load',      color: '#22c55e', icon: Sparkles },
-]
+const PLAN_ICONS = { tms_pro: Briefcase, ai_dispatch: Bot, autonomous_fleet: Sparkles }
+const PLAN_OPTIONS = Object.entries(PLAN_DISPLAY).map(([id, p]) => ({
+  id,
+  label: p.name,
+  price: `$${p.price}/mo first truck`,
+  color: p.color,
+  icon: PLAN_ICONS[id] || Sparkles,
+}))
 
 export default function AdminCarrierOnboarding({ onClose, onCreated }) {
   const { showToast } = useApp()

@@ -23,7 +23,7 @@ import {
 import { Ic, haptic, fmt$ } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { supabase } from '../../lib/supabase'
+import { updateProfile } from '../../lib/database'
 import AutoActiveLoad from './AutoActiveLoad'
 
 // ── Q activity messages — rotate when hunting ───────────────────
@@ -166,7 +166,7 @@ function AutoHomeHunting() {
   const goOffline = async () => {
     setToggling(true)
     try {
-      await supabase.from('profiles').update({ auto_online: false }).eq('id', user.id)
+      await updateProfile({ auto_online: false })
     } catch (e) {
       showToast?.('error', 'Could not go offline', 'Please try again')
     }
@@ -177,12 +177,12 @@ function AutoHomeHunting() {
     setToggling(true)
     haptic('success')
     try {
-      await supabase.from('profiles').update({
+      await updateProfile({
         auto_online: true,
         auto_intent: intent,
         auto_intent_destination: destination || null,
         location_updated_at: new Date().toISOString(),
-      }).eq('id', user.id)
+      })
       setOnline(true)
       setShowWhereTo(false)
     } catch (e) {

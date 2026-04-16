@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { Ic, haptic } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
-import { supabase } from '../../lib/supabase'
+import { updateProfile } from '../../lib/database'
 
 const AutoSettingsDetail = lazy(() => import('./AutoSettingsDetail'))
 
@@ -20,7 +20,7 @@ export default function AutoSettings() {
   const switchToTms = async () => {
     haptic('medium')
     try {
-      await supabase.from('profiles').update({ experience: 'tms' }).eq('id', user.id)
+      await updateProfile({ experience: 'tms' })
       showToast?.('success', 'Switched to TMS', 'Reloading...')
       setTimeout(() => window.location.reload(), 600)
     } catch (e) {

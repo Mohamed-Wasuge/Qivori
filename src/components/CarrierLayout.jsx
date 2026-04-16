@@ -8,7 +8,7 @@ import {
   Clock, Bot, Sun, Globe, RefreshCw, Sparkles, Radio, Activity
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
-import { useSubscription } from '../hooks/useSubscription'
+import { useSubscription, PLAN_DISPLAY } from '../hooks/useSubscription'
 import { CarrierProvider, useCarrier } from '../context/CarrierContext'
 import { generateInvoicePDF } from '../utils/generatePDF'
 import Toast from './Toast'
@@ -145,7 +145,7 @@ function CarrierLayoutInner() {
   const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, isDispatcher, companyRole, switchView, currentRole, subscriptionBlocked, pastDue, openBillingPortal } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
-  const { isTrialing, trialDaysLeft, isActive, isPaid } = useSubscription()
+  const { isTrialing, trialDaysLeft, isActive, isPaid, planPrice } = useSubscription()
 
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -418,7 +418,7 @@ function CarrierLayoutInner() {
             borderRadius: 6, padding: '4px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
             fontFamily: "'DM Sans',sans-serif",
           }}>
-            Upgrade — $199/mo
+            {`Upgrade — $${planPrice}/mo`}
           </button>
         </div>
       )}
@@ -489,11 +489,11 @@ function CarrierLayoutInner() {
                 borderRadius: 10, padding: 14,
               }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#f0a500' }}>$199</span>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#f0a500' }}>${`$${planPrice}`}</span>
                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo first truck</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>
-                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>$99</span>/mo each additional truck
+                  + <span style={{ color: '#f0a500', fontWeight: 700 }}>${PLAN_DISPLAY.autonomous_fleet.extraTruck}</span>/mo each additional truck
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
                   First 100 carriers only. Includes everything — AI dispatch, load board, invoicing, compliance, fleet map, QuickBooks.
@@ -516,7 +516,7 @@ function CarrierLayoutInner() {
                 fontSize: 15, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
                 boxShadow: '0 4px 20px rgba(240,165,0,0.3)',
               }}>
-                Subscribe Now — $199/mo
+                {`Subscribe Now — $${planPrice}/mo`}
               </button>
               {profile?.stripe_customer_id && (
                 <button onClick={openBillingPortal} style={{

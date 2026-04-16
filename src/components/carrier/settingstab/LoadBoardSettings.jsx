@@ -23,10 +23,8 @@ export const LB_PROVIDERS = [
     id: '123loadboard',
     name: '123Loadboard',
     desc: 'Affordable load board with API access — great for small fleets. $200-500/mo.',
-    fields: [
-      { key: 'clientId', label: 'Client ID', placeholder: 'Your 123Loadboard Client ID' },
-      { key: 'clientSecret', label: 'Client Secret', placeholder: 'Your 123Loadboard Client Secret' },
-    ],
+    fields: [],
+    oauthOnly: true,
     color: '#3b82f6',
     signupUrl: 'https://www.123loadboard.com',
   },
@@ -211,12 +209,9 @@ export function LoadBoardSettings() {
                         >
                           {isConnected ? 'Reconnect 123Loadboard' : 'Connect 123Loadboard'}
                         </a>
-                        <div style={{ fontSize:10, color:'var(--muted)', borderTop:'1px solid var(--border)', paddingTop:10, marginTop:4 }}>
-                          Or enter API credentials manually below (advanced):
-                        </div>
                       </div>
                     )}
-                    {prov.fields.map(f => (
+                    {!prov.oauthOnly && prov.fields.map(f => (
                       <div key={f.key}>
                         <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
                         <input
@@ -232,18 +227,22 @@ export function LoadBoardSettings() {
                       Don't have an account? <a href={prov.signupUrl} target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent3)', textDecoration:'none' }}>Sign up at {prov.signupUrl} {'\u2192'}</a>
                     </div>
                     <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                      <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
-                        disabled={isSaving || !prov.fields.every(f => creds[f.key])}
-                        onClick={() => saveCredentials(prov.id)}>
-                        {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
-                      </button>
+                      {!prov.oauthOnly && (
+                        <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
+                          disabled={isSaving || !prov.fields.every(f => creds[f.key])}
+                          onClick={() => saveCredentials(prov.id)}>
+                          {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
+                        </button>
+                      )}
                       {isConnected && (
                         <>
-                          <button className="btn btn-ghost" style={{ fontSize:12 }}
-                            disabled={isTesting}
-                            onClick={() => testConnection(prov.id)}>
-                            {isTesting ? 'Testing...' : 'Test Connection'}
-                          </button>
+                          {!prov.oauthOnly && (
+                            <button className="btn btn-ghost" style={{ fontSize:12 }}
+                              disabled={isTesting}
+                              onClick={() => testConnection(prov.id)}>
+                              {isTesting ? 'Testing...' : 'Test Connection'}
+                            </button>
+                          )}
                           <button className="btn btn-ghost" style={{ fontSize:12, color:'#ef4444' }}
                             onClick={() => disconnect(prov.id)}>
                             Disconnect

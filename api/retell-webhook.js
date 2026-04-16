@@ -31,6 +31,9 @@ async function verifyRetellSignature(rawBody, signature) {
 
 export default async function handler(req) {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return json({ error: 'Server not configured' }, 500)
+  }
   try {
     const rawBody = await req.text()
     const signature = req.headers.get('x-retell-signature')
@@ -65,7 +68,7 @@ export default async function handler(req) {
     // Determine call type from metadata or DB lookup
     const callType = metadata.call_type || 'broker_outbound'
     const table = callType === 'check_call' ? 'check_calls' : 'retell_calls'
-    const idField = callType === 'check_call' ? 'retell_call_id' : 'retell_call_id'
+    const idField = callType === 'check_call' ? 'call_id' : 'retell_call_id'
 
     // Q mobile feed targets
     const truckId = metadata.truckId || null

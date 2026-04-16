@@ -132,72 +132,63 @@ export default async function handler(req) {
     // owner_id points back to the carrier's auth user, so when they log
     // in their HR / Drivers page sees themselves as their first driver.
     if (sanitizedRole === 'carrier') {
-      await fetch(`${supabaseUrl}/rest/v1/drivers`, {
-        method: 'POST',
-        headers: {
-          'apikey': serviceKey,
-          'Authorization': `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          owner_id: authData.id,
-          full_name: safeName,
-          email,
-          phone: phone || null,
-          status: 'Active',
-          hire_date: new Date().toISOString().split('T')[0],
-          notes: 'Auto-created from admin onboarding wizard',
-        }),
-      }).catch(() => {})
+      const sbPost = async (table, data, label) => {
+        const res = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+          method: 'POST',
+          headers: {
+            'apikey': serviceKey,
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify(data),
+        })
+        if (!res.ok) {
+          const errText = await res.text().catch(() => 'unknown')
+          console.error(`[create-user] ${label} failed (${res.status}):`, errText)
+        }
+        return res.ok
+      }
 
-      // ── Also insert a company_members row marking them as owner ──
-      // Without this row the carrier can't invite team members — the
-      // "Only owner can invite" check fails. Convention is company_id =
-      // user's own auth.users id for solo owner-operators (matches
-      // ensureOwnerMembership in AppContext). Carrier is now the owner
-      // of their own company and can invite drivers, dispatchers, admins.
-      await fetch(`${supabaseUrl}/rest/v1/company_members`, {
-        method: 'POST',
-        headers: {
-          'apikey': serviceKey,
-          'Authorization': `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          company_id: authData.id,
-          user_id: authData.id,
-          role: 'owner',
-          status: 'active',
-        }),
-      }).catch(() => {})
+      // Row 2: drivers — carrier shows up in HR as their own first driver
+      await sbPost('drivers', {
+        owner_id: authData.id,
+        full_name: safeName,
+        email,
+        phone: phone || null,
+        status: 'Active',
+        hire_date: new Date().toISOString().split('T')[0],
+        notes: 'Auto-created from admin onboarding wizard',
+      }, 'drivers')
 
-      // ── Also insert a companies row pre-populated from FMCSA ──
-      // Without this row the carrier opens "Settings → Company Profile"
-      // and sees a blank form. When they save it has nothing to update
-      // (depending on how upsertCompany handles missing rows). Pre-creating
-      // the row with FMCSA data means everything is filled in on day 1
-      // and any future Save just updates the existing row.
+      // Row 3: company_members — required for "invite team" to work
+      await sbPost('company_members', {
+        company_id: authData.id,
+        user_id: authData.id,
+        role: 'owner',
+        status: 'active',
+      }, 'company_members')
+
+      // Row 4: companies — pre-populated from FMCSA so Settings shows data on day 1
       const fullAddress = [address, city, state, zip].filter(Boolean).join(', ')
-      await fetch(`${supabaseUrl}/rest/v1/companies`, {
-        method: 'POST',
-        headers: {
-          'apikey': serviceKey,
-          'Authorization': `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          owner_id: authData.id,
-          name: safeCompany || safeName,  // company name or fall back to driver name
-          mc_number: mc_number || null,
-          dot_number: dot_number || null,
-          address: fullAddress || null,
-          phone: phone || null,
-          email,
-        }),
-      }).catch(() => {})
+      await sbPost('companies', {
+        owner_id: authData.id,
+        name: safeCompany || safeName,
+        mc_number: mc_number || null,
+        dot_number: dot_number || null,
+        address: fullAddress || null,
+        phone: phone || null,
+        email,
+      }, 'companies')
+
+      // Row 5: subscription — required for useSubscription() hook
+      const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      await sbPost('subscriptions', {
+        owner_id: authData.id,
+        plan: subscription_plan || 'autonomous_fleet',
+        status: 'trialing',
+        trial_ends_at: trialEnd,
+      }, 'subscriptions')
     }
 
     return Response.json({ id: authData.id, email, role: sanitizedRole, full_name: safeName }, { headers: corsHeaders(req) })

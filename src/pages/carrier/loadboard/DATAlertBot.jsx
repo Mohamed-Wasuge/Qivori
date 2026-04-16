@@ -37,7 +37,7 @@ export function DATAlertBot() {
   const boardPayPct = useMemo(() => {
     const pctDrivers = (dbDrivers || []).filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28 // fallback — per-driver rate preferred
+    return 0 // fallback — per-driver rate preferred
   }, [dbDrivers])
 
   const [connected, setConnected]   = useState(false)

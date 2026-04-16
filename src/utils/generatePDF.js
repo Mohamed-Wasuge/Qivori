@@ -394,7 +394,7 @@ export function generateSettlementPDF(driver, loads, period = 'Mar 1–15, 2026'
     doc.setTextColor(...gray)
     doc.text(String(load.miles || 0), PAD + 280, tY + 18)
     doc.text(`$${(load.gross || 0).toLocaleString()}`, PAD + 340, tY + 18)
-    const pay = load.pay || Math.round((load.gross || 0) * 0.28)
+    const pay = load.pay || 0
     totalPay += pay
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(255, 255, 255)

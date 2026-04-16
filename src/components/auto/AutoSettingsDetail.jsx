@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { Ic, haptic } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
-import { supabase } from '../../lib/supabase'
+import { updateProfile } from '../../lib/database'
 
 const EQUIPMENT_OPTIONS = [
   { id: 'Dry Van',  label: 'Dry Van',  sub: 'Most loads · easy starts',   icon: Truck,     color: '#f0a500' },
@@ -74,7 +74,7 @@ export default function AutoSettingsDetail({ which, onBack }) {
       if (which === 'account') updates.full_name = name
 
       if (Object.keys(updates).length > 0) {
-        await supabase.from('profiles').update(updates).eq('id', user.id)
+        await updateProfile(updates)
       }
       showToast?.('success', 'Saved', `${meta.title.toLowerCase()} updated`)
       onBack?.()

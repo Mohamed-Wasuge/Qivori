@@ -107,8 +107,8 @@ export function PLDashboard() {
         else if (drv.pay_model === 'permile') estDriverPay += miles * Number(drv.pay_rate)
         else if (drv.pay_model === 'flat') estDriverPay += Number(drv.pay_rate)
       } else {
-        // Default estimate: 28% of gross for driver pay
-        estDriverPay += gross * 0.28
+        // No driver-level pay info configured, return 0
+        estDriverPay += 0
       }
       // Other operating costs estimate: ~5% of gross (insurance, maintenance, etc.)
       estOther += gross * 0.05

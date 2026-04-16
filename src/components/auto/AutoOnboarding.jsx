@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { Ic, haptic } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
-import { supabase } from '../../lib/supabase'
+import { updateProfile } from '../../lib/database'
 
 const STEPS = ['equipment', 'home', 'factoring', 'ready']
 
@@ -63,13 +63,13 @@ export default function AutoOnboarding({ onComplete }) {
     haptic('medium')
     // Mark onboarding complete with whatever they've provided so far
     try {
-      await supabase.from('profiles').update({
+      await updateProfile({
         equipment: equipment || null,
         home_base_city: homeCity || null,
         home_base_state: homeState || null,
         factoring_company: factoring || null,
         auto_onboarded_at: new Date().toISOString(),
-      }).eq('id', user.id)
+      })
     } catch {}
     onComplete?.()
   }, [equipment, homeCity, homeState, factoring, user, onComplete])
@@ -78,13 +78,13 @@ export default function AutoOnboarding({ onComplete }) {
     haptic('success')
     setSaving(true)
     try {
-      await supabase.from('profiles').update({
+      await updateProfile({
         equipment: equipment || null,
         home_base_city: homeCity || null,
         home_base_state: homeState || null,
         factoring_company: factoring || null,
         auto_onboarded_at: new Date().toISOString(),
-      }).eq('id', user.id)
+      })
       onComplete?.()
     } catch (e) {
       showToast?.('error', 'Could not save', 'Please try again')

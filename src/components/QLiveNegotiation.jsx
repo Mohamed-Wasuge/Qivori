@@ -10,7 +10,7 @@
  */
 import { useEffect, useState, useRef } from 'react'
 import { Phone, PhoneOff, MessageSquare, TrendingUp, User } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { updateRetellCall } from '../lib/database'
 
 const ACTIVE_STATUSES = ['initiating', 'in_progress', 'ringing']
 
@@ -84,7 +84,7 @@ export default function QLiveNegotiation({ variant = 'panel' }) {
     const ok = window.confirm(`Take over the call with ${activeCall.broker_name || 'broker'}? This will end Q's call and connect you directly.`)
     if (!ok) return
     try {
-      await supabase.from('retell_calls').update({ call_status: 'human_takeover', notes: 'Operator took over' }).eq('id', activeCall.id)
+      await updateRetellCall(activeCall.id, { call_status: 'human_takeover', notes: 'Operator took over' })
       if (activeCall.broker_phone) {
         window.location.href = `tel:${activeCall.broker_phone}`
       }

@@ -941,7 +941,7 @@ function calculateLoadExpenses(load, driverPayModel, driverPayRate) {
   const miles = load.miles;
   const gross = load.negotiatedGross || load.gross;
   const payModel = driverPayModel || 'percent';
-  const payRate = driverPayRate || 0.28;
+  const payRate = driverPayRate || 0;
 
   // Fuel: ~6.5 mpg, ~$3.80/gal average
   const fuelCostPerGallon = randFloat(3.50, 4.10);
@@ -1210,7 +1210,7 @@ export function simulateDay(dayNumber, companyState) {
  * @param {string}  [config.equipment='Dry Van']
  * @param {number}  [config.weeklyTarget=5000]
  * @param {string}  [config.driverPayModel='percent']
- * @param {number}  [config.driverPayRate=0.28]
+ * @param {number}  [config.driverPayRate=0]
  * @param {number}  [config.seed] - Optional seed for reproducibility
  * @param {Date}    [config.startDate] - Week start date (defaults to next Monday)
  * @returns {object} Week simulation with daily results and running totals
@@ -1224,7 +1224,7 @@ export function simulateWeek(config = {}) {
     equipment = 'Dry Van',
     weeklyTarget = 5000,
     driverPayModel = 'percent',
-    driverPayRate = 0.28,
+    driverPayRate = 0,
     seed,
     startDate,
   } = config;

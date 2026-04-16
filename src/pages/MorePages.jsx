@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { Building2, Search, CheckCircle, Ban, Eye, Star, DollarSign, TrendingUp, ArrowUpRight, Users, CreditCard, AlertTriangle, MessageSquare, Clock, Mail, Plus, X, Download, Send, ArrowDown, BarChart2 } from 'lucide-react'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
@@ -149,7 +150,7 @@ export function Payments() {
   }, [])
 
   const planPrices = { autonomous_fleet: 199, autopilot: 199, autopilot_ai: 199 }
-  const planLabels = { autonomous_fleet: 'Q Platform ($199/mo)', autopilot: 'Q Platform ($199/mo)', autopilot_ai: 'Q Platform ($199/mo)' }
+  const planLabels = Object.fromEntries(Object.entries(PLAN_DISPLAY).map(([k, v]) => [k, `${v.name} ($${v.price}/mo)`]))
   const activeUsers = profiles.filter(p => p.status === 'active')
   const trialUsers = profiles.filter(p => p.status === 'trial')
   const failedUsers = profiles.filter(p => p.status === 'failed')

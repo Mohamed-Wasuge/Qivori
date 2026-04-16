@@ -164,7 +164,7 @@ export default function DriverHomeTab({ onNavigate, onOpenQ }) {
       const d = new Date(l.delivery_date || l.created_at || 0)
       if (d < weekStart) return
       const rev = l.gross || l.rate || 0
-      const pay = l.driver_pay || calcDriverPay(Number(rev), l.miles || 0) || Number(rev) * 0.28
+      const pay = l.driver_pay || calcDriverPay(Number(rev), l.miles || 0)
       total += pay
       loadCount++
     })

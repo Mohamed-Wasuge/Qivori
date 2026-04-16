@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect, lazy, Suspense } from 'react'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
-import { useSubscription } from '../../hooks/useSubscription'
+import { useSubscription, PLAN_DISPLAY } from '../../hooks/useSubscription'
 import useQLocation from '../../hooks/useQLocation'
 import { Package, DollarSign, X, Clock, Settings, Sparkles, CheckCircle, Phone, Menu, Home, Zap } from 'lucide-react'
 import { Ic, mobileAnimations, getQSystemState, haptic, fmt$ } from './shared'
@@ -52,7 +52,7 @@ export default function MobileShell() {
   // be reintroduced as a "Q Hunt" tab inside this shell, not as a
   // replacement shell.
 
-  const { isTrialing, trialDaysLeft, isActive } = useSubscription()
+  const { isTrialing, trialDaysLeft, isActive, planPrice } = useSubscription()
   const trialExpired = !demoMode && !isActive && profile?.subscription_status && profile.subscription_status !== 'active' && profile.subscription_status !== 'trialing' && profile.subscription_status !== 'none'
   const ctx = useCarrier() || {}
   const activeLoads = ctx.activeLoads || []
@@ -491,7 +491,7 @@ export default function MobileShell() {
               Your 14-day trial is over. Upgrade to keep your data and continue using Qivori.
             </div>
             <div style={{ background: 'rgba(240,165,0,0.08)', border: '1px solid rgba(240,165,0,0.2)', borderRadius: 10, padding: 14, marginBottom: 20 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: '#f0a500' }}>$99</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 28, color: '#f0a500' }}>${PLAN_DISPLAY.tms_pro.price}</span>
               <span style={{ fontSize: 12, color: '#8a8a9a' }}>/mo starting · 3 plans available</span>
             </div>
             <button disabled={checkoutLoading} onClick={async () => {
@@ -515,7 +515,7 @@ export default function MobileShell() {
               background: '#f0a500', color: '#000', fontSize: 14, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
               marginBottom: 8,
             }}>
-              {checkoutLoading ? 'Loading...' : 'Upgrade — $199/mo'}
+              {checkoutLoading ? 'Loading...' : `Upgrade — $${planPrice}/mo`}
             </button>
             <button onClick={logout} style={{
               width: '100%', padding: '10px', border: '1px solid #2a2a35', borderRadius: 10,

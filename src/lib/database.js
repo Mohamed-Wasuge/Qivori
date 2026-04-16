@@ -1250,3 +1250,135 @@ export async function fetchDecisions({ limit = 100 } = {}) {
       .limit(limit)
   )) || []
 }
+
+// ─── Profile Updates ───────────────────────────────────────────
+// Wraps the common pattern used by Auto components to update
+// the authenticated user's own profile row (id = auth.uid()).
+export async function updateProfile(updates) {
+  const owner_id = await getUserId()
+  if (!owner_id) return { data: null, error: { message: 'Not authenticated' } }
+  return safeMutate('updateProfile',
+    supabase.from('profiles').update(updates).eq('id', owner_id)
+  )
+}
+
+// ─── Retell Calls ──────────────────────────────────────────────
+export async function fetchRetellCalls({ limit = 50, status } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  let q = supabase.from('retell_calls').select('*').eq('user_id', owner_id).order('created_at', { ascending: false }).limit(limit)
+  if (status) q = q.eq('call_status', status)
+  return (await safeSelect('retell_calls', q)) || []
+}
+
+export async function updateRetellCall(id, updates) {
+  const owner_id = await getUserId()
+  if (!owner_id) return { data: null, error: { message: 'Not authenticated' } }
+  return safeMutate('updateRetellCall',
+    supabase.from('retell_calls').update(updates).eq('id', id).eq('user_id', owner_id)
+  )
+}
+
+// ─── Negotiation Settings ──────────────────────────────────────
+export async function fetchNegotiationSettings() {
+  const owner_id = await getUserId()
+  if (!owner_id) return null
+  return (await safeSelect('negotiation_settings',
+    supabase.from('negotiation_settings').select('*').eq('owner_id', owner_id).maybeSingle()
+  ))
+}
+
+export async function upsertNegotiationSettings(settings) {
+  const owner_id = await getUserId()
+  if (!owner_id) return { data: null, error: { message: 'Not authenticated' } }
+  return safeMutate('upsertNegotiationSettings',
+    supabase.from('negotiation_settings').upsert({ ...settings, owner_id }, { onConflict: 'owner_id' }).select().single()
+  )
+}
+
+// ─── Negotiation Messages ──────────────────────────────────────
+export async function fetchNegotiationMessages(callId, { limit = 100 } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  return (await safeSelect('negotiation_messages',
+    supabase.from('negotiation_messages').select('*').eq('call_id', callId).eq('user_id', owner_id).order('created_at', { ascending: true }).limit(limit)
+  )) || []
+}
+
+// ─── Rate Intelligence ─────────────────────────────────────────
+export async function fetchRateIntelligence({ origin, dest, limit = 20 } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  let q = supabase.from('rate_intelligence').select('*').eq('owner_id', owner_id).order('created_at', { ascending: false }).limit(limit)
+  if (origin) q = q.ilike('origin', `%${origin}%`)
+  if (dest) q = q.ilike('destination', `%${dest}%`)
+  return (await safeSelect('rate_intelligence', q)) || []
+}
+
+// ─── Insurance Records ─────────────────────────────────────────
+export async function fetchInsuranceRecords() {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  return (await safeSelect('insurance_records',
+    supabase.from('insurance_records').select('*').eq('owner_id', owner_id).order('expiry_date', { ascending: true })
+  )) || []
+}
+
+export async function upsertInsuranceRecord(record) {
+  const owner_id = await getUserId()
+  if (!owner_id) return { data: null, error: { message: 'Not authenticated' } }
+  return safeMutate('upsertInsurance',
+    supabase.from('insurance_records').upsert({ ...record, owner_id }).select().single()
+  )
+}
+
+// ─── Load Board Credentials ────────────────────────────────────
+export async function fetchLoadBoardCredentials() {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  return (await safeSelect('load_board_credentials',
+    supabase.from('load_board_credentials').select('provider, status, connected_at, last_tested').eq('user_id', owner_id)
+  )) || []
+}
+
+// ─── Diesel Prices ─────────────────────────────────────────────
+export async function fetchDieselPrice(region = 'US AVG') {
+  return (await safeSelect('diesel_prices',
+    supabase.from('diesel_prices').select('price_per_gallon, updated_at').eq('region', region).maybeSingle()
+  ))
+}
+
+// ─── Notifications Log ─────────────────────────────────────────
+export async function fetchNotifications({ limit = 50, unreadOnly = false } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  let q = supabase.from('notifications_log').select('*').eq('user_id', owner_id).order('created_at', { ascending: false }).limit(limit)
+  if (unreadOnly) q = q.eq('read', false)
+  return (await safeSelect('notifications_log', q)) || []
+}
+
+export async function markNotificationRead(id) {
+  const owner_id = await getUserId()
+  if (!owner_id) return { data: null, error: { message: 'Not authenticated' } }
+  return safeMutate('markNotifRead',
+    supabase.from('notifications_log').update({ read: true }).eq('id', id).eq('user_id', owner_id)
+  )
+}
+
+// ─── Settlements ───────────────────────────────────────────────
+export async function fetchSettlements({ limit = 50 } = {}) {
+  const owner_id = await getUserId()
+  if (!owner_id) return []
+  return (await safeSelect('settlements',
+    supabase.from('settlements').select('*').eq('owner_id', owner_id).order('created_at', { ascending: false }).limit(limit)
+  )) || []
+}
+
+// ─── Broker Urgency Scores ─────────────────────────────────────
+export async function fetchBrokerUrgency(brokerName) {
+  const owner_id = await getUserId()
+  if (!owner_id) return null
+  return (await safeSelect('broker_urgency_scores',
+    supabase.from('broker_urgency_scores').select('*').eq('owner_id', owner_id).eq('broker_name', brokerName).maybeSingle()
+  ))
+}

@@ -145,7 +145,7 @@ export function LaneIntel() {
   const laneAvgPayPct = useMemo(() => {
     const pctDrivers = laneDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28 // fallback — per-driver rate preferred
+    return 0 // fallback — per-driver rate preferred
   }, [laneDrivers])
   const [selected, setSelected] = useState(null)
   const [sortBy, setSortBy] = useState('loads')

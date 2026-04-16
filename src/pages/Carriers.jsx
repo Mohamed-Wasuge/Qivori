@@ -7,13 +7,14 @@ import {
   UserPlus, X, Package, Mail, Calendar, KeyRound, Sparkles, Users, StickyNote,
   Activity, Plus, RotateCcw
 } from 'lucide-react'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 
 const AdminCarrierOnboarding = lazy(() => import('../components/AdminCarrierOnboarding'))
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
 const PLANS = ['trial', 'beta', 'basic', 'pro', 'enterprise']
 const PLAN_COLORS = { trial: '#6b7280', beta: '#3b82f6', basic: '#22c55e', pro: '#f0a500', enterprise: '#8b5cf6' }
-const PLAN_PRICING = { trial: 'Free \u00b7 14 days', beta: 'Free \u00b7 no limit', basic: '$79/mo', pro: '$199/mo', enterprise: 'Custom' }
+const PLAN_PRICING = { trial: 'Free \u00b7 14 days', beta: 'Free \u00b7 no limit', basic: `$${PLAN_DISPLAY.tms_pro.price}/mo`, pro: `$${PLAN_DISPLAY.autonomous_fleet.price}/mo`, enterprise: 'Custom' }
 const AVATAR_COLORS = ['#f0a500','#3b82f6','#22c55e','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316']
 const avatarColor = (name) => AVATAR_COLORS[Math.abs([...(name||'')].reduce((h,c) => (h*31+c.charCodeAt(0))|0, 0)) % AVATAR_COLORS.length]
 const STAT_COLORS = { total: 'var(--accent)', active: 'var(--success)', trial: '#3b82f6', beta: '#3b82f6', paid: 'var(--accent)', suspended: 'var(--danger)' }

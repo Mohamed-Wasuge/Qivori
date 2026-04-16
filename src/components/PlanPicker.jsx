@@ -21,17 +21,18 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 
 const PLANS = [
   {
     id: 'tms_pro',
     name: 'TMS PRO',
     tagline: 'Core trucking management',
-    price: '$79',
+    price: `$${PLAN_DISPLAY.tms_pro.price}`,
     priceUnit: '/mo per truck',
-    secondary: '$39 each additional',
+    secondary: `$${PLAN_DISPLAY.tms_pro.extraTruck} each additional`,
     icon: Briefcase,
-    color: '#3b82f6',
+    color: PLAN_DISPLAY.tms_pro.color,
     features: [
       'Fleet & dispatch management',
       'Invoicing & factoring',
@@ -45,11 +46,11 @@ const PLANS = [
     id: 'ai_dispatch',
     name: 'AI DISPATCH',
     tagline: 'Q assists, you approve',
-    price: '$199',
+    price: `$${PLAN_DISPLAY.ai_dispatch.price}`,
     priceUnit: '/mo first truck',
-    secondary: '$99 each additional',
+    secondary: `$${PLAN_DISPLAY.ai_dispatch.extraTruck} each additional`,
     icon: Bot,
-    color: '#f0a500',
+    color: PLAN_DISPLAY.ai_dispatch.color,
     badge: 'POPULAR',
     features: [
       'Everything in TMS Pro',

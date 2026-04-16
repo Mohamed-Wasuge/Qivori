@@ -5,7 +5,7 @@ export const config = { runtime: 'edge' }
 const PLANS = {
   tms_pro:          { name: 'TMS Pro',          first_truck_cents: 7900,  extra_truck_cents: 3900, trial_days: 14 },
   ai_dispatch:      { name: 'AI Dispatch',      first_truck_cents: 19900, extra_truck_cents: 9900, trial_days: 14 },
-  autonomous_fleet: { name: 'Autonomous Fleet',  first_truck_cents: 19900, extra_truck_cents: 9900, trial_days: 14 },
+  autonomous_fleet: { name: 'Autonomous Fleet',  first_truck_cents: 19900, extra_truck_cents: 9900, trial_days: 14, usage_based: true },
 }
 
 // Legacy plan aliases

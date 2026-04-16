@@ -45,13 +45,14 @@ export function SubscriptionSettings() {
       })
   }, [demoMode, profile])
 
-  const PLAN_INFO = {
-    tms_pro:          { name: 'TMS Pro',          price: '$79/mo + $39/additional truck', color: '#4d8ef0', tier: 0 },
-    ai_dispatch:      { name: 'AI Dispatch',      price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 1 },
-    autonomous_fleet: { name: 'Autonomous Fleet',  price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 2 },
-    autopilot_ai:     { name: 'Autonomous Fleet',  price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 2 },
-    autopilot:        { name: 'AI Dispatch',      price: '$199/mo + $99/additional truck', color: '#f0a500', tier: 1 },
-  }
+  const PLAN_INFO = Object.fromEntries(
+    Object.entries(PLAN_DISPLAY).map(([id, p]) => [id, {
+      name: p.name,
+      price: `$${p.price}/mo + $${p.extraTruck}/additional truck`,
+      color: p.color,
+      tier: id === 'tms_pro' ? 0 : (id === 'ai_dispatch' || id === 'autopilot') ? 1 : 2,
+    }])
+  )
 
   // Q Intelligence — AI usage metrics from real q_ai_fees table
   const now = new Date()
@@ -214,7 +215,7 @@ export function SubscriptionSettings() {
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
         <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* TMS Pro — $79/mo */}
+          {/* TMS Pro — ${PLAN_DISPLAY.tms_pro.price}/mo */}
           <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(77,142,240,0.3)', background: 'rgba(77,142,240,0.04)' }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#4d8ef0', marginBottom: 2 }}>TMS Pro</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Core trucking management</div>
@@ -233,13 +234,13 @@ export function SubscriptionSettings() {
             </div>
           </div>
 
-          {/* AI Dispatch — $199/mo */}
+          {/* AI Dispatch — ${PLAN_DISPLAY.ai_dispatch.price}/mo */}
           <div style={{ flex: '1 1 180px', position: 'relative', padding: 18, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>AI Dispatch</div>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Q assists, you approve</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>${PLAN_DISPLAY.ai_dispatch.price}</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · ${PLAN_DISPLAY.ai_dispatch.extraTruck} each additional</span>
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>${PLAN_DISPLAY.autonomous_fleet.price}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · ${PLAN_DISPLAY.autonomous_fleet.extraTruck} each additional</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {['Everything in TMS Pro', 'AI load board & scoring', 'Rate analysis & lane intel', 'Broker risk intelligence',
@@ -383,12 +384,12 @@ export function SubscriptionSettings() {
             <div style={{ background:'var(--surface2)', borderRadius:12, padding:16, marginBottom:20 }}>
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
                 <span style={{ color:'var(--muted)' }}>First truck</span>
-                <span style={{ fontWeight:700 }}>$199/mo</span>
+                <span style={{ fontWeight:700 }}>${PLAN_DISPLAY.autonomous_fleet.price}/mo</span>
               </div>
               {truckPicker.trucks > 1 && (
                 <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} {'\u00D7'} $99</span>
-                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * 99).toLocaleString()}/mo</span>
+                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} {'\u00D7'} ${PLAN_DISPLAY.autonomous_fleet.extraTruck}</span>
+                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * PLAN_DISPLAY.autonomous_fleet.extraTruck).toLocaleString()}/mo</span>
                 </div>
               )}
               <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
@@ -397,7 +398,7 @@ export function SubscriptionSettings() {
               <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
                 <span style={{ fontWeight:800 }}>Platform Total</span>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
-                  ${(199 + Math.max(0, truckPicker.trucks - 1) * 79).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                  ${(PLAN_DISPLAY.autonomous_fleet.price + Math.max(0, truckPicker.trucks - 1) * PLAN_DISPLAY.autonomous_fleet.extraTruck).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
                 </span>
               </div>
             </div>

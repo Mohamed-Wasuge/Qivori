@@ -2,16 +2,17 @@ import React, { useState } from 'react'
 import { Check, Zap, Bot, Crown, ArrowRight } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { apiFetch } from '../lib/api'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 
 const PRICING_PLANS = [
   {
     id: 'tms_pro',
-    name: 'TMS Pro',
+    name: PLAN_DISPLAY.tms_pro.name,
     sub: 'Core trucking management',
-    price: '$79',
+    price: `$${PLAN_DISPLAY.tms_pro.price}`,
     period: '/mo',
-    extraTruck: '$39',
-    color: '#4d8ef0',
+    extraTruck: `$${PLAN_DISPLAY.tms_pro.extraTruck}`,
+    color: PLAN_DISPLAY.tms_pro.color,
     icon: Zap,
     features: [
       'Fleet & dispatch management',
@@ -29,12 +30,12 @@ const PRICING_PLANS = [
   },
   {
     id: 'autonomous_fleet',
-    name: 'Autonomous Fleet',
+    name: PLAN_DISPLAY.autonomous_fleet.name,
     sub: 'AI-powered dispatch — Q runs your operation',
-    price: '$199',
+    price: `$${PLAN_DISPLAY.autonomous_fleet.price}`,
     period: '/mo',
-    extraTruck: '$99',
-    color: '#f0a500',
+    extraTruck: `$${PLAN_DISPLAY.autonomous_fleet.extraTruck}`,
+    color: PLAN_DISPLAY.autonomous_fleet.color,
     icon: Crown,
     popular: true,
     features: [

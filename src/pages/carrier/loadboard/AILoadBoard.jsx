@@ -220,7 +220,7 @@ export function AILoadBoard() {
   const boardPayPct = useMemo(() => {
     const pctDrivers = dbDrivers.filter(d => d.pay_model === 'percent' && d.pay_rate)
     if (pctDrivers.length > 0) return pctDrivers.reduce((s, d) => s + Number(d.pay_rate), 0) / pctDrivers.length / 100
-    return 0.28 // fallback — per-driver rate preferred
+    return 0 // fallback — per-driver rate preferred
   }, [dbDrivers])
   const [filters, setFilters] = useState({ equip:'All', minRpm:'', sortBy:'score' })
   const [boardLoads, setBoardLoads] = useState(SAMPLE_BOARD_LOADS)
@@ -713,9 +713,6 @@ export function AILoadBoard() {
                   {loadDetail[selected] ? (() => {
                     const d = loadDetail[selected]
                     const rows = [
-                      d.contactName  && { l:'Contact',          v: d.contactName },
-                      d.contactPhone && { l:'Phone',            v: d.contactPhone },
-                      d.contactEmail && { l:'Email',            v: d.contactEmail },
                       d.posterName   && { l:'Posted By',        v: d.posterName },
                       d.loadType     && { l:'Load Type',        v: d.loadType },
                       d.fullPartial  && { l:'Full / Partial',   v: d.fullPartial },
@@ -746,7 +743,7 @@ export function AILoadBoard() {
                     )
                   })() : (
                     <div style={{ padding:'14px 18px', fontSize:12, color:'var(--muted)' }}>
-                      {detailLoading ? 'Loading full detail from 123Loadboard…' : 'Select a 123Loadboard load to fetch full contact & detail info.'}
+                      {detailLoading ? 'Loading full detail from 123Loadboard…' : 'Select a 123Loadboard load to see full details.'}
                     </div>
                   )}
                 </div>

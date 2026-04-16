@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchLoads as dbFetchLoads } from '../lib/database'
 import { useApp } from '../context/AppContext'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 import { Users, Truck, Building2, Package, TrendingUp, DollarSign, ArrowUpRight, Activity, AlertTriangle, CheckCircle, UserPlus, Clock, CreditCard, BarChart2, Shield, Zap, ArrowDown, ArrowUp, Brain, Target, ChevronRight, Lightbulb, Cpu, PieChart, Crown, HeartPulse, ShieldAlert, Eye, RefreshCw, Wrench, XCircle, Terminal, Send, Radio, ToggleLeft, ToggleRight, Megaphone, Play } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 
@@ -433,7 +434,7 @@ export default function Dashboard() {
               <Ic icon={Brain} size={12} color="var(--accent)" />
               <span><strong style={{ color: 'var(--accent)' }}>Q:</strong> {
                 mrr === 0 ? 'No recurring revenue yet. First paying subscriber unlocks MRR tracking.' :
-                payingUsers.length < 5 ? `$${mrr.toLocaleString()} MRR from ${payingUsers.length} subscriber${payingUsers.length > 1 ? 's' : ''}. Each new carrier adds ~$199/mo.` :
+                payingUsers.length < 5 ? `$${mrr.toLocaleString()} MRR from ${payingUsers.length} subscriber${payingUsers.length > 1 ? 's' : ''}. Each new carrier adds ~$${PLAN_DISPLAY.autonomous_fleet.price}/mo.` :
                 `$${mrr.toLocaleString()} MRR growing. At current pace, projected $${(mrr * 1.15).toLocaleString()}/mo next month.`
               }</span>
             </div>

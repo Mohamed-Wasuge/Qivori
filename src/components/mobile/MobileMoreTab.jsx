@@ -32,9 +32,9 @@ function MobileDVIRHistory() {
   useEffect(() => {
     (async () => {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('eld_dvirs').select('id,status,vehicle_name,driver_name,defects,submitted_at').order('submitted_at', { ascending: false }).limit(5)
-        if (data) setDvirs(data)
+        const { fetchDVIRs } = await import('../../lib/database')
+        const data = await fetchDVIRs()
+        if (data) setDvirs(data.slice(0, 5))
       } catch {}
     })()
   }, [])

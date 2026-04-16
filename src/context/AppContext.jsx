@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { apiFetch } from '../lib/api'
 import { trackSignup, trackLogin, trackSessionStart } from '../lib/analytics'
 import { recordStep } from '../lib/conversion-funnel'
+import { PLAN_DISPLAY } from '../hooks/useSubscription'
 import {
   Home, ClipboardList, Truck, Factory, Bot, FileText, DollarSign,
   UserPlus, Settings, Package, Map, MapPin, Zap, TrendingUp, Route,
@@ -422,7 +423,7 @@ export function AppProvider({ children }) {
       setProfile(null)
       setView('landing')
       try { localStorage.removeItem('qivori_chat_history') } catch {}
-      showToast('', 'Ready to get started?', 'AI dispatch, load matching, and fleet management — $199/mo founder pricing (locked for life). Start your 14-day free trial now.')
+      showToast('', 'Ready to get started?', `AI dispatch, load matching, and fleet management — $${PLAN_DISPLAY.autonomous_fleet.price}/mo founder pricing (locked for life). Start your 14-day free trial now.`)
       return
     }
     await supabase.auth.signOut()
@@ -459,7 +460,7 @@ export function AppProvider({ children }) {
     setUser(null)
     setProfile(null)
     setView('landing')
-    showToast('', 'Ready to get started?', 'AI dispatch, load matching, and fleet management — $199/mo founder pricing (locked for life). Start your 14-day free trial now.')
+    showToast('', 'Ready to get started?', `AI dispatch, load matching, and fleet management — $${PLAN_DISPLAY.autonomous_fleet.price}/mo founder pricing (locked for life). Start your 14-day free trial now.`)
   }, [showToast])
 
   const navigatePage = useCallback((pageId) => {

@@ -3347,7 +3347,8 @@ export default function MobileChatTab({ onNavigate, initialMessage, greetingCont
       const status = subscription?.status || 'inactive'
       const trial = subscription?.isTrial
       const trialEnd = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
-      const planPrices = { tms_pro: '$79/mo + $39/truck', ai_dispatch: '$199/mo + $99/truck', autonomous_fleet: '$199/mo + $99/truck', autopilot: '$199/mo + $99/truck', autopilot_ai: '$199/mo + $99/truck' }
+      const { PLAN_DISPLAY } = await import('../../hooks/useSubscription')
+      const planPrices = Object.fromEntries(Object.entries(PLAN_DISPLAY).map(([k, v]) => [k, `$${v.price}/mo + $${v.extraTruck}/truck`]))
       const price = planPrices[plan] || 'Free'
       let msg = `**Your Subscription**\n\n**Plan:** ${plan.charAt(0).toUpperCase() + plan.slice(1)}\n**Price:** ${price}\n**Status:** ${status.charAt(0).toUpperCase() + status.slice(1)}`
       if (trial && trialEnd) msg += `\n**Trial ends:** ${trialEnd}`

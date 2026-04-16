@@ -792,9 +792,7 @@ function normalize123Load(load) {
     postedAt: load.lastRefreshed || new Date().toISOString(),
     laneKey: `${originCity.slice(0, 3).toUpperCase()}→${destCity.slice(0, 3).toUpperCase()}`,
     // ── Detail fields — populated by GET /loads/{id}, empty in search results ──
-    contactName:  load.poster?.contactInfo?.name || '',
-    contactPhone: load.poster?.contactInfo?.phone || load.poster?.phone || '',
-    contactEmail: load.poster?.contactInfo?.email || load.poster?.email || '',
+    // Contact fields removed per 123Loadboard integration requirements
     posterName:   load.poster?.name || '',
     loadType:     load.loadType || load.shipmentType || '',
     fullPartial:  load.loadSize || load.fullPartial || '',

@@ -208,6 +208,9 @@ export function AppProvider({ children }) {
         const role = resolveRole(prof, session.user.email)
         setCurrentRole(role)
 
+        // Track last active for admin panel
+        supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id).catch(() => {})
+
         // Fetch company membership
         const membership = await fetchCompanyMembership(session.user.id)
         if (!membership && role === 'carrier') {

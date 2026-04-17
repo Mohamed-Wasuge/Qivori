@@ -19,8 +19,15 @@ const LB_BROKER = {}
 // Lane market rates — populated by load board API data
 const LB_LANE = {}
 
-// Fallback sample load — shown when no API keys configured
-const SAMPLE_BOARD_LOADS = []
+// Demo loads — shown when no live API connection is available
+const SAMPLE_BOARD_LOADS = [
+  { id:'DEMO-1', source:'123loadboard', broker:'Coyote Logistics', brokerMC:'MC-385726', brokerPhone:'(800) 225-5751', brokerEmail:'dispatch@coyotelogistics.com', origin:'Dallas, TX', originCity:'Dallas', originState:'TX', dest:'Atlanta, GA', destCity:'Atlanta', destState:'GA', miles:781, rate:2.95, gross:2304, weight:'42,000 lbs', commodity:'General Freight', equipment:'Dry Van', pickup:'2026-04-18T08:00:00Z', delivery:'2026-04-19T17:00:00Z', deadhead:12, refNum:'COY-8812341', laneKey:'DAL→ATL', aiScore:82 },
+  { id:'DEMO-2', source:'123loadboard', broker:'Echo Global Logistics', brokerMC:'MC-511881', brokerPhone:'(800) 354-7993', brokerEmail:'loads@echo.com', origin:'Chicago, IL', originCity:'Chicago', originState:'IL', dest:'Houston, TX', destCity:'Houston', destState:'TX', miles:1092, rate:2.78, gross:3036, weight:'38,500 lbs', commodity:'Auto Parts', equipment:'Dry Van', pickup:'2026-04-18T06:00:00Z', delivery:'2026-04-20T12:00:00Z', deadhead:8, refNum:'ECH-449921', laneKey:'CHI→HOU', aiScore:76 },
+  { id:'DEMO-3', source:'123loadboard', broker:'XPO Logistics', brokerMC:'MC-617132', brokerPhone:'(844) 976-9967', brokerEmail:'freight@xpo.com', origin:'Los Angeles, CA', originCity:'Los Angeles', originState:'CA', dest:'Phoenix, AZ', destCity:'Phoenix', destState:'AZ', miles:372, rate:3.20, gross:1190, weight:'44,000 lbs', commodity:'Electronics', equipment:'Dry Van', pickup:'2026-04-18T10:00:00Z', delivery:'2026-04-18T22:00:00Z', deadhead:5, refNum:'XPO-773341', laneKey:'LAX→PHX', aiScore:71 },
+  { id:'DEMO-4', source:'dat', broker:'CH Robinson', brokerMC:'MC-152288', brokerPhone:'(800) 323-7587', origin:'Miami, FL', originCity:'Miami', originState:'FL', dest:'Nashville, TN', destCity:'Nashville', destState:'TN', miles:858, rate:3.10, gross:2660, weight:'40,000 lbs', commodity:'Produce', equipment:'Reefer', pickup:'2026-04-18T04:00:00Z', delivery:'2026-04-19T14:00:00Z', deadhead:15, refNum:'CHR-992214', laneKey:'MIA→BNA', aiScore:88 },
+  { id:'DEMO-5', source:'dat', broker:'Total Quality Logistics', brokerMC:'MC-488016', brokerPhone:'(800) 580-3101', origin:'Charlotte, NC', originCity:'Charlotte', originState:'NC', dest:'Columbus, OH', destCity:'Columbus', destState:'OH', miles:487, rate:2.85, gross:1388, weight:'36,000 lbs', commodity:'Building Materials', equipment:'Flatbed', pickup:'2026-04-18T07:00:00Z', delivery:'2026-04-19T10:00:00Z', deadhead:20, refNum:'TQL-661872', laneKey:'CLT→CMH', aiScore:68 },
+  { id:'DEMO-6', source:'123loadboard', broker:'Arrive Logistics', brokerMC:'MC-785449', brokerPhone:'(512) 956-5474', origin:'Memphis, TN', originCity:'Memphis', originState:'TN', dest:'Kansas City, MO', destCity:'Kansas City', destState:'MO', miles:450, rate:3.05, gross:1373, weight:'41,000 lbs', commodity:'Consumer Goods', equipment:'Dry Van', pickup:'2026-04-18T09:00:00Z', delivery:'2026-04-19T08:00:00Z', deadhead:0, refNum:'ARR-334421', laneKey:'MEM→MCI', aiScore:79 },
+]
 
 function calcAiScore(load) {
   const lane    = LB_LANE[load.laneKey] || { avgRpm:2.70, trend:0, backhaul:50 }
@@ -128,7 +135,10 @@ function AIRateNegotiator({ load, lane, bkr }) {
           <div style={{ fontWeight:700, fontSize:13 }}>AI Rate Negotiation</div>
           <div style={{ fontSize:10, color:'var(--muted)' }}>Powered by lane data, broker history &amp; market conditions</div>
         </div>
-        <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(240,165,0,0.15)', color:'var(--accent)', letterSpacing:1 }}>LIVE</span>
+        {lbSource === 'demo'
+          ? <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(107,117,144,0.15)', color:'var(--muted)', letterSpacing:1 }}>DEMO</span>
+          : <span style={{ fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:6, background:'rgba(240,165,0,0.15)', color:'var(--accent)', letterSpacing:1 }}>LIVE</span>
+        }
       </div>
 
       <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
@@ -279,8 +289,10 @@ export function AILoadBoard() {
         const res = await apiFetch(`/api/load-board?${params}`)
         if (!res.ok) throw new Error('API error')
         const data = await res.json()
-        if (!cancelled && data.loads?.length > 0) {
-          const mapped = data.loads.map(l => ({
+        if (!cancelled) {
+          const raw = data.loads?.length > 0 ? data.loads : SAMPLE_BOARD_LOADS
+          const isDemo = !data.loads?.length
+          const mapped = raw.map(l => ({
             id: l.id,
             broker: l.broker || 'Unknown',
             brokerPhone: l.brokerPhone || '',
@@ -301,15 +313,21 @@ export function AILoadBoard() {
             refNum: l.refNum || '',
             laneKey: l.laneKey || '',
             source: l.source || 'api',
+            aiScore: l.aiScore,
+            _demo: isDemo,
           }))
           setBoardLoads(mapped)
-          setLbSource(data.source || '')
+          setLbSource(isDemo ? 'demo' : (data.source || ''))
           if (!selected || !mapped.find(l => l.id === selected)) {
             setSelected(mapped[0]?.id || null)
           }
         }
       } catch {
-        /* API fetch failed — using cached data */
+        if (!cancelled && boardLoads.length === 0) {
+          setBoardLoads(SAMPLE_BOARD_LOADS)
+          setLbSource('demo')
+          setSelected(SAMPLE_BOARD_LOADS[0]?.id || null)
+        }
       } finally {
         if (!cancelled) setLbLoading(false)
       }

@@ -7,90 +7,67 @@ export default async function handler(req) {
   const clientSecret = process.env.LB123_CLIENT_SECRET
   const serviceUsername = process.env.LB123_SERVICE_USERNAME
   const servicePassword = process.env.LB123_SERVICE_PASSWORD
-  const BASE = process.env.LB123_API_BASE || 'https://api.123loadboard.com'
-  const UA = 'Qivori-Dispatch/1.0 (support@qivori.com)'
+  const BASE = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
+  // Exact format from Flex API docs: {company}-{product}/{version} ({email})
+  const UA = 'Qivori-TMS Dispatch/1.0 (support@qivori.com)'
 
   const attempts = []
 
-  // Attempt 1: Flex API — use client_secret as Bearer token + service username
+  // Attempt 1: Flex Access API — client_secret as Bearer, service username
+  // Exact format per docs: POST /access/v1/token/user, Bearer {partnerToken}, body {username}
   try {
     const res = await fetch(`${BASE}/access/v1/token/user`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${clientSecret}`,
-        'User-Agent': UA,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${clientSecret}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: serviceUsername }),
     })
     const text = await res.text()
-    attempts.push({ name: 'flex_clientsecret_serviceuser', status: res.status, body: text.slice(0, 400) })
-  } catch (err) { attempts.push({ name: 'flex_clientsecret_serviceuser', error: err.message }) }
+    attempts.push({ name: 'flex_bearer_secret_serviceuser', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_bearer_secret_serviceuser', error: err.message }) }
 
-  // Attempt 2: Flex API — use client_secret as Bearer + test account username
+  // Attempt 2: Flex Access API — client_secret as Bearer, demo login username
   try {
     const res = await fetch(`${BASE}/access/v1/token/user`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${clientSecret}`,
-        'User-Agent': UA,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${clientSecret}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: 'qivori@loadsr.us' }),
     })
     const text = await res.text()
-    attempts.push({ name: 'flex_clientsecret_testuser', status: res.status, body: text.slice(0, 400) })
-  } catch (err) { attempts.push({ name: 'flex_clientsecret_testuser', error: err.message }) }
+    attempts.push({ name: 'flex_bearer_secret_demouser', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_bearer_secret_demouser', error: err.message }) }
 
-  // Attempt 3: OAuth /token with external_grant
+  // Attempt 3: Flex Access API — client_id as Bearer, service username
   try {
-    const basicAuth = btoa(`${clientId}:${clientSecret}`)
-    const res = await fetch(`${BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${basicAuth}`,
-        '123LB-Api-Version': '1.3',
-        'User-Agent': UA,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ grant_type: 'external_grant', username: serviceUsername, password: servicePassword }).toString(),
-    })
-    const text = await res.text()
-    attempts.push({ name: 'oauth_external_grant', status: res.status, body: text.slice(0, 400) })
-  } catch (err) { attempts.push({ name: 'oauth_external_grant', error: err.message }) }
-
-  // Attempt 4: Flex API — Basic auth with service creds, get org token
-  try {
-    const serviceBasic = btoa(`${serviceUsername}:${servicePassword}`)
     const res = await fetch(`${BASE}/access/v1/token/user`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Basic ${serviceBasic}`,
-        'User-Agent': UA,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${clientId}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: serviceUsername }),
     })
     const text = await res.text()
-    attempts.push({ name: 'flex_basic_servicecreds', status: res.status, body: text.slice(0, 400) })
-  } catch (err) { attempts.push({ name: 'flex_basic_servicecreds', error: err.message }) }
+    attempts.push({ name: 'flex_bearer_clientid_serviceuser', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_bearer_clientid_serviceuser', error: err.message }) }
 
-  // Attempt 5: OAuth /token with password grant using service account as Basic Auth
+  // Attempt 4: Flex Access API — client_id as Bearer, demo username
   try {
-    const serviceBasic = btoa(`${serviceUsername}:${servicePassword}`)
-    const res = await fetch(`${BASE}/token`, {
+    const res = await fetch(`${BASE}/access/v1/token/user`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Basic ${serviceBasic}`,
-        '123LB-Api-Version': '1.3',
-        'User-Agent': UA,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }).toString(),
+      headers: { 'Authorization': `Bearer ${clientId}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'qivori@loadsr.us' }),
     })
     const text = await res.text()
-    attempts.push({ name: 'oauth_service_basic_cc', status: res.status, body: text.slice(0, 400) })
-  } catch (err) { attempts.push({ name: 'oauth_service_basic_cc', error: err.message }) }
+    attempts.push({ name: 'flex_bearer_clientid_demouser', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_bearer_clientid_demouser', error: err.message }) }
+
+  // Attempt 5: Flex org token — client_secret as Bearer, no username
+  try {
+    const res = await fetch(`${BASE}/access/v1/token/organization`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${clientSecret}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const text = await res.text()
+    attempts.push({ name: 'flex_org_token', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_org_token', error: err.message }) }
 
   // Check if any attempt got a token
   let token = null

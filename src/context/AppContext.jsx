@@ -204,6 +204,7 @@ export function AppProvider({ children }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
+        setAuthLoading(false) // unblock render immediately — profile setup runs in background
         const prof = await fetchProfile(session.user.id)
         const role = resolveRole(prof, session.user.email)
         setCurrentRole(role)
@@ -247,9 +248,10 @@ export function AppProvider({ children }) {
         setCurrentPage(landingPage)
         setView('app')
         trackSessionStart(role)
+      } else {
+        setAuthLoading(false) // no session — show landing immediately
       }
-      setAuthLoading(false)
-    }).catch(e => {
+    }).catch(() => {
       setAuthLoading(false)
     })
 
@@ -264,8 +266,8 @@ export function AppProvider({ children }) {
         setView('landing')
         setAuthLoading(false)
       } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
-        // Token was refreshed or session restored — make sure we're in app view
         setUser(session.user)
+        setAuthLoading(false)
         if (view !== 'app') {
           const prof = await fetchProfile(session.user.id)
           const role = resolveRole(prof, session.user.email)

@@ -154,7 +154,8 @@ export function LoadBoardSettings() {
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         {LB_PROVIDERS.map(prov => {
           const conn = connections[prov.id]
-          const isConnected = conn?.status === 'connected'
+          const isPlatformManaged = prov.id === '123loadboard'
+          const isConnected = conn?.status === 'connected' || isPlatformManaged
           const isExpanded = expanded === prov.id
           const creds = credentials[prov.id] || {}
           const isSaving = saving === prov.id

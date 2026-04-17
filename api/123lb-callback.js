@@ -24,7 +24,7 @@ const CLIENT_SECRET = process.env.LB123_CLIENT_SECRET
 const REDIRECT_URI = 'https://www.qivori.com/api/123lb-callback'
 // Flip to https://api.123loadboard.com via LB123_API_BASE env var once
 // 123Loadboard approves production API access.
-const LB_BASE = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
+const LB_BASE = process.env.LB123_API_BASE || 'https://api.123loadboard.com'
 
 export default async function handler(req) {
   const url = new URL(req.url)

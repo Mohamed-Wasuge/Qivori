@@ -7,7 +7,7 @@ export default async function handler(req) {
   const clientSecret = process.env.LB123_CLIENT_SECRET
   const serviceUsername = process.env.LB123_SERVICE_USERNAME
   const servicePassword = process.env.LB123_SERVICE_PASSWORD
-  const BASE = 'https://api.dev.123loadboard.com'
+  const BASE = process.env.LB123_API_BASE || 'https://api.123loadboard.com'
   const UA = 'Qivori-Dispatch/1.0 (support@qivori.com)'
 
   const attempts = []

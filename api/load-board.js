@@ -387,7 +387,7 @@ function normalizeDATLoad(match) {
 
 // 123LB API base URL — flip to production once 123LB approves prod access.
 // Set LB123_API_BASE=https://api.123loadboard.com in Vercel env to switch.
-const LB123_BASE = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
+const LB123_BASE = process.env.LB123_API_BASE || 'https://api.123loadboard.com'
 
 // ── 123Loadboard API Usage Limits (per their API Usage Agreement) ────────────
 // Hard caps enforced PER USER. We only count REAL search API calls (not cache

@@ -284,6 +284,8 @@ export function AILoadBoard() {
             id: l.id,
             broker: l.broker || 'Unknown',
             brokerPhone: l.brokerPhone || '',
+            brokerEmail: l.brokerEmail || '',
+            brokerContact: l.brokerContact || '',
             brokerMC: l.brokerMC || '',
             origin: l.origin || `${l.originCity}, ${l.originState}`,
             dest: l.dest || `${l.destCity}, ${l.destState}`,
@@ -713,21 +715,23 @@ export function AILoadBoard() {
                   {loadDetail[selected] ? (() => {
                     const d = loadDetail[selected]
                     const rows = [
-                      d.posterName   && { l:'Posted By',        v: d.posterName },
-                      d.loadType     && { l:'Load Type',        v: d.loadType },
-                      d.fullPartial  && { l:'Full / Partial',   v: d.fullPartial },
-                      d.teamRequired && { l:'Team Required',    v: 'Yes' },
-                      d.hazmat       && { l:'Hazmat',           v: 'Yes' },
-                      d.tarpRequired && { l:'Tarp Required',    v: 'Yes' },
-                      d.postedAt     && { l:'Posted',           v: new Date(d.postedAt).toLocaleString() },
-                      d.expiresAt    && { l:'Expires',          v: new Date(d.expiresAt).toLocaleString() },
+                      (d.brokerPhone || d.brokerEmail || d.brokerContact) && { l:'Contact', v: [d.brokerContact, d.brokerPhone, d.brokerEmail].filter(Boolean).join(' · '), highlight: true },
+                      d.brokerMC     && { l:'MC #',              v: d.brokerMC },
+                      d.posterName   && { l:'Posted By',         v: d.posterName },
+                      d.loadType     && { l:'Load Type',         v: d.loadType },
+                      d.fullPartial  && { l:'Full / Partial',    v: d.fullPartial },
+                      d.teamRequired && { l:'Team Required',     v: 'Yes' },
+                      d.hazmat       && { l:'Hazmat',            v: 'Yes' },
+                      d.tarpRequired && { l:'Tarp Required',     v: 'Yes' },
+                      d.postedAt     && { l:'Posted',            v: new Date(d.postedAt).toLocaleString() },
+                      d.expiresAt    && { l:'Expires',           v: new Date(d.expiresAt).toLocaleString() },
                     ].filter(Boolean)
                     return (
                       <div style={{ padding:'4px 0' }}>
                         {rows.length > 0 && rows.map(row => (
-                          <div key={row.l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 18px', borderBottom:'1px solid var(--border)' }}>
+                          <div key={row.l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 18px', borderBottom:'1px solid var(--border)', background: row.highlight ? 'rgba(59,130,246,0.04)' : 'transparent' }}>
                             <span style={{ fontSize:11, color:'var(--muted)' }}>{row.l}</span>
-                            <span style={{ fontSize:11, fontWeight:600, color:'var(--text)', maxWidth:'55%', textAlign:'right' }}>{row.v}</span>
+                            <span style={{ fontSize:11, fontWeight:row.highlight ? 700 : 600, color: row.highlight ? 'var(--accent3)' : 'var(--text)', maxWidth:'60%', textAlign:'right', wordBreak:'break-all' }}>{row.v}</span>
                           </div>
                         ))}
                         {d.notes && (
@@ -817,13 +821,19 @@ export function AILoadBoard() {
                       <span style={{ marginLeft:'auto', fontSize:10, fontWeight:800, padding:'3px 8px', borderRadius:8, background:bkr?.color+'15', color:bkr?.color }}>{bkr?.risk} RISK</span>
                     </div>
                     {[
-                      { l:'Pay Score',   v: bkr?.score + '/100' },
-                      { l:'Pay Speed',   v: bkr?.pay },
-                      { l:'Risk Level',  v: bkr?.risk },
-                    ].map(row => (
+                      load.brokerMC      && { l:'MC #',       v: load.brokerMC,    c:'var(--text)' },
+                      load.brokerPhone   && { l:'Phone',      v: load.brokerPhone, c:'var(--accent3)', link:`tel:${load.brokerPhone}` },
+                      load.brokerEmail   && { l:'Email',      v: load.brokerEmail, c:'var(--accent3)', link:`mailto:${load.brokerEmail}` },
+                      { l:'Pay Score',   v: bkr?.score + '/100', c:'var(--text)' },
+                      { l:'Pay Speed',   v: bkr?.pay,             c:'var(--text)' },
+                      { l:'Risk Level',  v: bkr?.risk,            c: bkr?.color },
+                    ].filter(Boolean).map(row => (
                       <div key={row.l} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border)' }}>
                         <span style={{ fontSize:11, color:'var(--muted)' }}>{row.l}</span>
-                        <span style={{ fontSize:11, fontWeight:700, color: row.l==='Risk Level' ? bkr?.color : 'var(--text)' }}>{row.v}</span>
+                        {row.link
+                          ? <a href={row.link} style={{ fontSize:11, fontWeight:700, color:row.c, textDecoration:'none' }}>{row.v}</a>
+                          : <span style={{ fontSize:11, fontWeight:700, color:row.c }}>{row.v}</span>
+                        }
                       </div>
                     ))}
                   </div>

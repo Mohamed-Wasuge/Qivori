@@ -50,14 +50,7 @@ export default async function handler(req) {
     }
     try {
       const userCreds = await getUserCredentials(user.id)
-      const platformFlex = (process.env.LB123_CLIENT_ID && process.env.LB123_SERVICE_USERNAME) ? {
-        clientId: process.env.LB123_CLIENT_ID,
-        clientSecret: process.env.LB123_CLIENT_SECRET,
-        serviceUsername: process.env.LB123_SERVICE_USERNAME,
-        servicePassword: process.env.LB123_SERVICE_PASSWORD,
-        useFlex: true,
-      } : null
-      const creds123 = userCreds['123loadboard'] || platformFlex
+      const creds123 = userCreds['123loadboard']
       if (!creds123) {
         return Response.json({ error: '123Loadboard not connected' }, { status: 400, headers: corsHeaders(req) })
       }
@@ -130,8 +123,6 @@ export default async function handler(req) {
     // ── No cache hit — fetch fresh from load board APIs ──
     const userCreds = await getUserCredentials(user.id)
 
-    // Per-user dedicated connections only (123lb API Usage Agreement compliance).
-    // No platform env-var fallback — each user connects their own account.
     const hasDat = !!userCreds.dat
     const has123 = !!userCreds['123loadboard']
     const hasTs = !!userCreds.truckstop
@@ -160,18 +151,8 @@ export default async function handler(req) {
       }
     }
 
-    // 2. Try 123Loadboard API
-    // Use user's own connected account if available; fall back to the
-    // platform service account (qivori@flex) provisioned by 123Loadboard for
-    // Qivori's platform access (confirmed by Awais Ali 2026-04-13).
-    const platformFlex123 = (process.env.LB123_CLIENT_ID && process.env.LB123_SERVICE_USERNAME) ? {
-      clientId: process.env.LB123_CLIENT_ID,
-      clientSecret: process.env.LB123_CLIENT_SECRET,
-      serviceUsername: process.env.LB123_SERVICE_USERNAME,
-      servicePassword: process.env.LB123_SERVICE_PASSWORD,
-      useFlex: true,
-    } : null
-    const lb123Creds = userCreds['123loadboard'] || platformFlex123
+    // 2. Try 123Loadboard API — user's own OAuth-connected account only
+    const lb123Creds = userCreds['123loadboard']
     let lb123Expired = false
     let lb123RateLimited = null // 'day' | 'month' | null
     if (lb123Creds) {
@@ -614,40 +595,6 @@ async function get123Token(creds) {
     return null
   }
 
-  // Flex / service-account path — used when creds.useFlex is set (platform account)
-  // Awais Ali confirmed 2026-04-13: the qivori@flex service account is provisioned
-  // specifically for platform-level access. password grant IS authorized for this account.
-  if (creds.useFlex && creds.serviceUsername && creds.servicePassword && creds.clientId && creds.clientSecret) {
-    const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
-    try {
-      const res = await fetch(`${LB123_BASE}/token`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${basicAuth}`,
-          '123LB-Api-Version': '1.3',
-          'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'password',
-          username: creds.serviceUsername,
-          password: creds.servicePassword,
-        }).toString(),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        lb123Token = data.access_token
-        lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
-        return lb123Token
-      } else {
-        const errText = await res.text().catch(() => '')
-        console.error(`123LB Flex auth failed: ${res.status} ${errText.slice(0, 200)}`)
-      }
-    } catch (err) {
-      console.error(`123LB Flex auth threw: ${err.message}`)
-    }
-  }
-
   return null
 }
 
@@ -771,7 +718,9 @@ function normalize123Load(load) {
     source: '123loadboard',
     broker: brokerName,
     brokerMC,
-    brokerPhone: load.poster?.contactInfo?.phone || '',
+    brokerPhone: load.poster?.contactInfo?.phone || load.poster?.phone || '',
+    brokerEmail: load.poster?.contactInfo?.email || load.poster?.email || '',
+    brokerContact: load.poster?.contactInfo?.name || load.poster?.contactName || '',
     origin: originCity && originState ? `${originCity}, ${originState}` : originCity || originState || '',
     originCity,
     originState,

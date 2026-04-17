@@ -58,16 +58,38 @@ export default async function handler(req) {
     attempts.push({ name: 'flex_bearer_clientid_demouser', status: res.status, body: text.slice(0, 400) })
   } catch (err) { attempts.push({ name: 'flex_bearer_clientid_demouser', error: err.message }) }
 
-  // Attempt 5: Flex org token — client_secret as Bearer, no username
+  // Attempt 5: Flex org token with password (docs require 'password' field)
   try {
     const res = await fetch(`${BASE}/access/v1/token/organization`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${clientSecret}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ password: servicePassword }),
     })
     const text = await res.text()
-    attempts.push({ name: 'flex_org_token', status: res.status, body: text.slice(0, 400) })
-  } catch (err) { attempts.push({ name: 'flex_org_token', error: err.message }) }
+    attempts.push({ name: 'flex_org_with_password', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_org_with_password', error: err.message }) }
+
+  // Attempt 6: Flex org token — client_id as Bearer, service password
+  try {
+    const res = await fetch(`${BASE}/access/v1/token/organization`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${clientId}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: servicePassword }),
+    })
+    const text = await res.text()
+    attempts.push({ name: 'flex_org_clientid_bearer', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_org_clientid_bearer', error: err.message }) }
+
+  // Attempt 7: Flex user token with username + password
+  try {
+    const res = await fetch(`${BASE}/access/v1/token/user`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${clientSecret}`, 'User-Agent': UA, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: serviceUsername, password: servicePassword }),
+    })
+    const text = await res.text()
+    attempts.push({ name: 'flex_user_with_password', status: res.status, body: text.slice(0, 400) })
+  } catch (err) { attempts.push({ name: 'flex_user_with_password', error: err.message }) }
 
   // Check if any attempt got a token
   let token = null

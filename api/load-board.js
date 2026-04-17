@@ -50,7 +50,13 @@ export default async function handler(req) {
     }
     try {
       const userCreds = await getUserCredentials(user.id)
-      const creds123 = userCreds['123loadboard']
+      const platformFlex = (process.env.LB123_CLIENT_ID && process.env.LB123_SERVICE_USERNAME) ? {
+        clientId: process.env.LB123_CLIENT_ID,
+        clientSecret: process.env.LB123_CLIENT_SECRET,
+        serviceUsername: process.env.LB123_SERVICE_USERNAME,
+        servicePassword: process.env.LB123_SERVICE_PASSWORD,
+      } : null
+      const creds123 = userCreds['123loadboard'] || platformFlex
       if (!creds123) {
         return Response.json({ error: '123Loadboard not connected' }, { status: 400, headers: corsHeaders(req) })
       }
@@ -151,8 +157,16 @@ export default async function handler(req) {
       }
     }
 
-    // 2. Try 123Loadboard API — user's own OAuth-connected account only
-    const lb123Creds = userCreds['123loadboard']
+    // 2. Try 123Loadboard API
+    // Use user's own OAuth account if connected; fall back to platform service
+    // account (password grant confirmed working by 123LB support).
+    const platformFlex123 = (process.env.LB123_CLIENT_ID && process.env.LB123_SERVICE_USERNAME) ? {
+      clientId: process.env.LB123_CLIENT_ID,
+      clientSecret: process.env.LB123_CLIENT_SECRET,
+      serviceUsername: process.env.LB123_SERVICE_USERNAME,
+      servicePassword: process.env.LB123_SERVICE_PASSWORD,
+    } : null
+    const lb123Creds = userCreds['123loadboard'] || platformFlex123
     let lb123Expired = false
     let lb123RateLimited = null // 'day' | 'month' | null
     if (lb123Creds) {
@@ -593,6 +607,39 @@ async function get123Token(creds) {
       await mark123LBExpired(creds.__userId)
     }
     return null
+  }
+
+  // Password grant — platform service account (confirmed by 123LB support)
+  if (creds.serviceUsername && creds.servicePassword && creds.clientId && creds.clientSecret) {
+    const basicAuth = btoa(`${creds.clientId}:${creds.clientSecret}`)
+    try {
+      const res = await fetch(`${LB123_BASE}/token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          '123LB-Api-Version': '1.3',
+          'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          client_id: creds.clientId,
+          username: creds.serviceUsername,
+          password: creds.servicePassword,
+        }).toString(),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        lb123Token = data.access_token
+        lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
+        return lb123Token
+      } else {
+        const errText = await res.text().catch(() => '')
+        console.error(`123LB password grant failed: ${res.status} ${errText.slice(0, 200)}`)
+      }
+    } catch (err) {
+      console.error(`123LB password grant threw: ${err.message}`)
+    }
   }
 
   return null

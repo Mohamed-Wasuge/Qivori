@@ -197,8 +197,9 @@ function useIsMobile() {
 function AppContent() {
   const { view, currentPage, currentRole, goToLogin, profile, user, authLoading } = useApp()
 
-  // Block render until session check resolves — prevents landing page flash on refresh
-  if (authLoading) return (
+  // Block render until session resolves. Also hold if user is authenticated but
+  // view hasn't switched to 'app' yet (gap between setAuthLoading(false) and setView('app')).
+  if (authLoading || (user && view === 'landing')) return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg, #07090e)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid rgba(240,165,0,0.2)', borderTopColor: '#f0a500', animation: 'spin 0.8s linear infinite' }} />
     </div>

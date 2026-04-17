@@ -22,11 +22,9 @@ export const LB_PROVIDERS = [
   {
     id: '123loadboard',
     name: '123Loadboard',
-    desc: 'Affordable load board with API access — great for small fleets.',
-    fields: [
-      { key: 'username', label: 'Username', placeholder: 'Your 123Loadboard username', type: 'text' },
-      { key: 'password', label: 'Password', placeholder: 'Your 123Loadboard password', type: 'password' },
-    ],
+    desc: 'Affordable load board with API access — great for small fleets. $200-500/mo.',
+    fields: [],
+    oauthOnly: true,
     color: '#3b82f6',
     signupUrl: 'https://www.123loadboard.com',
   },
@@ -196,11 +194,28 @@ export function LoadBoardSettings() {
               {isExpanded && (
                 <div style={{ padding:'0 20px 20px', borderTop:'1px solid var(--border)' }}>
                   <div style={{ paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
-                    {prov.fields.map(f => (
+                    {prov.id === '123loadboard' && (
+                      <div style={{ background:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                          {isConnected ? 'Reconnect via OAuth' : 'Connect with 123Loadboard (Recommended)'}
+                        </div>
+                        <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+                          Sign in to your 123Loadboard account and authorize Qivori to search loads on your behalf. No need to enter API credentials manually.
+                        </div>
+                        <a
+                          href={user?.id ? `/api/123lb-callback?userId=${user.id}` : '#'}
+                          onClick={(e) => { if (!user?.id) { e.preventDefault(); showToast('error', 'Not signed in', 'Please refresh the page'); } }}
+                          style={{ alignSelf:'flex-start', background:'#3b82f6', color:'#fff', fontSize:12, fontWeight:700, padding:'9px 18px', borderRadius:8, textDecoration:'none', display:'inline-block' }}
+                        >
+                          {isConnected ? 'Reconnect 123Loadboard' : 'Connect 123Loadboard'}
+                        </a>
+                      </div>
+                    )}
+                    {!prov.oauthOnly && prov.fields.map(f => (
                       <div key={f.key}>
                         <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
                         <input
-                          type={f.type || 'password'}
+                          type="password"
                           value={creds[f.key] || ''}
                           onChange={e => setCredentials(prev => ({ ...prev, [prov.id]: { ...prev[prov.id], [f.key]: e.target.value } }))}
                           placeholder={f.placeholder}
@@ -212,11 +227,13 @@ export function LoadBoardSettings() {
                       Don't have an account? <a href={prov.signupUrl} target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent3)', textDecoration:'none' }}>Sign up at {prov.signupUrl} {'\u2192'}</a>
                     </div>
                     <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                      <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
-                        disabled={isSaving || !prov.fields.every(f => creds[f.key])}
-                        onClick={() => saveCredentials(prov.id)}>
-                        {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
-                      </button>
+                      {!prov.oauthOnly && (
+                        <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
+                          disabled={isSaving || !prov.fields.every(f => creds[f.key])}
+                          onClick={() => saveCredentials(prov.id)}>
+                          {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
+                        </button>
+                      )}
                       {isConnected && (
                         <>
                           {!prov.oauthOnly && (

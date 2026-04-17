@@ -199,13 +199,10 @@ async function testConnection(provider, credentials) {
     }
 
     if (provider === '123loadboard') {
-      // Carrier provides only username + password. Platform client ID/secret come from env vars.
-      const username = credentials?.username || credentials?.serviceUsername
-      const password = credentials?.password || credentials?.servicePassword
-      const clientId = process.env.LB123_CLIENT_ID
-      const clientSecret = process.env.LB123_CLIENT_SECRET
-      if (!username || !password) return { success: false, message: 'Username and password are required' }
-      if (!clientId || !clientSecret) return { success: false, message: '123Loadboard not configured on this platform' }
+      const { clientId, clientSecret, serviceUsername, servicePassword } = credentials || {}
+      if (!clientId || !clientSecret || !serviceUsername || !servicePassword) {
+        return { success: false, message: 'Client ID, Client Secret, Service Username, and Service Password are all required' }
+      }
       const basicAuth = btoa(`${clientId}:${clientSecret}`)
       const lb123Base = process.env.LB123_API_BASE || 'https://api.dev.123loadboard.com'
       const res = await fetch(`${lb123Base}/token`, {
@@ -217,13 +214,13 @@ async function testConnection(provider, credentials) {
         },
         body: new URLSearchParams({
           grant_type: 'password',
-          username,
-          password,
+          username: serviceUsername,
+          password: servicePassword,
         }).toString(),
       })
       if (res.ok) return { success: true, message: '123Loadboard connected successfully' }
       const errText = await res.text().catch(() => '')
-      if (res.status === 401 || res.status === 403) return { success: false, message: 'Invalid 123Loadboard username or password' }
+      if (res.status === 401 || res.status === 403) return { success: false, message: `Invalid credentials (${res.status})` }
       return { success: false, message: `123Loadboard auth failed: HTTP ${res.status} ${errText.slice(0, 100)}` }
     }
 

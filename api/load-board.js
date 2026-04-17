@@ -614,34 +614,6 @@ async function get123Token(creds) {
     return null
   }
 
-  // Per-carrier username/password path — carrier entered their own 123LB login
-  if (creds.username && creds.password) {
-    const clientId = process.env.LB123_CLIENT_ID
-    const clientSecret = process.env.LB123_CLIENT_SECRET
-    if (clientId && clientSecret) {
-      const basicAuth = btoa(`${clientId}:${clientSecret}`)
-      try {
-        const res = await fetch(`${LB123_BASE}/token`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${basicAuth}`,
-            '123LB-Api-Version': '1.3',
-            'User-Agent': 'Qivori-Dispatch/1.0 (support@qivori.com)',
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({ grant_type: 'password', username: creds.username, password: creds.password }).toString(),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          lb123Token = data.access_token
-          lb123TokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
-          return lb123Token
-        }
-        console.error(`123LB user creds auth failed: ${res.status}`)
-      } catch (err) { console.error(`123LB user creds threw: ${err.message}`) }
-    }
-  }
-
   // Flex / service-account path — used when creds.useFlex is set (platform account)
   // Awais Ali confirmed 2026-04-13: the qivori@flex service account is provisioned
   // specifically for platform-level access. password grant IS authorized for this account.

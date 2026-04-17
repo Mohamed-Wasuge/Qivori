@@ -253,7 +253,7 @@ export function AppProvider({ children }) {
       setAuthLoading(false)
     })
 
-    // Listen for auth changes (only handle sign-out here; sign-in handled by loginWithCredentials)
+    // Listen for auth changes — handles token refresh, sign-out, and session restore
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null)
@@ -262,6 +262,19 @@ export function AppProvider({ children }) {
         setCompanyId(null)
         setMyDriverId(null)
         setView('landing')
+        setAuthLoading(false)
+      } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user) {
+        // Token was refreshed or session restored — make sure we're in app view
+        setUser(session.user)
+        if (view !== 'app') {
+          const prof = await fetchProfile(session.user.id)
+          const role = resolveRole(prof, session.user.email)
+          setCurrentRole(role)
+          const landingPage = role === 'carrier' ? 'carrier-dashboard' : role === 'broker' ? 'broker-dashboard' : 'dashboard'
+          setCurrentPage(landingPage)
+          setView('app')
+        }
+        setAuthLoading(false)
       }
     })
 

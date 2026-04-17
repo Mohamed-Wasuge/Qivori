@@ -1,3 +1,5 @@
+import { corsHeaders } from './_lib/auth.js' // eslint-disable-line no-unused-vars
+
 export const config = { runtime: 'edge' }
 
 const CORS_HEADERS = {

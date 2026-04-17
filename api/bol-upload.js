@@ -1,3 +1,4 @@
+import { corsHeaders } from './_lib/auth.js' // eslint-disable-line no-unused-vars
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 

@@ -22,9 +22,11 @@ export const LB_PROVIDERS = [
   {
     id: '123loadboard',
     name: '123Loadboard',
-    desc: 'Included with your Qivori plan — no setup required. Loads appear automatically in your AI Load Board.',
-    fields: [],
-    platformProvided: true,
+    desc: 'Affordable load board with API access — great for small fleets.',
+    fields: [
+      { key: 'username', label: 'Username', placeholder: 'Your 123Loadboard username', type: 'text' },
+      { key: 'password', label: 'Password', placeholder: 'Your 123Loadboard password', type: 'password' },
+    ],
     color: '#3b82f6',
     signupUrl: 'https://www.123loadboard.com',
   },
@@ -154,8 +156,7 @@ export function LoadBoardSettings() {
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         {LB_PROVIDERS.map(prov => {
           const conn = connections[prov.id]
-          const isPlatform = prov.platformProvided
-          const isConnected = isPlatform || conn?.status === 'connected'
+          const isConnected = conn?.status === 'connected'
           const isExpanded = expanded === prov.id
           const creds = credentials[prov.id] || {}
           const isSaving = saving === prov.id
@@ -164,19 +165,15 @@ export function LoadBoardSettings() {
           return (
             <div key={prov.id} style={{ background:'var(--surface)', border:`1px solid ${isConnected ? prov.color + '40' : 'var(--border)'}`, borderRadius:12, overflow:'hidden' }}>
               {/* Header row */}
-              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'16px 20px', cursor: isPlatform ? 'default' : 'pointer' }}
-                onClick={() => !isPlatform && setExpanded(isExpanded ? null : prov.id)}>
+              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'16px 20px', cursor:'pointer' }}
+                onClick={() => setExpanded(isExpanded ? null : prov.id)}>
                 <div style={{ width:44, height:44, borderRadius:10, background: isConnected ? prov.color + '15' : 'var(--surface2)', border:`1px solid ${isConnected ? prov.color + '30' : 'var(--border)'}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <Ic icon={Globe} size={22} color={isConnected ? prov.color : 'var(--muted)'} />
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:3 }}>
                     <span style={{ fontSize:14, fontWeight:700 }}>{prov.name}</span>
-                    {isPlatform ? (
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background: prov.color + '15', color: prov.color, display:'flex', alignItems:'center', gap:3 }}>
-                        <Ic icon={CheckCircle} size={10} /> Included
-                      </span>
-                    ) : isConnected ? (
+                    {isConnected ? (
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:8, background: prov.color + '15', color: prov.color, display:'flex', alignItems:'center', gap:3 }}>
                         <Ic icon={CheckCircle} size={10} /> Connected
                       </span>
@@ -192,18 +189,18 @@ export function LoadBoardSettings() {
                   </div>
                   <div style={{ fontSize:12, color:'var(--muted)' }}>{prov.desc}</div>
                 </div>
-                {!isPlatform && <Ic icon={isExpanded ? ChevronLeft : Plus} size={16} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(-90deg)' : 'none', transition:'transform 0.2s' }} />}
+                <Ic icon={isExpanded ? ChevronLeft : Plus} size={16} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(-90deg)' : 'none', transition:'transform 0.2s' }} />
               </div>
 
               {/* Expanded credential form */}
-              {isExpanded && !isPlatform && (
+              {isExpanded && (
                 <div style={{ padding:'0 20px 20px', borderTop:'1px solid var(--border)' }}>
                   <div style={{ paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
-                    {!prov.oauthOnly && prov.fields.map(f => (
+                    {prov.fields.map(f => (
                       <div key={f.key}>
                         <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
                         <input
-                          type="password"
+                          type={f.type || 'password'}
                           value={creds[f.key] || ''}
                           onChange={e => setCredentials(prev => ({ ...prev, [prov.id]: { ...prev[prov.id], [f.key]: e.target.value } }))}
                           placeholder={f.placeholder}
@@ -215,13 +212,11 @@ export function LoadBoardSettings() {
                       Don't have an account? <a href={prov.signupUrl} target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent3)', textDecoration:'none' }}>Sign up at {prov.signupUrl} {'\u2192'}</a>
                     </div>
                     <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                      {!prov.oauthOnly && (
-                        <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
-                          disabled={isSaving || !prov.fields.every(f => creds[f.key])}
-                          onClick={() => saveCredentials(prov.id)}>
-                          {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
-                        </button>
-                      )}
+                      <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
+                        disabled={isSaving || !prov.fields.every(f => creds[f.key])}
+                        onClick={() => saveCredentials(prov.id)}>
+                        {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
+                      </button>
                       {isConnected && (
                         <>
                           {!prov.oauthOnly && (

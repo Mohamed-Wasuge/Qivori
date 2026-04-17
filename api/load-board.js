@@ -129,20 +129,6 @@ export default async function handler(req) {
     // ── No cache hit — fetch fresh from load board APIs ──
     const userCreds = await getUserCredentials(user.id)
 
-    const hasDat = !!userCreds.dat
-    const has123 = !!userCreds['123loadboard']
-    const hasTs = !!userCreds.truckstop
-
-    if (!hasDat && !has123 && !hasTs) {
-      return Response.json({
-        loads: [],
-        total: 0,
-        source: 'none',
-        providers: [],
-        message: 'No load board connected. Go to Settings → Load Boards to connect your DAT, 123Loadboard, or Truckstop account.',
-      }, { headers: corsHeaders(req) })
-    }
-
     // Try providers using user's credentials (never mix between users)
     let loads = []
     const providers = []
@@ -167,6 +153,18 @@ export default async function handler(req) {
       servicePassword: process.env.LB123_SERVICE_PASSWORD,
     } : null
     const lb123Creds = userCreds['123loadboard'] || platformFlex123
+    const hasDat = !!datCreds
+    const has123 = !!lb123Creds
+    const hasTs = !!userCreds.truckstop
+    if (!hasDat && !has123 && !hasTs) {
+      return Response.json({
+        loads: [],
+        total: 0,
+        source: 'none',
+        providers: [],
+        message: 'No load board connected. Go to Settings → Load Boards to connect your account.',
+      }, { headers: corsHeaders(req) })
+    }
     let lb123Expired = false
     let lb123RateLimited = null // 'day' | 'month' | null
     if (lb123Creds) {

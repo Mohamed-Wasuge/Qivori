@@ -195,20 +195,13 @@ export function LoadBoardSettings() {
                 <div style={{ padding:'0 20px 20px', borderTop:'1px solid var(--border)' }}>
                   <div style={{ paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
                     {prov.id === '123loadboard' && (
-                      <div style={{ background:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
-                          {isConnected ? 'Reconnect via OAuth' : 'Connect with 123Loadboard (Recommended)'}
+                      <div style={{ background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'var(--success)', display:'flex', alignItems:'center', gap:6 }}>
+                          <Ic icon={CheckCircle} size={13} color="var(--success)" /> Connected via Q Platform
                         </div>
                         <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
-                          Sign in to your 123Loadboard account and authorize Qivori to search loads on your behalf. No need to enter API credentials manually.
+                          123Loadboard is connected through Qivori's platform account. Loads are fetched automatically — no setup required on your end.
                         </div>
-                        <a
-                          href={user?.id ? `/api/123lb-callback?userId=${user.id}` : '#'}
-                          onClick={(e) => { if (!user?.id) { e.preventDefault(); showToast('error', 'Not signed in', 'Please refresh the page'); } }}
-                          style={{ alignSelf:'flex-start', background:'#3b82f6', color:'#fff', fontSize:12, fontWeight:700, padding:'9px 18px', borderRadius:8, textDecoration:'none', display:'inline-block' }}
-                        >
-                          {isConnected ? 'Reconnect 123Loadboard' : 'Connect 123Loadboard'}
-                        </a>
                       </div>
                     )}
                     {!prov.oauthOnly && prov.fields.map(f => (

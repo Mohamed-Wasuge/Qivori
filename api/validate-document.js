@@ -30,7 +30,15 @@ export default async function handler(req) {
   }
 
   try {
-    const { load_id, doc_type, file_url, validate_all } = await req.json()
+    const body = await req.json()
+
+    // ── Driver document validation (CDL, medical card, drug test) ──
+    if (['cdl', 'medical_card', 'drug_test'].includes(body.doc_type)) {
+      const result = await validateDriverDoc(body.doc_type, body.file_url, body.driver_name)
+      return Response.json(result, { headers: corsHeaders(req) })
+    }
+
+    const { load_id, doc_type, file_url, validate_all } = body
     if (!load_id) return Response.json({ error: 'load_id required' }, { status: 400, headers: corsHeaders(req) })
 
     // Fetch load
@@ -94,6 +102,107 @@ export default async function handler(req) {
 
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500, headers: corsHeaders(req) })
+  }
+}
+
+// ── Driver Document Validation (CDL / Medical / Drug Test) ───────────────────
+
+const DRIVER_DOC_PROMPTS = {
+  cdl: (driverName) => `You are verifying a commercial driver's license (CDL) for a trucking company.
+${driverName ? `The driver's name on file is: "${driverName}"` : ''}
+
+Look at this document image carefully. Return ONLY valid JSON:
+{
+  "is_correct_document": true or false,
+  "document_detected": "describe what this document actually is",
+  "driver_name": "full name visible on document or null",
+  "license_number": "CDL number or null",
+  "license_class": "A, B, or C or null",
+  "state": "issuing US state abbreviation or null",
+  "expiry_date": "YYYY-MM-DD or null",
+  "is_expired": true or false or null,
+  "name_matches": true or false or null,
+  "issues": []
+}
+
+If this is NOT a CDL, set is_correct_document to false and explain in document_detected.
+If name doesn't match the driver on file, add it to issues and set name_matches to false.`,
+
+  medical_card: (driverName) => `You are verifying a DOT Medical Examiner's Certificate (medical card) for a truck driver.
+${driverName ? `The driver's name on file is: "${driverName}"` : ''}
+
+Return ONLY valid JSON:
+{
+  "is_correct_document": true or false,
+  "document_detected": "what this document actually is",
+  "driver_name": "name on document or null",
+  "expiry_date": "YYYY-MM-DD or null",
+  "is_expired": true or false or null,
+  "name_matches": true or false or null,
+  "issues": []
+}
+
+If this is NOT a DOT medical certificate, set is_correct_document to false.`,
+
+  drug_test: (driverName) => `You are verifying a DOT drug test result document for a truck driver.
+${driverName ? `The driver's name on file is: "${driverName}"` : ''}
+
+Return ONLY valid JSON:
+{
+  "is_correct_document": true or false,
+  "document_detected": "what this document actually is",
+  "driver_name": "name on document or null",
+  "result": "negative or positive or null",
+  "test_date": "YYYY-MM-DD or null",
+  "name_matches": true or false or null,
+  "issues": []
+}
+
+If this is NOT a drug test result, set is_correct_document to false.`,
+}
+
+async function validateDriverDoc(docType, fileUrl, driverName) {
+  if (!ANTHROPIC_KEY) return { valid: true, skipped: true, issues: [] }
+
+  const prompt = DRIVER_DOC_PROMPTS[docType]?.(driverName)
+  if (!prompt) return { valid: true, skipped: true, issues: [] }
+
+  try {
+    const isImage = /\.(jpg|jpeg|png|gif|webp|heic)/i.test(fileUrl) || !fileUrl.match(/\.[a-z]{2,4}$/i)
+    const content = isImage
+      ? [{ type: 'image', source: { type: 'url', url: fileUrl } }, { type: 'text', text: prompt }]
+      : [{ type: 'document', source: { type: 'url', url: fileUrl } }, { type: 'text', text: prompt }]
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content }] }),
+    })
+
+    if (!res.ok) return { valid: true, skipped: true, issues: ['AI unavailable'] }
+
+    const data = await res.json()
+    const text = data.content?.[0]?.text || ''
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) return { valid: true, skipped: true, issues: [] }
+
+    const parsed = JSON.parse(match[0])
+    return {
+      valid:               parsed.is_correct_document !== false,
+      is_correct_document: parsed.is_correct_document,
+      document_detected:   parsed.document_detected || null,
+      driver_name:         parsed.driver_name || null,
+      license_number:      parsed.license_number || null,
+      license_class:       parsed.license_class || null,
+      state:               parsed.state || null,
+      expiry_date:         parsed.expiry_date || null,
+      is_expired:          parsed.is_expired || null,
+      result:              parsed.result || null,
+      name_matches:        parsed.name_matches ?? null,
+      issues:              parsed.issues || [],
+    }
+  } catch (e) {
+    return { valid: true, skipped: true, issues: [`Validation error: ${e.message}`] }
   }
 }
 

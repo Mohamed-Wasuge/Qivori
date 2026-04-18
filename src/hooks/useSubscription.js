@@ -1,64 +1,136 @@
 import { useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 
-// Plan hierarchy for feature gating
-// Tier 0 = TMS Pro (no AI), Tier 1 = AI Dispatch (AI assists), Tier 2 = Autonomous Fleet (fully hands-free)
-const PLAN_TIERS = {
-  tms_pro: 0,
-  ai_dispatch: 1,
-  autonomous_fleet: 2,
-  autopilot_ai: 2,   // legacy — maps to autonomous
-  autopilot: 1,       // legacy — maps to ai_dispatch
+// Per-plan feature sets — explicit is better than a linear tier for PAYG
+// which has Q dispatch but not accounting tools, while TMS Pro is the reverse.
+const PLAN_FEATURES = {
+  pay_as_you_go: new Set([
+    'load_tracking',   // up to 10 loads/month
+    'invoicing',       // basic invoicing
+    'factoring',       // factoring integration
+    'fleet',           // fleet & maintenance
+    'dvir',            // DVIR
+    'hos',             // HOS
+    'fuel',            // fuel prices
+    'load_board',      // Q finds loads
+    'ai_dispatch',     // Q calls brokers
+    'ai_scoring',      // AI load scoring
+    'rate_analysis',   // rate analysis
+    'voice_ai',        // broker voice calls
+    'auto_booking',    // Q books loads
+    'auto_negotiation',
+  ]),
+  tms_pro: new Set([
+    'load_tracking', 'unlimited_loads',
+    'invoicing', 'factoring',
+    'fleet', 'dvir', 'hos', 'fuel',
+    'ifta', 'compliance', 'csa', 'dot', 'insurance',
+    'expenses', 'profit', 'tax_report', 'cash_flow',
+    'drivers', 'payroll', 'driver_pay',
+    'documents', 'document_vault',
+    'rate_patterns', 'broker_risk', 'lane_intel',
+  ]),
+  ai_dispatch: new Set([
+    'load_tracking', 'unlimited_loads',
+    'invoicing', 'factoring',
+    'fleet', 'dvir', 'hos', 'fuel',
+    'ifta', 'compliance', 'csa', 'dot', 'insurance',
+    'expenses', 'profit', 'tax_report', 'cash_flow',
+    'drivers', 'payroll', 'driver_pay',
+    'documents', 'document_vault',
+    'rate_patterns', 'broker_risk', 'lane_intel',
+    'load_board', 'ai_dispatch', 'ai_scoring', 'rate_analysis',
+    'voice_ai', 'auto_booking', 'auto_negotiation',
+    'proactive_loads',
+  ]),
+  autonomous_fleet: new Set([
+    'load_tracking', 'unlimited_loads',
+    'invoicing', 'factoring',
+    'fleet', 'dvir', 'hos', 'fuel',
+    'ifta', 'compliance', 'csa', 'dot', 'insurance',
+    'expenses', 'profit', 'tax_report', 'cash_flow',
+    'drivers', 'payroll', 'driver_pay',
+    'documents', 'document_vault',
+    'rate_patterns', 'broker_risk', 'lane_intel',
+    'load_board', 'ai_dispatch', 'ai_scoring', 'rate_analysis',
+    'voice_ai', 'auto_booking', 'auto_negotiation',
+    'proactive_loads', 'multi_truck', 'api_access',
+    'custom_integrations', 'priority_support',
+  ]),
 }
 
-// Which plan tier is required for each gated feature
-const FEATURE_GATES = {
-  // Tier 0 — TMS Pro ($99/mo + $49/truck): manual management, no AI
-  invoicing:     0,
-  ifta:          0,
-  fleet:         0,
-  compliance:    0,
-  expenses:      0,
-  drivers:       0,
-  // Tier 1 — AI Dispatch ($199/mo + $99/truck): AI assists, you approve
-  load_board:    1,
+// Legacy plan aliases
+PLAN_FEATURES.autopilot_ai = PLAN_FEATURES.autonomous_fleet
+PLAN_FEATURES.autopilot    = PLAN_FEATURES.ai_dispatch
+
+// Which plan to upgrade to for a locked feature
+const UPGRADE_PATH = {
+  ifta:          'tms_pro',
+  compliance:    'tms_pro',
+  csa:           'tms_pro',
+  dot:           'tms_pro',
+  insurance:     'tms_pro',
+  expenses:      'tms_pro',
+  profit:        'tms_pro',
+  tax_report:    'tms_pro',
+  cash_flow:     'tms_pro',
+  drivers:       'tms_pro',
+  payroll:       'tms_pro',
+  driver_pay:    'tms_pro',
+  documents:     'tms_pro',
+  document_vault:'tms_pro',
+  unlimited_loads:'tms_pro',
+  load_board:    'ai_dispatch',
+  ai_dispatch:   'ai_dispatch',
+  voice_ai:      'ai_dispatch',
+  auto_booking:  'ai_dispatch',
+  multi_truck:   'autonomous_fleet',
+  api_access:    'autonomous_fleet',
+  priority_support: 'autonomous_fleet',
+}
+
+export const PLAN_DISPLAY = {
+  pay_as_you_go:    { name: 'Pay As You Go',      price: 0,   aiFee: 0.03, extraTruck: 0,   color: '#22c55e' },
+  tms_pro:          { name: 'TMS Pro',             price: 79,  aiFee: null, extraTruck: 39,  color: '#4d8ef0' },
+  ai_dispatch:      { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
+  autonomous_fleet: { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
+  autopilot_ai:     { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
+  autopilot:        { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
+}
+
+// Keep PLAN_TIERS for anything still referencing it (legacy)
+export const PLAN_TIERS = {
+  pay_as_you_go: 0,
+  tms_pro:       0,
   ai_dispatch:   1,
-  ai_scoring:    1,
-  rate_analysis: 1,
-  lane_intel:    1,
-  broker_risk:   1,
-  // Tier 2 — Autonomous Fleet ($199/mo + $99/truck founder): fully hands-free
-  voice_ai:      2,
-  auto_booking:  2,
-  proactive_loads: 2,
-  autonomous_calling: 2,
-  auto_negotiation: 2,
-  api_access:    2,
-  custom_integrations: 2,
-  priority_support: 2,
+  autonomous_fleet: 2,
+  autopilot_ai:  2,
+  autopilot:     1,
 }
 
-const PLAN_DISPLAY = {
-  tms_pro:          { name: 'TMS Pro',           price: 79,  extraTruck: 39, color: '#4d8ef0' },
-  ai_dispatch:      { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },
-  autonomous_fleet: { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },
-  autopilot_ai:     { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy
-  autopilot:        { name: 'Qivori AI Dispatch', price: 199, extraTruck: 99, color: '#f0a500' },  // legacy
+// Keep FEATURE_GATES for legacy references
+export const FEATURE_GATES = {
+  invoicing: 0, fleet: 0, expenses: 0,
+  ifta: 0, compliance: 0, drivers: 0,
+  load_board: 1, ai_dispatch: 1, ai_scoring: 1,
+  rate_analysis: 1, lane_intel: 1, broker_risk: 1,
+  voice_ai: 2, auto_booking: 2, proactive_loads: 2,
+  autonomous_calling: 2, auto_negotiation: 2,
+  api_access: 2, priority_support: 2,
 }
 
 export function useSubscription() {
   const { profile, subscription, demoMode } = useApp()
 
   return useMemo(() => {
-    const plan = subscription?.plan || 'autonomous_fleet'
+    const plan = subscription?.plan || profile?.subscription_plan || 'pay_as_you_go'
     const status = subscription?.status || null
     const isTrialing = subscription?.isTrial || false
-    const isActive = subscription?.isActive || demoMode || false
+    const isActive = subscription?.isActive || demoMode || true // PAYG is always active
     const trialEndsAt = subscription?.trialEndsAt || profile?.trial_ends_at || null
     const currentPeriodEnd = profile?.current_period_end || null
     const customerId = subscription?.customerId || profile?.stripe_customer_id || null
 
-    // Calculate trial days remaining
     let trialDaysLeft = null
     if (isTrialing && trialEndsAt) {
       const msLeft = new Date(trialEndsAt).getTime() - Date.now()
@@ -66,30 +138,24 @@ export function useSubscription() {
     }
 
     const isPaid = isActive && !isTrialing
-    const tier = PLAN_TIERS[plan] ?? 0  // unknown plan defaults to basic (tier 0), not full access
-    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.tms_pro
+    const planInfo = PLAN_DISPLAY[plan] || PLAN_DISPLAY.pay_as_you_go
+    const features = PLAN_FEATURES[plan] || PLAN_FEATURES.pay_as_you_go
+    const tier = PLAN_TIERS[plan] ?? 0
 
-    // Feature access check
     const canAccess = (feature) => {
-      if (demoMode) {
-        // Demo mode: allow basic + AI dispatch features, block autonomous-only
-        const requiredTier = FEATURE_GATES[feature]
-        return requiredTier === undefined || requiredTier <= 1
-      }
+      if (demoMode) return feature !== 'api_access' && feature !== 'priority_support'
       if (!isActive) return false
-      const requiredTier = FEATURE_GATES[feature]
-      if (requiredTier === undefined) return true // unknown feature = allowed
-      return tier >= requiredTier
+      return features.has(feature)
     }
 
-    // Get the minimum plan needed for a feature
     const requiredPlanFor = (feature) => {
-      const requiredTier = FEATURE_GATES[feature]
-      if (requiredTier === undefined) return null
-      if (requiredTier <= 0) return 'tms_pro'
-      if (requiredTier <= 1) return 'ai_dispatch'
-      return 'autonomous_fleet'
+      if (features.has(feature)) return null
+      return UPGRADE_PATH[feature] || null
     }
+
+    const isPayAsYouGo = plan === 'pay_as_you_go'
+    const hasQDispatch  = features.has('ai_dispatch')
+    const hasFullTMS    = features.has('ifta')
 
     return {
       plan,
@@ -97,7 +163,7 @@ export function useSubscription() {
       planColor: planInfo.color,
       planPrice: planInfo.price,
       planExtraTruck: planInfo.extraTruck,
-      planAiFee: planInfo.aiFee || null,
+      planAiFee: planInfo.aiFee,
       status,
       isActive,
       isTrialing,
@@ -107,10 +173,11 @@ export function useSubscription() {
       currentPeriodEnd,
       customerId,
       tier,
+      isPayAsYouGo,
+      hasQDispatch,
+      hasFullTMS,
       canAccess,
       requiredPlanFor,
     }
   }, [profile, subscription, demoMode])
 }
-
-export { FEATURE_GATES, PLAN_TIERS, PLAN_DISPLAY }

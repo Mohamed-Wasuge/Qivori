@@ -4,7 +4,7 @@ import {
   Monitor, Truck, Shield, Users, Settings as SettingsIcon,
   Search, Bell, Moon, Eye, Zap, CreditCard, BarChart2, AlertTriangle,
   TrendingUp, TrendingDown, ChevronLeft, CheckCircle, DollarSign, Star, UserPlus,
-  User, Building2, Package, AlertCircle,
+  User, Building2, Package, AlertCircle, Lock,
   Clock, Bot, Sun, Globe, RefreshCw, Sparkles, Radio, Activity
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -145,7 +145,14 @@ function CarrierLayoutInner() {
   const { logout, showToast, theme, setTheme, profile, demoMode, goToLogin, isDriver, isAdmin, isDispatcher, companyRole, switchView, currentRole, subscriptionBlocked, pastDue, openBillingPortal } = useApp()
   const { activeLoads, unpaidInvoices, company, loads, drivers } = useCarrier()
   const { t } = useTranslation()
-  const { isTrialing, trialDaysLeft, isActive, isPaid, planPrice } = useSubscription()
+  const { isTrialing, trialDaysLeft, isActive, isPaid, planPrice, canAccess, isPayAsYouGo } = useSubscription()
+
+  // Map nav IDs to feature gates for PAYG lock display
+  const NAV_FEATURE = {
+    financials:  'ifta',
+    compliance:  'compliance',
+    drivers:     'drivers',
+  }
 
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -808,11 +815,19 @@ function CarrierLayoutInner() {
             {currentNav.map(item => {
               if (item.id === '_divider') return <div key="_div" style={{ margin:'4px 16px', borderTop:'1px solid var(--border)' }} />
               const isActive = activeView === item.id
+              const gateFeature = NAV_FEATURE[item.id]
+              const isLocked = isPayAsYouGo && gateFeature && !canAccess(gateFeature)
               return (
-                <div key={item.id} onClick={() => navTo(item.id)}
+                <div key={item.id}
+                  onClick={() => isLocked
+                    ? navTo('settings') // send to subscription settings
+                    : navTo(item.id)
+                  }
+                  title={isLocked ? 'Upgrade to TMS Pro to unlock' : undefined}
                   style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 16px', cursor:'pointer',
                     borderLeft:`3px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
                     background: isActive ? 'rgba(240,165,0,0.06)' : 'transparent',
+                    opacity: isLocked ? 0.45 : 1,
                     transition:'all 0.12s' }}
                   onMouseOver={e => { if (!isActive) e.currentTarget.style.background='rgba(255,255,255,0.03)' }}
                   onMouseOut={e  => { if (!isActive) e.currentTarget.style.background='transparent' }}>
@@ -820,10 +835,11 @@ function CarrierLayoutInner() {
                     {React.createElement(item.icon, { size:15, color: isActive ? 'var(--accent)' : undefined })}
                   </span>
                   <span style={{ fontSize:12, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text)', flex:1 }}>{item.i18nKey ? t(item.i18nKey) : item.label}</span>
-                  {item.id === 'loads' && activeLoads.length > 0 && (
+                  {isLocked && <Lock size={10} color="var(--muted)" />}
+                  {!isLocked && item.id === 'loads' && activeLoads.length > 0 && (
                     <span style={{ fontSize:9, fontWeight:700, background:'var(--accent)', color:'#000', borderRadius:10, padding:'1px 6px', minWidth:16, textAlign:'center' }}>{activeLoads.length}</span>
                   )}
-                  {item.id === 'financials' && unpaidInvoices.length > 0 && (
+                  {!isLocked && item.id === 'financials' && unpaidInvoices.length > 0 && (
                     <span style={{ fontSize:9, fontWeight:700, background:'var(--error, #ef4444)', color:'#fff', borderRadius:10, padding:'1px 6px', minWidth:16, textAlign:'center' }}>{unpaidInvoices.length}</span>
                   )}
                 </div>

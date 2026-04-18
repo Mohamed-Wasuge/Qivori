@@ -353,7 +353,7 @@ export function AppProvider({ children }) {
   }, [fetchProfile, showToast])
 
   // Sign up with Supabase
-  const signUp = useCallback(async (email, password, role, fullName, companyName) => {
+  const signUp = useCallback(async (email, password, role, fullName, companyName, plan) => {
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (error) return { error: error.message }
 
@@ -361,6 +361,7 @@ export function AppProvider({ children }) {
     if (data.user) {
       const refCode = typeof localStorage !== 'undefined' ? localStorage.getItem('qivori_ref') : null
       const trialEnds = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      const subscriptionPlan = plan || (role === 'carrier' ? 'ai_dispatch' : null)
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
         email,
@@ -369,7 +370,7 @@ export function AppProvider({ children }) {
         company_name: companyName,
         status: 'pending',
         subscription_status: 'trialing',
-        subscription_plan: 'autonomous_fleet',
+        subscription_plan: subscriptionPlan,
         trial_ends_at: trialEnds,
         referred_by: refCode || null,
       })
@@ -378,7 +379,7 @@ export function AppProvider({ children }) {
         // Retry once — profile is critical
         const { error: retryErr } = await supabase.from('profiles').upsert({
           id: data.user.id, email, role, full_name: fullName, company_name: companyName,
-          status: 'pending', subscription_status: 'trialing', subscription_plan: 'autonomous_fleet',
+          status: 'pending', subscription_status: 'trialing', subscription_plan: subscriptionPlan,
           trial_ends_at: trialEnds, referred_by: refCode || null,
         }, { onConflict: 'id' })
         if (retryErr) console.error('[Signup] Profile retry failed:', retryErr)

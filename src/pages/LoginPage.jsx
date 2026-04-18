@@ -15,9 +15,37 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [selectedRole, setSelectedRole] = useState('carrier')
+  const [selectedPlan, setSelectedPlan] = useState('ai_dispatch')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+
+  const CARRIER_PLANS = [
+    {
+      id: 'tms_pro',
+      name: 'TMS Pro',
+      price: '$79/mo',
+      tag: null,
+      desc: 'Full TMS — manage loads, invoices, compliance yourself. No AI dispatch.',
+      features: ['Load & invoice management', 'IFTA & compliance', 'Fleet & driver tools', 'Document storage'],
+    },
+    {
+      id: 'ai_dispatch',
+      name: 'AI Dispatch',
+      price: '$199/mo',
+      tag: 'FOUNDER — First 100 carriers',
+      desc: 'Q finds loads, calls brokers, and negotiates for you. 3% fee only when Q books a load.',
+      features: ['Everything in TMS Pro', 'Q finds loads on 123LB + DAT', 'AI broker calls & negotiation', 'Auto-invoice to factoring co', '3% per Q-booked load only'],
+    },
+    {
+      id: 'autonomous_fleet',
+      name: 'Autonomous Fleet',
+      price: '$299/mo',
+      tag: null,
+      desc: 'Multiple trucks. Q runs dispatch for your whole fleet.',
+      features: ['Everything in AI Dispatch', 'Multi-truck management', 'Driver payroll & scorecards', 'Priority support'],
+    },
+  ]
 
   const ROLE_OPTIONS = [
     { id: 'carrier', icon: Truck, label: t('login.carrier'), sub: t('login.carrierSub') },
@@ -39,7 +67,8 @@ export default function LoginPage() {
     if (password.length < 8) { setError(t('login.error.passwordMin')); return }
     setLoading(true)
     setError('')
-    const result = await signUp(email, password, selectedRole, fullName, companyName)
+    const plan = selectedRole === 'carrier' ? selectedPlan : null
+    const result = await signUp(email, password, selectedRole, fullName, companyName, plan)
     if (result.error) {
       setError(result.error)
     } else {
@@ -170,6 +199,43 @@ export default function LoginPage() {
               ))}
             </div>
           </div>
+
+          {/* Plan selection — carriers only */}
+          {selectedRole === 'carrier' && (
+            <div className="form-group">
+              <label className="form-label" style={{ marginBottom: 8 }}>Choose your plan <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· 14-day free trial, no card required</span></label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {CARRIER_PLANS.map(p => {
+                  const isSelected = selectedPlan === p.id
+                  return (
+                    <div key={p.id} onClick={() => setSelectedPlan(p.id)} style={{
+                      border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
+                      background: isSelected ? 'rgba(240,165,0,0.06)' : 'var(--surface2)',
+                      transition: 'all 0.15s',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{
+                            width: 16, height: 16, borderRadius: '50%',
+                            border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                            background: isSelected ? 'var(--accent)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            {isSelected && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#000' }} />}
+                          </div>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: isSelected ? 'var(--accent)' : 'var(--text)' }}>{p.name}</span>
+                          {p.tag && <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--accent)', background: 'rgba(240,165,0,0.15)', padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>{p.tag}</span>}
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 900, color: isSelected ? 'var(--accent)' : 'var(--muted)' }}>{p.price}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, paddingLeft: 24 }}>{p.desc}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">{t('login.fullName')}</label>

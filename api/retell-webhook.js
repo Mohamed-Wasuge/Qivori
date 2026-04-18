@@ -337,11 +337,13 @@ export default async function handler(req) {
 }
 
 async function handleBookedLoad(meta) {
-  const { loadId, brokerName, brokerEmail, agreed_rate, userId } = meta
-  // Update load status to booked
-  await fetch(SUPABASE_URL + '/rest/v1/load_matches?id=eq.' + loadId, {
+  const { loadId, brokerName, brokerEmail, agreed_rate, userId, truckId } = meta
+  // Update load status in loads table (loadId is a loads.id UUID)
+  const loadUpdate = { status: 'Booked', gross_pay: agreed_rate ? parseFloat(agreed_rate) : undefined }
+  if (truckId) loadUpdate.vehicle_id = truckId
+  await fetch(SUPABASE_URL + '/rest/v1/loads?id=eq.' + loadId, {
     method: 'PATCH', headers: sbHeaders(),
-    body: JSON.stringify({ status: 'booked' })
+    body: JSON.stringify(loadUpdate)
   })
 
   // ── Look up carrier identity from companies table ──

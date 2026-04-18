@@ -100,7 +100,7 @@ export default async function handler(req) {
   try {
     // Pull active owner-op / driver profiles with push tokens
     const profilesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?select=id,push_token,home_base_state,home_base_city,equipment_type&push_token=not.is.null&limit=200`,
+      `${SUPABASE_URL}/rest/v1/profiles?select=id,expo_push_token,home_base_state,home_base_city,equipment_type&expo_push_token=not.is.null&limit=200`,
       { headers: sbHeaders }
     )
 
@@ -147,7 +147,7 @@ export default async function handler(req) {
           : alert.body
 
         for (const driver of driversInState) {
-          const token = driver.push_token
+          const token = driver.expo_push_token
           if (!token) continue
 
           const { ok } = await sendPush(token, pushTitle, pushBody, {

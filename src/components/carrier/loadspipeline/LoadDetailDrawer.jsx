@@ -5,6 +5,7 @@ import { useCarrier } from '../../../context/CarrierContext'
 import { apiFetch } from '../../../lib/api'
 import { uploadFile } from '../../../lib/storage'
 import { createDocument, fetchDocuments, deleteDocument } from '../../../lib/database'
+import { checkBOLMismatches } from '../../../lib/bolValidator'
 import { Ic } from '../shared'
 import { qEvaluateLoad, Q_DECISION_COLORS, QDecisionBadge, RateBadge } from './helpers'
 import { InvoiceStatusBadge } from './InvoiceStatusBadge'
@@ -30,6 +31,8 @@ export function LoadDetailDrawer({ loadId, onClose }) {
   const [docsLoading, setDocsLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [reminderSending, setReminderSending] = useState(false)
+  const [bolMismatches, setBolMismatches] = useState([])
+  const [pendingDelivery, setPendingDelivery] = useState(null)
   const [drawerDispatchDec, setDrawerDispatchDec] = useState(null)
   const load = loads.find(l => (l.loadId || l.id) === loadId)
 
@@ -67,6 +70,31 @@ export function LoadDetailDrawer({ loadId, onClose }) {
     fetchDocuments(load.id).then(docs => setLoadDocs(docs)).catch(() => {}).finally(() => setDocsLoading(false))
   }, [load?.id])
 
+  const triggerDelivery = useCallback(async () => {
+    if (!load) return
+    try {
+      if (load.status !== 'Delivered') {
+        updateLoadStatus(load.loadId || load.id, 'Delivered')
+        showToast('', 'Load Delivered', `${load.loadId || load.load_number} marked as Delivered`)
+      }
+      const invRes = await apiFetch('/api/auto-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loadId: load._dbId || load.id }),
+      })
+      const invData = await invRes.json()
+      if (invData.success) {
+        updateLoadStatus(load.loadId || load.id, 'Invoiced')
+        const parts = [invData.invoiceNumber, `$${(load.rate || load.gross || 0).toLocaleString()}`]
+        if (invData.emailSent) parts.push('emailed to broker')
+        if (invData.factoringEmailed) parts.push(`factoring packet sent (${invData.docsAttached || 0} docs attached)`)
+        showToast('', 'Invoice Auto-Created', parts.join(' — '))
+      }
+    } catch {
+      // Invoice API unavailable — user can create manually
+    }
+  }, [load, showToast, updateLoadStatus])
+
   const handleDocUpload = useCallback(async (docType) => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -88,35 +116,38 @@ export function LoadDetailDrawer({ loadId, onClose }) {
         if (doc) setLoadDocs(prev => [doc, ...prev])
         showToast('success', 'Uploaded', `${docType} attached to ${load?.loadId || 'load'}`)
 
-        // POD uploaded → auto-mark Delivered + create & send invoice
-        const isPOD = docType.toLowerCase() === 'pod' || docType.toLowerCase() === 'proof of delivery'
-        const canAutoInvoice = isPOD && ['In Transit', 'Loaded', 'Delivered', 'En Route to Pickup'].includes(load?.status)
-        const notYetInvoiced = load?.status !== 'Invoiced' && load?.status !== 'Paid'
-        if (isPOD && canAutoInvoice && notYetInvoiced) {
+        const isBOLOrPOD = ['bol', 'bill of lading', 'pod', 'proof of delivery'].includes(docType.toLowerCase())
+        const canDeliver  = isBOLOrPOD && ['In Transit', 'Loaded', 'Delivered', 'En Route to Pickup'].includes(load?.status)
+        const notInvoiced = load?.status !== 'Invoiced' && load?.status !== 'Paid'
+
+        if (isBOLOrPOD && canDeliver && notInvoiced) {
+          // Parse the document with Q and validate against rate con
           try {
-            // Step 1: Mark as Delivered if not already
-            if (load.status !== 'Delivered') {
-              updateLoadStatus(load.loadId || load.id, 'Delivered')
-              showToast('', 'Load Delivered', `${load.loadId || load.load_number} marked as Delivered`)
-            }
-            // Step 2: Auto-create invoice and email broker/factoring
-            const invRes = await apiFetch('/api/auto-invoice', {
+            const reader = new FileReader()
+            const b64 = await new Promise((res, rej) => {
+              reader.onload = () => res(reader.result.split(',')[1])
+              reader.onerror = rej
+              reader.readAsDataURL(file)
+            })
+            const parseRes = await apiFetch('/api/parse-ratecon', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ loadId: load._dbId || load.id }),
+              body: JSON.stringify({ file: b64, mediaType: file.type }),
             })
-            const invData = await invRes.json()
-            if (invData.success) {
-              updateLoadStatus(load.loadId || load.id, 'Invoiced')
-              const parts = [invData.invoiceNumber, `$${(load.rate || load.gross || 0).toLocaleString()}`]
-              if (invData.emailSent) parts.push('emailed to broker')
-              if (invData.factoringEmailed) parts.push(`factoring packet sent (${invData.docsAttached || 0} docs attached)`)
-              if (!invData.emailSent && !invData.factoringEmailed) parts.push('no broker/factoring email on file')
-              showToast('', 'Invoice Auto-Created', parts.join(' — '))
+            if (parseRes.ok) {
+              const parsed = await parseRes.json()
+              const issues = checkBOLMismatches(parsed, load)
+              if (issues.length > 0) {
+                setBolMismatches(issues)
+                setPendingDelivery(() => triggerDelivery)
+                setUploading(false)
+                return // wait for user to confirm/dismiss mismatch modal
+              }
             }
           } catch {
-            // Invoice API unavailable — user can still create manually
+            // Parse failed — proceed without validation
           }
+          await triggerDelivery()
         }
       } catch (err) {
         showToast('error', 'Upload Failed', err.message || 'Could not upload file')
@@ -124,7 +155,7 @@ export function LoadDetailDrawer({ loadId, onClose }) {
       setUploading(false)
     }
     input.click()
-  }, [load, showToast, updateLoadStatus])
+  }, [load, showToast, updateLoadStatus, triggerDelivery])
 
   const handleDocDelete = useCallback(async (docId) => {
     if (!window.confirm('Delete this document?')) return
@@ -1101,6 +1132,61 @@ export function LoadDetailDrawer({ loadId, onClose }) {
           </div>
         </div>
       </div>
+
+      {/* ── Q BOL Mismatch Modal ──────────────────────────────────────────── */}
+      {bolMismatches.length > 0 && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:1100, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ background:'#0e0e0e', border:'1px solid #3a1010', borderRadius:20, padding:28, width:'100%', maxWidth:480, boxShadow:'0 24px 80px rgba(0,0,0,0.6)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
+              <div style={{ width:38, height:38, borderRadius:10, background:'rgba(217,85,85,0.15)', border:'1px solid rgba(217,85,85,0.4)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <span style={{ color:'#d95555', fontSize:18, fontWeight:900 }}>Q</span>
+              </div>
+              <div>
+                <div style={{ color:'#d95555', fontWeight:800, fontSize:15 }}>Q Found Issues With This BOL</div>
+                <div style={{ color:'#8b92a8', fontSize:12, marginTop:2 }}>Doesn't match the rate con — review before submitting</div>
+              </div>
+            </div>
+
+            <div style={{ display:'flex', flexDirection:'column', gap:10, margin:'18px 0' }}>
+              {bolMismatches.map((issue, i) => (
+                <div key={i} style={{
+                  borderRadius:12, padding:'12px 14px',
+                  background: issue.severity === 'critical' ? 'rgba(217,85,85,0.08)' : 'rgba(240,165,0,0.08)',
+                  border: `1px solid ${issue.severity === 'critical' ? 'rgba(217,85,85,0.3)' : 'rgba(240,165,0,0.3)'}`,
+                }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                    <span style={{ fontSize:14 }}>{issue.severity === 'critical' ? '🔴' : '⚠️'}</span>
+                    <span style={{ fontWeight:800, fontSize:12, color: issue.severity === 'critical' ? '#d95555' : '#f0a500', letterSpacing:.5 }}>{issue.field}</span>
+                  </div>
+                  <div style={{ fontSize:12, color:'#8b92a8', marginBottom:3 }}>BOL says:</div>
+                  <div style={{ fontSize:13, color:'#c8d0dc', fontWeight:600, marginBottom:8 }}>{issue.bolValue}</div>
+                  <div style={{ fontSize:12, color:'#8b92a8', marginBottom:3 }}>Rate con says:</div>
+                  <div style={{ fontSize:13, color:'#2cb896', fontWeight:600 }}>{issue.expected}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display:'flex', gap:10 }}>
+              <button
+                onClick={() => { setBolMismatches([]); setPendingDelivery(null) }}
+                style={{ flex:1, padding:'12px 0', borderRadius:12, background:'#1a1a1a', border:'1px solid #262d40', color:'#c8d0dc', fontWeight:700, cursor:'pointer', fontSize:14 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setBolMismatches([])
+                  if (pendingDelivery) await pendingDelivery()
+                  setPendingDelivery(null)
+                }}
+                style={{ flex:1, padding:'12px 0', borderRadius:12, background:'rgba(217,85,85,0.12)', border:'1px solid rgba(217,85,85,0.4)', color:'#d95555', fontWeight:800, cursor:'pointer', fontSize:14 }}
+              >
+                Continue Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

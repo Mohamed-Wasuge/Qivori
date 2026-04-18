@@ -338,10 +338,10 @@ export default async function handler(req) {
 
 async function handleBookedLoad(meta) {
   const { loadId, brokerName, brokerEmail, agreed_rate, userId, truckId } = meta
-  // Update load status in loads table (loadId is a loads.id UUID)
+  // loadId = human-readable "QV-XXXX" (stored in loads.load_id, not loads.id)
   const loadUpdate = { status: 'Booked', gross_pay: agreed_rate ? parseFloat(agreed_rate) : undefined }
   if (truckId) loadUpdate.vehicle_id = truckId
-  await fetch(SUPABASE_URL + '/rest/v1/loads?id=eq.' + loadId, {
+  await fetch(SUPABASE_URL + '/rest/v1/loads?load_id=eq.' + encodeURIComponent(loadId), {
     method: 'PATCH', headers: sbHeaders(),
     body: JSON.stringify(loadUpdate)
   })
@@ -555,7 +555,7 @@ async function recordRateIntelligence(meta, agreedRate) {
     let miles = meta.miles ? parseFloat(meta.miles) : null
     if (!origin && meta.loadId) {
       const loadRes = await fetch(
-        SUPABASE_URL + '/rest/v1/loads?id=eq.' + meta.loadId + '&select=origin,destination,miles&limit=1',
+        SUPABASE_URL + '/rest/v1/loads?load_id=eq.' + encodeURIComponent(meta.loadId) + '&select=origin,destination,miles&limit=1',
         { headers: sbHeaders() }
       )
       const loads = loadRes.ok ? await loadRes.json() : []

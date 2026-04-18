@@ -54,6 +54,34 @@ export default async function handler(req) {
       'Content-Type': 'application/json',
     }
 
+    // Only charge 3% for autonomous_fleet carriers — other plans pay flat monthly subscription
+    const planRes = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=subscription_plan`,
+      { headers: sbHeaders }
+    )
+    const planData = await planRes.json()
+    const plan = planData?.[0]?.subscription_plan
+    if (plan !== 'autonomous_fleet') {
+      return Response.json({ skipped: true, reason: 'Not on autonomous_fleet plan', plan }, { headers: corsHeaders(req) })
+    }
+
+    // Only charge 3% when Q booked the load — not for manually-added loads
+    // Q-booked sources: 123loadboard, dat, truckstop, load_board, ai_auto_book, mobile_loadboard
+    const Q_BOOKED_SOURCES = ['123loadboard', 'dat', 'truckstop', 'load_board', 'ai_auto_book', 'mobile_loadboard', 'edi_204']
+    if (loadId) {
+      const loadRes = await fetch(
+        `${supabaseUrl}/rest/v1/loads?id=eq.${loadId}&select=load_source&limit=1`,
+        { headers: sbHeaders }
+      )
+      if (loadRes.ok) {
+        const loadData = await loadRes.json()
+        const loadSource = loadData?.[0]?.load_source
+        if (!loadSource || loadSource === 'manual' || !Q_BOOKED_SOURCES.includes(loadSource)) {
+          return Response.json({ skipped: true, reason: 'Load was added manually — no Q dispatch fee', load_source: loadSource }, { headers: corsHeaders(req) })
+        }
+      }
+    }
+
     // 1. Get carrier's Stripe customer ID from profiles
     const profileRes = await fetch(
       `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=stripe_customer_id,email`,

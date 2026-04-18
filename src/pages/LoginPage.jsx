@@ -15,35 +15,36 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [selectedRole, setSelectedRole] = useState('carrier')
-  const [selectedPlan, setSelectedPlan] = useState('ai_dispatch')
+  const [selectedPlan, setSelectedPlan] = useState('pay_as_you_go')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
   const CARRIER_PLANS = [
     {
+      id: 'pay_as_you_go',
+      name: 'Pay As You Go',
+      price: '$0/mo',
+      sub: '+ 3% per load Q books',
+      tag: 'NO COMMITMENT',
+      desc: 'Q finds loads and calls brokers. You only pay 3% when Q books a load. Nothing if Q doesn\'t work.',
+      highlight: true,
+    },
+    {
       id: 'tms_pro',
       name: 'TMS Pro',
       price: '$79/mo',
+      sub: 'no per-load fee',
       tag: null,
-      desc: 'Full TMS — manage loads, invoices, compliance yourself. No AI dispatch.',
-      features: ['Load & invoice management', 'IFTA & compliance', 'Fleet & driver tools', 'Document storage'],
+      desc: 'Full TMS — manage loads, invoices, IFTA, compliance yourself. No AI dispatch.',
     },
     {
       id: 'ai_dispatch',
       name: 'AI Dispatch',
       price: '$199/mo',
-      tag: 'FOUNDER — First 100 carriers',
-      desc: 'Q finds loads, calls brokers, and negotiates for you. 3% fee only when Q books a load.',
-      features: ['Everything in TMS Pro', 'Q finds loads on 123LB + DAT', 'AI broker calls & negotiation', 'Auto-invoice to factoring co', '3% per Q-booked load only'],
-    },
-    {
-      id: 'autonomous_fleet',
-      name: 'Autonomous Fleet',
-      price: '$299/mo',
-      tag: null,
-      desc: 'Multiple trucks. Q runs dispatch for your whole fleet.',
-      features: ['Everything in AI Dispatch', 'Multi-truck management', 'Driver payroll & scorecards', 'Priority support'],
+      sub: '+ 3% per load Q books',
+      tag: 'FOUNDER — First 100',
+      desc: 'Full TMS + Q dispatch. Best value when running 6+ loads/month.',
     },
   ]
 
@@ -209,13 +210,13 @@ export default function LoginPage() {
                   const isSelected = selectedPlan === p.id
                   return (
                     <div key={p.id} onClick={() => setSelectedPlan(p.id)} style={{
-                      border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                      border: `1.5px solid ${isSelected ? 'var(--accent)' : p.highlight ? 'rgba(240,165,0,0.3)' : 'var(--border)'}`,
                       borderRadius: 12, padding: '12px 14px', cursor: 'pointer',
-                      background: isSelected ? 'rgba(240,165,0,0.06)' : 'var(--surface2)',
+                      background: isSelected ? 'rgba(240,165,0,0.08)' : p.highlight ? 'rgba(240,165,0,0.03)' : 'var(--surface2)',
                       transition: 'all 0.15s',
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <div style={{
                             width: 16, height: 16, borderRadius: '50%',
                             border: `2px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
@@ -227,9 +228,12 @@ export default function LoginPage() {
                           <span style={{ fontSize: 13, fontWeight: 800, color: isSelected ? 'var(--accent)' : 'var(--text)' }}>{p.name}</span>
                           {p.tag && <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--accent)', background: 'rgba(240,165,0,0.15)', padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5 }}>{p.tag}</span>}
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 900, color: isSelected ? 'var(--accent)' : 'var(--muted)' }}>{p.price}</span>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 900, color: isSelected ? 'var(--accent)' : 'var(--text)' }}>{p.price}</div>
+                          {p.sub && <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 600, marginTop: 1 }}>{p.sub}</div>}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, paddingLeft: 24 }}>{p.desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, paddingLeft: 24, lineHeight: 1.5 }}>{p.desc}</div>
                     </div>
                   )
                 })}

@@ -61,8 +61,9 @@ export default async function handler(req) {
     )
     const planData = await planRes.json()
     const plan = planData?.[0]?.subscription_plan
-    if (plan !== 'autonomous_fleet') {
-      return Response.json({ skipped: true, reason: 'Not on autonomous_fleet plan', plan }, { headers: corsHeaders(req) })
+    const PAID_PLANS = ['autonomous_fleet', 'ai_dispatch', 'pay_as_you_go']
+    if (!PAID_PLANS.includes(plan)) {
+      return Response.json({ skipped: true, reason: 'Plan does not include Q dispatch fee', plan }, { headers: corsHeaders(req) })
     }
 
     // Only charge 3% when Q booked the load — not for manually-added loads

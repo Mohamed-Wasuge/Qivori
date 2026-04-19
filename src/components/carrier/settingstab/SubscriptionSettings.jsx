@@ -77,8 +77,14 @@ export function SubscriptionSettings() {
     inactive: { label: 'FREE TIER',  bg: 'rgba(44,184,150,0.1)',  color: 'var(--accent2)',   border: 'rgba(44,184,150,0.2)' },
   }
 
-  const handleUpgrade = () => {
-    setTruckPicker({ planId: 'autonomous_fleet', trucks: Math.max(subData?.truckCount || 1, 1) })
+  const handleSelectPlan = (planId) => {
+    const currentPlan = subData?.plan || profile?.subscription_plan
+    if (currentPlan === planId) { showToast('info', 'Already on this plan', ''); return }
+    if (planId === 'pay_as_you_go') {
+      goToCheckout('pay_as_you_go', 1)
+    } else {
+      setTruckPicker({ planId, trucks: Math.max(subData?.truckCount || 1, 1) })
+    }
   }
 
   const goToCheckout = async (planId, trucks) => {
@@ -211,84 +217,78 @@ export function SubscriptionSettings() {
         </div>
       </div>
 
-      {/* Plan Details — Two Components */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Your Plan</div>
-        <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {/* TMS Pro — ${PLAN_DISPLAY.tms_pro.price}/mo */}
-          <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(77,142,240,0.3)', background: 'rgba(77,142,240,0.04)' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#4d8ef0', marginBottom: 2 }}>TMS Pro</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Core trucking management</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>${PLAN_DISPLAY.tms_pro.price}</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo per truck · ${PLAN_DISPLAY.tms_pro.extraTruck} each additional</span>
+      {/* Plan Selection */}
+      {(() => {
+        const currentPlan = subData?.plan || profile?.subscription_plan || 'pay_as_you_go'
+        const PLANS = [
+          {
+            id: 'pay_as_you_go',
+            name: 'Pay As You Go',
+            color: '#22c55e',
+            sub: '$0/mo · 3% only when Q books a load',
+            desc: 'Q finds loads and calls brokers. Pay nothing until Q delivers.',
+            features: ['Load tracking (up to 10/mo)', 'Basic invoicing & factoring', 'Fleet & DVIR', 'HOS & fuel prices', 'Q AI dispatch & voice calls', 'Auto booking & negotiation'],
+          },
+          {
+            id: 'tms_pro',
+            name: 'TMS Pro',
+            color: '#4d8ef0',
+            sub: `$${PLAN_DISPLAY.tms_pro.price}/mo · $${PLAN_DISPLAY.tms_pro.extraTruck} each additional truck`,
+            desc: 'Full TMS — manage loads, invoices, IFTA, compliance yourself.',
+            features: ['Unlimited loads', 'Invoicing & factoring', 'IFTA & compliance suite', 'Driver portal & payroll', 'Document vault', 'Fuel optimizer'],
+          },
+          {
+            id: 'ai_dispatch',
+            name: 'AI Dispatch',
+            color: '#f0a500',
+            sub: `$${PLAN_DISPLAY.ai_dispatch.price}/mo + 3% per Q-booked load`,
+            desc: 'Full TMS + Q dispatch. Best value at 6+ loads/month.',
+            features: ['Everything in TMS Pro', 'AI load board & scoring', 'Rate & lane analysis', 'Broker risk intel', 'Voice AI & auto booking', 'Proactive load finding'],
+          },
+        ]
+        return (
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Change Plan</div>
+            <div style={{ padding: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {PLANS.map(p => {
+                const isCurrent = currentPlan === p.id || (p.id === 'ai_dispatch' && (currentPlan === 'autonomous_fleet' || currentPlan === 'autopilot_ai' || currentPlan === 'autopilot'))
+                return (
+                  <div key={p.id} style={{ flex: '1 1 180px', padding: 18, borderRadius: 12,
+                    border: `2px solid ${isCurrent ? p.color : p.color + '44'}`,
+                    background: isCurrent ? p.color + '10' : p.color + '06',
+                    display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: p.color }}>{p.name}</div>
+                      {isCurrent && <span style={{ fontSize: 8, fontWeight: 800, padding: '2px 7px', borderRadius: 6, background: p.color + '22', color: p.color, letterSpacing: 0.5 }}>CURRENT</span>}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10 }}>{p.desc}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{p.sub}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+                      {p.features.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
+                          <span style={{ color: p.color, fontSize: 11, flexShrink: 0 }}>{i === 0 && p.id !== 'pay_as_you_go' ? '\u2b06' : '\u2713'}</span>
+                          <span style={i === 0 && p.id !== 'pay_as_you_go' ? { fontWeight: 700, color: p.color } : undefined}>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => handleSelectPlan(p.id)} disabled={upgradeLoading || isCurrent}
+                      style={{ marginTop: 16, width: '100%', padding: '9px', fontSize: 11, fontWeight: 700, borderRadius: 8, cursor: isCurrent ? 'default' : 'pointer',
+                        border: `1px solid ${isCurrent ? 'transparent' : p.color}`,
+                        background: isCurrent ? p.color + '22' : p.color,
+                        color: isCurrent ? p.color : p.id === 'pay_as_you_go' || p.id === 'ai_dispatch' ? '#000' : '#fff',
+                        fontFamily: "'DM Sans',sans-serif" }}>
+                      {upgradeLoading ? 'Loading...' : isCurrent ? 'Current Plan' : 'Select Plan'}
+                    </button>
+                  </div>
+                )
+              })}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {['Fleet & dispatch management', 'Invoicing & factoring', 'IFTA & compliance suite', 'Driver portal & scorecards',
-                'Document management', 'Fuel optimizer'].map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
-                  <span style={{ color: '#4d8ef0', fontSize: 11, flexShrink: 0 }}>{'\u2713'}</span>
-                  <span>{f}</span>
-                </div>
-              ))}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
+              14-day free trial · No credit card required · Downgrade or cancel anytime
             </div>
           </div>
-
-          {/* AI Dispatch — ${PLAN_DISPLAY.ai_dispatch.price}/mo */}
-          <div style={{ flex: '1 1 180px', position: 'relative', padding: 18, borderRadius: 12, border: '2px solid rgba(240,165,0,0.4)', background: 'rgba(240,165,0,0.04)' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#f0a500', marginBottom: 2 }}>AI Dispatch</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Q assists, you approve</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 12 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>${PLAN_DISPLAY.autonomous_fleet.price}</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>/mo first truck · ${PLAN_DISPLAY.autonomous_fleet.extraTruck} each additional</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {['Everything in TMS Pro', 'AI load board & scoring', 'Rate analysis & lane intel', 'Broker risk intelligence',
-                'Market & lane analysis', 'AI dispatch suggestions'].map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
-                  <span style={{ color: '#f0a500', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
-                  <span style={i === 0 ? { fontWeight: 700, color: '#f0a500' } : undefined}>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Autonomous Fleet — 3% per load */}
-          <div style={{ flex: '1 1 180px', padding: 18, borderRadius: 12, border: '2px solid rgba(0,212,170,0.3)', background: 'rgba(0,212,170,0.04)' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#00d4aa', marginBottom: 2 }}>Autonomous Fleet</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>Fully hands-free AI dispatch</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 30, color: 'var(--text)' }}>3%</span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>per load · only when Q books</span>
-            </div>
-            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 12, fontStyle: 'italic' }}>
-              $2,000 load = $60 AI fee · You keep $1,940
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {['Everything in AI Dispatch', 'Voice AI assistant', 'Autonomous broker calling', 'Auto rate negotiation',
-                'Proactive load finding', 'Auto booking & dispatch', 'Zero manual work required'].map((f, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10, color: 'var(--text)' }}>
-                  <span style={{ color: '#00d4aa', fontSize: 11, flexShrink: 0 }}>{i === 0 ? '\u2b06' : '\u2713'}</span>
-                  <span style={i === 0 ? { fontWeight: 700, color: '#00d4aa' } : undefined}>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {!subData?.isActive && !subscription?.isActive && (
-          <div style={{ padding: '0 20px 20px' }}>
-            <button onClick={handleUpgrade} disabled={upgradeLoading}
-              style={{ width: '100%', padding: '12px', fontSize: 13, fontWeight: 700, borderRadius: 10, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif",
-                border: 'none', background: '#f0a500', color: '#000' }}>
-              {upgradeLoading ? 'Loading...' : 'Start Free Trial'}
-            </button>
-          </div>
-        )}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
-          14-day free trial · No credit card required · You only pay more when Q makes you more
-        </div>
-      </div>
+        )
+      })()}
 
       {/* Q Intelligence — AI Usage Tracking (3% per load) */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -351,70 +351,74 @@ export function SubscriptionSettings() {
         </div>
       </div>
 
-      {/* Truck Picker Modal for Autopilot AI */}
-      {truckPicker && (
-        <>
-          <div onClick={() => setTruckPicker(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:9000 }} />
-          <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:420, maxWidth:'90vw',
-            background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, padding:28, zIndex:9001,
-            boxShadow:'0 24px 80px rgba(0,0,0,0.6)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-              <div>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>QIVORI AI DISPATCH</div>
-                <div style={{ fontSize:12, color:'var(--muted)' }}>How many trucks do you operate?</div>
-              </div>
-              <button onClick={() => setTruckPicker(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:20 }}>{'\u2715'}</button>
-            </div>
-
-            {/* Truck counter */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:20, marginBottom:24 }}>
-              <button onClick={() => setTruckPicker(p => ({ ...p, trucks: Math.max(1, p.trucks - 1) }))}
-                style={{ width:44, height:44, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface2)',
-                  color:'var(--text)', fontSize:22, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>{'\u2212'}</button>
-              <div style={{ textAlign:'center', minWidth:80 }}>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:48, color:'var(--accent)', lineHeight:1 }}>{truckPicker.trucks}</div>
-                <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>truck{truckPicker.trucks !== 1 ? 's' : ''}</div>
-              </div>
-              <button onClick={() => setTruckPicker(p => ({ ...p, trucks: p.trucks + 1 }))}
-                style={{ width:44, height:44, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface2)',
-                  color:'var(--text)', fontSize:22, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
-            </div>
-
-            {/* Price breakdown */}
-            <div style={{ background:'var(--surface2)', borderRadius:12, padding:16, marginBottom:20 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                <span style={{ color:'var(--muted)' }}>First truck</span>
-                <span style={{ fontWeight:700 }}>${PLAN_DISPLAY.autonomous_fleet.price}/mo</span>
-              </div>
-              {truckPicker.trucks > 1 && (
-                <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
-                  <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} {'\u00D7'} ${PLAN_DISPLAY.autonomous_fleet.extraTruck}</span>
-                  <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * PLAN_DISPLAY.autonomous_fleet.extraTruck).toLocaleString()}/mo</span>
+      {/* Truck Picker Modal — dynamic per plan */}
+      {truckPicker && (() => {
+        const pd = PLAN_DISPLAY[truckPicker.planId] || PLAN_DISPLAY.ai_dispatch
+        const total = pd.price + Math.max(0, truckPicker.trucks - 1) * pd.extraTruck
+        const planName = truckPicker.planId === 'tms_pro' ? 'TMS PRO' : 'AI DISPATCH'
+        return (
+          <>
+            <div onClick={() => setTruckPicker(null)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:9000 }} />
+            <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:420, maxWidth:'90vw',
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:16, padding:28, zIndex:9001,
+              boxShadow:'0 24px 80px rgba(0,0,0,0.6)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+                <div>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, letterSpacing:1 }}>QIVORI {planName}</div>
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>How many trucks do you operate?</div>
                 </div>
-              )}
-              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
-                <span>AI Dispatch (subscription) {'\u00B7'} Autonomous Fleet adds 3% per load</span>
+                <button onClick={() => setTruckPicker(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', fontSize:20 }}>{'\u2715'}</button>
               </div>
-              <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
-                <span style={{ fontWeight:800 }}>Platform Total</span>
-                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
-                  ${(PLAN_DISPLAY.autonomous_fleet.price + Math.max(0, truckPicker.trucks - 1) * PLAN_DISPLAY.autonomous_fleet.extraTruck).toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
-                </span>
-              </div>
-            </div>
 
-            <button onClick={() => goToCheckout('autonomous_fleet', truckPicker.trucks)} disabled={upgradeLoading}
-              style={{ width:'100%', padding:'14px', fontSize:14, fontWeight:700, border:'none', borderRadius:10,
-                background:'var(--accent)', color:'#000', cursor: upgradeLoading ? 'wait' : 'pointer',
-                fontFamily:"'DM Sans',sans-serif" }}>
-              {upgradeLoading ? 'Redirecting to Stripe...' : `Start Free Trial \u2014 ${truckPicker.trucks} Truck${truckPicker.trucks !== 1 ? 's' : ''}`}
-            </button>
-            <div style={{ textAlign:'center', fontSize:11, color:'var(--muted)', marginTop:10 }}>
-              14-day free trial {'\u00B7'} No charge until trial ends
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:20, marginBottom:24 }}>
+                <button onClick={() => setTruckPicker(p => ({ ...p, trucks: Math.max(1, p.trucks - 1) }))}
+                  style={{ width:44, height:44, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface2)',
+                    color:'var(--text)', fontSize:22, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>{'\u2212'}</button>
+                <div style={{ textAlign:'center', minWidth:80 }}>
+                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:48, color:'var(--accent)', lineHeight:1 }}>{truckPicker.trucks}</div>
+                  <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>truck{truckPicker.trucks !== 1 ? 's' : ''}</div>
+                </div>
+                <button onClick={() => setTruckPicker(p => ({ ...p, trucks: p.trucks + 1 }))}
+                  style={{ width:44, height:44, borderRadius:10, border:'1px solid var(--border)', background:'var(--surface2)',
+                    color:'var(--text)', fontSize:22, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+              </div>
+
+              <div style={{ background:'var(--surface2)', borderRadius:12, padding:16, marginBottom:20 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
+                  <span style={{ color:'var(--muted)' }}>First truck</span>
+                  <span style={{ fontWeight:700 }}>${pd.price}/mo</span>
+                </div>
+                {truckPicker.trucks > 1 && (
+                  <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:13 }}>
+                    <span style={{ color:'var(--muted)' }}>{truckPicker.trucks - 1} additional truck{truckPicker.trucks > 2 ? 's' : ''} {'\u00D7'} ${pd.extraTruck}</span>
+                    <span style={{ fontWeight:700 }}>${((truckPicker.trucks - 1) * pd.extraTruck).toLocaleString()}/mo</span>
+                  </div>
+                )}
+                {pd.aiFee && (
+                  <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', fontSize:11, color:'var(--muted)' }}>
+                    <span>+ 3% per load when Q books</span>
+                  </div>
+                )}
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'10px 0 4px', fontSize:15, borderTop:'1px solid var(--border)', marginTop:6 }}>
+                  <span style={{ fontWeight:800 }}>Total</span>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, color:'var(--accent)', lineHeight:1 }}>
+                    ${total.toLocaleString()}<span style={{ fontSize:13, color:'var(--muted)' }}>/mo</span>
+                  </span>
+                </div>
+              </div>
+
+              <button onClick={() => goToCheckout(truckPicker.planId, truckPicker.trucks)} disabled={upgradeLoading}
+                style={{ width:'100%', padding:'14px', fontSize:14, fontWeight:700, border:'none', borderRadius:10,
+                  background:'var(--accent)', color:'#000', cursor: upgradeLoading ? 'wait' : 'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                {upgradeLoading ? 'Redirecting to Stripe...' : `Select ${planName} \u2014 ${truckPicker.trucks} Truck${truckPicker.trucks !== 1 ? 's' : ''}`}
+              </button>
+              <div style={{ textAlign:'center', fontSize:11, color:'var(--muted)', marginTop:10 }}>
+                14-day free trial {'\u00B7'} No charge until trial ends
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )
+      })()}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import {
   Monitor, Truck, Shield, Users, Settings as SettingsIcon,
   Search, Bell, Moon, Eye, Zap, CreditCard, BarChart2, AlertTriangle,
   TrendingUp, TrendingDown, ChevronLeft, CheckCircle, DollarSign, Star, UserPlus,
-  User, Building2, Package, AlertCircle, Lock,
+  User, Building2, Package, AlertCircle, Lock, Link2, Map, FileText,
   Clock, Bot, Sun, Globe, RefreshCw, Sparkles, Radio, Activity
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
@@ -496,7 +496,7 @@ function CarrierLayoutInner() {
                 borderRadius: 10, padding: 14,
               }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#f0a500' }}>${`$${planPrice}`}</span>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 32, color: '#f0a500' }}>${planPrice}</span>
                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo first truck</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)', marginTop: 4 }}>

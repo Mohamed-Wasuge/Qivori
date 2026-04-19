@@ -205,49 +205,55 @@ export function AppProvider({ children }) {
       if (session?.user) {
         setUser(session.user)
         setAuthLoading(false) // unblock render immediately — profile setup runs in background
-        const prof = await fetchProfile(session.user.id)
-        const role = resolveRole(prof, session.user.email)
-        setCurrentRole(role)
+        let role = 'carrier'
+        try {
+          const prof = await fetchProfile(session.user.id)
+          role = resolveRole(prof, session.user.email)
+          setCurrentRole(role)
 
-        // Track last active for admin panel
-        supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id).catch(() => {})
+          // Track last active for admin panel
+          supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id).catch(() => {})
 
-        // Fetch company membership
-        const membership = await fetchCompanyMembership(session.user.id)
-        if (!membership && role === 'carrier') {
-          // Existing user with no membership — auto-create as owner
-          await ensureOwnerMembership(session.user.id, prof)
+          // Fetch company membership
+          const membership = await fetchCompanyMembership(session.user.id)
+          if (!membership && role === 'carrier') {
+            // Existing user with no membership — auto-create as owner
+            await ensureOwnerMembership(session.user.id, prof)
+          }
+
+          // Handle invite token in URL or stored from signup
+          const urlParams = new URLSearchParams(window.location.search)
+          let inviteToken = urlParams.get('invite')
+          if (!inviteToken) {
+            try { inviteToken = localStorage.getItem('qivori_pending_invite') } catch {}
+          }
+          if (inviteToken) {
+            try {
+              const res = await apiFetch('/api/accept-invite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: inviteToken }),
+              })
+              const result = await res.json()
+              if (result.success) {
+                // Re-fetch membership after accepting
+                await fetchCompanyMembership(session.user.id)
+                showToast('', 'Team Joined!', `You've joined ${result.companyName || 'the team'} as a ${result.role || 'driver'}`)
+              }
+              // Clean URL and stored token
+              window.history.replaceState({}, '', window.location.pathname)
+              try { localStorage.removeItem('qivori_pending_invite') } catch {}
+            } catch {}
+          }
+
+          trackSessionStart(role)
+        } catch (e) {
+          // Profile/membership setup failed — still let user into app
+        } finally {
+          const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
+          setCurrentPage(landingPage)
+          setView('app')
         }
-
-        // Handle invite token in URL or stored from signup
-        const urlParams = new URLSearchParams(window.location.search)
-        let inviteToken = urlParams.get('invite')
-        if (!inviteToken) {
-          try { inviteToken = localStorage.getItem('qivori_pending_invite') } catch {}
-        }
-        if (inviteToken) {
-          try {
-            const res = await apiFetch('/api/accept-invite', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: inviteToken }),
-            })
-            const result = await res.json()
-            if (result.success) {
-              // Re-fetch membership after accepting
-              await fetchCompanyMembership(session.user.id)
-              showToast('', 'Team Joined!', `You've joined ${result.companyName || 'the team'} as a ${result.role || 'driver'}`)
-            }
-            // Clean URL and stored token
-            window.history.replaceState({}, '', window.location.pathname)
-            try { localStorage.removeItem('qivori_pending_invite') } catch {}
-          } catch {}
-        }
-
-        const landingPage = (role === 'carrier') ? 'carrier-dashboard' : (role === 'broker') ? 'broker-dashboard' : 'dashboard'
-        setCurrentPage(landingPage)
-        setView('app')
-        trackSessionStart(role)
       } else {
         setAuthLoading(false) // no session — show landing immediately
       }

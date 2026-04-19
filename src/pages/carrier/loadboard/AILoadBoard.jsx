@@ -77,7 +77,7 @@ function SourceBadge({ source, compact }) {
 }
 
 // ─── AI RATE NEGOTIATOR ───────────────────────────────────────────────────────
-function AIRateNegotiator({ load, lane, bkr }) {
+function AIRateNegotiator({ load, lane, bkr, lbSource = '' }) {
   const { showToast } = useApp()
   const ln = lane  || { avgRpm:2.70, trend:0, backhaul:50 }
   const bk = bkr   || { score:70, risk:'MEDIUM', pay:'< 5 days' }
@@ -859,7 +859,7 @@ export function AILoadBoard() {
               </div>
 
               {/* AI Rate Negotiation */}
-              {!booked[load.id] && <AIRateNegotiator load={load} lane={lane} bkr={bkr} onAccept={() => {}} />}
+              {!booked[load.id] && <AIRateNegotiator load={load} lane={lane} bkr={bkr} lbSource={lbSource} onAccept={() => {}} />}
 
               {/* Book load */}
               {!booked[load.id] ? (

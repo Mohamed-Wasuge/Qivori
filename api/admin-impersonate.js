@@ -35,5 +35,17 @@ export default async function handler(req) {
 
   if (!res.ok) return Response.json({ error: data.message || 'Failed to generate link' }, { status: 500, headers: corsHeaders(req) })
 
-  return Response.json({ url: data.action_link }, { headers: corsHeaders(req) })
+  // Rewrite to production URL — Supabase Site URL may be localhost in dev
+  let url = data.action_link || ''
+  try {
+    const parsed = new URL(url)
+    const redirectTo = parsed.searchParams.get('redirect_to')
+    if (redirectTo) {
+      parsed.searchParams.set('redirect_to', 'https://qivori.com')
+    }
+    // If the action_link itself points to localhost, keep the Supabase auth domain (it redirects after token exchange)
+    url = parsed.toString()
+  } catch {}
+
+  return Response.json({ url }, { headers: corsHeaders(req) })
 }

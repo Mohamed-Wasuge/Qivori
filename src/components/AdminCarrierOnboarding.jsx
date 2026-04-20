@@ -15,7 +15,7 @@
 import { useState, useCallback } from 'react'
 import {
   Search, Building2, User, Truck, Sparkles, Check, ArrowLeft, ArrowRight,
-  CheckCircle, AlertCircle, Copy, Mail, X, Snowflake, Package, Briefcase, Bot
+  CheckCircle, AlertCircle, Copy, Mail, X, Snowflake, Package, Briefcase, Bot, Gift
 } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 import { useApp } from '../context/AppContext'
@@ -31,12 +31,13 @@ const EQUIPMENT_OPTIONS = [
   { id: 'Flatbed', label: 'Flatbed', icon: Package, color: '#22c55e' },
 ]
 
-const PLAN_ICONS = { tms_pro: Briefcase, ai_dispatch: Bot, autonomous_fleet: Sparkles }
-const PLAN_OPTIONS = Object.entries(PLAN_DISPLAY).map(([id, p]) => ({
+const PLAN_ICONS = { tms_pro: Briefcase, ai_dispatch: Bot, autonomous_fleet: Sparkles, lifetime_free: Gift }
+// Only show meaningful options in the admin wizard (exclude legacy aliases)
+const PLAN_OPTIONS = ['tms_pro', 'ai_dispatch', 'autonomous_fleet', 'lifetime_free'].map(id => ({
   id,
-  label: p.name,
-  price: `$${p.price}/mo first truck`,
-  color: p.color,
+  label: PLAN_DISPLAY[id].name,
+  price: id === 'lifetime_free' ? 'Free forever · all features' : `$${PLAN_DISPLAY[id].price}/mo first truck`,
+  color: PLAN_DISPLAY[id].color,
   icon: PLAN_ICONS[id] || Sparkles,
 }))
 

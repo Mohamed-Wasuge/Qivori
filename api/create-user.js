@@ -118,7 +118,7 @@ export default async function handler(req) {
         home_base_city: home_base_city || null,
         home_base_state: home_base_state || null,
         subscription_plan: subscription_plan || 'autonomous_fleet',
-        subscription_status: 'trialing',
+        subscription_status: subscription_plan === 'lifetime_free' ? 'active' : 'trialing',
       }),
     })
 
@@ -181,12 +181,13 @@ export default async function handler(req) {
         email,
       }, 'companies')
 
-      // Row 5: subscription — required for useSubscription() hook
-      const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      // Row 5: subscription — lifetime_free gets permanent active status, others get 14-day trial
+      const isLifetimeFree = subscription_plan === 'lifetime_free'
+      const trialEnd = isLifetimeFree ? null : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
       await sbPost('subscriptions', {
         owner_id: authData.id,
         plan: subscription_plan || 'autonomous_fleet',
-        status: 'trialing',
+        status: isLifetimeFree ? 'active' : 'trialing',
         trial_ends_at: trialEnd,
       }, 'subscriptions')
     }

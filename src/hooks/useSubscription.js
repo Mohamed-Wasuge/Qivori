@@ -59,6 +59,9 @@ const PLAN_FEATURES = {
   ]),
 }
 
+// Lifetime free — full autonomous_fleet, never expires, $0
+PLAN_FEATURES.lifetime_free = PLAN_FEATURES.autonomous_fleet
+
 // Legacy plan aliases
 PLAN_FEATURES.autopilot_ai = PLAN_FEATURES.autonomous_fleet
 PLAN_FEATURES.autopilot    = PLAN_FEATURES.ai_dispatch
@@ -96,6 +99,7 @@ export const PLAN_DISPLAY = {
   autonomous_fleet: { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
   autopilot_ai:     { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
   autopilot:        { name: 'AI Dispatch',         price: 199, aiFee: 0.03, extraTruck: 99,  color: '#f0a500' },
+  lifetime_free:    { name: 'Lifetime Free',       price: 0,   aiFee: 0,    extraTruck: 0,   color: '#a855f7' },
 }
 
 // Keep PLAN_TIERS for anything still referencing it (legacy)
@@ -106,6 +110,7 @@ export const PLAN_TIERS = {
   autonomous_fleet: 2,
   autopilot_ai:  2,
   autopilot:     1,
+  lifetime_free: 2,
 }
 
 // Keep FEATURE_GATES for legacy references

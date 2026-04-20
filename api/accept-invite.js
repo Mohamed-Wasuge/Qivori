@@ -16,7 +16,7 @@ export default async function handler(req) {
   const userEmail = req._user.email
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return Response.json({ error: 'Supabase not configured' }, { status: 500, headers: corsHeaders(req) })

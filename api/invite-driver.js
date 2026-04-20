@@ -15,7 +15,7 @@ export default async function handler(req) {
   const userId = req._user.id
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
   const resendKey = process.env.RESEND_API_KEY
 
   if (!supabaseUrl || !supabaseServiceKey) {

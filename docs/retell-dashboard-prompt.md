@@ -1,5 +1,9 @@
 # Q — Retell Dashboard Prompts
 
+> **AUDIT 2026-04-20:** The production broker-facing agent is the **Single Prompt** agent `agent_e333217f9644e673c6741b89f2` ("Q - AI Dispatcher (SP)"), which has the required driver-decision polling logic. The Conversation Flow agent `agent_ca4fe9aaa48243b0addff12cdc` is **deprecated** — do not copy its prompt. The `.env.local` `RETELL_AGENT_ID` now points at the SP agent.
+>
+> The production prompt lives in the Retell dashboard. The text below is kept as a reference / fallback copy-paste source, but the dashboard is the source of truth. If they diverge, trust the dashboard.
+
 Two agents, two prompts. Copy each into the correct Retell agent.
 
 ---

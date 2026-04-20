@@ -18,13 +18,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Search, Brain, Phone, TrendingUp, MapPin, Zap, Activity,
-  Power, Home as HomeIcon, Navigation, ChevronRight, X
+  Power, Home as HomeIcon, Navigation, ChevronRight, X, Route
 } from 'lucide-react'
 import { Ic, haptic, fmt$ } from '../mobile/shared'
 import { useApp } from '../../context/AppContext'
 import { useCarrier } from '../../context/CarrierContext'
 import { updateProfile } from '../../lib/database'
+import { apiFetch } from '../../lib/api'
 import AutoActiveLoad from './AutoActiveLoad'
+import AutoLoopOffer from './AutoLoopOffer'
 
 // ── Q activity messages — rotate when hunting ───────────────────
 const Q_HUNTING_ACTIVITY = [
@@ -68,6 +70,8 @@ function AutoHomeHunting() {
   const [activityIdx, setActivityIdx] = useState(0)
   const [toggling, setToggling] = useState(false)
   const [activeCalls, setActiveCalls] = useState([])  // live retell_calls rows for this user
+  const [loop, setLoop] = useState(null)
+  const [loopBuilding, setLoopBuilding] = useState(false)
 
   // Sync local state when profile updates
   useEffect(() => {
@@ -191,6 +195,36 @@ function AutoHomeHunting() {
     setToggling(false)
   }
 
+  const buildLoop = useCallback(async () => {
+    if (loopBuilding) return
+    haptic('medium')
+    setLoopBuilding(true)
+    try {
+      const data = await apiFetch('/api/build-loop', {
+        method: 'POST',
+        body: JSON.stringify({
+          origin_city: profile?.home_base_city || '',
+          end_city: profile?.home_base_city || '',
+          equipment: profile?.equipment_type || 'Dry Van',
+          min_rpm: 2.0,
+          target_legs: 3,
+          max_total_miles: 3500,
+        }),
+      })
+      const res = data?.json ? await data.json() : data
+      if (res?.ok && res?.legs?.length) {
+        setLoop(res)
+        haptic('success')
+      } else {
+        showToast?.('info', 'No loops found', 'Not enough loads in your lanes right now')
+      }
+    } catch {
+      showToast?.('error', 'Loop failed', 'Try again in a moment')
+    } finally {
+      setLoopBuilding(false)
+    }
+  }, [loopBuilding, profile, showToast])
+
   return (
     <div style={WRAP}>
       {/* ─── Top bar — safe area + Q badge + status pill ─────── */}
@@ -257,6 +291,26 @@ function AutoHomeHunting() {
         </button>
       </div>
 
+      {/* ─── Smart Loop button — only visible when online and no active calls ── */}
+      {online && activeCalls.length === 0 && (
+        <div style={{ padding: '0 24px 8px', textAlign: 'center' }}>
+          <button
+            onClick={buildLoop}
+            disabled={loopBuilding}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', borderRadius: 999,
+              background: 'rgba(240,165,0,0.1)', border: '1px solid rgba(240,165,0,0.3)',
+              color: '#f0a500', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              opacity: loopBuilding ? 0.6 : 1, transition: 'opacity 0.2s',
+            }}
+          >
+            <Ic icon={Route} size={14} />
+            {loopBuilding ? 'Building loop…' : 'Smart Loop'}
+          </button>
+        </div>
+      )}
+
       {/* ─── Earnings strip ─────────────────────────────────────── */}
       <EarningsStrip earnings={weeklyEarnings} />
 
@@ -266,6 +320,16 @@ function AutoHomeHunting() {
           profile={profile}
           onClose={() => { haptic('light'); setShowWhereTo(false) }}
           onPick={goOnline}
+        />
+      )}
+
+      {/* ─── Smart Loop overlay ─────────────────────────────────── */}
+      {loop && (
+        <AutoLoopOffer
+          loop={loop}
+          onAccept={(l) => { haptic('success'); showToast?.('success', 'Loop accepted', `Q is booking ${l.leg_count || l.legs?.length} legs`); setLoop(null) }}
+          onPass={() => { haptic('light'); setLoop(null) }}
+          onClose={() => setLoop(null)}
         />
       )}
     </div>

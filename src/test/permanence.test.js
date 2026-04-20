@@ -31,32 +31,28 @@ function readAllFiles(dir, ext = '.js') {
 
 describe('LOCKED: Financial Calculations', () => {
   it('P&L Dashboard uses fuelCostPerMile from context, not hardcoded', () => {
-    const content = readSrc('src/pages/carrier/Finance.jsx')
-    const plBlock = content.slice(
-      content.indexOf('export function PLDashboard'),
-      content.indexOf('export function ReceivablesAging') || content.length
-    )
-    expect(plBlock).toContain('fuelCostPerMile')
-    expect(plBlock).toContain('useCarrier()')
+    // PLDashboard lives at src/pages/carrier/finance/accounting/PLDashboard.jsx
+    // Finance.jsx re-exports it via Accounting.jsx
+    const content = readSrc('src/pages/carrier/finance/accounting/PLDashboard.jsx')
+    expect(content).toContain('fuelCostPerMile')
+    expect(content).toContain('useCarrier()')
   })
 
   it('P&L auto-estimates costs when no expenses logged', () => {
-    const content = readSrc('src/pages/carrier/Finance.jsx')
-    const plBlock = content.slice(
-      content.indexOf('export function PLDashboard'),
-      content.indexOf('export function ReceivablesAging') || content.length
-    )
-    expect(plBlock).toContain('estimatedCosts')
-    expect(plBlock).toContain('hasLoggedExpenses')
+    const content = readSrc('src/pages/carrier/finance/accounting/PLDashboard.jsx')
+    expect(content).toContain('estimatedCosts')
+    expect(content).toContain('hasLoggedExpenses')
   })
 
   it('CarrierContext coerces expense amounts to Number', () => {
-    const content = readSrc('src/context/CarrierContext.jsx')
-    expect(content).toMatch(/amount:\s*Number\(e\.amount\)/)
+    // normalizeExpense in src/lib/normalizers.js coerces amounts; used by FinancialsContext
+    const content = readSrc('src/lib/normalizers.js')
+    expect(content).toMatch(/Number\(e\.amount\)/)
   })
 
   it('CarrierContext computes totalRevenue from delivered loads', () => {
-    const content = readSrc('src/context/CarrierContext.jsx')
+    // LoadsContext re-exports deliveredLoads/totalRevenue via CarrierContext coordinator
+    const content = readSrc('src/context/LoadsContext.jsx') + readSrc('src/context/CarrierContext.jsx')
     expect(content).toContain('deliveredLoads')
     expect(content).toContain('totalRevenue')
   })
@@ -99,7 +95,7 @@ describe('LOCKED: Pricing Model', () => {
     // Must compute totalCents dynamically from firstTruck + extraTruck
     expect(content).toContain('totalCents')
     expect(content).toMatch(/firstTruck.*199/)
-    expect(content).toMatch(/extraTruck.*79/)
+    expect(content).toMatch(/extraTruck.*99/)
   })
 
   it('Stripe create-checkout.js matches founder price in cents (19900)', () => {
@@ -136,13 +132,9 @@ describe('LOCKED: Driver Pay Logic', () => {
   })
 
   it('Finance PLDashboard uses driver pay_rate from driver profiles', () => {
-    const content = readSrc('src/pages/carrier/Finance.jsx')
-    const plBlock = content.slice(
-      content.indexOf('export function PLDashboard'),
-      content.indexOf('export function ReceivablesAging') || content.length
-    )
-    expect(plBlock).toContain('pay_rate')
-    expect(plBlock).toContain('pay_model')
+    const content = readSrc('src/pages/carrier/finance/accounting/PLDashboard.jsx')
+    expect(content).toContain('pay_rate')
+    expect(content).toContain('pay_model')
   })
 
   it('Database driver schema includes pay_model and pay_rate fields', () => {
@@ -237,7 +229,9 @@ describe('LOCKED: Load Pipeline Flow', () => {
   })
 
   it('Load status flow includes all required statuses', () => {
-    const content = readSrc('src/context/CarrierContext.jsx') + readSrc('src/components/carrier/LoadsPipeline.jsx')
+    // LoadsContext holds transitions; LoadsPipeline renders the kanban by status
+    const content = readSrc('src/context/LoadsContext.jsx')
+      + readSrc('src/components/carrier/loadspipeline/LoadsPipeline.jsx')
     const statuses = ['Booked', 'Dispatched', 'In Transit', 'Delivered']
     statuses.forEach(s => {
       expect(content, `Missing status: ${s}`).toContain(s)
@@ -401,13 +395,14 @@ describe('ENFORCED: Audit Logging', () => {
   })
 
   it('CarrierContext logs load creation in audit', () => {
-    const content = readSrc('src/context/CarrierContext.jsx')
-    expect(content).toContain('audit')
+    // Load operations (including audit) live in LoadsContext after context refactor
+    const content = readSrc('src/context/LoadsContext.jsx')
+    expect(content).toContain('createAuditLog')
     expect(content).toContain('load.created')
   })
 
   it('CarrierContext logs load deletion in audit', () => {
-    const content = readSrc('src/context/CarrierContext.jsx')
+    const content = readSrc('src/context/LoadsContext.jsx')
     expect(content).toContain('load.deleted')
   })
 })
@@ -430,14 +425,14 @@ describe('ENFORCED: Context Integrity', () => {
   })
 
   it('CarrierContext normalizes expense amounts to Number', () => {
-    const content = readSrc('src/context/CarrierContext.jsx')
-    // Must convert string amounts from Supabase NUMERIC to JS Number
+    // normalizeExpense in normalizers.js handles coercion; used by FinancialsContext
+    const content = readSrc('src/lib/normalizers.js')
     expect(content).toMatch(/Number\(e\.amount\)/)
   })
 
   it('CarrierContext normalizes load gross to Number', () => {
-    const content = readSrc('src/context/CarrierContext.jsx')
-    // Loads from Supabase have NUMERIC fields returned as strings
+    // normalizeLoad in normalizers.js coerces Supabase NUMERIC strings to Number
+    const content = readSrc('src/lib/normalizers.js')
     expect(content).toMatch(/Number\(/)
   })
 })

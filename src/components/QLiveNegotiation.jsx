@@ -11,6 +11,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Phone, PhoneOff, MessageSquare, TrendingUp, User } from 'lucide-react'
 import { updateRetellCall } from '../lib/database'
+import { supabase } from '../lib/supabase'
 
 const ACTIVE_STATUSES = ['initiating', 'in_progress', 'ringing']
 

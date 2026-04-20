@@ -74,7 +74,7 @@ export default async function handler(req) {
     const phone10 = digits.slice(-10)
 
     const [companies, negSettings, urgencyRows, dieselRows] = await Promise.all([
-      sbGet(`companies?owner_id=eq.${user.id}&select=name,mc_number,dot_number,id&limit=1`),
+      sbGet(`companies?owner_id=eq.${user.id}&select=name,mc_number,dot_number,id,email,phone&limit=1`),
       sbGet(`negotiation_settings?user_id=eq.${user.id}&select=min_rate_per_mile,counter_offer_markup_pct,max_counter_rounds,auto_accept_above_minimum&limit=1`),
       brokerName
         ? sbGet(`broker_urgency_scores?owner_id=eq.${user.id}&broker_name=eq.${encodeURIComponent(brokerName)}&select=urgency_score,signals,call_count&limit=1`)
@@ -196,12 +196,28 @@ export default async function handler(req) {
           caller_type: 'broker_outbound',
           caller_name: brokerName || 'Broker',
           broker_name: brokerName || 'Broker',
+
+          // ── Carrier identity (per-tenant, not Qivori's) ──────────────────
+          // Every carrier on the platform has their own MC/DOT/email/phone.
+          // Q introduces itself AS THIS CARRIER, and rate cons go to THEIR
+          // dispatch email — not dispatch@qivori.com.
           carrier_name: carrierName,
           carrier_mc: company.mc_number || '',
           carrier_dot: company.dot_number || '',
+          carrier_email: company.email || '',
+          carrier_phone: company.phone || '',
+
+          // Lane — send both name shapes so prompts can use either.
+          origin: originCity,
+          destination: destCity,
           origin_city: originCity,
           destination_city: destCity,
+
+          // Load + rate context
           load_details: loadDetails || `${originCity} → ${destCity}. Rate: $${rate}${miles ? ` (${miles}mi, $${rpm}/mi)` : ''}. Equipment: ${body.equipment || 'dry van'}.`,
+          equipment_type: body.equipment || 'dry van',
+          available_date: body.availableDate || 'today',
+          current_location: body.currentLocation || originCity,
           posted_rate: `$${rate}`,
           rate_per_mile: `$${rpm}/mi`,
           target_rate: `$${targetRate}`,
@@ -216,8 +232,12 @@ export default async function handler(req) {
           max_counter_rounds: String(maxRounds),
           miles: String(miles),
           driver_name: driverName || 'Driver',
-          // Used by the notify_driver function so Q can push live messages
-          // back to the driver app during the call.
+
+          // ── Driver decision polling (SP agent contract) ──────────────────
+          // The SP prompt calls notify_driver(call_id, user_id, rate_value)
+          // and check_driver_decision(call_id) during negotiation. Q must
+          // have user_id in hand to push the broker's quote to the right
+          // driver's app. call_id comes from Retell itself post-create.
           user_id: user.id,
           load_id_for_notify: body.loadId || '',
         },

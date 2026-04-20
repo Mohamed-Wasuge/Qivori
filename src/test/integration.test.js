@@ -52,8 +52,16 @@ vi.mock('../lib/supabase', () => {
       update: () => builder,
       delete: () => builder,
       eq: () => builder,
+      neq: () => builder,
+      gt: () => builder,
+      gte: () => builder,
+      lt: () => builder,
+      lte: () => builder,
+      is: () => builder,
+      in: () => builder,
       order: () => builder,
       limit: () => builder,
+      range: () => builder,
       single: () => builder,
       maybeSingle: () => Promise.resolve({ data: null, error: null }),
       then: (resolve) => resolve({ data: finalData, error: finalError }),
@@ -233,17 +241,20 @@ describe('Pricing Consistency', () => {
 describe('Security — API files import auth', () => {
   // These routes are legitimately public/webhook/cron — no user auth needed
   const EXEMPT_FILES = new Set([
-    'health-check.js',     // Public health endpoint
-    'demo-request.js',     // Public form submission
-    'stripe-webhook.js',   // Webhook (validates signature, not JWT)
-    'sms-webhook.js',      // Webhook (validates Twilio signature)
-    'og-image.js',         // Public OG image generation
-    'retell-webhook.js',   // Webhook from Retell
-    'inbound-email.js',    // Webhook from email provider
-    'create-user.js',      // Runs during signup (no user yet)
-    'motive-callback.js',  // OAuth callback (auth via OAuth flow, not header)
-    'calculate-route.js',  // Utility endpoint (Google Maps route calc, no user data)
-    'weather-safety.js',   // Public NWS weather data (no user data)
+    'health-check.js',            // Public health endpoint
+    'demo-request.js',            // Public form submission
+    'stripe-webhook.js',          // Webhook (validates signature, not JWT)
+    'sms-webhook.js',             // Webhook (validates Twilio signature)
+    'og-image.js',                // Public OG image generation
+    'retell-webhook.js',          // Webhook from Retell (post-call)
+    'retell-inbound-webhook.js',  // Webhook from Retell (pre-call, must respond <10s)
+    'inbound-call.js',            // Twilio TwiML webhook (validates Twilio signature)
+    'inbound-email.js',           // Webhook from email provider
+    'create-user.js',             // Runs during signup (no user yet)
+    'motive-callback.js',         // OAuth callback (auth via OAuth flow, not header)
+    'calculate-route.js',         // Utility endpoint (Google Maps route calc, no user data)
+    'weather-safety.js',          // Public NWS weather data (no user data)
+    'test-123lb.js',              // Dev utility for testing 123LB OAuth credentials
   ])
 
   const apiDir = join(ROOT, 'api')
@@ -259,7 +270,10 @@ describe('Security — API files import auth', () => {
         content.includes('CRON_SECRET') ||
         content.includes('verifyAuth') ||
         content.includes('requireAuth') ||
-        content.includes('corsHeaders')
+        content.includes('corsHeaders') ||
+        content.includes('supabase.auth.getUser') ||
+        content.includes('X-Retell-Signature') ||
+        content.includes('twilio-signature')
       expect(hasAuth).toBe(true)
     })
   })

@@ -15,6 +15,7 @@ const AutoShell = lazy(() => import('../auto/AutoShell'))
 const AutoHome = lazy(() => import('../auto/AutoHome'))
 const AutoNegotiation = lazy(() => import('../auto/AutoNegotiation'))
 const AutoCardOnFile = lazy(() => import('../auto/AutoCardOnFile'))
+const QLiveNegotiation = lazy(() => import('../QLiveNegotiation'))
 const MobileHomeTab = lazy(() => import('./MobileHomeTab'))
 const MobileLoadBoard = lazy(() => import('./MobileLoadBoard'))
 const MobileLoadsTab = lazy(() => import('./MobileLoadsTab'))
@@ -589,10 +590,14 @@ export default function MobileShell() {
       </div>
 
       {/* ── Q overlays — fire globally regardless of active tab ── */}
-      {/*    AutoNegotiation: pops fullscreen when there's an Offered load    */}
-      {/*    AutoCardOnFile:  pops bottom sheet after first booked load        */}
+      {/*    AutoNegotiation:  pops fullscreen when there's an Offered load    */}
+      {/*    QLiveNegotiation: pops fullscreen during any active broker call   */}
+      {/*    AutoCardOnFile:   pops bottom sheet after first booked load        */}
       <Suspense fallback={null}>
         <AutoNegotiation />
+      </Suspense>
+      <Suspense fallback={null}>
+        <QLiveNegotiation variant="screen" />
       </Suspense>
       {profile && !profile.stripe_customer_id && !profile.payment_method_last4 && (() => {
         const hasBookedLoad = (ctx.loads || []).some((l) =>

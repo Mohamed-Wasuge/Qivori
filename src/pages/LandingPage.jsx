@@ -5,6 +5,13 @@ import { TrendingUp, Zap, Check, X, Shield, Play, Clock, ChevronDown, ArrowRight
 
 const Ic = ({ icon: Icon, size = 16, ...p }) => <Icon size={size} {...p} />
 
+// Pricing config — CLAUDE.md: NEVER hardcode pricing in components
+const PLANS = {
+  founder: { price: 199, additional: 99 },
+  regular: { price: 299, additional: 149 },
+  tms: { price: 79, additional: 39 },
+}
+
 // Animate elements on scroll (one-time fade in)
 function useOnScreen(ref) {
   const [visible, setVisible] = useState(false)

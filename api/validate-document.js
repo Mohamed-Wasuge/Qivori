@@ -172,7 +172,17 @@ async function validateDriverDoc(docType, fileUrl, driverName) {
     const imgRes = await fetch(fileUrl)
     if (!imgRes.ok) return { valid: true, skipped: true, issues: ['Could not fetch document image'] }
     const imgBuffer = await imgRes.arrayBuffer()
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)))
+    // Chunked base64 — the naive spread blows the Edge runtime arg stack
+    // for anything larger than ~60KB (any real phone photo).
+    const base64 = (() => {
+      const bytes = new Uint8Array(imgBuffer)
+      const chunkSize = 8192
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize))
+      }
+      return btoa(binary)
+    })()
     const mimeType = imgRes.headers.get('content-type') || 'image/jpeg'
 
     const content = [

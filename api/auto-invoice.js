@@ -258,7 +258,16 @@ async function processLoad(load, user, supabaseUrl, headers, resendKey, lineItem
       const fileRes = await fetch(doc.file_url)
       if (!fileRes.ok) continue
       const buffer = await fileRes.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      // Chunked — naive spread blows the Edge arg stack on real photos
+      const base64 = (() => {
+        const bytes = new Uint8Array(buffer)
+        const chunkSize = 8192
+        let binary = ''
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize))
+        }
+        return btoa(binary)
+      })()
       const ext = (doc.file_url.split('.').pop() || 'pdf').split('?')[0].toLowerCase()
       const docLabel = (doc.doc_type || doc.name || 'document').replace(/_/g, ' ')
       attachments.push({

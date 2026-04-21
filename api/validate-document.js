@@ -176,10 +176,14 @@ async function validateDriverDoc(docType, fileUrl, driverName) {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 512, messages: [{ role: 'user', content }] }),
+      body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 512, messages: [{ role: 'user', content }] }),
     })
 
-    if (!res.ok) return { valid: true, skipped: true, issues: ['AI unavailable'] }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      console.error('[validate-document] Anthropic error:', res.status, errBody)
+      return { valid: true, skipped: true, issues: [`AI error ${res.status}: ${errBody?.error?.message || 'unavailable'}`] }
+    }
 
     const data = await res.json()
     const text = data.content?.[0]?.text || ''

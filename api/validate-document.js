@@ -168,10 +168,17 @@ async function validateDriverDoc(docType, fileUrl, driverName) {
   if (!prompt) return { valid: true, skipped: true, issues: [] }
 
   try {
-    const isImage = /\.(jpg|jpeg|png|gif|webp|heic)/i.test(fileUrl) || !fileUrl.match(/\.[a-z]{2,4}$/i)
-    const content = isImage
-      ? [{ type: 'image', source: { type: 'url', url: fileUrl } }, { type: 'text', text: prompt }]
-      : [{ type: 'document', source: { type: 'url', url: fileUrl } }, { type: 'text', text: prompt }]
+    // Fetch the image and convert to base64 — Claude API requires base64, not URLs
+    const imgRes = await fetch(fileUrl)
+    if (!imgRes.ok) return { valid: true, skipped: true, issues: ['Could not fetch document image'] }
+    const imgBuffer = await imgRes.arrayBuffer()
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(imgBuffer)))
+    const mimeType = imgRes.headers.get('content-type') || 'image/jpeg'
+
+    const content = [
+      { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+      { type: 'text', text: prompt },
+    ]
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

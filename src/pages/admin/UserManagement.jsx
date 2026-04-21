@@ -234,6 +234,7 @@ export function UserManagement() {
   const [confirmDel,    setConfirmDel]    = useState(null)
   const [expanded,      setExpanded]      = useState(null)
   const [emailModal,    setEmailModal]    = useState(null)
+  const [setPwModal,    setSetPwModal]    = useState(null)  // { id, email }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -309,6 +310,21 @@ export function UserManagement() {
       if (data.success) showToast('', 'Reset Link Sent', `Sent to ${email}`)
       else showToast('error', 'Error', data.error)
     } catch (e) { showToast('error', 'Error', e.message) }
+    setActionLoading(null)
+  }
+
+  const handleForceSetPW = async (userId, newPassword) => {
+    setActionLoading(userId)
+    try {
+      const res  = await apiFetch('/api/admin-reset-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'force_reset', newPassword }),
+      })
+      const data = await res.json()
+      if (data.success) showToast('', 'Password Set', 'Password updated successfully')
+      else showToast('error', 'Error', data.error || 'Failed')
+    } catch (e) { showToast('error', 'Error', e.message) }
+    setSetPwModal(null)
     setActionLoading(null)
   }
 
@@ -585,6 +601,7 @@ export function UserManagement() {
                                   <Btn label={isSusp ? 'Activate' : 'Suspend'} color={isSusp ? '#22c55e' : '#f0a500'} loading={isLoading}
                                     onClick={() => handleAction(u.id, u.email, isSusp ? 'activate' : 'suspend')} />
                                   <Btn label="Reset PW"   color="#3b82f6"    loading={isLoading} onClick={() => handleResetPW(u.id, u.email)} />
+                                  <Btn label="Set PW"     color="#06b6d4"    loading={isLoading} onClick={() => setSetPwModal({ id: u.id, email: u.email })} />
                                   <Btn label="+14d Trial" color="var(--accent)" loading={isLoading} onClick={() => handleExtendTrial(u.id, u.email)} />
                                   <Btn label="Send Email" color="#8b5cf6"    loading={isLoading} onClick={() => setEmailModal(u)} icon={<Mail size={11} />} />
                                   <Btn label="View as Carrier" color="#06b6d4" loading={isLoading} onClick={() => handleImpersonate(u.email)} icon={<ExternalLink size={11} />} />
@@ -650,6 +667,67 @@ export function UserManagement() {
 
       {/* ── Email Modal ── */}
       {emailModal && <SendEmailModal user={emailModal} onClose={() => setEmailModal(null)} showToast={showToast} />}
+
+      {/* ── Set Password Modal ── */}
+      {setPwModal && <SetPasswordModal user={setPwModal} onClose={() => setSetPwModal(null)} onSave={handleForceSetPW} />}
+    </div>
+  )
+}
+
+function SetPasswordModal({ user, onClose, onSave }) {
+  const [pw, setPw]       = useState('')
+  const [show, setShow]   = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const submit = async () => {
+    if (pw.length < 6) return
+    setSaving(true)
+    await onSave(user.id, pw)
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16,
+        padding: 28, width: 380, maxWidth: '90vw' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Set Password</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>{user.email}</div>
+        <div style={{ position: 'relative', marginBottom: 20 }}>
+          <input
+            type={show ? 'text' : 'password'}
+            placeholder="New password (min 6 chars)"
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+            style={{ width: '100%', padding: '10px 40px 10px 12px', borderRadius: 8,
+              border: '1px solid var(--border)', background: 'var(--surface2)',
+              color: 'var(--text)', fontSize: 13, boxSizing: 'border-box', outline: 'none',
+              fontFamily: "'DM Sans',sans-serif" }}
+          />
+          <button onClick={() => setShow(s => !s)}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 11 }}>
+            {show ? 'hide' : 'show'}
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'transparent', color: 'var(--muted)', fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+            Cancel
+          </button>
+          <button onClick={submit} disabled={pw.length < 6 || saving}
+            style={{ padding: '9px 22px', borderRadius: 8, border: 'none',
+              background: pw.length >= 6 ? '#06b6d4' : 'var(--border)',
+              color: pw.length >= 6 ? '#000' : 'var(--muted)',
+              fontSize: 12, fontWeight: 700, cursor: pw.length >= 6 ? 'pointer' : 'default',
+              fontFamily: "'DM Sans',sans-serif" }}>
+            {saving ? 'Saving…' : 'Set Password'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

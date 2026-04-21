@@ -85,12 +85,33 @@ export default async function handler(req) {
       sbGet(`companies_daily_burn?owner_id=eq.${user.id}&limit=1`).then(r => r[0] || null),
     ])
 
-    const gross = shipments.reduce((s, sh) => s + Number(sh.rate || 0), 0)
+    // Gross: prefer per-shipment sum when it exists (single-contract scan).
+    // Fall back to block.total_rate (weekly-list scan captures block-level
+    // rate without individual shipment breakdown). Either is correct.
+    const shipmentSum = shipments.reduce((s, sh) => s + Number(sh.rate || 0), 0)
+    const gross = shipmentSum > 0 ? shipmentSum : Number(block.total_rate || 0)
+
     const shipmentsCompleted = shipments.filter(sh => sh.status === 'completed').length
-    const totalMiles = shipments.reduce((s, sh) => s + Number(sh.miles || 0), 0)
-    const earnedSoFar = shipments
-      .filter(sh => sh.status === 'completed')
-      .reduce((s, sh) => s + Number(sh.rate || 0), 0)
+
+    // Total miles: same fallback pattern — sum shipment miles when present,
+    // else use block.total_miles from the scan.
+    const shipmentMiles = shipments.reduce((s, sh) => s + Number(sh.miles || 0), 0)
+    const totalMiles = shipmentMiles > 0 ? shipmentMiles : Number(block.total_miles || 0)
+
+    // Earned so far: if we have shipments, sum completed ones. If not, we
+    // derive from stops — once all stops are completed the whole block's
+    // gross is earned. Otherwise partial credit by stop completion ratio.
+    let earnedSoFar
+    if (shipments.length > 0) {
+      earnedSoFar = shipments
+        .filter(sh => sh.status === 'completed')
+        .reduce((s, sh) => s + Number(sh.rate || 0), 0)
+    } else if (stops.length > 0) {
+      const stopsCompleted = stops.filter(s => s.status === 'completed').length
+      earnedSoFar = gross * (stopsCompleted / stops.length)
+    } else {
+      earnedSoFar = block.status === 'completed' ? gross : 0
+    }
 
     // Itemize expenses by category
     const expensesByCategory = {}

@@ -159,7 +159,19 @@ export default async function handler(req) {
       return Response.json({ success: false, error: 'File too large. Maximum 10MB.' }, { status: 400, headers: corsHeaders(req) })
     }
 
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    // Chunked base64 encode — the naïve
+    //   btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    // blows the argument-list stack limit for images larger than ~60KB
+    // (which is any desktop Amazon Relay screenshot). Chunk in 8KB blocks.
+    const base64 = (() => {
+      const bytes = new Uint8Array(buffer)
+      const chunkSize = 8192
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize))
+      }
+      return btoa(binary)
+    })()
     const isPdf = mediaType.includes('pdf')
 
     const content = isPdf

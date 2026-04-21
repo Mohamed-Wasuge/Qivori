@@ -27,11 +27,11 @@ Return ONLY valid JSON with this shape. Use null for any field you cannot determ
 {
   "source_type": "amazon_relay" | "rate_con" | "dispatch_sheet" | "manual" | "other",
   "source_company": "Amazon Relay" | "TQL" | "CH Robinson" | ...,
-  "external_id": "Block ID, Load ID, or reference number from the document",
+  "external_id": "Block ID, Contract ID, Load ID, or reference number",
   "starts_at": "ISO 8601 datetime for the first stop arrival",
   "ends_at": "ISO 8601 datetime for the last stop departure",
   "total_miles": 1044,
-  "total_rate": null,
+  "total_rate": 1250.32,
   "equipment": "53' Dry Van | Skirted Trailer | Reefer | ...",
   "stops": [
     {
@@ -43,21 +43,37 @@ Return ONLY valid JSON with this shape. Use null for any field you cannot determ
       "state": "MN",
       "zip": "55428",
       "action": "pickup_empty | drop_loaded_pickup_empty | drop_empty_pickup_preloaded | drop_loaded | delivery",
-      "action_label": "verbatim action text from the document (e.g. 'Pickup empty trailer')",
+      "action_label": "verbatim action text (e.g. 'Pickup empty trailer')",
       "trailer_type": "Skirted Trailer | 53' Van | null",
       "preloaded": true | false,
       "arrive_by": "ISO 8601 datetime",
       "depart_by": "ISO 8601 datetime"
     }
+  ],
+  "shipments": [
+    {
+      "external_id": "113YYRXMS",
+      "origin_fc": "STL3",
+      "dest_fc": "WSP1",
+      "origin_city": "Brookline, MO",
+      "dest_city": "Lowell, AR",
+      "miles": 93,
+      "rate": 63.12,
+      "pickup_stop_index": 1,
+      "dropoff_stop_index": 2
+    }
   ]
 }
 
 Rules:
-- external_id is CRITICAL. On Amazon this is the Block ID (e.g. "Block-12345"). On a rate con it's the Load # or PRO #. Without it we can't update the assignment later when the schedule changes.
-- If the document shows multiple date-separated blocks (e.g. Amazon's "My Schedule" listing Sun 19 + Wed 22), extract the FIRST / current block only. The user can scan the next block separately.
-- Timestamps: if you can see both time AND date, produce a full ISO 8601 datetime. If only the time is visible but not the date, assume the current or next-upcoming date that makes the sequence valid. If you truly can't tell, use null.
-- action: normalize to one of the listed codes. If the label says "Pickup empty trailer" → pickup_empty. "Drop-off empty trailer and pick up pre-loaded trailer" → drop_empty_pickup_preloaded. "Drop off loaded trailer and pick an empty trailer" → drop_loaded_pickup_empty. Final delivery stop → delivery. Unsure → null.
-- stop_index must be 1-indexed and sequential.
+- external_id (block level) is CRITICAL. On Amazon this is the Contract ID (e.g. "B-LQGZS4CHT"). On a rate con it's the Load # or PRO #. Without it we can't update later when schedule changes.
+- If the document shows multiple date-separated blocks (e.g. Amazon's "My Schedule" listing Sun 19 + Wed 22), extract the FIRST / current block only.
+- total_rate: sum of all shipment rates if the document shows them. If only the block total is shown, use that. If neither is visible, null.
+- stops: every stop the driver physically visits, in order.
+- shipments: Amazon Relay contracts contain N shipments (each with its own ID like "113YYRXMS", "1111R9BDH"). Each shipment pays its own $ amount ($63.12, $97.23) and maps to a pickup stop + dropoff stop. If you can see the per-shipment rows, extract all of them with their $ amounts. If the document doesn't show shipments (rate cons typically have one shipment = one block), return an array with a single shipment covering pickup_stop_index=1 and dropoff_stop_index=<last>.
+- Timestamps: full ISO 8601 when possible. If only time visible, assume next upcoming date. If truly unknown, null.
+- action: normalize — "Pickup empty trailer" → pickup_empty, "Drop-off empty trailer and pick up pre-loaded trailer" → drop_empty_pickup_preloaded, "Drop off loaded trailer and pick an empty trailer" → drop_loaded_pickup_empty, final stop → delivery.
+- stop_index 1-indexed and sequential. Shipment pickup_stop_index / dropoff_stop_index must reference valid stop_indexes.
 - Return ONLY the JSON. No markdown, no explanation.`
 
 
@@ -311,15 +327,72 @@ export default async function handler(req) {
       }
     }
 
-    // 4. Return the fresh block + stops
+    // 4. Upsert shipments (Amazon contract line items)
+    const shipments = Array.isArray(extracted.shipments) ? extracted.shipments : []
+    if (shipments.length > 0) {
+      const existingShipments = existing
+        ? await sbGet(`block_shipments?block_id=eq.${blockId}&select=*`)
+        : []
+
+      for (const sh of shipments) {
+        const shPayload = {
+          block_id: blockId,
+          owner_id: ownerId,
+          external_id: sh.external_id || null,
+          origin_fc: sh.origin_fc || null,
+          dest_fc: sh.dest_fc || null,
+          origin_city: sh.origin_city || null,
+          dest_city: sh.dest_city || null,
+          miles: sh.miles || null,
+          rate: sh.rate || null,
+          pickup_stop_index: sh.pickup_stop_index || null,
+          dropoff_stop_index: sh.dropoff_stop_index || null,
+        }
+        const prior = sh.external_id
+          ? existingShipments.find(e => e.external_id === sh.external_id)
+          : null
+
+        if (prior) {
+          // Preserve status / completed_at on re-scan
+          await fetch(`${SUPABASE_URL}/rest/v1/block_shipments?id=eq.${prior.id}`, {
+            method: 'PATCH',
+            headers: sbHeaders(),
+            body: JSON.stringify(shPayload),
+          })
+        } else {
+          await fetch(`${SUPABASE_URL}/rest/v1/block_shipments`, {
+            method: 'POST',
+            headers: sbHeaders(),
+            body: JSON.stringify({ ...shPayload, status: 'pending' }),
+          })
+          changes.push({ type: 'shipment_added', shipment_id: sh.external_id })
+        }
+      }
+
+      // If parse didn't give us a total_rate but shipment sum is known, backfill
+      if (!extracted.total_rate) {
+        const sum = shipments.reduce((s, sh) => s + (Number(sh.rate) || 0), 0)
+        if (sum > 0) {
+          await fetch(`${SUPABASE_URL}/rest/v1/blocks?id=eq.${blockId}`, {
+            method: 'PATCH',
+            headers: sbHeaders(),
+            body: JSON.stringify({ total_rate: sum }),
+          })
+        }
+      }
+    }
+
+    // 5. Return the fresh block + stops + shipments
     const [freshBlock] = await sbGet(`blocks?id=eq.${blockId}&limit=1`)
     const freshStops = await sbGet(`block_stops?block_id=eq.${blockId}&select=*&order=stop_index.asc`)
+    const freshShipments = await sbGet(`block_shipments?block_id=eq.${blockId}&select=*&order=pickup_stop_index.asc`)
 
     return Response.json({
       success: true,
       data: {
         block: freshBlock,
         stops: freshStops,
+        shipments: freshShipments,
         changes,
         created: !existing,
       },

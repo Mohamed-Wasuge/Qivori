@@ -166,6 +166,7 @@ export default async function handler(req) {
         stops_completed: stops.filter(s => s.status === 'completed').length,
         total_miles: totalMiles,
         shipments,
+        stops,  // full stop list so BlockDetailScreen can render the timeline
 
         // Expenses — receipts the driver scanned while on this block
         expenses_total: expensesTotal,

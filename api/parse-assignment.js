@@ -21,59 +21,83 @@ export const config = { runtime: 'edge' }
 
 // ── Generic extraction prompt — works for any source ─────────────────────
 // The model decides what it's looking at. We don't assume Amazon.
-const EXTRACTION_PROMPT = `You are parsing a trucking assignment document for an owner-operator app. The image may be a screenshot of the Amazon Relay app, a broker's rate confirmation, a dispatcher's text message, a handwritten load sheet, or anything similar. Extract the structured data.
+const EXTRACTION_PROMPT = `You are parsing a trucking assignment document for an owner-operator app. The image may be any of these:
 
-Return ONLY valid JSON with this shape. Use null for any field you cannot determine:
+A) AMAZON RELAY — WEEKLY LOADS LIST (desktop web "Loads" tab or mobile "My Schedule"):
+   A scrollable list showing MANY separate contracts, one per row. Each row = a whole contract.
+   Columns visible: Contract ID (T-116PDP1DN, 116CJ1G6Z, 1141SKF6G, B-LQGZS4CHT, etc.), origin → destination, date/time, miles, trailer, total $, driver, status (may say "Canceled" in red).
+   → Return MULTIPLE blocks (one per row).
+
+B) AMAZON RELAY — SINGLE CONTRACT DETAIL (desktop expanded view):
+   One contract ID at the top (e.g. "B-LQGZS4CHT") with its shipments listed underneath. Each shipment is a sub-row showing shipment ID (113YYRXMS, 1111R9BDH), origin FC → destination FC, miles, $ per shipment, per-stop arrival/departure times.
+   → Return ONE block with full stops[] + shipments[] arrays.
+
+C) AMAZON RELAY — DRIVER MOBILE APP (numbered stops list):
+   Stops numbered 1-N with FC codes, actions like "Pickup empty trailer", "Drop-off empty trailer and pick up pre-loaded trailer", time windows. No per-shipment $ visible (mobile hides rates from the driver).
+   → Return ONE block with stops[] array, no shipments[] (rates unknown).
+
+D) BROKER RATE CON / DISPATCH SHEET / HANDWRITTEN:
+   Single-shipment rate confirmation: carrier name, broker, one pickup one delivery, one rate.
+   → Return ONE block with 2 stops and 1 shipment.
+
+Return ONLY valid JSON with this shape:
 {
-  "source_type": "amazon_relay" | "rate_con" | "dispatch_sheet" | "manual" | "other",
-  "source_company": "Amazon Relay" | "TQL" | "CH Robinson" | ...,
-  "external_id": "Block ID, Contract ID, Load ID, or reference number",
-  "starts_at": "ISO 8601 datetime for the first stop arrival",
-  "ends_at": "ISO 8601 datetime for the last stop departure",
-  "total_miles": 1044,
-  "total_rate": 1250.32,
-  "equipment": "53' Dry Van | Skirted Trailer | Reefer | ...",
-  "stops": [
+  "view_type": "weekly_list" | "single_contract" | "driver_mobile" | "rate_con" | "other",
+  "blocks": [
     {
-      "stop_index": 1,
-      "external_stop_id": "FC code like MSP9 or DSM5, or dock number",
-      "location_name": "MSP9",
-      "address": "full street address if present",
-      "city": "Brooklyn Park",
-      "state": "MN",
-      "zip": "55428",
-      "action": "pickup_empty | drop_loaded_pickup_empty | drop_empty_pickup_preloaded | drop_loaded | delivery",
-      "action_label": "verbatim action text (e.g. 'Pickup empty trailer')",
-      "trailer_type": "Skirted Trailer | 53' Van | null",
-      "preloaded": true | false,
-      "arrive_by": "ISO 8601 datetime",
-      "depart_by": "ISO 8601 datetime"
-    }
-  ],
-  "shipments": [
-    {
-      "external_id": "113YYRXMS",
-      "origin_fc": "STL3",
-      "dest_fc": "WSP1",
-      "origin_city": "Brookline, MO",
-      "dest_city": "Lowell, AR",
-      "miles": 93,
-      "rate": 63.12,
-      "pickup_stop_index": 1,
-      "dropoff_stop_index": 2
+      "source_type": "amazon_relay" | "rate_con" | "dispatch_sheet" | "other",
+      "source_company": "Amazon Relay" | "TQL" | ...,
+      "external_id": "Contract ID / Load ID / Block ID",
+      "starts_at": "ISO 8601 datetime",
+      "ends_at": "ISO 8601 datetime",
+      "total_miles": 1044,
+      "total_rate": 697.88,
+      "equipment": "53' Trailer",
+      "status": "draft" | "cancelled",
+      "stops": [ /* same shape as before — array or [] */
+        {
+          "stop_index": 1,
+          "external_stop_id": "MSP9",
+          "location_name": "MSP9",
+          "address": "...",
+          "city": "Brooklyn Park",
+          "state": "MN",
+          "zip": "55428",
+          "action": "pickup_empty | drop_loaded_pickup_empty | drop_empty_pickup_preloaded | drop_loaded | delivery",
+          "action_label": "verbatim action text",
+          "trailer_type": "Skirted Trailer | 53' Van | null",
+          "preloaded": true | false,
+          "arrive_by": "ISO 8601 datetime",
+          "depart_by": "ISO 8601 datetime"
+        }
+      ],
+      "shipments": [ /* array or [] */
+        {
+          "external_id": "113YYRXMS",
+          "origin_fc": "STL3",
+          "dest_fc": "WSP1",
+          "origin_city": "Brookline, MO",
+          "dest_city": "Lowell, AR",
+          "miles": 93,
+          "rate": 63.12,
+          "pickup_stop_index": 1,
+          "dropoff_stop_index": 2
+        }
+      ]
     }
   ]
 }
 
 Rules:
-- external_id (block level) is CRITICAL. On Amazon this is the Contract ID (e.g. "B-LQGZS4CHT"). On a rate con it's the Load # or PRO #. Without it we can't update later when schedule changes.
-- If the document shows multiple date-separated blocks (e.g. Amazon's "My Schedule" listing Sun 19 + Wed 22), extract the FIRST / current block only.
-- total_rate: sum of all shipment rates if the document shows them. If only the block total is shown, use that. If neither is visible, null.
-- stops: every stop the driver physically visits, in order.
-- shipments: Amazon Relay contracts contain N shipments (each with its own ID like "113YYRXMS", "1111R9BDH"). Each shipment pays its own $ amount ($63.12, $97.23) and maps to a pickup stop + dropoff stop. If you can see the per-shipment rows, extract all of them with their $ amounts. If the document doesn't show shipments (rate cons typically have one shipment = one block), return an array with a single shipment covering pickup_stop_index=1 and dropoff_stop_index=<last>.
-- Timestamps: full ISO 8601 when possible. If only time visible, assume next upcoming date. If truly unknown, null.
-- action: normalize — "Pickup empty trailer" → pickup_empty, "Drop-off empty trailer and pick up pre-loaded trailer" → drop_empty_pickup_preloaded, "Drop off loaded trailer and pick an empty trailer" → drop_loaded_pickup_empty, final stop → delivery.
-- stop_index 1-indexed and sequential. Shipment pickup_stop_index / dropoff_stop_index must reference valid stop_indexes.
+- external_id is CRITICAL for every block — it's what lets us update later when schedule changes.
+- For WEEKLY LIST view: include EVERY row (all visible contracts), skipping none. Mark canceled rows with status:"cancelled". Each block gets total_rate and total_miles from its row; stops and shipments can be empty arrays since that detail isn't visible at list level.
+- For SINGLE CONTRACT view: return one block with both stops[] AND shipments[] populated.
+- For DRIVER MOBILE view: return one block with stops[] populated; shipments:[] (rates hidden from driver).
+- For RATE CON: one block, 2 stops (pickup + delivery), 1 shipment.
+- total_rate: only include if visible in the document. If unknown, null.
+- Timestamps: full ISO 8601 if date visible. If only time, assume the displayed date context. If impossible, null.
+- action codes: "Pickup empty trailer" → pickup_empty · "Drop-off empty trailer and pick up pre-loaded trailer" → drop_empty_pickup_preloaded · "Drop off loaded trailer and pick an empty trailer" → drop_loaded_pickup_empty · final stop → delivery.
+- stop_index 1-indexed. Shipment pickup/dropoff indexes must reference valid stop_indexes (or be null).
 - Return ONLY the JSON. No markdown, no explanation.`
 
 
@@ -183,222 +207,259 @@ export default async function handler(req) {
       return Response.json({ success: false, error: 'Invalid JSON from AI' }, { status: 500, headers: corsHeaders(req) })
     }
 
-    const stops = Array.isArray(extracted.stops) ? extracted.stops : []
-    if (!extracted.external_id && stops.length === 0) {
+    // ── Normalize to blocks[] array ──────────────────────────────────────
+    // New prompt returns { view_type, blocks: [...] }. For backward compat
+    // also accept the old shape where the root IS a single block.
+    const blocksIn = Array.isArray(extracted.blocks) && extracted.blocks.length > 0
+      ? extracted.blocks
+      : [extracted]
+    const viewType = extracted.view_type || (blocksIn.length > 1 ? 'weekly_list' : 'single_contract')
+
+    // Basic validity check — need at least one block with an ID or stops.
+    const anyValid = blocksIn.some(b => b.external_id || (Array.isArray(b.stops) && b.stops.length > 0))
+    if (!anyValid) {
       return Response.json({
         success: false,
-        error: 'No block ID or stops found. This may not be a valid assignment document.',
+        error: 'No blocks or stops found. This may not be a valid assignment document.',
       }, { status: 400, headers: corsHeaders(req) })
     }
 
-    // ── Upsert into blocks + block_stops ─────────────────────────────────
     const ownerId = user.id
-    const changes = []
+    const processedBlocks = []
+    const allChanges = []
 
-    // 1. Find existing block by (owner_id, external_id)
-    let existing = null
-    if (extracted.external_id) {
-      const rows = await sbGet(
-        `blocks?owner_id=eq.${ownerId}&external_id=eq.${encodeURIComponent(extracted.external_id)}&limit=1`
-      )
-      existing = rows[0] || null
-    }
-
-    const blockPayload = {
-      owner_id: ownerId,
-      external_id: extracted.external_id || null,
-      source_type: extracted.source_type || 'other',
-      source_company: extracted.source_company || null,
-      starts_at: extracted.starts_at || null,
-      ends_at: extracted.ends_at || null,
-      total_miles: extracted.total_miles || null,
-      total_rate: extracted.total_rate || null,
-      equipment: extracted.equipment || null,
-      status: existing?.status || 'draft',
-      raw_extraction: extracted,
-    }
-
-    let blockId
-    if (existing) {
-      // UPDATE existing block (preserve id + status + created_at)
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/blocks?id=eq.${existing.id}`,
-        {
-          method: 'PATCH',
-          headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
-          body: JSON.stringify(blockPayload),
-        }
-      )
-      const [updated] = await r.json()
-      blockId = updated?.id || existing.id
-      changes.push({ type: 'block_updated', block_id: blockId })
-    } else {
-      // INSERT new block
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/blocks`, {
-        method: 'POST',
-        headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
-        body: JSON.stringify(blockPayload),
-      })
-      const [inserted] = await r.json()
-      blockId = inserted?.id
-      changes.push({ type: 'block_created', block_id: blockId })
-    }
-
-    if (!blockId) {
-      return Response.json({ success: false, error: 'Could not save block.' }, { status: 500, headers: corsHeaders(req) })
-    }
-
-    // 2. Merge stops
-    // Load existing stops once so we can preserve completed ones.
-    const existingStops = existing
-      ? await sbGet(`block_stops?block_id=eq.${blockId}&select=*&order=stop_index.asc`)
-      : []
-
-    for (const s of stops) {
-      const idx = s.stop_index || (stops.indexOf(s) + 1)
-      const prior = existingStops.find(e => e.stop_index === idx)
-
-      // If the stop was already completed/arrived/working, preserve its live
-      // status + timestamps. Only merge the schedule fields (times, action).
-      const preserveLive = prior && ['arrived', 'working', 'completed'].includes(prior.status)
-
-      const stopPayload = {
-        block_id: blockId,
-        owner_id: ownerId,
-        stop_index: idx,
-        external_stop_id: s.external_stop_id || null,
-        location_name: s.location_name || null,
-        address: s.address || null,
-        city: s.city || null,
-        state: s.state || null,
-        zip: s.zip || null,
-        action: s.action || null,
-        action_label: s.action_label || null,
-        trailer_type: s.trailer_type || null,
-        preloaded: s.preloaded === true,
-        arrive_by: s.arrive_by || null,
-        depart_by: s.depart_by || null,
-        // Preserve progress fields on existing stops mid-work:
-        status: preserveLive ? prior.status : (prior?.status || 'not_started'),
-        arrived_at: preserveLive ? prior.arrived_at : prior?.arrived_at || null,
-        departed_at: preserveLive ? prior.departed_at : prior?.departed_at || null,
-      }
-
-      if (prior) {
-        // UPDATE existing stop — detect and report time changes
-        if (prior.arrive_by !== stopPayload.arrive_by) {
-          changes.push({
-            type: 'stop_time_changed',
-            stop_index: idx,
-            field: 'arrive_by',
-            from: prior.arrive_by,
-            to: stopPayload.arrive_by,
-          })
-        }
-        await fetch(`${SUPABASE_URL}/rest/v1/block_stops?id=eq.${prior.id}`, {
-          method: 'PATCH',
-          headers: sbHeaders(),
-          body: JSON.stringify(stopPayload),
-        })
-      } else {
-        // INSERT new stop
-        await fetch(`${SUPABASE_URL}/rest/v1/block_stops`, {
-          method: 'POST',
-          headers: sbHeaders(),
-          body: JSON.stringify(stopPayload),
-        })
-        changes.push({ type: 'stop_added', stop_index: idx })
+    // Process each block independently
+    for (const blk of blocksIn) {
+      try {
+        const result = await upsertOneBlock(blk, ownerId)
+        processedBlocks.push(result)
+        allChanges.push(...result.changes.map(c => ({ ...c, block_id: result.block.id })))
+      } catch (e) {
+        console.error('[parse-assignment] block upsert failed:', e.message)
+        allChanges.push({ type: 'block_error', error: e.message })
       }
     }
 
-    // 3. Detect removed stops (exist in DB but not in new scan)
-    if (existing && existingStops.length > stops.length) {
-      const newIndices = new Set(stops.map(s => s.stop_index || 0))
-      for (const prior of existingStops) {
-        if (!newIndices.has(prior.stop_index) && prior.status === 'not_started') {
-          // Only mark as skipped if driver hasn't started it yet
-          await fetch(`${SUPABASE_URL}/rest/v1/block_stops?id=eq.${prior.id}`, {
-            method: 'PATCH',
-            headers: sbHeaders(),
-            body: JSON.stringify({ status: 'skipped' }),
-          })
-          changes.push({ type: 'stop_skipped', stop_index: prior.stop_index })
-        }
-      }
-    }
-
-    // 4. Upsert shipments (Amazon contract line items)
-    const shipments = Array.isArray(extracted.shipments) ? extracted.shipments : []
-    if (shipments.length > 0) {
-      const existingShipments = existing
-        ? await sbGet(`block_shipments?block_id=eq.${blockId}&select=*`)
-        : []
-
-      for (const sh of shipments) {
-        const shPayload = {
-          block_id: blockId,
-          owner_id: ownerId,
-          external_id: sh.external_id || null,
-          origin_fc: sh.origin_fc || null,
-          dest_fc: sh.dest_fc || null,
-          origin_city: sh.origin_city || null,
-          dest_city: sh.dest_city || null,
-          miles: sh.miles || null,
-          rate: sh.rate || null,
-          pickup_stop_index: sh.pickup_stop_index || null,
-          dropoff_stop_index: sh.dropoff_stop_index || null,
-        }
-        const prior = sh.external_id
-          ? existingShipments.find(e => e.external_id === sh.external_id)
-          : null
-
-        if (prior) {
-          // Preserve status / completed_at on re-scan
-          await fetch(`${SUPABASE_URL}/rest/v1/block_shipments?id=eq.${prior.id}`, {
-            method: 'PATCH',
-            headers: sbHeaders(),
-            body: JSON.stringify(shPayload),
-          })
-        } else {
-          await fetch(`${SUPABASE_URL}/rest/v1/block_shipments`, {
-            method: 'POST',
-            headers: sbHeaders(),
-            body: JSON.stringify({ ...shPayload, status: 'pending' }),
-          })
-          changes.push({ type: 'shipment_added', shipment_id: sh.external_id })
-        }
-      }
-
-      // If parse didn't give us a total_rate but shipment sum is known, backfill
-      if (!extracted.total_rate) {
-        const sum = shipments.reduce((s, sh) => s + (Number(sh.rate) || 0), 0)
-        if (sum > 0) {
-          await fetch(`${SUPABASE_URL}/rest/v1/blocks?id=eq.${blockId}`, {
-            method: 'PATCH',
-            headers: sbHeaders(),
-            body: JSON.stringify({ total_rate: sum }),
-          })
-        }
-      }
-    }
-
-    // 5. Return the fresh block + stops + shipments
-    const [freshBlock] = await sbGet(`blocks?id=eq.${blockId}&limit=1`)
-    const freshStops = await sbGet(`block_stops?block_id=eq.${blockId}&select=*&order=stop_index.asc`)
-    const freshShipments = await sbGet(`block_shipments?block_id=eq.${blockId}&select=*&order=pickup_stop_index.asc`)
+    // Return in the shape the mobile review sheet expects:
+    //   primary  = first processed block (for the current-active experience)
+    //   blocks[] = all processed (so multi-block weekly scans can render all)
+    const primary = processedBlocks[0] || null
 
     return Response.json({
       success: true,
       data: {
-        block: freshBlock,
-        stops: freshStops,
-        shipments: freshShipments,
-        changes,
-        created: !existing,
+        view_type: viewType,
+        // Back-compat: single-block callers can still use data.block / data.stops / data.shipments
+        block:     primary?.block || null,
+        stops:     primary?.stops || [],
+        shipments: primary?.shipments || [],
+        // New multi-block surface
+        blocks:    processedBlocks.map(r => ({
+          block: r.block,
+          stops: r.stops,
+          shipments: r.shipments,
+          created: r.created,
+        })),
+        changes:   allChanges,
+        created:   primary ? primary.created : false,
       },
     }, { headers: corsHeaders(req) })
   } catch (e) {
     console.error('[parse-assignment] error:', e)
     return Response.json({ success: false, error: 'Server error: ' + e.message }, { status: 500, headers: corsHeaders(req) })
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────
+// upsertOneBlock — the per-block pipeline extracted so we can loop over
+// multiple blocks from a weekly-list scan.
+// ─────────────────────────────────────────────────────────────────────────
+async function upsertOneBlock(blk, ownerId) {
+  const changes = []
+  const stops = Array.isArray(blk.stops) ? blk.stops : []
+
+  // 1. Find existing block by (owner_id, external_id)
+  let existing = null
+  if (blk.external_id) {
+    const rows = await sbGet(
+      `blocks?owner_id=eq.${ownerId}&external_id=eq.${encodeURIComponent(blk.external_id)}&limit=1`
+    )
+    existing = rows[0] || null
+  }
+
+  const blockPayload = {
+    owner_id: ownerId,
+    external_id: blk.external_id || null,
+    source_type: blk.source_type || 'other',
+    source_company: blk.source_company || null,
+    starts_at: blk.starts_at || null,
+    ends_at: blk.ends_at || null,
+    total_miles: blk.total_miles || null,
+    total_rate: blk.total_rate || null,
+    equipment: blk.equipment || null,
+    // Respect incoming "cancelled" status from AI (weekly list rows)
+    status: blk.status === 'cancelled' ? 'cancelled' : (existing?.status || 'draft'),
+    raw_extraction: blk,
+  }
+
+  let blockId
+  if (existing) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/blocks?id=eq.${existing.id}`, {
+      method: 'PATCH',
+      headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      body: JSON.stringify(blockPayload),
+    })
+    const [updated] = await r.json()
+    blockId = updated?.id || existing.id
+    changes.push({ type: 'block_updated' })
+  } else {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/blocks`, {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Prefer': 'return=representation' },
+      body: JSON.stringify(blockPayload),
+    })
+    const [inserted] = await r.json()
+    blockId = inserted?.id
+    changes.push({ type: 'block_created' })
+  }
+
+  if (!blockId) throw new Error('Could not save block')
+
+  // 2. Merge stops
+  const existingStops = existing
+    ? await sbGet(`block_stops?block_id=eq.${blockId}&select=*&order=stop_index.asc`)
+    : []
+
+  for (const s of stops) {
+    const idx = s.stop_index || (stops.indexOf(s) + 1)
+    const prior = existingStops.find(e => e.stop_index === idx)
+    const preserveLive = prior && ['arrived', 'working', 'completed'].includes(prior.status)
+
+    const stopPayload = {
+      block_id: blockId,
+      owner_id: ownerId,
+      stop_index: idx,
+      external_stop_id: s.external_stop_id || null,
+      location_name: s.location_name || null,
+      address: s.address || null,
+      city: s.city || null,
+      state: s.state || null,
+      zip: s.zip || null,
+      action: s.action || null,
+      action_label: s.action_label || null,
+      trailer_type: s.trailer_type || null,
+      preloaded: s.preloaded === true,
+      arrive_by: s.arrive_by || null,
+      depart_by: s.depart_by || null,
+      status: preserveLive ? prior.status : (prior?.status || 'not_started'),
+      arrived_at: preserveLive ? prior.arrived_at : prior?.arrived_at || null,
+      departed_at: preserveLive ? prior.departed_at : prior?.departed_at || null,
+    }
+
+    if (prior) {
+      if (prior.arrive_by !== stopPayload.arrive_by) {
+        changes.push({
+          type: 'stop_time_changed',
+          stop_index: idx,
+          from: prior.arrive_by,
+          to: stopPayload.arrive_by,
+        })
+      }
+      await fetch(`${SUPABASE_URL}/rest/v1/block_stops?id=eq.${prior.id}`, {
+        method: 'PATCH',
+        headers: sbHeaders(),
+        body: JSON.stringify(stopPayload),
+      })
+    } else {
+      await fetch(`${SUPABASE_URL}/rest/v1/block_stops`, {
+        method: 'POST',
+        headers: sbHeaders(),
+        body: JSON.stringify(stopPayload),
+      })
+      changes.push({ type: 'stop_added', stop_index: idx })
+    }
+  }
+
+  // 3. Detect removed stops
+  if (existing && existingStops.length > stops.length) {
+    const newIndices = new Set(stops.map(s => s.stop_index || 0))
+    for (const prior of existingStops) {
+      if (!newIndices.has(prior.stop_index) && prior.status === 'not_started') {
+        await fetch(`${SUPABASE_URL}/rest/v1/block_stops?id=eq.${prior.id}`, {
+          method: 'PATCH',
+          headers: sbHeaders(),
+          body: JSON.stringify({ status: 'skipped' }),
+        })
+        changes.push({ type: 'stop_skipped', stop_index: prior.stop_index })
+      }
+    }
+  }
+
+  // 4. Upsert shipments
+  const shipments = Array.isArray(blk.shipments) ? blk.shipments : []
+  if (shipments.length > 0) {
+    const existingShipments = existing
+      ? await sbGet(`block_shipments?block_id=eq.${blockId}&select=*`)
+      : []
+
+    for (const sh of shipments) {
+      const shPayload = {
+        block_id: blockId,
+        owner_id: ownerId,
+        external_id: sh.external_id || null,
+        origin_fc: sh.origin_fc || null,
+        dest_fc: sh.dest_fc || null,
+        origin_city: sh.origin_city || null,
+        dest_city: sh.dest_city || null,
+        miles: sh.miles || null,
+        rate: sh.rate || null,
+        pickup_stop_index: sh.pickup_stop_index || null,
+        dropoff_stop_index: sh.dropoff_stop_index || null,
+      }
+      const priorSh = sh.external_id
+        ? existingShipments.find(e => e.external_id === sh.external_id)
+        : null
+
+      if (priorSh) {
+        await fetch(`${SUPABASE_URL}/rest/v1/block_shipments?id=eq.${priorSh.id}`, {
+          method: 'PATCH',
+          headers: sbHeaders(),
+          body: JSON.stringify(shPayload),
+        })
+      } else {
+        await fetch(`${SUPABASE_URL}/rest/v1/block_shipments`, {
+          method: 'POST',
+          headers: sbHeaders(),
+          body: JSON.stringify({ ...shPayload, status: 'pending' }),
+        })
+        changes.push({ type: 'shipment_added', shipment_id: sh.external_id })
+      }
+    }
+
+    // Backfill total_rate if missing + sum is known
+    if (!blk.total_rate) {
+      const sum = shipments.reduce((s, sh) => s + (Number(sh.rate) || 0), 0)
+      if (sum > 0) {
+        await fetch(`${SUPABASE_URL}/rest/v1/blocks?id=eq.${blockId}`, {
+          method: 'PATCH',
+          headers: sbHeaders(),
+          body: JSON.stringify({ total_rate: sum }),
+        })
+      }
+    }
+  }
+
+  // 5. Read fresh data for return
+  const [freshBlock] = await sbGet(`blocks?id=eq.${blockId}&limit=1`)
+  const freshStops = await sbGet(`block_stops?block_id=eq.${blockId}&select=*&order=stop_index.asc`)
+  const freshShipments = await sbGet(`block_shipments?block_id=eq.${blockId}&select=*&order=pickup_stop_index.asc`)
+
+  return {
+    block: freshBlock,
+    stops: freshStops,
+    shipments: freshShipments,
+    changes,
+    created: !existing,
   }
 }

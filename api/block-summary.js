@@ -74,11 +74,15 @@ export default async function handler(req) {
       return Response.json({ error: 'Block not found' }, { status: 404, headers: corsHeaders(req) })
     }
 
-    const [shipments, stops, expenses, profile] = await Promise.all([
+    const [shipments, stops, expenses, profile, burn] = await Promise.all([
       sbGet(`block_shipments?block_id=eq.${blockId}&order=pickup_stop_index.asc`),
       sbGet(`block_stops?block_id=eq.${blockId}&order=stop_index.asc`),
       sbGet(`expenses?block_id=eq.${blockId}&select=category,amount`),
       sbGet(`profiles?id=eq.${user.id}&select=pay_type,pay_value&limit=1`).then(r => r[0] || null),
+      // Daily burn across all fixed costs + dispatch fee % + etc.
+      // Captured at carrier onboarding, editable in Settings. Used to
+      // prorate fixed costs into every block's P&L.
+      sbGet(`companies_daily_burn?owner_id=eq.${user.id}&limit=1`).then(r => r[0] || null),
     ])
 
     const gross = shipments.reduce((s, sh) => s + Number(sh.rate || 0), 0)
@@ -97,8 +101,29 @@ export default async function handler(req) {
       expensesTotal += Number(e.amount || 0)
     }
 
+    // Prorate fixed costs across the block's duration.
+    // If we have starts_at + ends_at, use those. Otherwise assume 1 day.
+    let blockDays = 1
+    if (block.starts_at && block.ends_at) {
+      const ms = new Date(block.ends_at) - new Date(block.starts_at)
+      blockDays = Math.max(1, ms / (1000 * 60 * 60 * 24))
+    }
+
+    const dailyBurn = burn ? Number(burn.total_daily || 0) : 0
+    const fixedCosts = dailyBurn * blockDays
+    const fixedBreakdown = burn ? {
+      insurance: Number(burn.insurance_daily || 0) * blockDays,
+      truck:     Number(burn.truck_daily     || 0) * blockDays,
+      trailer:   Number(burn.trailer_daily   || 0) * blockDays,
+      eld:       Number(burn.eld_daily       || 0) * blockDays,
+      other:     Number(burn.other_daily     || 0) * blockDays,
+    } : null
+
+    const dispatchFeePct = burn ? Number(burn.dispatch_fee_pct || 0) : 0
+    const dispatchFee    = gross * (dispatchFeePct / 100)
+
     const driverPay = computeDriverPay(profile, gross, totalMiles)
-    const net = gross - expensesTotal - driverPay
+    const net = gross - expensesTotal - fixedCosts - driverPay - dispatchFee
 
     return Response.json({
       success: true,
@@ -120,12 +145,27 @@ export default async function handler(req) {
         stops_completed: stops.filter(s => s.status === 'completed').length,
         total_miles: totalMiles,
         shipments,
+
+        // Expenses — receipts the driver scanned while on this block
         expenses_total: expensesTotal,
         expenses_by_category: expensesByCategory,
+
+        // Fixed operating costs — prorated across block duration
+        fixed_costs_total: fixedCosts,
+        fixed_costs_breakdown: fixedBreakdown,
+        block_days: blockDays,
+        daily_burn: dailyBurn,
+
+        // Driver pay — from profile config (per-driver)
         driver_pay: driverPay,
         driver_pay_config: profile
           ? { type: profile.pay_type || 'percent', value: Number(profile.pay_value || 0) }
           : null,
+
+        // Dispatch fee — only applies when owner dispatches for other drivers
+        dispatch_fee: dispatchFee,
+        dispatch_fee_pct: dispatchFeePct,
+
         net,
       },
     }, { headers: corsHeaders(req) })

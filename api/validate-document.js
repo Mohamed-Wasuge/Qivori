@@ -168,10 +168,33 @@ async function validateDriverDoc(docType, fileUrl, driverName) {
   if (!prompt) return { valid: true, skipped: true, issues: [] }
 
   try {
-    // Fetch the image and convert to base64 — Claude API requires base64, not URLs
-    const imgRes = await fetch(fileUrl)
-    if (!imgRes.ok) return { valid: true, skipped: true, issues: ['Could not fetch document image'] }
+    // Fetch the image and convert to base64 — Claude API requires base64.
+    // Supabase Storage URLs for private buckets return an empty body without
+    // auth, so we add the service-role key when the URL is on our project.
+    const SUPABASE_URL = process.env.SUPABASE_URL || ''
+    const isOurStorage = SUPABASE_URL && fileUrl.startsWith(SUPABASE_URL)
+    const fetchOpts = isOurStorage
+      ? {
+          headers: {
+            apikey: process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''}`,
+          },
+        }
+      : {}
+
+    const imgRes = await fetch(fileUrl, fetchOpts)
+    if (!imgRes.ok) {
+      console.error('[validate-document] fetch non-OK', imgRes.status, fileUrl)
+      return { valid: true, skipped: true, issues: [`Could not fetch document image (${imgRes.status})`] }
+    }
     const imgBuffer = await imgRes.arrayBuffer()
+
+    // Bail early if empty — Claude's "image cannot be empty" message is opaque
+    if (!imgBuffer || imgBuffer.byteLength === 0) {
+      console.error('[validate-document] empty image buffer for', fileUrl)
+      return { valid: true, skipped: true, issues: ['Uploaded image is empty — try re-capturing the photo'] }
+    }
+
     // Chunked base64 — the naive spread blows the Edge runtime arg stack
     // for anything larger than ~60KB (any real phone photo).
     const base64 = (() => {

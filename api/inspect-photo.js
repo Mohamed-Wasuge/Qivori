@@ -51,6 +51,30 @@ export default async function handler(req) {
     const comp = (component || 'general').toLowerCase()
     const criteria = INSPECTION_CRITERIA[comp] || INSPECTION_CRITERIA.general
 
+    // Fetch image server-side and convert to base64 — Claude requires base64.
+    // Supabase Storage private-bucket URLs need service-key auth headers.
+    const isOurStorage = SUPABASE_URL && image_url.startsWith(SUPABASE_URL)
+    const imgRes = await fetch(image_url, isOurStorage ? {
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+    } : {})
+    if (!imgRes.ok) {
+      return Response.json({ error: `Could not fetch image (${imgRes.status})` }, { status: 502, headers: corsHeaders(req) })
+    }
+    const imgBuffer = await imgRes.arrayBuffer()
+    if (!imgBuffer || imgBuffer.byteLength === 0) {
+      return Response.json({ error: 'Image is empty' }, { status: 400, headers: corsHeaders(req) })
+    }
+    const base64 = (() => {
+      const bytes = new Uint8Array(imgBuffer)
+      const chunkSize = 8192
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize))
+      }
+      return btoa(binary)
+    })()
+    const mimeType = imgRes.headers.get('content-type') || 'image/jpeg'
+
     // Claude Vision analysis
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -60,12 +84,12 @@ export default async function handler(req) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'url', url: image_url } },
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
             { type: 'text', text: `You are Q, an FMCSA-certified AI vehicle inspector for commercial motor vehicles (Class 8 trucks and trailers).
 
 A driver is performing a pre-trip inspection and took this photo of: ${comp.toUpperCase()}
@@ -99,7 +123,9 @@ Be specific about what you see. If the image is unclear, say so but still give y
     })
 
     if (!res.ok) {
-      return Response.json({ error: 'AI analysis failed', status: 'unknown' }, { status: 502, headers: corsHeaders(req) })
+      const errText = await res.text().catch(() => '')
+      console.error('[inspect-photo] Claude error', res.status, errText)
+      return Response.json({ error: `AI analysis failed: ${errText}` }, { status: 502, headers: corsHeaders(req) })
     }
 
     const data = await res.json()

@@ -56,12 +56,81 @@ async function fetchAllPages(table, query, pageSize = 1000) {
   return all
 }
 
-// ─── LOADS (uses actual schema: load_id, rate, broker_id, etc.) ──
+// ─── LOADS (canonical schema-backed fields only) ──────────────────────────
+const LOAD_STATUS_MAP = {
+  open: 'Rate Con Received',
+  available: 'Rate Con Received',
+  posted: 'Rate Con Received',
+  booked: 'Rate Con Received',
+  assigned: 'Assigned to Driver',
+  dispatched: 'Dispatched',
+  at_pickup: 'At Pickup',
+  in_transit: 'In Transit',
+  en_route: 'In Transit',
+  at_delivery: 'At Delivery',
+  delivered: 'Delivered',
+  invoiced: 'Invoiced',
+  cancelled: 'Cancelled',
+}
+
+function normalizeLoadStatus(status) {
+  if (!status) return 'Rate Con Received'
+  const raw = String(status).trim()
+  if (!raw) return 'Rate Con Received'
+  if (LOAD_STATUS_MAP[raw.toLowerCase()]) return LOAD_STATUS_MAP[raw.toLowerCase()]
+  return raw
+}
+
+function buildLoadNumber(load) {
+  return load.load_number || load.load_id || load.loadId || `QV-${Date.now().toString().slice(-6)}`
+}
+
+function buildLoadPayload(load, userId) {
+  const grossPay = Number.parseFloat(load.gross_pay ?? load.rate ?? load.gross ?? 0) || 0
+  const miles = Number.parseInt(load.miles, 10) || 0
+  const explicitRpm = Number.parseFloat(load.rate_per_mile)
+  const inferredRpm = explicitRpm || (grossPay > 0 && miles > 0 ? grossPay / miles : 0)
+  const payload = {
+    owner_id: userId,
+    load_number: buildLoadNumber(load),
+    broker: load.broker || load.broker_name || null,
+    broker_phone: load.broker_phone || null,
+    broker_email: load.broker_email || null,
+    origin: load.origin || null,
+    origin_address: load.origin_address || null,
+    origin_zip: load.origin_zip || null,
+    destination: load.destination || load.dest || null,
+    destination_address: load.destination_address || null,
+    destination_zip: load.destination_zip || null,
+    shipper_name: load.shipper_name || null,
+    consignee_name: load.consignee_name || null,
+    miles: miles || 0,
+    rate_per_mile: inferredRpm || 0,
+    gross_pay: grossPay || 0,
+    weight: load.weight || null,
+    commodity: load.commodity || null,
+    equipment: load.equipment || load.equipment_type || 'Dry Van',
+    load_type: load.load_type || load.loadType || 'FTL',
+    pickup_date: load.pickup_date || load.pickupDate || null,
+    pickup_time: load.pickup_time || null,
+    delivery_date: load.delivery_date || load.deliveryDate || null,
+    delivery_time: load.delivery_time || null,
+    driver_id: load.driver_id || null,
+    driver_name: load.driver_name || load.driver || null,
+    vehicle_id: load.vehicle_id || null,
+    status: normalizeLoadStatus(load.status),
+    reference_number: load.reference_number || load.refNum || null,
+    po_number: load.po_number || null,
+    special_instructions: load.special_instructions || null,
+    notes: load.notes || null,
+  }
+  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
+}
+
 export async function fetchLoads() {
   const data = await fetchAllPages('loads',
     supabase.from('loads').select('*, load_stops(*)').order('created_at', { ascending: false })
   )
-  // Sort stops by sequence within each load
   if (data) {
     data.forEach(load => {
       if (load.load_stops) {
@@ -75,71 +144,12 @@ export async function fetchLoads() {
 export async function createLoad(load) {
   const userId = await getUserId()
   if (!userId) throw new Error('Not authenticated — cannot create load')
-  // Runtime guard: validate rate is a sane financial value
-  const loadRate = parseFloat(load.rate) || parseFloat(load.gross_pay) || parseFloat(load.gross) || 0
-  if (loadRate > 0) validateFinancialCalc(loadRate, 'createLoad rate')
+  const payload = buildLoadPayload(load, userId)
+  validateBeforeWrite('loads', payload, 'createLoad')
+  if (payload.gross_pay > 0) validateFinancialCalc(payload.gross_pay, 'createLoad gross_pay')
+
   const { data, error } = await safeMutate('createLoad',
-    supabase.from('loads')
-      .insert({
-        owner_id: userId,
-        load_id: load.load_id || load.loadId || null,
-        origin: load.origin,
-        destination: load.destination || load.dest,
-        rate: parseFloat(load.rate) || parseFloat(load.gross_pay) || parseFloat(load.gross) || 0,
-        load_type: load.load_type || load.loadType || 'FTL',
-        equipment: load.equipment || 'Dry Van',
-        weight: load.weight || null,
-        status: load.status || 'Rate Con Received',
-        pickup_date: load.pickup_date || load.pickupDate || null,
-        delivery_date: load.delivery_date || load.deliveryDate || null,
-        broker_id: load.broker_id || userId,
-        broker_name: load.broker_name || load.broker || null,
-        carrier_id: load.carrier_id || null,
-        carrier_name: load.carrier_name || load.driver || load.driver_name || null,
-        driver_id: load.driver_id || null,
-        driver_name: load.driver_name || load.driver || load.carrier_name || null,
-        vehicle_id: load.vehicle_id || null,
-        miles: load.miles ? parseInt(load.miles) : null,
-        rate_per_mile: load.rate_per_mile ? parseFloat(load.rate_per_mile) : null,
-        broker_phone: load.broker_phone || null,
-        broker_email: load.broker_email || null,
-        shipper_name: load.shipper_name || null,
-        reference_number: load.reference_number || load.refNum || null,
-        po_number: load.po_number || null,
-        special_instructions: load.special_instructions || null,
-        pickup_time: load.pickup_time || null,
-        delivery_time: load.delivery_time || null,
-        origin_address: load.origin_address || null,
-        origin_zip: load.origin_zip || null,
-        destination_address: load.destination_address || null,
-        destination_zip: load.destination_zip || null,
-        notes: load.notes || load.commodity || null,
-        rate_con_url: load.rate_con_url || null,
-        // LTL / Partial fields
-        freight_class: load.freight_class || null,
-        pallet_count: load.pallet_count ? parseInt(load.pallet_count) : null,
-        stackable: load.stackable || false,
-        length_inches: load.length_inches ? parseFloat(load.length_inches) : null,
-        width_inches: load.width_inches ? parseFloat(load.width_inches) : null,
-        height_inches: load.height_inches ? parseFloat(load.height_inches) : null,
-        handling_unit: load.handling_unit || null,
-        consolidation_id: load.consolidation_id || null,
-        // Source tracking (broker, amazon_relay, direct, etc.)
-        load_source: load.load_source || null,
-        amazon_block_id: load.amazon_block_id || null,
-        payment_terms: load.payment_terms || null,
-        // Route data from Google Maps
-        fuel_estimate: load.fuel_estimate ? parseFloat(load.fuel_estimate) : null,
-        toll_estimate: load.toll_estimate ? parseFloat(load.toll_estimate) : null,
-        origin_lat: load.origin_lat ? parseFloat(load.origin_lat) : null,
-        origin_lng: load.origin_lng ? parseFloat(load.origin_lng) : null,
-        dest_lat: load.dest_lat ? parseFloat(load.dest_lat) : null,
-        dest_lng: load.dest_lng ? parseFloat(load.dest_lng) : null,
-        drive_time_minutes: load.drive_time_minutes ? parseInt(load.drive_time_minutes) : null,
-        diesel_price_at_booking: load.diesel_price_at_booking ? parseFloat(load.diesel_price_at_booking) : null,
-      })
-      .select()
-      .single()
+    supabase.from('loads').insert(payload).select().single()
   )
   if (error) throw error
   return data
@@ -151,34 +161,33 @@ export async function updateLoad(id, updates) {
     try {
       // Fetch current status to validate transition
       const current = await safeSelect('loads', supabase.from('loads').select('status').eq('id', id).single())
-      if (current?.status) validateStatusTransition(current.status, updates.status)
+      if (current?.status) validateStatusTransition(current.status, normalizeLoadStatus(updates.status))
     } catch (err) {
       if (err.message?.includes('PERMANENCE GUARD')) throw err
       // If fetch fails, allow the update (don't block on read errors)
     }
   }
-  // Runtime guard: validate financial fields
-  if (updates.rate !== undefined && updates.rate > 0) validateFinancialCalc(updates.rate, 'updateLoad rate')
+  if (updates.gross_pay !== undefined && updates.gross_pay > 0) validateFinancialCalc(updates.gross_pay, 'updateLoad gross_pay')
   const { data, error } = await safeMutate('updateLoad',
-    supabase.from('loads').update(updates).eq('id', id).select().single()
+    supabase.from('loads').update({ ...updates, status: updates.status ? normalizeLoadStatus(updates.status) : updates.status }).eq('id', id).select().single()
   )
   if (error) throw error
   return data
 }
 
 export async function updateLoadByLoadId(loadId, updates) {
-  // Runtime guard: validate status transitions (same as updateLoad)
   if (updates.status) {
     try {
-      const current = await safeSelect('loads', supabase.from('loads').select('status').eq('load_id', loadId).single())
-      if (current?.status) validateStatusTransition(current.status, updates.status)
+      const current = await safeSelect('loads', supabase.from('loads').select('status').eq('load_number', loadId).single())
+      if (current?.status) validateStatusTransition(current.status, normalizeLoadStatus(updates.status))
     } catch (err) {
       if (err.message?.includes('PERMANENCE GUARD')) throw err
     }
   }
-  if (updates.rate !== undefined && updates.rate > 0) validateFinancialCalc(updates.rate, 'updateLoadByLoadId rate')
+  if (updates.gross_pay !== undefined && updates.gross_pay > 0) validateFinancialCalc(updates.gross_pay, 'updateLoadByLoadId gross_pay')
+  const nextUpdates = { ...updates, status: updates.status ? normalizeLoadStatus(updates.status) : updates.status }
   const { data, error } = await safeMutate('updateLoadByLoadId',
-    supabase.from('loads').update(updates).eq('load_id', loadId).select().single()
+    supabase.from('loads').update(nextUpdates).eq('load_number', loadId).select().single()
   )
   if (error) throw error
   return data
@@ -764,58 +773,21 @@ export async function sendMessage(loadId, content, senderName, senderRole) {
 // ─── LOAD STOPS ─────────────────────────────────────────────
 export async function createLoadWithStops(load, stops) {
   const userId = await getUserId()
-  // 1. Insert the load
+  const loadPayload = buildLoadPayload(load, userId)
+  validateBeforeWrite('loads', loadPayload, 'createLoadWithStops')
   const { data: newLoad, error: loadErr } = await safeMutate('createLoadWithStops',
-    supabase.from('loads')
-      .insert({
-        owner_id: userId,
-        load_id: load.load_id || null,
-        origin: load.origin,
-        destination: load.destination || load.dest,
-        rate: parseFloat(load.rate) || parseFloat(load.gross_pay) || parseFloat(load.gross) || 0,
-        load_type: load.load_type || load.loadType || 'FTL',
-        equipment: load.equipment || 'Dry Van',
-        weight: load.weight || null,
-        status: load.status || 'Rate Con Received',
-        pickup_date: load.pickup_date || load.pickupDate || null,
-        delivery_date: load.delivery_date || load.deliveryDate || null,
-        broker_id: load.broker_id || userId,
-        broker_name: load.broker_name || load.broker || null,
-        carrier_id: load.carrier_id || null,
-        carrier_name: load.carrier_name || load.driver || load.driver_name || null,
-        notes: load.notes || load.commodity || null,
-        rate_con_url: load.rate_con_url || null,
-        // Route data from Google Maps
-        fuel_estimate: load.fuel_estimate ? parseFloat(load.fuel_estimate) : null,
-        toll_estimate: load.toll_estimate ? parseFloat(load.toll_estimate) : null,
-        origin_lat: load.origin_lat ? parseFloat(load.origin_lat) : null,
-        origin_lng: load.origin_lng ? parseFloat(load.origin_lng) : null,
-        dest_lat: load.dest_lat ? parseFloat(load.dest_lat) : null,
-        dest_lng: load.dest_lng ? parseFloat(load.dest_lng) : null,
-        drive_time_minutes: load.drive_time_minutes ? parseInt(load.drive_time_minutes) : null,
-        diesel_price_at_booking: load.diesel_price_at_booking ? parseFloat(load.diesel_price_at_booking) : null,
-      })
-      .select()
-      .single()
+    supabase.from('loads').insert(loadPayload).select().single()
   )
   if (loadErr) throw loadErr
-  // 2. Batch-insert stops with the returned load ID
   if (stops && stops.length > 0) {
     const stopsToInsert = stops.map((s, i) => ({
       load_id: newLoad.id,
       sequence: s.sequence ?? i + 1,
-      type: s.type || 'pickup',
+      type: s.type === 'dropoff' ? 'dropoff' : 'pickup',
       city: s.city || '',
       address: s.address || null,
-      state: s.state || null,
-      zip_code: s.zip_code || null,
-      scheduled_time: s.scheduled_time || null,
-      scheduled_date: s.scheduled_date || null,
+      scheduled_time: s.scheduled_time || s.scheduled_date || null,
       status: s.status || (i === 0 ? 'current' : 'pending'),
-      contact_name: s.contact_name || null,
-      contact_phone: s.contact_phone || null,
-      reference_number: s.reference_number || null,
-      notes: s.notes || null,
     }))
     const { data: newStops, error: stopsErr } = await safeMutate('createLoadStops',
       supabase.from('load_stops').insert(stopsToInsert).select()

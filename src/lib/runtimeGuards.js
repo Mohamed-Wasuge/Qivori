@@ -162,12 +162,13 @@ export function validateFinancialCalc(value, label = 'financial value') {
 const STATUS_PIPELINE = [
   'Rate Con Received',
   'Assigned to Driver',
-  'En Route to Pickup',
-  'Loaded',
+  'Dispatched',
+  'At Pickup',
   'In Transit',
+  'At Delivery',
   'Delivered',
   'Invoiced',
-  'Paid',
+  'Cancelled',
 ];
 
 const STATUS_INDEX = Object.fromEntries(
@@ -200,6 +201,9 @@ export function validateStatusTransition(currentStatus, newStatus) {
   // Same status — no-op, always allowed
   if (curIdx === newIdx) return;
 
+  // Cancellation is allowed from any in-flight state.
+  if (newStatus === 'Cancelled') return;
+
   // Forward: allow advancing by 1 or 2 steps
   if (newIdx > curIdx) {
     const jump = newIdx - curIdx;
@@ -226,10 +230,10 @@ export function validateStatusTransition(currentStatus, newStatus) {
 // ---------------------------------------------------------------------------
 
 const REQUIRED_FIELDS = {
-  loads: ['owner_id', 'status'],
+  loads: ['owner_id', 'load_number', 'origin', 'destination', 'status'],
   invoices: ['owner_id', 'load_id', 'amount'],
   expenses: ['owner_id', 'amount', 'category'],
-  drivers: ['owner_id', 'name', 'pay_model', 'pay_rate'],
+  drivers: ['owner_id', 'full_name'],
   vehicles: ['owner_id', 'unit_number'],
 };
 

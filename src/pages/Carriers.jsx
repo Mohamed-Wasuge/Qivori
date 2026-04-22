@@ -112,9 +112,9 @@ export default function Carriers() {
     setCompanies(compRes.data || [])
     setMembers(memRes.data || [])
     setAllProfiles(profRes.data || [])
-    const { data: loads } = await supabase.from('loads').select('user_id')
+    const { data: loads } = await supabase.from('loads').select('owner_id')
     const counts = {}
-    ;(loads || []).forEach(l => { counts[l.user_id] = (counts[l.user_id] || 0) + 1 })
+    ;(loads || []).forEach(l => { counts[l.owner_id] = (counts[l.owner_id] || 0) + 1 })
     setLoadCounts(counts)
     setLoading(false)
   }, [])
@@ -389,7 +389,7 @@ export default function Carriers() {
     setDrawerLoading(true)
     const [auditRes, loadsRes] = await Promise.all([
       carrier.company.id !== '__legacy__' ? supabase.from('admin_audit_log').select('*').eq('company_id', carrier.company.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
-      carrier.owner?.id ? supabase.from('loads').select('load_id, origin, destination, rate, gross_pay, status, created_at').eq('user_id', carrier.owner.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
+      carrier.owner?.id ? supabase.from('loads').select('load_number, origin, destination, gross_pay, rate_per_mile, status, created_at').eq('owner_id', carrier.owner.id).order('created_at', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),
     ])
     setDrawer({ carrier, auditLog: auditRes.data || [], recentLoads: loadsRes.data || [] })
     setDrawerLoading(false)
@@ -1038,13 +1038,13 @@ export default function Carriers() {
               ) : drawer.recentLoads.length === 0 ? (
                 <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>No loads yet</div>
               ) : drawer.recentLoads.map((l, i) => (
-                <div key={l.load_id || i} style={{ padding: '10px 18px', borderBottom: i < drawer.recentLoads.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
+                <div key={l.load_number || i} style={{ padding: '10px 18px', borderBottom: i < drawer.recentLoads.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'background .1s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface2)' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                   <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.load_id || '--'} -- {l.origin || '?'} to {l.destination || '?'}</div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>${Number(l.rate || l.gross_pay || 0).toLocaleString()} -- {l.status || '--'} -- {formatDate(l.created_at)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.load_number || '--'} -- {l.origin || '?'} to {l.destination || '?'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>${Number(l.gross_pay || l.rate_per_mile || 0).toLocaleString()} -- {l.status || '--'} -- {formatDate(l.created_at)}</div>
                   </div>
                 </div>
               ))}

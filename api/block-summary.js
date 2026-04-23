@@ -5,7 +5,7 @@
  *   - gross (sum of shipment rates)
  *   - shipments[] with individual $
  *   - expenses itemized by category
- *   - driver_pay computed from profile.pay_type + pay_value
+ *   - driver_pay computed from company default driver_pay_pct, with legacy profile fallback
  *   - net
  *
  * The mobile BlockDetailScreen + Today card progress bar both read this.
@@ -32,18 +32,33 @@ async function sbGet(path) {
   return res.json()
 }
 
-// Compute driver pay based on profile config.
-// - percent:  pay_value % of gross
-// - per_mile: pay_value $ per mile driven
-// - flat:     pay_value $ per block
-function computeDriverPay(profile, gross, totalMiles) {
-  if (!profile) return 0
-  const type  = profile.pay_type  || 'percent'
-  const value = Number(profile.pay_value || 0)
+// Compute driver pay from the company default saved in Q Mobile Settings first.
+// Profile pay_value is only a legacy fallback because older profiles defaulted to 28.
+function normalizePayType(type) {
+  if (type === 'percentage') return 'percent'
+  if (type === 'flat_rate') return 'flat'
+  return type || 'percent'
+}
+
+function resolveDriverPayConfig(profile, company) {
+  const companyPct = Number(company?.driver_pay_pct || 0)
+  if (companyPct > 0) return { type: 'percent', value: companyPct, source: 'company_default' }
+
+  const profileValue = Number(profile?.pay_value || 0)
+  if (profileValue > 0) {
+    return { type: normalizePayType(profile?.pay_type), value: profileValue, source: 'legacy_profile' }
+  }
+  return null
+}
+
+function computeDriverPay(config, gross, totalMiles) {
+  if (!config) return 0
+  const type = normalizePayType(config.type)
+  const value = Number(config.value || 0)
   if (!value) return 0
-  if (type === 'percent')  return gross * (value / 100)
+  if (type === 'percent') return gross * (value / 100)
   if (type === 'per_mile') return totalMiles * value
-  if (type === 'flat')     return value
+  if (type === 'flat') return value
   return 0
 }
 
@@ -74,11 +89,12 @@ export default async function handler(req) {
       return Response.json({ error: 'Block not found' }, { status: 404, headers: corsHeaders(req) })
     }
 
-    const [shipments, stops, expenses, profile, burn] = await Promise.all([
+    const [shipments, stops, expenses, profile, company, burn] = await Promise.all([
       sbGet(`block_shipments?block_id=eq.${blockId}&order=pickup_stop_index.asc`),
       sbGet(`block_stops?block_id=eq.${blockId}&order=stop_index.asc`),
       sbGet(`expenses?block_id=eq.${blockId}&select=category,amount`),
       sbGet(`profiles?id=eq.${user.id}&select=pay_type,pay_value&limit=1`).then(r => r[0] || null),
+      sbGet(`companies?owner_id=eq.${user.id}&select=driver_pay_pct&limit=1`).then(r => r[0] || null),
       // Daily burn across all fixed costs + dispatch fee % + etc.
       // Captured at carrier onboarding, editable in Settings. Used to
       // prorate fixed costs into every block's P&L.
@@ -143,7 +159,8 @@ export default async function handler(req) {
     const dispatchFeePct = burn ? Number(burn.dispatch_fee_pct || 0) : 0
     const dispatchFee    = gross * (dispatchFeePct / 100)
 
-    const driverPay = computeDriverPay(profile, gross, totalMiles)
+    const driverPayConfig = resolveDriverPayConfig(profile, company)
+    const driverPay = computeDriverPay(driverPayConfig, gross, totalMiles)
     const net = gross - expensesTotal - fixedCosts - driverPay - dispatchFee
 
     return Response.json({
@@ -178,11 +195,9 @@ export default async function handler(req) {
         block_days: blockDays,
         daily_burn: dailyBurn,
 
-        // Driver pay — from profile config (per-driver)
+        // Driver pay — company Settings default, falling back to legacy profile config.
         driver_pay: driverPay,
-        driver_pay_config: profile
-          ? { type: profile.pay_type || 'percent', value: Number(profile.pay_value || 0) }
-          : null,
+        driver_pay_config: driverPayConfig,
 
         // Dispatch fee — only applies when owner dispatches for other drivers
         dispatch_fee: dispatchFee,

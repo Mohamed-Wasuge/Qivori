@@ -57,6 +57,17 @@ const EQUIPMENT_LABEL = { 'Dry Van':'Dry Van', 'Reefer':'Reefer', 'Flatbed':'Fla
 //   2. Header disclaimer: "Loads sourced from..." subtitle below the page title
 // Compact mode still shows the FULL label, never just "123" — partner reviewers
 // must be able to read the attribution at a glance without hovering.
+function timeAgo(iso) {
+  if (!iso) return null
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)  return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
 const LOAD_SOURCES = {
   '123loadboard': { label: '123Loadboard', color: '#3b82f6' },
   'dat':          { label: 'DAT',           color: '#22c55e' },
@@ -631,6 +642,11 @@ export function AILoadBoard() {
                   <span style={{ fontSize:10, color:'var(--muted)' }}><Ic icon={Calendar} /> {l.pickup} · {l.deadhead} mi deadhead</span>
                   <RateBadge rpm={l.rate} equipment={l.equipment} compact />
                 </div>
+                {l.postedAt && (
+                  <div style={{ fontSize:9, color:'var(--muted)', marginTop:3 }}>
+                    Posted {timeAgo(l.postedAt)}
+                  </div>
+                )}
                 <div style={{ marginTop:8 }}>
                   <QVerdictBadge load={l} variant="compact" />
                 </div>
@@ -669,6 +685,11 @@ export function AILoadBoard() {
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Flag} /> {load.delivery}</span>
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Bookmark} /> {load.refNum}</span>
                 <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6 }}><Ic icon={Route} /> {load.deadhead} mi deadhead</span>
+                {load.postedAt && (
+                  <span style={{ fontSize:11, padding:'4px 10px', background:'var(--surface2)', borderRadius:6, color:'var(--muted)' }}>
+                    Posted {timeAgo(load.postedAt)}
+                  </span>
+                )}
                 <SourceBadge source={load.source} />
               </div>
             </div>

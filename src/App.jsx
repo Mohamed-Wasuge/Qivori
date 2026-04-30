@@ -122,6 +122,67 @@ const PAGES = {
   'carrier-clearinghouse':CarrierClearinghouse,
 }
 
+function ResetPasswordView() {
+  const { goToLogin } = useApp()
+  const [pw, setPw] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+  const [err, setErr] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setErr('')
+    if (pw.length < 8) { setErr('Password must be at least 8 characters.'); return }
+    if (pw !== confirm) { setErr('Passwords do not match.'); return }
+    setSaving(true)
+    const { supabase } = await import('./lib/supabase')
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    setSaving(false)
+    if (error) { setErr(error.message); return }
+    setDone(true)
+    setTimeout(() => goToLogin(), 2500)
+  }
+
+  return (
+    <div style={{ width:'100%', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg)', padding:24, boxSizing:'border-box' }}>
+      <div style={{ width:'100%', maxWidth:400 }}>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:28, letterSpacing:3, marginBottom:8 }}>
+          QI<span style={{ color:'var(--accent)' }}>VORI</span> AI
+        </div>
+        <div style={{ fontSize:20, fontWeight:700, marginBottom:4 }}>Set a new password</div>
+        <div style={{ fontSize:13, color:'var(--muted)', marginBottom:28 }}>Choose a strong password to secure your account.</div>
+
+        {done ? (
+          <div style={{ padding:20, background:'rgba(0,212,170,0.08)', border:'1px solid rgba(0,212,170,0.3)', borderRadius:12, textAlign:'center', color:'var(--success)', fontWeight:600 }}>
+            Password updated! Redirecting to login...
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>New Password</label>
+              <input type="password" value={pw} onChange={e => setPw(e.target.value)} required autoFocus
+                style={{ width:'100%', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, outline:'none', boxSizing:'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>Confirm Password</label>
+              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required
+                style={{ width:'100%', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px', color:'var(--text)', fontSize:14, outline:'none', boxSizing:'border-box' }} />
+            </div>
+            {err && <div style={{ fontSize:12, color:'#ef4444', padding:'8px 12px', background:'rgba(239,68,68,0.08)', borderRadius:8 }}>{err}</div>}
+            <button type="submit" className="btn btn-primary" disabled={saving} style={{ padding:'13px', fontSize:14, marginTop:4 }}>
+              {saving ? 'Saving...' : 'Set New Password'}
+            </button>
+            <button type="button" onClick={goToLogin} style={{ background:'none', border:'none', color:'var(--muted)', fontSize:12, cursor:'pointer', padding:0 }}>
+              Back to login
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const LoadingFallback = () => (
   <div style={{ width: '100%', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
     <div style={{ textAlign: 'center' }}>
@@ -368,6 +429,9 @@ function AppContent() {
 
         {/* Login View */}
         {view === 'login' && !urlMockup && <LoginPage />}
+
+        {/* Password Reset View — triggered by recovery email link */}
+        {view === 'reset-password' && <ResetPasswordView />}
 
         {/* Carrier â mobile gets AI chat, desktop gets full TMS */}
         {/* Mockup preview — qivori.com/#mockup, no login required */}

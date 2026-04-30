@@ -93,7 +93,7 @@ export const ROLES = {
 }
 
 export function AppProvider({ children }) {
-  const [view, setView] = useState('landing') // 'landing' | 'login' | 'app'
+  const [view, setView] = useState('landing') // 'landing' | 'login' | 'app' | 'reset-password'
   const [currentRole, setCurrentRole] = useState('admin')
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -263,7 +263,11 @@ export function AppProvider({ children }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
+      if (event === 'PASSWORD_RECOVERY') {
+        setUser(session?.user || null)
+        setView('reset-password')
+        setAuthLoading(false)
+      } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
         setCompanyRole(null)

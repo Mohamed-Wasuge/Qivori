@@ -11,18 +11,16 @@ export const LB_PROVIDERS = [
   {
     id: 'dat',
     name: 'DAT Load Board',
-    desc: 'Premium freight marketplace — 500M+ loads/year. Requires DAT API partnership.',
-    fields: [
-      { key: 'clientId', label: 'Client ID', placeholder: 'Your DAT API Client ID' },
-      { key: 'clientSecret', label: 'Client Secret', placeholder: 'Your DAT API Client Secret' },
-    ],
+    desc: 'Premium freight marketplace — 500M+ loads/year.',
+    fields: [],
+    oauthOnly: true,
     color: '#22c55e',
     signupUrl: 'https://developer.dat.com',
   },
   {
     id: '123loadboard',
     name: '123Loadboard',
-    desc: 'Affordable load board with API access — great for small fleets. $200-500/mo.',
+    desc: 'Affordable load board with API access — great for small fleets.',
     fields: [],
     oauthOnly: true,
     color: '#3b82f6',
@@ -32,10 +30,8 @@ export const LB_PROVIDERS = [
     id: 'truckstop',
     name: 'Truckstop.com',
     desc: 'Full-service load board with rate intelligence and carrier tools.',
-    fields: [
-      { key: 'clientId', label: 'Client ID', placeholder: 'Your Truckstop Client ID' },
-      { key: 'clientSecret', label: 'Client Secret', placeholder: 'Your Truckstop Client Secret' },
-    ],
+    fields: [],
+    oauthOnly: true,
     color: '#f0a500',
     signupUrl: 'https://truckstop.com',
   },
@@ -195,53 +191,23 @@ export function LoadBoardSettings() {
               {isExpanded && (
                 <div style={{ padding:'0 20px 20px', borderTop:'1px solid var(--border)' }}>
                   <div style={{ paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
-                    {prov.id === '123loadboard' && (
-                      <div style={{ background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:'var(--success)', display:'flex', alignItems:'center', gap:6 }}>
-                          <Ic icon={CheckCircle} size={13} color="var(--success)" /> Connected via Q Platform
-                        </div>
-                        <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
-                          123Loadboard is connected through Qivori's platform account. Loads are fetched automatically — no setup required on your end.
-                        </div>
+                    <div style={{ background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'var(--success)', display:'flex', alignItems:'center', gap:6 }}>
+                        <Ic icon={CheckCircle} size={13} color="var(--success)" /> Connected via Q Platform
                       </div>
-                    )}
-                    {!prov.oauthOnly && prov.fields.map(f => (
-                      <div key={f.key}>
-                        <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
-                        <input
-                          type="password"
-                          value={creds[f.key] || ''}
-                          onChange={e => setCredentials(prev => ({ ...prev, [prov.id]: { ...prev[prov.id], [f.key]: e.target.value } }))}
-                          placeholder={f.placeholder}
-                          style={{ width:'100%', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', color:'var(--text)', fontSize:13, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }}
-                        />
+                      <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+                        {prov.name} is connected through Qivori's platform account. Loads are fetched automatically — no credentials required on your end.
                       </div>
-                    ))}
+                    </div>
                     <div style={{ fontSize:10, color:'var(--muted)' }}>
                       Don't have an account? <a href={prov.signupUrl} target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent3)', textDecoration:'none' }}>Sign up at {prov.signupUrl} {'\u2192'}</a>
                     </div>
                     <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                      {!prov.oauthOnly && (
-                        <button className="btn btn-primary" style={{ fontSize:12, padding:'9px 20px' }}
-                          disabled={isSaving || !prov.fields.every(f => creds[f.key])}
-                          onClick={() => saveCredentials(prov.id)}>
-                          {isSaving ? 'Saving...' : isConnected ? 'Update & Test' : 'Connect & Test'}
+                      {isConnected && !isPlatformManaged && (
+                        <button className="btn btn-ghost" style={{ fontSize:12, color:'#ef4444' }}
+                          onClick={() => disconnect(prov.id)}>
+                          Disconnect
                         </button>
-                      )}
-                      {isConnected && (
-                        <>
-                          {!prov.oauthOnly && (
-                            <button className="btn btn-ghost" style={{ fontSize:12 }}
-                              disabled={isTesting}
-                              onClick={() => testConnection(prov.id)}>
-                              {isTesting ? 'Testing...' : 'Test Connection'}
-                            </button>
-                          )}
-                          <button className="btn btn-ghost" style={{ fontSize:12, color:'#ef4444' }}
-                            onClick={() => disconnect(prov.id)}>
-                            Disconnect
-                          </button>
-                        </>
                       )}
                     </div>
                     {conn?.last_tested && (

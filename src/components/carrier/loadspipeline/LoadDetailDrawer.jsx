@@ -676,6 +676,41 @@ export function LoadDetailDrawer({ loadId, onClose }) {
             </div>
           </div>
 
+          {/* ═══ BROKER CONTACT ═══════════════════════════════════ */}
+          {(load.broker || load.broker_name || load.broker_phone || load.broker_email) && (
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'var(--muted)', marginBottom:12, textTransform:'uppercase', letterSpacing:1 }}>Broker Contact</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {(load.broker || load.broker_name) && (
+                  <div>
+                    <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>Company</div>
+                    <div style={{ fontSize:13, fontWeight:700 }}>{load.broker || load.broker_name}</div>
+                  </div>
+                )}
+                {load.broker_contact && (
+                  <div>
+                    <div style={{ fontSize:10, color:'var(--muted)', marginBottom:2 }}>Contact</div>
+                    <div style={{ fontSize:13, fontWeight:600 }}>{load.broker_contact}</div>
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {load.broker_phone && (
+                    <a href={`tel:${load.broker_phone}`}
+                      style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'var(--accent)', background:'rgba(240,165,0,0.08)', border:'1px solid rgba(240,165,0,0.2)', borderRadius:8, padding:'6px 12px', textDecoration:'none' }}>
+                      📞 {load.broker_phone}
+                    </a>
+                  )}
+                  {load.broker_email && (
+                    <a href={`mailto:${load.broker_email}`}
+                      style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'var(--accent3)', background:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:8, padding:'6px 12px', textDecoration:'none' }}>
+                      ✉ {load.broker_email}
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ═══ STOPS TIMELINE ═══════════════════════════════════ */}
           {(() => {
             const stops = load.stops || load.load_stops

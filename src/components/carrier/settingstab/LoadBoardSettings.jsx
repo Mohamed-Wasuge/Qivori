@@ -150,12 +150,11 @@ export function LoadBoardSettings() {
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         {LB_PROVIDERS.map(prov => {
           const conn = connections[prov.id]
-          const isPlatformManaged = prov.id === '123loadboard'
-          const isConnected = conn?.status === 'connected' || isPlatformManaged
+          // 123LB: carrier connects via their own account (OAuth). DAT/Truckstop: platform-managed (need partner approval).
+          const isOAuth = prov.id === '123loadboard'
+          const isPlatformManaged = !isOAuth
+          const isConnected = conn?.status === 'connected'
           const isExpanded = expanded === prov.id
-          const creds = credentials[prov.id] || {}
-          const isSaving = saving === prov.id
-          const isTesting = testing === prov.id
 
           return (
             <div key={prov.id} style={{ background:'var(--surface)', border:`1px solid ${isConnected ? prov.color + '40' : 'var(--border)'}`, borderRadius:12, overflow:'hidden' }}>
@@ -187,29 +186,49 @@ export function LoadBoardSettings() {
                 <Ic icon={isExpanded ? ChevronLeft : Plus} size={16} color="var(--muted)" style={{ transform: isExpanded ? 'rotate(-90deg)' : 'none', transition:'transform 0.2s' }} />
               </div>
 
-              {/* Expanded credential form */}
+              {/* Expanded panel */}
               {isExpanded && (
                 <div style={{ padding:'0 20px 20px', borderTop:'1px solid var(--border)' }}>
                   <div style={{ paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
-                    <div style={{ background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
-                      <div style={{ fontSize:12, fontWeight:700, color:'var(--success)', display:'flex', alignItems:'center', gap:6 }}>
-                        <Ic icon={CheckCircle} size={13} color="var(--success)" /> Connected via Q Platform
+                    {isPlatformManaged ? (
+                      <div style={{ background:'rgba(107,117,144,0.06)', border:'1px solid rgba(107,117,144,0.2)', borderRadius:10, padding:'14px 16px', fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+                        {prov.name} access is managed at the platform level — no setup required. Loads from this board will appear automatically in your load search results.
                       </div>
-                      <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
-                        {prov.name} is connected through Qivori's platform account. Loads are fetched automatically — no credentials required on your end.
+                    ) : isConnected ? (
+                      <div style={{ background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'var(--success)', display:'flex', alignItems:'center', gap:6 }}>
+                          <Ic icon={CheckCircle} size={13} color="var(--success)" /> Connected
+                        </div>
+                        <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.5 }}>
+                          Your 123Loadboard account is linked. Loads are fetched automatically.
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.6 }}>
+                        Connect your 123Loadboard account — you'll be redirected to log in, then brought back here automatically. No passwords stored in Qivori.
+                      </div>
+                    )}
+
                     <div style={{ fontSize:10, color:'var(--muted)' }}>
                       Don't have an account? <a href={prov.signupUrl} target="_blank" rel="noopener noreferrer" style={{ color:'var(--accent3)', textDecoration:'none' }}>Sign up at {prov.signupUrl} {'\u2192'}</a>
                     </div>
+
                     <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                      {isConnected && !isPlatformManaged && (
+                      {isOAuth && !isConnected && (
+                        <a href={`/api/123lb-callback?userId=${user?.id}`}
+                          className="btn btn-primary"
+                          style={{ fontSize:12, padding:'9px 20px', textDecoration:'none' }}>
+                          Connect 123Loadboard Account
+                        </a>
+                      )}
+                      {isOAuth && isConnected && (
                         <button className="btn btn-ghost" style={{ fontSize:12, color:'#ef4444' }}
                           onClick={() => disconnect(prov.id)}>
                           Disconnect
                         </button>
                       )}
                     </div>
+
                     {conn?.last_tested && (
                       <div style={{ fontSize:10, color:'var(--muted)' }}>
                         Last tested: {new Date(conn.last_tested).toLocaleString()}

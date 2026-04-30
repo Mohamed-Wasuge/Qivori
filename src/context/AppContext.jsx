@@ -429,7 +429,7 @@ export function AppProvider({ children }) {
   // Password reset
   const resetPassword = useCallback(async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/?reset=true',
+      redirectTo: window.location.origin,
     })
     if (error) return { error: error.message }
     return { ok: true }

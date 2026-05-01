@@ -4,9 +4,18 @@ dist
 *.local
 .env
 .env.*
+.env.local
+.env.production
+.env.development
 backups/
 .vercel
 coverage/
 # build artifacts
 .env*.local
 .claude/
+# secrets & keys
+*.pem
+*.key
+serviceAccountKey.json
+*secret*
+*credentials*.json

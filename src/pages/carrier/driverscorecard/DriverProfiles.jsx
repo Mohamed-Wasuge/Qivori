@@ -73,11 +73,12 @@ export function DriverProfiles() {
     const mtdGross = mtdLoads.reduce((s,l) => s + (l.gross || 0), 0)
     const mtdMiles = mtdLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
     const payModel = d.pay_model || 'percent'
-    const payRate = parseFloat(d.pay_rate) || 50
+    const payRate = parseFloat(d.pay_rate) || 28
     const mtdPay = payModel === 'permile' ? Math.round(mtdMiles * payRate) : payModel === 'flat' ? Math.round(payRate * mtdLoads.length) : Math.round(mtdGross * (payRate / 100))
 
     return {
-      id: d.id, name: d.full_name || '', avatar: (d.full_name || '').split(' ').map(w => w[0]).join('').slice(0,2),
+      id: d.id, name: d.full_name || '', photo_url: d.photo_url || null,
+      avatar: (d.full_name || '').split(' ').map(w => w[0]).join('').slice(0,2),
       phone: d.phone || '', email: d.email || '',
       hired: d.hire_date ? new Date(d.hire_date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
       cdl: d.license_number || '', cdlClass: 'Class A', cdlExpiry: d.license_expiry ? new Date(d.license_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
@@ -167,7 +168,9 @@ export function DriverProfiles() {
   }
 
   const expiryColor = (expiry) => {
+    if (!expiry) return 'var(--muted)'
     const months = (new Date(expiry) - new Date()) / (1000 * 60 * 60 * 24 * 30)
+    if (isNaN(months)) return 'var(--muted)'
     return months < 3 ? 'var(--danger)' : months < 6 ? 'var(--warning)' : 'var(--success)'
   }
   const statusColor = { Active: 'var(--success)', Available: 'var(--accent2)', 'Off Duty': 'var(--muted)' }
@@ -312,7 +315,10 @@ export function DriverProfiles() {
               style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderLeft: `3px solid ${isSel ? 'var(--accent)' : 'transparent'}`, background: isSel ? 'rgba(240,165,0,0.05)' : 'transparent', transition: 'all 0.15s' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ position:'relative', flexShrink:0 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: isSel ? 'var(--accent)' : 'var(--surface2)', color: isSel ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>{dr?.avatar || '?'}</div>
+                  {dr.photo_url
+                    ? <img src={dr.photo_url} alt={dr.name} style={{ width:34, height:34, borderRadius:'50%', objectFit:'cover', border:`2px solid ${isSel ? 'var(--accent)' : 'var(--border)'}` }} />
+                    : <div style={{ width: 34, height: 34, borderRadius: '50%', background: isSel ? 'var(--accent)' : 'var(--surface2)', color: isSel ? '#000' : 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>{dr?.avatar || '?'}</div>
+                  }
                   {/* Live status dot */}
                   {qStatus && <div style={{ position:'absolute', bottom:-1, right:-1, width:9, height:9, borderRadius:'50%', background:qStatus.color, border:'2px solid var(--surface)', boxShadow: qr?.status==='MOVING' ? `0 0 6px ${qStatus.color}` : 'none' }} />}
                 </div>
@@ -361,7 +367,10 @@ export function DriverProfiles() {
         {/* Header — Q enhanced */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <div style={{ position:'relative' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>{d?.avatar || '?'}</div>
+            {d.photo_url
+              ? <img src={d.photo_url} alt={d.name} style={{ width:64, height:64, borderRadius:'50%', objectFit:'cover', border:'2px solid var(--accent)' }} />
+              : <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>{d?.avatar || '?'}</div>
+            }
             {d.qResult && (() => {
               const qs = Q_STATUS_COLORS[d.qResult.status]
               return qs ? <div style={{ position:'absolute', bottom:0, right:0, width:14, height:14, borderRadius:'50%', background:qs.color, border:'3px solid var(--bg)', boxShadow: d.qResult.status==='MOVING' ? `0 0 8px ${qs.color}` : 'none' }} /> : null
@@ -545,11 +554,11 @@ export function DriverProfiles() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}><Ic icon={FileCheck} /> License & Compliance</div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
-                { label: 'CDL Number',     value: d.cdl, color: 'var(--text)' },
+                { label: 'CDL Number',     value: d.cdl || '—', color: d.cdl ? 'var(--text)' : 'var(--muted)' },
                 { label: 'CDL Class',      value: d.cdlClass, color: 'var(--text)' },
-                { label: 'CDL Expiry',     value: d.cdlExpiry, color: expiryColor(d.cdlExpiry) },
-                { label: 'Medical Card',   value: d.medCard, color: expiryColor(d.medCard) },
-                { label: 'HOS Remaining',  value: d.hos, color: d.hos === 'Restart' ? 'var(--warning)' : 'var(--success)' },
+                { label: 'CDL Expiry',     value: d.cdlExpiry || '—', color: expiryColor(d.cdlExpiry) },
+                { label: 'Medical Card',   value: d.medCard || '—', color: expiryColor(d.medCard) },
+                { label: 'HOS Remaining',  value: 'Via ELD sync', color: 'var(--muted)' },
                 { label: 'Pay Model',      value: d.payModel, color: 'var(--accent2)' },
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>

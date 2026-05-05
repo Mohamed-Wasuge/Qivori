@@ -12,17 +12,22 @@ export function qEvaluateDriver(driver, { loads, activeLoads, expenses, fuelCost
     : 'IDLE'
 
   // Performance metrics
+  const fuelRate = fuelCostPerMile || 0.55
   const totalGross = deliveredLoads.reduce((s,l) => s + (l.gross || 0), 0)
   const totalMiles = deliveredLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
+  const totalFuelCost = totalMiles * fuelRate
+  const totalNetProfit = totalGross - totalFuelCost
   const loadCount = deliveredLoads.length
-  const profitPerLoad = loadCount > 0 ? Math.round(totalGross / loadCount) : 0
+  const profitPerLoad = loadCount > 0 ? Math.round(totalNetProfit / loadCount) : 0
 
-  // Profit per day (based on last 30 days of activity)
+  // Profit per day (based on last 30 days of activity, after fuel)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000)
   const recentLoads = deliveredLoads.filter(l => new Date(l.delivery_date || l.created_at || 0) > thirtyDaysAgo)
   const recentGross = recentLoads.reduce((s,l) => s + (l.gross || 0), 0)
+  const recentMiles = recentLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
+  const recentNetProfit = recentGross - (recentMiles * fuelRate)
   const activeDays = Math.max(recentLoads.length * 1.5, 1) // estimate transit days
-  const profitPerDay = Math.round(recentGross / activeDays)
+  const profitPerDay = Math.round(recentNetProfit / activeDays)
 
   // On-time proxy (based on status progression speed)
   const rpm = totalMiles > 0 ? totalGross / totalMiles : 0
@@ -34,8 +39,8 @@ export function qEvaluateDriver(driver, { loads, activeLoads, expenses, fuelCost
   if (rpm >= 2.5 && loadCount >= 3 && profitPerDay >= 400) { efficiency = 'High'; effColor = 'var(--success)' }
   else if (rpm < 1.8 || (loadCount >= 3 && profitPerDay < 200)) { efficiency = 'Underperforming'; effColor = 'var(--danger)' }
 
-  // Preferred weight (from driver notes or default)
-  const prefWeight = 37000
+  // Preferred weight — read from driver record, fall back to average of historical loads
+  const prefWeight = parseFloat(driver.preferred_weight) || 37000
   const avgWeight = deliveredLoads.filter(l => l.weight > 0).length > 0
     ? deliveredLoads.filter(l => l.weight > 0).reduce((s,l) => s + parseFloat(l.weight), 0) / deliveredLoads.filter(l => l.weight > 0).length
     : 0

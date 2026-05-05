@@ -160,13 +160,15 @@ export function DriverOnboarding() {
     setIdFile(null)
     setIdPreview(null)
 
-    // Auto-send consent email + start phase 1 checks
+    // Auto-send consent email
     if (newDriver.email) {
       try {
         const { startOnboarding } = await import('../../../lib/onboarding')
         await startOnboarding(newDriver)
         showToast('success', 'Consent Email Sent', `Sent to ${newDriver.email}`)
-      } catch (err) { /* Auto-onboard pending setup */ }
+      } catch (err) {
+        showToast('', 'Driver Added', `Consent email not configured — send manually to ${newDriver.email}`)
+      }
     }
 
     const driverName = newDriver.name

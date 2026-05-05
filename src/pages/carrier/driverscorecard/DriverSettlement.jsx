@@ -60,6 +60,13 @@ export function DriverSettlement() {
   const driverAvatar = driverName.split(' ').map(w => w[0]).join('')
   const model = models[activeDriver] || driver.pay_model || 'percent'
   const modelVal = modelVals[activeDriver] ?? parseFloat(driver.pay_rate) ?? 28
+
+  const settlementPeriod = (() => {
+    const now = new Date()
+    const month = now.toLocaleDateString('en-US', { month: 'short' })
+    const week = Math.ceil(now.getDate() / 7)
+    return `${month} W${week}`
+  })()
   const driverDeductions = deductions[activeDriver] || []
   const fuelRate = fuelCostPerMile || 0.55
 
@@ -144,7 +151,7 @@ export function DriverSettlement() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div>
               <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 22, letterSpacing: 2 }}>DRIVER SETTLEMENT STATEMENT</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Qivori TMS · Period: Mar W2 · Generated {new Date().toLocaleDateString()}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Qivori TMS · Period: {settlementPeriod} · Generated {new Date().toLocaleDateString()}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>{driverName}</div>
@@ -168,7 +175,10 @@ export function DriverSettlement() {
               {(driverDeductions || []).map(d => (
                 <tr key={d.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td colSpan={4} style={{ padding: '10px 12px', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>{d.label}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, color: d.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>{d.amount < 0 ? '−' : '+'}${Math.abs(d.amount).toLocaleString()}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, color: d.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                  <span style={{ fontSize:9, fontWeight:700, marginRight:4, opacity:0.7 }}>{d.amount < 0 ? 'DEDUCTION' : 'REIMBURSE'}</span>
+                  {d.amount < 0 ? '−' : '+'}${Math.abs(d.amount).toLocaleString()}
+                </td>
                 </tr>
               ))}
             </tbody>
@@ -190,7 +200,7 @@ export function DriverSettlement() {
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button className="btn btn-primary" style={{ flex: 1, padding: '11px 0' }} onClick={() => setPayConfirm({ method: 'fastpay' })} disabled={payProcessing || netPay <= 0}><Ic icon={Zap} /> FastPay — 2.5% fee · 24hr deposit</button>
             <button className="btn btn-ghost" style={{ flex: 1, padding: '11px 0' }} onClick={() => setPayConfirm({ method: 'ach' })} disabled={payProcessing || netPay <= 0}><Ic icon={Briefcase} /> Standard ACH — 1–3 days · Free</button>
-            <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={() => generateSettlementPDF(driverName, mergedLoads, 'Mar 1–15, 2026')} title="Download Settlement PDF"><Ic icon={Download} /> PDF</button>
+            <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={() => generateSettlementPDF(driverName, mergedLoads, settlementPeriod)} title="Download Settlement PDF"><Ic icon={Download} /> PDF</button>
           </div>
         </div>
       )}
@@ -255,8 +265,11 @@ export function DriverSettlement() {
             {(driverDeductions || []).map(d => (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'var(--surface2)', borderRadius: 8 }}>
                 <div style={{ flex: 1, fontSize: 13 }}>{d.label}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue',sans-serif", color: d.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>
-                  {d.amount < 0 ? '−' : '+'}${Math.abs(d.amount).toLocaleString()}
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:8, fontWeight:700, color: d.amount < 0 ? 'var(--danger)' : 'var(--success)', opacity:0.7, letterSpacing:0.5 }}>{d.amount < 0 ? 'DEDUCTION' : 'REIMBURSEMENT'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Bebas Neue',sans-serif", color: d.amount < 0 ? 'var(--danger)' : 'var(--success)' }}>
+                    {d.amount < 0 ? '−' : '+'}${Math.abs(d.amount).toLocaleString()}
+                  </div>
                 </div>
                 <button onClick={() => removeDeduction(d.id)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}>✕</button>
               </div>

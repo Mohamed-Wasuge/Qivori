@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Ic } from '../shared'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
+import { uploadFile } from '../../../lib/storage'
 import {
   Zap, Send, Check, AlertTriangle, Bot, Sparkles, FileText, Activity, CreditCard,
-  AlertCircle, Paperclip
+  AlertCircle, Paperclip, Upload, X
 } from 'lucide-react'
 
 const PE_STATUS_META = {
@@ -27,6 +28,16 @@ export function DriverOnboarding() {
   const [showAdd, setShowAdd] = useState(false)
   const [newDriver, setNewDriver] = useState({ name:'', cdl:'CDL-A', cdlNum:'', phone:'', email:'', dob:'', state:'' })
   const [ordering, setOrdering] = useState(false)
+  const [idFile, setIdFile] = useState(null)
+  const [idPreview, setIdPreview] = useState(null)
+  const [idDragging, setIdDragging] = useState(false)
+  const idInputRef = useRef(null)
+
+  const handleIdFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setIdFile(file)
+    setIdPreview(URL.createObjectURL(file))
+  }
 
   const driver = drivers.find(d => d.id === selected)
 
@@ -123,6 +134,14 @@ export function DriverOnboarding() {
     }])
     setSelected(id)
     setShowAdd(false)
+    // Upload ID photo first if provided
+    let idPhotoUrl = null
+    if (idFile) {
+      try {
+        const result = await uploadFile(idFile, 'driver-ids')
+        idPhotoUrl = result.url
+      } catch (err) { /* ID upload failed — non-blocking */ }
+    }
     // Save to Supabase
     try {
       await dbAddDriver({
@@ -135,8 +154,11 @@ export function DriverOnboarding() {
         hire_date: new Date().toISOString().split('T')[0],
         pay_model: newDriver.pay_model || 'percent',
         pay_rate: newDriver.pay_rate ? parseFloat(newDriver.pay_rate) : null,
+        ...(idPhotoUrl && { photo_url: idPhotoUrl }),
       })
     } catch (err) { /* DB save failed — handled silently */ }
+    setIdFile(null)
+    setIdPreview(null)
 
     // Auto-send consent email + start phase 1 checks
     if (newDriver.email) {
@@ -221,6 +243,31 @@ export function DriverOnboarding() {
                   placeholder={newDriver.pay_model === 'permile' ? '0.50' : newDriver.pay_model === 'flat' ? '500' : 'e.g. 28'}
                   style={inp} />
               </div>
+            </div>
+            {/* ID Photo Upload */}
+            <div style={{ gridColumn:'span 2', marginBottom:10 }}>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>Government ID Photo <span style={{ color:'var(--accent3)' }}>(optional — used as driver photo)</span></label>
+              <input ref={idInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleIdFile(e.target.files[0])} />
+              {idPreview ? (
+                <div style={{ position:'relative', display:'inline-block' }}>
+                  <img src={idPreview} alt="ID" style={{ width:'100%', maxHeight:140, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
+                  <button onClick={() => { setIdFile(null); setIdPreview(null) }}
+                    style={{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:24, height:24, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Ic icon={X} size={12} />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onDragOver={e => { e.preventDefault(); setIdDragging(true) }}
+                  onDragLeave={() => setIdDragging(false)}
+                  onDrop={e => { e.preventDefault(); setIdDragging(false); handleIdFile(e.dataTransfer.files[0]) }}
+                  onClick={() => idInputRef.current?.click()}
+                  style={{ border:`2px dashed ${idDragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:8, padding:'20px 16px', textAlign:'center', cursor:'pointer', background: idDragging ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
+                  <Ic icon={Upload} size={20} style={{ color:'var(--muted)', marginBottom:6 }} />
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>Drop ID photo here or <span style={{ color:'var(--accent)' }}>click to upload</span></div>
+                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:4 }}>Driver's license, passport, or state ID</div>
+                </div>
+              )}
             </div>
             <div style={{ fontSize:11, color:'var(--muted)', marginBottom:16, padding:'10px 14px', background:'rgba(77,142,240,0.08)', borderRadius:8, border:'1px solid rgba(77,142,240,0.15)' }}>
               ℹ A written consent form will be sent to the driver's email before drug testing and background checks are ordered.

@@ -24,12 +24,12 @@ describe('WORKFLOW: Full Load Lifecycle', () => {
   const PIPELINE = [
     'Rate Con Received',
     'Assigned to Driver',
-    'En Route to Pickup',
-    'Loaded',
+    'Dispatched',
+    'At Pickup',
     'In Transit',
+    'At Delivery',
     'Delivered',
     'Invoiced',
-    'Paid',
   ]
 
   it('walks the entire pipeline step by step without errors', () => {
@@ -54,6 +54,9 @@ describe('WORKFLOW: Full Load Lifecycle', () => {
   it('validates the load data before DB write at creation', () => {
     const loadPayload = {
       owner_id: 'user-uuid-123',
+      load_number: 'QV-0001',
+      origin: 'Chicago, IL',
+      destination: 'Dallas, TX',
       status: 'Rate Con Received',
     }
     expect(() => guardedUpdate('loads', loadPayload, 'createLoad')).not.toThrow()
@@ -349,12 +352,12 @@ describe('WORKFLOW: Boundary Value Testing', () => {
     expect(() => validateDriverPay('permile', 2.01, 5000, 1000)).toThrow('out of range')
   })
 
-  it('allows 2-step jump (Rate Con → En Route)', () => {
-    expect(() => validateStatusTransition('Rate Con Received', 'En Route to Pickup')).not.toThrow()
+  it('allows 2-step jump (Rate Con → Dispatched)', () => {
+    expect(() => validateStatusTransition('Rate Con Received', 'Dispatched')).not.toThrow()
   })
 
-  it('rejects 3-step jump (Rate Con → Loaded)', () => {
-    expect(() => validateStatusTransition('Rate Con Received', 'Loaded')).toThrow('skipping')
+  it('rejects 3-step jump (Rate Con → In Transit)', () => {
+    expect(() => validateStatusTransition('Rate Con Received', 'In Transit')).toThrow('skipping')
   })
 })
 
@@ -368,12 +371,11 @@ describe('WORKFLOW: Compound Attack Prevention', () => {
   })
 
   it('prevents status manipulation to skip invoicing', () => {
-    // Attempt: Delivered → Paid (skip Invoiced)
-    // This is a 2-step jump which is allowed by pipeline rules
-    expect(() => validateStatusTransition('Delivered', 'Paid')).not.toThrow()
+    // Delivered → Invoiced is a valid 1-step forward
+    expect(() => validateStatusTransition('Delivered', 'Invoiced')).not.toThrow()
 
-    // But: In Transit → Paid (skip Delivered + Invoiced = 3 steps)
-    expect(() => validateStatusTransition('In Transit', 'Paid')).toThrow('skipping')
+    // In Transit → Invoiced skips Delivered (2+ steps) — must throw
+    expect(() => validateStatusTransition('In Transit', 'Invoiced')).toThrow('skipping')
   })
 
   it('prevents driver with corrupt profile from getting paid', () => {
@@ -394,7 +396,7 @@ describe('WORKFLOW: Compound Attack Prevention', () => {
   })
 
   it('end-to-end: valid load through full lifecycle with financials', () => {
-    const loadData = { owner_id: 'u1', status: 'Rate Con Received' }
+    const loadData = { owner_id: 'u1', load_number: 'QV-0001', origin: 'Chicago, IL', destination: 'Dallas, TX', status: 'Rate Con Received' }
     const rate = 3840
     const miles = 1306
     const driverRate = 28 // percent
@@ -404,7 +406,7 @@ describe('WORKFLOW: Compound Attack Prevention', () => {
     expect(() => validateFinancialCalc(rate, 'rate')).not.toThrow()
 
     // 2. Walk pipeline
-    const steps = ['Assigned to Driver', 'En Route to Pickup', 'Loaded', 'In Transit', 'Delivered', 'Invoiced', 'Paid']
+    const steps = ['Assigned to Driver', 'Dispatched', 'At Pickup', 'In Transit', 'At Delivery', 'Delivered', 'Invoiced']
     let current = 'Rate Con Received'
     steps.forEach(next => {
       expect(() => validateStatusTransition(current, next)).not.toThrow()
@@ -427,7 +429,7 @@ describe('WORKFLOW: Compound Attack Prevention', () => {
     expect(() => guardedUpdate('invoices', invoiceData, 'invoice')).not.toThrow()
 
     // 5. Verify final state
-    expect(current).toBe('Paid')
+    expect(current).toBe('Invoiced')
     expect(profit).toBeGreaterThan(0)
   })
 })

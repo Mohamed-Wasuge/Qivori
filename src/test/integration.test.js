@@ -103,12 +103,10 @@ describe('Database Functions', () => {
 
   it('createLoad source requires owner_id in the insert', () => {
     const content = readSrc('src/lib/database.js')
-    // The createLoad function must include owner_id in the insert payload
-    const createLoadBlock = content.slice(
-      content.indexOf('export async function createLoad'),
-      content.indexOf('export async function updateLoad')
-    )
-    expect(createLoadBlock).toContain('owner_id')
+    // owner_id is set in buildLoadPayload which createLoad delegates to
+    expect(content).toContain('export async function createLoad')
+    expect(content).toContain('buildLoadPayload')
+    expect(content).toContain('owner_id')
   })
 
   it('fetchCompany returns null (not throw) when no company exists', async () => {

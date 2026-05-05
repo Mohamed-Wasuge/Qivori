@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { Ic, S } from '../shared'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { apiFetch } from '../../../lib/api'
+import { uploadFile } from '../../../lib/storage'
 import {
   Users, Phone, Send, UserPlus, Activity, Zap, Target, AlertTriangle, Siren,
-  Check, FileCheck, FileText, Edit3 as PencilIcon, Trash2
+  Check, FileCheck, FileText, Edit3 as PencilIcon, Trash2, Upload, X
 } from 'lucide-react'
 import { qEvaluateDriver, qMatchScore, Q_STATUS_COLORS, getQEffIcons } from './helpers'
 
@@ -97,20 +98,40 @@ export function DriverProfiles() {
   const [newD, setNewD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [idFile, setIdFile] = useState(null)
+  const [idPreview, setIdPreview] = useState(null)
+  const [idDragging, setIdDragging] = useState(false)
+  const idInputRef = useRef(null)
   const d = driverList.find(x => x.id === selected) || driverList[0]
+
+  const handleIdFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setIdFile(file)
+    setIdPreview(URL.createObjectURL(file))
+  }
 
   const handleEditDriver = async () => {
     if (!editD.name) { showToast('error', 'Error', 'Name is required'); return }
     setSaving(true)
     try {
+      let photoUrl = null
+      if (idFile) {
+        try {
+          const result = await uploadFile(idFile, 'driver-ids')
+          photoUrl = result.url
+        } catch { /* upload failed — save other fields anyway */ }
+      }
       await editDriver(selected, {
         full_name: editD.name, phone: editD.phone, email: editD.email,
         license_number: editD.license_number, license_state: editD.license_state,
         license_expiry: editD.license_expiry || null, medical_card_expiry: editD.medical_card_expiry || null,
         pay_model: editD.pay_model || 'percent',
         pay_rate: editD.pay_rate ? parseFloat(editD.pay_rate) : null,
+        ...(photoUrl && { photo_url: photoUrl }),
       })
       showToast('success', 'Driver Updated', editD.name + ' updated successfully')
+      setIdFile(null)
+      setIdPreview(null)
       setShowEdit(false)
     } catch (err) {
       showToast('error', 'Error', err.message || 'Failed to update driver')
@@ -252,11 +273,35 @@ export function DriverProfiles() {
                   placeholder={editD.pay_model === 'percent' ? '28' : editD.pay_model === 'permile' ? '0.55' : '500'} style={addInp} />
               </div>
             </div>
-            <div style={{ display:'flex', gap:10, marginTop:18 }}>
+            {/* ID Photo Upload */}
+            <div style={{ marginTop:4 }}>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>ID Photo <span style={{ color:'var(--accent3)' }}>(optional — updates driver avatar)</span></label>
+              <input ref={idInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleIdFile(e.target.files[0])} />
+              {idPreview ? (
+                <div style={{ position:'relative', display:'inline-block', width:'100%' }}>
+                  <img src={idPreview} alt="ID" style={{ width:'100%', maxHeight:120, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
+                  <button onClick={() => { setIdFile(null); setIdPreview(null) }}
+                    style={{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:24, height:24, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onDragOver={e => { e.preventDefault(); setIdDragging(true) }}
+                  onDragLeave={() => setIdDragging(false)}
+                  onDrop={e => { e.preventDefault(); setIdDragging(false); handleIdFile(e.dataTransfer.files[0]) }}
+                  onClick={() => idInputRef.current?.click()}
+                  style={{ border:`2px dashed ${idDragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:8, padding:'16px', textAlign:'center', cursor:'pointer', background: idDragging ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
+                  <Upload size={18} style={{ color:'var(--muted)', marginBottom:4 }} />
+                  <div style={{ fontSize:12, color:'var(--muted)' }}>Drop ID photo or <span style={{ color:'var(--accent)' }}>click to upload</span></div>
+                </div>
+              )}
+            </div>
+            <div style={{ display:'flex', gap:10, marginTop:14 }}>
               <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} onClick={handleEditDriver} disabled={saving || !editD.name}>
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
-              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => setShowEdit(false)}>Cancel</button>
+              <button className="btn btn-ghost" style={{ flex:1, padding:'11px 0' }} onClick={() => { setShowEdit(false); setIdFile(null); setIdPreview(null) }}>Cancel</button>
             </div>
           </div>
         </div>

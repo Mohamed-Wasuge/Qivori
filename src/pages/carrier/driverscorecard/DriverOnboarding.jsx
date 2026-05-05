@@ -28,15 +28,24 @@ export function DriverOnboarding() {
   const [showAdd, setShowAdd] = useState(false)
   const [newDriver, setNewDriver] = useState({ name:'', cdl:'CDL-A', cdlNum:'', phone:'', email:'', dob:'', state:'' })
   const [ordering, setOrdering] = useState(false)
-  const [idFile, setIdFile] = useState(null)
-  const [idPreview, setIdPreview] = useState(null)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
+  const [idDocFile, setIdDocFile] = useState(null)
+  const [idDocPreview, setIdDocPreview] = useState(null)
+  const [photoDragging, setPhotoDragging] = useState(false)
   const [idDragging, setIdDragging] = useState(false)
+  const photoInputRef = useRef(null)
   const idInputRef = useRef(null)
 
-  const handleIdFile = (file) => {
+  const handlePhotoFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return
-    setIdFile(file)
-    setIdPreview(URL.createObjectURL(file))
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+  const handleIdDocFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return
+    setIdDocFile(file)
+    setIdDocPreview(URL.createObjectURL(file))
   }
 
   const driver = drivers.find(d => d.id === selected)
@@ -134,13 +143,13 @@ export function DriverOnboarding() {
     }])
     setSelected(id)
     setShowAdd(false)
-    // Upload ID photo first if provided
-    let idPhotoUrl = null
-    if (idFile) {
-      try {
-        const result = await uploadFile(idFile, 'driver-ids')
-        idPhotoUrl = result.url
-      } catch (err) { /* ID upload failed — non-blocking */ }
+    // Upload profile photo (avatar) and ID doc separately
+    let photoUrl = null
+    if (photoFile) {
+      try { const r = await uploadFile(photoFile, 'driver-photos'); photoUrl = r.url } catch {}
+    }
+    if (idDocFile) {
+      try { await uploadFile(idDocFile, 'driver-ids') } catch {}
     }
     // Save to Supabase
     try {
@@ -154,11 +163,11 @@ export function DriverOnboarding() {
         hire_date: new Date().toISOString().split('T')[0],
         pay_model: newDriver.pay_model || 'percent',
         pay_rate: newDriver.pay_rate ? parseFloat(newDriver.pay_rate) : null,
-        ...(idPhotoUrl && { photo_url: idPhotoUrl }),
+        ...(photoUrl && { photo_url: photoUrl }),
       })
     } catch (err) { /* DB save failed — handled silently */ }
-    setIdFile(null)
-    setIdPreview(null)
+    setPhotoFile(null); setPhotoPreview(null)
+    setIdDocFile(null); setIdDocPreview(null)
 
     // Auto-send consent email
     if (newDriver.email) {
@@ -246,28 +255,48 @@ export function DriverOnboarding() {
                   style={inp} />
               </div>
             </div>
-            {/* ID Photo Upload */}
-            <div style={{ gridColumn:'span 2', marginBottom:10 }}>
-              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>Government ID Photo <span style={{ color:'var(--accent3)' }}>(optional — used as driver photo)</span></label>
-              <input ref={idInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleIdFile(e.target.files[0])} />
-              {idPreview ? (
+            {/* Profile Photo — avatar */}
+            <div style={{ gridColumn:'span 2', marginBottom:4 }}>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>Profile Photo <span style={{ color:'var(--accent3)' }}>(face photo — shown as avatar)</span></label>
+              <input ref={photoInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handlePhotoFile(e.target.files[0])} />
+              {photoPreview ? (
                 <div style={{ position:'relative', display:'inline-block' }}>
-                  <img src={idPreview} alt="ID" style={{ width:'100%', maxHeight:140, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
-                  <button onClick={() => { setIdFile(null); setIdPreview(null) }}
-                    style={{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:24, height:24, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <Ic icon={X} size={12} />
+                  <img src={photoPreview} alt="Profile" style={{ width:72, height:72, borderRadius:'50%', objectFit:'cover', border:'2px solid var(--accent)' }} />
+                  <button onClick={() => { setPhotoFile(null); setPhotoPreview(null) }}
+                    style={{ position:'absolute', top:0, right:0, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:20, height:20, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Ic icon={X} size={10} />
                   </button>
                 </div>
               ) : (
-                <div
-                  onDragOver={e => { e.preventDefault(); setIdDragging(true) }}
-                  onDragLeave={() => setIdDragging(false)}
-                  onDrop={e => { e.preventDefault(); setIdDragging(false); handleIdFile(e.dataTransfer.files[0]) }}
+                <div onDragOver={e => { e.preventDefault(); setPhotoDragging(true) }} onDragLeave={() => setPhotoDragging(false)}
+                  onDrop={e => { e.preventDefault(); setPhotoDragging(false); handlePhotoFile(e.dataTransfer.files[0]) }}
+                  onClick={() => photoInputRef.current?.click()}
+                  style={{ border:`2px dashed ${photoDragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:8, padding:'14px', textAlign:'center', cursor:'pointer', background: photoDragging ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
+                  <Ic icon={Upload} size={18} style={{ color:'var(--muted)', marginBottom:4 }} />
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>Drop face photo or <span style={{ color:'var(--accent)' }}>click to upload</span></div>
+                </div>
+              )}
+            </div>
+            {/* Government ID — compliance only */}
+            <div style={{ gridColumn:'span 2', marginBottom:10 }}>
+              <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:6 }}>Government ID <span style={{ color:'var(--accent3)' }}>(stored for compliance — not shown as avatar)</span></label>
+              <input ref={idInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleIdDocFile(e.target.files[0])} />
+              {idDocPreview ? (
+                <div style={{ position:'relative' }}>
+                  <img src={idDocPreview} alt="ID" style={{ width:'100%', maxHeight:110, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
+                  <button onClick={() => { setIdDocFile(null); setIdDocPreview(null) }}
+                    style={{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:22, height:22, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <Ic icon={X} size={10} />
+                  </button>
+                </div>
+              ) : (
+                <div onDragOver={e => { e.preventDefault(); setIdDragging(true) }} onDragLeave={() => setIdDragging(false)}
+                  onDrop={e => { e.preventDefault(); setIdDragging(false); handleIdDocFile(e.dataTransfer.files[0]) }}
                   onClick={() => idInputRef.current?.click()}
-                  style={{ border:`2px dashed ${idDragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:8, padding:'20px 16px', textAlign:'center', cursor:'pointer', background: idDragging ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
-                  <Ic icon={Upload} size={20} style={{ color:'var(--muted)', marginBottom:6 }} />
-                  <div style={{ fontSize:12, color:'var(--muted)' }}>Drop ID photo here or <span style={{ color:'var(--accent)' }}>click to upload</span></div>
-                  <div style={{ fontSize:10, color:'var(--muted)', marginTop:4 }}>Driver's license, passport, or state ID</div>
+                  style={{ border:`2px dashed ${idDragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:8, padding:'14px', textAlign:'center', cursor:'pointer', background: idDragging ? 'rgba(240,165,0,0.05)' : 'transparent', transition:'all 0.15s' }}>
+                  <Ic icon={Upload} size={18} style={{ color:'var(--muted)', marginBottom:4 }} />
+                  <div style={{ fontSize:11, color:'var(--muted)' }}>Drop ID or <span style={{ color:'var(--accent)' }}>click to upload</span></div>
+                  <div style={{ fontSize:9, color:'var(--muted)', marginTop:2 }}>Driver's license, passport, or state ID</div>
                 </div>
               )}
             </div>

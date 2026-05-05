@@ -133,6 +133,8 @@ export function DriverOnboarding() {
         license_state: newDriver.state,
         status: 'Onboarding',
         hire_date: new Date().toISOString().split('T')[0],
+        pay_model: newDriver.pay_model || 'percent',
+        pay_rate: newDriver.pay_rate ? parseFloat(newDriver.pay_rate) : null,
       })
     } catch (err) { /* DB save failed — handled silently */ }
 
@@ -146,7 +148,7 @@ export function DriverOnboarding() {
     }
 
     const driverName = newDriver.name
-    setNewDriver({ name:'', cdl:'CDL-A', cdlNum:'', phone:'', email:'', dob:'', state:'' })
+    setNewDriver({ name:'', cdl:'CDL-A', cdlNum:'', phone:'', email:'', dob:'', state:'', pay_model:'percent', pay_rate:'' })
     showToast('', 'Driver Added', driverName + ' — ready to order pre-employment checks')
   }
 
@@ -202,6 +204,22 @@ export function DriverOnboarding() {
                   style={{ ...inp }}>
                   {['CDL-A','CDL-B','CDL-C'].map(c => <option key={c}>{c}</option>)}
                 </select>
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Pay Type</label>
+                <select value={newDriver.pay_model || 'percent'} onChange={e => setNewDriver(d => ({ ...d, pay_model: e.target.value }))} style={{ ...inp }}>
+                  <option value="percent">% of Load</option>
+                  <option value="permile">Per Mile ($)</option>
+                  <option value="flat">Flat per Load ($)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>
+                  {newDriver.pay_model === 'permile' ? 'Rate ($/mi)' : newDriver.pay_model === 'flat' ? 'Rate ($/load)' : 'Rate (%)'}
+                </label>
+                <input type="number" value={newDriver.pay_rate || ''} onChange={e => setNewDriver(d => ({ ...d, pay_rate: e.target.value }))}
+                  placeholder={newDriver.pay_model === 'permile' ? '0.50' : newDriver.pay_model === 'flat' ? '500' : 'e.g. 28'}
+                  style={inp} />
               </div>
             </div>
             <div style={{ fontSize:11, color:'var(--muted)', marginBottom:16, padding:'10px 14px', background:'rgba(77,142,240,0.08)', borderRadius:8, border:'1px solid rgba(77,142,240,0.15)' }}>

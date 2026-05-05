@@ -421,6 +421,22 @@ export function AppProvider({ children }) {
         }).catch(() => {})
         localStorage.removeItem('qivori_ref')
       }
+
+      // Create companies row for carriers so invoices show the carrier's name
+      if (role === 'carrier' && data.user) {
+        supabase.from('companies').insert({
+          owner_id: data.user.id,
+          name: companyName || fullName,
+          email,
+        }).then(() => {}).catch(() => {})
+
+        supabase.from('company_members').insert({
+          company_id: data.user.id,
+          user_id: data.user.id,
+          role: 'owner',
+          status: 'active',
+        }).then(() => {}).catch(() => {})
+      }
     }
 
     return { ok: true, needsConfirmation: !data.session }

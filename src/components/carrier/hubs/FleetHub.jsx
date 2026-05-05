@@ -58,13 +58,7 @@ export function FleetHub() {
               <div style={{ padding:'16px 20px 0' }}>
                 <QInsightsFeed hub="fleet" summary={fleetSummary} onNavigate={(target) => { if (target) setTab(target) }} />
               </div>
-              {(vehicles || []).length === 0 ? (
-                <div style={{ padding:'40px 20px', textAlign:'center' }}>
-                  <div style={{ width:56, height:56, borderRadius:14, background:'rgba(240,165,0,0.1)', border:'1px solid rgba(240,165,0,0.2)', display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}><Ic icon={Truck} size={24} color="var(--accent)" /></div>
-                  <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:2, color:'var(--accent)', marginBottom:8 }}>ADD YOUR FIRST VEHICLE</div>
-                  <div style={{ fontSize:12, color:'var(--muted)', maxWidth:320, margin:'0 auto', lineHeight:1.6 }}>Register your truck to enable fleet tracking, fuel optimization, DVIR inspections, and maintenance scheduling.</div>
-                </div>
-              ) : <EquipmentManager />}
+              <EquipmentManager />
             </div>
           )}
           {tab === 'map' && <FleetMap />}

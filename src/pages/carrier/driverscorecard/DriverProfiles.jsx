@@ -92,7 +92,7 @@ export function DriverProfiles() {
   const [selected, setSelected] = useState(driverList[0]?.id || 'james')
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const [editD, setEditD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
+  const [editD, setEditD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'', pay_model:'percent', pay_rate:'' })
   const [newD, setNewD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -106,6 +106,8 @@ export function DriverProfiles() {
         full_name: editD.name, phone: editD.phone, email: editD.email,
         license_number: editD.license_number, license_state: editD.license_state,
         license_expiry: editD.license_expiry || null, medical_card_expiry: editD.medical_card_expiry || null,
+        pay_model: editD.pay_model || 'percent',
+        pay_rate: editD.pay_rate ? parseFloat(editD.pay_rate) : null,
       })
       showToast('success', 'Driver Updated', editD.name + ' updated successfully')
       setShowEdit(false)
@@ -134,6 +136,8 @@ export function DriverProfiles() {
       email: raw?.email || d.email || '', license_number: raw?.license_number || d.cdl || '',
       license_state: raw?.license_state || '', license_expiry: raw?.license_expiry || '',
       medical_card_expiry: raw?.medical_card_expiry || '',
+      pay_model: raw?.pay_model || 'percent',
+      pay_rate: raw?.pay_rate != null ? String(raw.pay_rate) : '',
     })
     setShowEdit(true)
   }
@@ -229,6 +233,21 @@ export function DriverProfiles() {
                   <input type={f.type||'text'} value={editD[f.key]} onChange={e => setEditD(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={addInp} />
                 </div>
               ))}
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>Pay Type</label>
+                <select value={editD.pay_model} onChange={e => setEditD(p => ({ ...p, pay_model: e.target.value }))} style={addInp}>
+                  <option value="percent">% of Load</option>
+                  <option value="permile">Per Mile</option>
+                  <option value="flat">Flat per Load</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>
+                  {editD.pay_model === 'permile' ? 'Rate ($/mi)' : editD.pay_model === 'flat' ? 'Rate ($/load)' : 'Rate (%)'}
+                </label>
+                <input type="number" value={editD.pay_rate} onChange={e => setEditD(p => ({ ...p, pay_rate: e.target.value }))}
+                  placeholder={editD.pay_model === 'percent' ? '28' : editD.pay_model === 'permile' ? '0.55' : '500'} style={addInp} />
+              </div>
             </div>
             <div style={{ display:'flex', gap:10, marginTop:18 }}>
               <button className="btn btn-primary" style={{ flex:1, padding:'11px 0' }} onClick={handleEditDriver} disabled={saving || !editD.name}>

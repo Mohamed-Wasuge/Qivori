@@ -153,13 +153,11 @@ export function FleetProvider({ children }) {
     if (unit && vehicles.find(v => (v.unit_number || '').trim() === unit))        { showToast?.('', 'Duplicate Vehicle', `Unit #${unit} already exists`); return null }
     let result
     if (useDb) {
-      try {
-        result = await db.createVehicle(vehicle)
-        setVehicles(vs => [result, ...vs])
-        db.createAuditLog({ action: 'vehicle.created', entity_type: 'vehicle', entity_id: result.id, new_value: { unit_number: vehicle.unit_number, make: vehicle.make, model: vehicle.model, vin: vehicle.vin, type: vehicle.type } }).catch(() => {})
-      } catch (e) { console.error('DB operation failed:', e) }
-    }
-    if (!result) {
+      result = await db.createVehicle(vehicle)
+      if (!result) throw new Error('Failed to save vehicle — check your connection and try again.')
+      setVehicles(vs => [result, ...vs])
+      db.createAuditLog({ action: 'vehicle.created', entity_type: 'vehicle', entity_id: result.id, new_value: { unit_number: vehicle.unit_number, make: vehicle.make, model: vehicle.model, vin: vehicle.vin, type: vehicle.type } }).catch(() => {})
+    } else {
       result = { ...vehicle, id: 'local-veh-' + Date.now() }
       setVehicles(vs => [result, ...vs])
     }

@@ -113,10 +113,38 @@ export function DriverProfiles() {
     setPhotoFile(file)
     setPhotoPreview(URL.createObjectURL(file))
   }
-  const handleIdDocFile = (file) => {
+  const [idParsing, setIdParsing] = useState(false)
+  const handleIdDocFile = async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     setIdDocFile(file)
     setIdDocPreview(URL.createObjectURL(file))
+    // Auto-parse ID with AI
+    setIdParsing(true)
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader()
+        reader.onload = () => res(reader.result.split(',')[1])
+        reader.onerror = rej
+        reader.readAsDataURL(file)
+      })
+      const resp = await apiFetch('/api/parse-driver-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: base64, mediaType: file.type }),
+      })
+      const parsed = await resp.json()
+      if (parsed && !parsed.error) {
+        setEditD(prev => ({
+          ...prev,
+          ...(parsed.full_name && !prev.name ? { name: parsed.full_name } : {}),
+          ...(parsed.license_number ? { license_number: parsed.license_number } : {}),
+          ...(parsed.license_state ? { license_state: parsed.license_state } : {}),
+          ...(parsed.license_expiry ? { license_expiry: parsed.license_expiry } : {}),
+        }))
+        showToast('success', 'ID Scanned', 'Fields auto-filled from ID — review and save')
+      }
+    } catch { /* non-blocking */ }
+    setIdParsing(false)
   }
   const resetUploads = () => { setPhotoFile(null); setPhotoPreview(null); setIdDocFile(null); setIdDocPreview(null) }
 
@@ -310,11 +338,12 @@ export function DriverProfiles() {
               <input ref={idInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleIdDocFile(e.target.files[0])} />
               {idDocPreview ? (
                 <div style={{ position:'relative' }}>
-                  <img src={idDocPreview} alt="ID" style={{ width:'100%', maxHeight:100, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
-                  <button onClick={() => { setIdDocFile(null); setIdDocPreview(null) }}
+                  <img src={idDocPreview} alt="ID" style={{ width:'100%', maxHeight:100, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)', opacity: idParsing ? 0.5 : 1 }} />
+                  {idParsing && <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.4)', borderRadius:8, fontSize:11, color:'#fff', fontWeight:700 }}>Scanning ID...</div>}
+                  {!idParsing && <button onClick={() => { setIdDocFile(null); setIdDocPreview(null) }}
                     style={{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:22, height:22, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     <X size={10} />
-                  </button>
+                  </button>}
                 </div>
               ) : (
                 <div onDragOver={e => { e.preventDefault(); setIdDragging(true) }} onDragLeave={() => setIdDragging(false)}

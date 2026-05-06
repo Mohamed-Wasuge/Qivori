@@ -3,6 +3,7 @@ import { Ic } from '../shared'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { uploadFile } from '../../../lib/storage'
+import { apiFetch } from '../../../lib/api'
 import {
   Zap, Send, Check, AlertTriangle, Bot, Sparkles, FileText, Activity, CreditCard,
   AlertCircle, Paperclip, Upload, X
@@ -42,10 +43,37 @@ export function DriverOnboarding() {
     setPhotoFile(file)
     setPhotoPreview(URL.createObjectURL(file))
   }
-  const handleIdDocFile = (file) => {
+  const [idParsing, setIdParsing] = useState(false)
+  const handleIdDocFile = async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     setIdDocFile(file)
     setIdDocPreview(URL.createObjectURL(file))
+    setIdParsing(true)
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const reader = new FileReader()
+        reader.onload = () => res(reader.result.split(',')[1])
+        reader.onerror = rej
+        reader.readAsDataURL(file)
+      })
+      const resp = await apiFetch('/api/parse-driver-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: base64, mediaType: file.type }),
+      })
+      const parsed = await resp.json()
+      if (parsed && !parsed.error) {
+        setNewDriver(prev => ({
+          ...prev,
+          ...(parsed.full_name && !prev.name ? { name: parsed.full_name } : {}),
+          ...(parsed.license_number ? { cdlNum: parsed.license_number } : {}),
+          ...(parsed.license_state ? { state: parsed.license_state } : {}),
+          ...(parsed.dob ? { dob: parsed.dob } : {}),
+        }))
+        showToast('success', 'ID Scanned', 'Fields auto-filled — review and continue')
+      }
+    } catch { /* non-blocking */ }
+    setIdParsing(false)
   }
 
   const driver = drivers.find(d => d.id === selected)
@@ -283,11 +311,12 @@ export function DriverOnboarding() {
               <input ref={idInputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleIdDocFile(e.target.files[0])} />
               {idDocPreview ? (
                 <div style={{ position:'relative' }}>
-                  <img src={idDocPreview} alt="ID" style={{ width:'100%', maxHeight:110, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)' }} />
-                  <button onClick={() => { setIdDocFile(null); setIdDocPreview(null) }}
+                  <img src={idDocPreview} alt="ID" style={{ width:'100%', maxHeight:110, objectFit:'cover', borderRadius:8, border:'1px solid var(--border)', opacity: idParsing ? 0.5 : 1 }} />
+                  {idParsing && <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.4)', borderRadius:8, fontSize:11, color:'#fff', fontWeight:700 }}>Scanning ID...</div>}
+                  {!idParsing && <button onClick={() => { setIdDocFile(null); setIdDocPreview(null) }}
                     style={{ position:'absolute', top:6, right:6, background:'rgba(0,0,0,0.6)', border:'none', borderRadius:'50%', width:22, height:22, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     <Ic icon={X} size={10} />
-                  </button>
+                  </button>}
                 </div>
               ) : (
                 <div onDragOver={e => { e.preventDefault(); setIdDragging(true) }} onDragLeave={() => setIdDragging(false)}

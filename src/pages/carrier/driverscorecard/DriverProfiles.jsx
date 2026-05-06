@@ -94,7 +94,7 @@ export function DriverProfiles() {
   const [selected, setSelected] = useState(driverList[0]?.id || 'james')
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
-  const [editD, setEditD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'', pay_model:'percent', pay_rate:'' })
+  const [editD, setEditD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', license_issued:'', medical_card_expiry:'', address:'', pay_model:'percent', pay_rate:'' })
   const [newD, setNewD] = useState({ name:'', phone:'', email:'', license_number:'', license_state:'', license_expiry:'', medical_card_expiry:'' })
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -140,8 +140,10 @@ export function DriverProfiles() {
           ...(parsed.license_number ? { license_number: parsed.license_number } : {}),
           ...(parsed.license_state ? { license_state: parsed.license_state } : {}),
           ...(parsed.license_expiry ? { license_expiry: parsed.license_expiry } : {}),
+          ...(parsed.license_issued ? { license_issued: parsed.license_issued } : {}),
+          ...(parsed.address ? { address: parsed.address } : {}),
         }))
-        showToast('success', 'ID Scanned', 'Fields auto-filled from ID — review and save')
+        showToast('success', 'ID Scanned', 'Fields auto-filled — review and save')
       }
     } catch { /* non-blocking */ }
     setIdParsing(false)
@@ -162,7 +164,9 @@ export function DriverProfiles() {
       await editDriver(selected, {
         full_name: editD.name, phone: editD.phone, email: editD.email,
         license_number: editD.license_number, license_state: editD.license_state,
-        license_expiry: editD.license_expiry || null, medical_card_expiry: editD.medical_card_expiry || null,
+        license_expiry: editD.license_expiry || null, license_issued: editD.license_issued || null,
+        medical_card_expiry: editD.medical_card_expiry || null,
+        address: editD.address || null,
         pay_model: editD.pay_model || 'percent',
         pay_rate: editD.pay_rate ? parseFloat(editD.pay_rate) : null,
         ...(photoUrl && { photo_url: photoUrl }),
@@ -194,8 +198,8 @@ export function DriverProfiles() {
       name: raw?.full_name || d.name || '', phone: raw?.phone || d.phone || '',
       email: raw?.email || d.email || '', license_number: raw?.license_number || d.cdl || '',
       license_state: raw?.license_state || '', license_expiry: raw?.license_expiry || '',
-      medical_card_expiry: raw?.medical_card_expiry || '',
-      pay_model: raw?.pay_model || 'percent',
+      license_issued: raw?.license_issued || '', medical_card_expiry: raw?.medical_card_expiry || '',
+      address: raw?.address || '', pay_model: raw?.pay_model || 'percent',
       pay_rate: raw?.pay_rate != null ? String(raw.pay_rate) : '',
     })
     setShowEdit(true)
@@ -287,11 +291,13 @@ export function DriverProfiles() {
                 { key:'license_number', label:'CDL Number', ph:'MN-12345678' },
                 { key:'license_state', label:'License State', ph:'MN' },
                 { key:'license_expiry', label:'CDL Expiry', ph:'', type:'date' },
+                { key:'license_issued', label:'CDL Issue Date', ph:'', type:'date' },
                 { key:'medical_card_expiry', label:'Medical Card Expiry', ph:'', type:'date' },
+                { key:'address', label:'Home Address', ph:'123 Main St, Minneapolis, MN 55112' },
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize:11, color:'var(--muted)', display:'block', marginBottom:4 }}>{f.label}</label>
-                  <input type={f.type||'text'} value={editD[f.key]} onChange={e => setEditD(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={addInp} />
+                  <input type={f.type||'text'} value={editD[f.key] || ''} onChange={e => setEditD(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.ph} style={addInp} />
                 </div>
               ))}
               <div>

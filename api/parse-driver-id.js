@@ -21,7 +21,7 @@ export default async function handler(req) {
     const { file, mediaType } = body
     if (!file) return json({ error: 'No file provided' }, 400, req)
 
-    const prompt = `You are a document parser for a trucking company. Extract driver information from this government-issued ID (driver's license, state ID, or passport).
+    const prompt = `You are a document parser for a trucking company. Extract ALL information from this government-issued ID (driver's license, state ID, or passport).
 
 Return ONLY a valid JSON object. Use null for any field you cannot find:
 {
@@ -29,17 +29,22 @@ Return ONLY a valid JSON object. Use null for any field you cannot find:
   "license_number": "",
   "license_state": "",
   "license_expiry": "YYYY-MM-DD",
+  "license_issued": "YYYY-MM-DD",
   "dob": "YYYY-MM-DD",
   "address": "",
   "cdl_class": "A"
 }
 
 Rules:
-- license_number: the CDL or ID number on the card
-- license_state: 2-letter state abbreviation
-- license_expiry: expiration date in YYYY-MM-DD format
-- dob: date of birth in YYYY-MM-DD format
+- full_name: the driver's full legal name as shown
+- license_number: the CDL or ID number (may be labeled as "DL", "CDL", "LIC", "ID NO", or similar)
+- license_state: 2-letter state abbreviation from the card
+- license_expiry: expiration date — look for "EXP", "EXPIRES", "4d" label — convert to YYYY-MM-DD
+- license_issued: issue date — look for "ISS", "ISSUED", "4b" label — convert to YYYY-MM-DD
+- dob: date of birth — look for "DOB", "4a", "BIRTHDAY" label — convert to YYYY-MM-DD
+- address: full street address including city, state, zip as shown on card
 - cdl_class: A, B, or C if shown — null if not a CDL
+- All dates MUST be in YYYY-MM-DD format regardless of how they appear on the card
 - Return ONLY the JSON, no explanation, no markdown`
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {

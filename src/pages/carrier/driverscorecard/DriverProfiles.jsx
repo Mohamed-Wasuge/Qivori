@@ -8,7 +8,7 @@ import { fetchDQFiles, createDQFile, deleteDQFile, fetchDriverPayMap, upsertDriv
 import {
   Users, Phone, Send, UserPlus, Activity, Zap, Target, AlertTriangle, Siren,
   Check, FileCheck, FileText, Edit3 as PencilIcon, Trash2, Upload, X,
-  FolderOpen, Download, Plus, Loader, ExternalLink
+  FolderOpen, Download, Plus, Loader, ExternalLink, Package
 } from 'lucide-react'
 import { qEvaluateDriver, qMatchScore, Q_STATUS_COLORS, getQEffIcons } from './helpers'
 
@@ -91,7 +91,10 @@ export function DriverProfiles() {
       phone: d.phone || '', email: d.email || '',
       hired: d.hire_date ? new Date(d.hire_date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
       cdl: d.license_number || '', cdlClass: 'Class A', cdlExpiry: d.license_expiry ? new Date(d.license_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+      cdlIssued: d.license_issued ? new Date(d.license_issued).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+      cdlState: d.license_state || '',
       medCard: d.medical_card_expiry ? new Date(d.medical_card_expiry).toLocaleDateString('en-US', { month:'short', year:'numeric' }) : '',
+      address: d.address || '',
       status: d.status || 'Active', hos: '—', unit: '',
       stats: { loadsMTD: mtdLoads.length, milesMTD: mtdMiles, grossMTD: mtdGross, payMTD: mtdPay, rating: qr ? parseFloat(qr.rpm) : 0 },
       endorsements: (d.notes || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -603,6 +606,24 @@ export function DriverProfiles() {
                 <Ic icon={UserPlus} /> Invite as User
               </button>
             )}
+            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => {
+              const raw = dbDrivers.find(x => x.id === d.id) || {}
+              const info = [
+                `Driver: ${d.name}`,
+                `Phone: ${d.phone || '—'}`,
+                `Email: ${d.email || '—'}`,
+                `Address: ${d.address || '—'}`,
+                `CDL #: ${d.cdl || '—'}`,
+                `CDL State: ${d.cdlState || '—'}`,
+                `CDL Expiry: ${d.cdlExpiry || '—'}`,
+                `CDL Issued: ${d.cdlIssued || '—'}`,
+                `Medical Card: ${d.medCard || '—'}`,
+                `Pay Model: ${d.payModel}`,
+                `Hired: ${d.hired || '—'}`,
+              ].join('\n')
+              navigator.clipboard?.writeText(info)
+              showToast('', 'Copied', d.name + '\'s info copied to clipboard')
+            }}><Ic icon={FileText} /> Copy Info</button>
             <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={openEditDriver}><Ic icon={PencilIcon} /> Edit</button>
             <button className="btn btn-danger" style={{ fontSize: 12 }} onClick={() => setConfirmDelete({ id: d.id, name: d.name })}><Ic icon={Trash2} /> Remove</button>
           </div>
@@ -754,9 +775,14 @@ export function DriverProfiles() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}><Ic icon={FileCheck} /> License & Compliance</div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
+                { label: 'Phone',          value: d.phone || '—', color: d.phone ? 'var(--text)' : 'var(--muted)' },
+                { label: 'Email',          value: d.email || '—', color: d.email ? 'var(--text)' : 'var(--muted)' },
+                { label: 'Home Address',   value: d.address || '—', color: d.address ? 'var(--text)' : 'var(--muted)' },
                 { label: 'CDL Number',     value: d.cdl || '—', color: d.cdl ? 'var(--text)' : 'var(--muted)' },
+                { label: 'CDL State',      value: d.cdlState || '—', color: d.cdlState ? 'var(--text)' : 'var(--muted)' },
                 { label: 'CDL Class',      value: d.cdlClass, color: 'var(--text)' },
                 { label: 'CDL Expiry',     value: d.cdlExpiry || '—', color: expiryColor(d.cdlExpiry) },
+                { label: 'CDL Issued',     value: d.cdlIssued || '—', color: d.cdlIssued ? 'var(--text)' : 'var(--muted)' },
                 { label: 'Medical Card',   value: d.medCard || '—', color: expiryColor(d.medCard) },
                 { label: 'HOS Remaining',  value: 'Via ELD sync', color: 'var(--muted)' },
                 { label: 'Pay Model',      value: d.payModel, color: 'var(--accent2)' },
@@ -798,6 +824,60 @@ export function DriverProfiles() {
             </div>
           </div>
         </div>
+
+        {/* ═══ LOAD HISTORY ═══════════════════════════════════════════ */}
+        {(() => {
+          const driverLoads = (loads || [])
+            .filter(l => (l.driver === d.name) && ['Delivered','Invoiced','Paid'].includes(l.status))
+            .sort((a,b) => new Date(b.delivery_date || b.created_at || 0) - new Date(a.delivery_date || a.created_at || 0))
+          if (driverLoads.length === 0) return null
+          const payCfg = payConfigMap[d.id] || {}
+          const pm = payCfg.pay_model || 'percent'
+          const pr = parseFloat(payCfg.pay_rate) || 28
+          return (
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <Ic icon={Package} size={13} color="var(--accent)" />
+                  <span style={{ fontWeight:700, fontSize:13 }}>Load History</span>
+                  <span style={{ fontSize:10, color:'var(--muted)', background:'var(--surface2)', padding:'1px 6px', borderRadius:4 }}>{driverLoads.length} delivered</span>
+                </div>
+              </div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                  <thead>
+                    <tr style={{ background:'var(--surface2)' }}>
+                      {['Load #','Route','Miles','Gross','Driver Pay','Date','Status'].map(h => (
+                        <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontSize:9, fontWeight:800, color:'var(--muted)', letterSpacing:0.6, whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {driverLoads.map((l, i) => {
+                      const gross = l.gross || l.gross_pay || 0
+                      const miles = parseFloat(l.miles) || 0
+                      const driverPay = pm === 'permile' ? Math.round(miles * pr) : pm === 'flat' ? Math.round(pr) : Math.round(gross * (pr / 100))
+                      const origin = (l.origin || '').split(',')[0] || '—'
+                      const dest = (l.dest || l.destination || '').split(',')[0] || '—'
+                      const date = l.delivery_date || l.created_at
+                      return (
+                        <tr key={l.id || i} style={{ borderBottom:'1px solid var(--border)' }}>
+                          <td style={{ padding:'8px 12px', fontFamily:"'JetBrains Mono',monospace", color:'var(--accent)', fontWeight:700 }}>{l.load_number || l.loadId || '—'}</td>
+                          <td style={{ padding:'8px 12px', color:'var(--text)' }}>{origin} → {dest}</td>
+                          <td style={{ padding:'8px 12px', color:'var(--muted)' }}>{miles ? miles.toLocaleString() : '—'}</td>
+                          <td style={{ padding:'8px 12px', color:'var(--success)', fontWeight:700 }}>${gross.toLocaleString()}</td>
+                          <td style={{ padding:'8px 12px', color:'var(--accent2)', fontWeight:700 }}>${driverPay.toLocaleString()}</td>
+                          <td style={{ padding:'8px 12px', color:'var(--muted)' }}>{date ? new Date(date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</td>
+                          <td style={{ padding:'8px 12px' }}><span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4, background:'rgba(52,176,104,0.1)', color:'var(--success)' }}>{l.status}</span></td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ═══ DRIVER DOCUMENTS ═══════════════════════════════════════ */}
         <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>

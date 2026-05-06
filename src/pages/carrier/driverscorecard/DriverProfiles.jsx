@@ -279,7 +279,7 @@ export function DriverProfiles() {
       {showEdit && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
           onClick={e => { if (e.target===e.currentTarget) setShowEdit(false) }}>
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:440, padding:24 }}
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, width:440, padding:24, maxHeight:'90vh', overflowY:'auto' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Edit Driver</div>
             <div style={{ fontSize:12, color:'var(--muted)', marginBottom:18 }}>Update driver details</div>

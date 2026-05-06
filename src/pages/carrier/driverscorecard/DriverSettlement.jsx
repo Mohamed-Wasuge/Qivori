@@ -3,6 +3,7 @@ import { Ic, S } from '../shared'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { generateSettlementPDF } from '../../../utils/generatePDF'
+import { fetchDriverPayMap, upsertDriverPay } from '../../../lib/database'
 import {
   Settings, Package, Clock, Zap, Briefcase, Download, Save, Square
 } from 'lucide-react'
@@ -27,27 +28,42 @@ export function DriverSettlement() {
     if (!activeDriver && ctxDrivers.length > 0) setActiveDriver(ctxDrivers[0].id)
   }, [ctxDrivers, activeDriver])
 
-  // Load pay model from driver record when switching drivers
+  // Load pay config from driver_pay_config table on mount
+  useEffect(() => {
+    fetchDriverPayMap().then(map => {
+      const newModels = {}, newVals = {}
+      Object.entries(map).forEach(([driverId, cfg]) => {
+        newModels[driverId] = cfg.pay_model
+        newVals[driverId] = parseFloat(cfg.pay_rate) || 28
+      })
+      setModels(m => ({ ...newModels, ...m }))
+      setModelVals(v => ({ ...newVals, ...v }))
+    }).catch(() => {})
+  }, [])
+
+  // Fallback: load from driver record if not in pay config
   useEffect(() => {
     if (!activeDriver) return
     const d = (ctxDrivers || []).find(dr => dr.id === activeDriver)
     if (d) {
       if (d.pay_model && !models[activeDriver]) setModels(m => ({ ...m, [activeDriver]: d.pay_model }))
-      if (d.pay_rate != null && modelVals[activeDriver] == null) setModelVals(v => ({ ...v, [activeDriver]: parseFloat(d.pay_rate) || 50 }))
+      if (d.pay_rate != null && modelVals[activeDriver] == null) setModelVals(v => ({ ...v, [activeDriver]: parseFloat(d.pay_rate) || 28 }))
     }
   }, [activeDriver, ctxDrivers])
 
   const driver = (ctxDrivers || []).find(d => d.id === activeDriver)
 
   // Save pay model to driver record when changed
-  const savePayModel = useCallback(() => {
-    if (!activeDriver || !editDriver) return
+  const savePayModel = useCallback(async () => {
+    if (!activeDriver) return
     const m = models[activeDriver] || 'percent'
     const v = modelVals[activeDriver] ?? 28
-    editDriver(activeDriver, { pay_model: m, pay_rate: v })
+    try {
+      await upsertDriverPay(activeDriver, { pay_model: m, pay_rate: v })
+    } catch {}
     setPayDirty(false)
     showToast('', 'Pay Model Saved', `${driver?.full_name || driver?.name} — ${m === 'percent' ? v + '%' : m === 'permile' ? '$' + v + '/mi' : '$' + v + '/load'}`)
-  }, [activeDriver, models, modelVals, editDriver, showToast, driver])
+  }, [activeDriver, models, modelVals, showToast, driver])
 
   if (!driver) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>

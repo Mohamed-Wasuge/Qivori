@@ -1,12 +1,14 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Ic, S } from '../shared'
 import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { apiFetch } from '../../../lib/api'
 import { uploadFile } from '../../../lib/storage'
+import { fetchDQFiles, createDQFile, deleteDQFile } from '../../../lib/database'
 import {
   Users, Phone, Send, UserPlus, Activity, Zap, Target, AlertTriangle, Siren,
-  Check, FileCheck, FileText, Edit3 as PencilIcon, Trash2, Upload, X
+  Check, FileCheck, FileText, Edit3 as PencilIcon, Trash2, Upload, X,
+  FolderOpen, Download, Plus, Loader, ExternalLink
 } from 'lucide-react'
 import { qEvaluateDriver, qMatchScore, Q_STATUS_COLORS, getQEffIcons } from './helpers'
 
@@ -227,6 +229,73 @@ export function DriverProfiles() {
       showToast('error', 'Error', err.message || 'Failed to add driver')
     }
     setSaving(false)
+  }
+
+  // ── Driver Documents ──────────────────────────────────────────
+  const [driverDocs, setDriverDocs] = useState([])
+  const [docsLoading, setDocsLoading] = useState(false)
+  const [docUploading, setDocUploading] = useState(false)
+  const [docType, setDocType] = useState('cdl_copy')
+  const [docFile, setDocFile] = useState(null)
+  const [docDragging, setDocDragging] = useState(false)
+  const docInputRef = useRef(null)
+
+  const DOC_TYPES = [
+    { value:'cdl_copy',         label:'CDL Copy' },
+    { value:'medical_card',     label:'Medical Card' },
+    { value:'drug_test',        label:'Drug Test Results' },
+    { value:'government_id',    label:'Government ID' },
+    { value:'mvr_report',       label:'MVR Report' },
+    { value:'employment_app',   label:'Employment Application' },
+    { value:'w4',               label:'W-4' },
+    { value:'background_check', label:'Background Check' },
+    { value:'other',            label:'Other' },
+  ]
+
+  const loadDriverDocs = useCallback(async (driverId) => {
+    if (!driverId) return
+    setDocsLoading(true)
+    try {
+      const docs = await fetchDQFiles(driverId)
+      setDriverDocs(docs || [])
+    } catch { setDriverDocs([]) }
+    setDocsLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (selected) loadDriverDocs(selected)
+  }, [selected, loadDriverDocs])
+
+  const handleDocUpload = async () => {
+    if (!docFile) return
+    setDocUploading(true)
+    try {
+      const result = await uploadFile(docFile, 'driver-ids')
+      await createDQFile({
+        driver_id: selected,
+        file_type: docType,
+        file_name: docFile.name,
+        file_url: result.url,
+        file_size: docFile.size,
+        notes: '',
+      })
+      showToast('success', 'Document Uploaded', docFile.name + ' saved')
+      setDocFile(null)
+      await loadDriverDocs(selected)
+    } catch (err) {
+      showToast('error', 'Upload Failed', err.message || 'Could not upload document')
+    }
+    setDocUploading(false)
+  }
+
+  const handleDeleteDoc = async (docId) => {
+    try {
+      await deleteDQFile(docId)
+      setDriverDocs(prev => prev.filter(x => x.id !== docId))
+      showToast('', 'Removed', 'Document removed')
+    } catch (err) {
+      showToast('error', 'Error', err.message || 'Could not remove document')
+    }
   }
 
   const expiryColor = (expiry) => {
@@ -707,6 +776,108 @@ export function DriverProfiles() {
             </div>
           </div>
         </div>
+
+        {/* ═══ DRIVER DOCUMENTS ═══════════════════════════════════════ */}
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+          <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <Ic icon={FolderOpen} size={13} color="var(--accent)" />
+              <span style={{ fontWeight:700, fontSize:13 }}>Driver Documents</span>
+              {!docsLoading && <span style={{ fontSize:10, color:'var(--muted)', background:'var(--surface2)', padding:'1px 6px', borderRadius:4 }}>{driverDocs.length}</span>}
+            </div>
+          </div>
+
+          {/* Upload row */}
+          <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+            <select
+              value={docType}
+              onChange={e => setDocType(e.target.value)}
+              style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 10px', color:'var(--text)', fontSize:12, outline:'none' }}>
+              {DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <div
+              onDragOver={e => { e.preventDefault(); setDocDragging(true) }}
+              onDragLeave={() => setDocDragging(false)}
+              onDrop={e => { e.preventDefault(); setDocDragging(false); const f = e.dataTransfer.files[0]; if (f) setDocFile(f) }}
+              onClick={() => docInputRef.current?.click()}
+              style={{
+                flex:1, minWidth:140, border:`1.5px dashed ${docDragging ? 'var(--accent)' : docFile ? 'var(--success)' : 'var(--border)'}`,
+                borderRadius:7, padding:'7px 12px', cursor:'pointer', transition:'all 0.15s',
+                background: docDragging ? 'rgba(240,165,0,0.05)' : docFile ? 'rgba(52,176,104,0.04)' : 'transparent',
+                display:'flex', alignItems:'center', gap:6,
+              }}>
+              <Ic icon={Upload} size={12} color={docFile ? 'var(--success)' : 'var(--muted)'} />
+              <span style={{ fontSize:11, color: docFile ? 'var(--success)' : 'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {docFile ? docFile.name : 'Drop file or click to browse'}
+              </span>
+              <input ref={docInputRef} type="file" style={{ display:'none' }} onChange={e => { if (e.target.files[0]) setDocFile(e.target.files[0]) }} />
+            </div>
+            {docFile && (
+              <button className="btn btn-ghost" style={{ fontSize:11, padding:'6px 8px' }} onClick={() => setDocFile(null)}>
+                <Ic icon={X} size={11} />
+              </button>
+            )}
+            <button
+              className="btn btn-primary"
+              style={{ fontSize:12, padding:'7px 14px', display:'flex', alignItems:'center', gap:5 }}
+              disabled={!docFile || docUploading}
+              onClick={handleDocUpload}>
+              {docUploading ? <Ic icon={Loader} size={11} /> : <Ic icon={Plus} size={11} />}
+              {docUploading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+
+          {/* Document list */}
+          <div style={{ padding: driverDocs.length === 0 ? '24px 16px' : 0 }}>
+            {docsLoading ? (
+              <div style={{ textAlign:'center', color:'var(--muted)', fontSize:12, padding:'20px 0' }}>Loading documents...</div>
+            ) : driverDocs.length === 0 ? (
+              <div style={{ textAlign:'center', color:'var(--muted)', fontSize:12 }}>
+                <Ic icon={FolderOpen} size={22} />
+                <div style={{ marginTop:6 }}>No documents yet — upload CDL copy, med card, drug test, etc.</div>
+              </div>
+            ) : (
+              driverDocs.map((doc, i) => {
+                const typeLabel = DOC_TYPES.find(t => t.value === doc.file_type)?.label || doc.file_type || 'Document'
+                const uploaded = doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : ''
+                const sizeMB = doc.file_size ? (doc.file_size / 1048576).toFixed(1) + ' MB' : ''
+                return (
+                  <div key={doc.id} style={{ padding:'10px 16px', borderBottom: i < driverDocs.length - 1 ? '1px solid var(--border)' : 'none', display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ width:32, height:32, borderRadius:7, background:'rgba(240,165,0,0.07)', border:'1px solid rgba(240,165,0,0.15)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <Ic icon={FileText} size={14} color="var(--accent)" />
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {doc.file_name || typeLabel}
+                      </div>
+                      <div style={{ fontSize:10, color:'var(--muted)', marginTop:1, display:'flex', gap:8 }}>
+                        <span style={{ padding:'1px 6px', borderRadius:4, background:'var(--surface2)', fontWeight:600 }}>{typeLabel}</span>
+                        {uploaded && <span>{uploaded}</span>}
+                        {sizeMB && <span>{sizeMB}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                      {doc.file_url && (
+                        <a href={doc.file_url} target="_blank" rel="noreferrer"
+                          style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--accent)', textDecoration:'none', padding:'4px 8px', borderRadius:6, background:'rgba(240,165,0,0.07)', border:'1px solid rgba(240,165,0,0.15)' }}>
+                          <Ic icon={Download} size={10} /> View
+                        </a>
+                      )}
+                      <button
+                        style={{ display:'flex', alignItems:'center', background:'none', border:'none', cursor:'pointer', color:'var(--muted)', padding:'4px 6px', borderRadius:6, transition:'color 0.12s' }}
+                        onMouseOver={e => e.currentTarget.style.color='var(--danger)'}
+                        onMouseOut={e => e.currentTarget.style.color='var(--muted)'}
+                        onClick={() => handleDeleteDoc(doc.id)}>
+                        <Ic icon={Trash2} size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+
       </>}
       </div>
     </div>

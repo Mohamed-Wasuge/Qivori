@@ -860,7 +860,7 @@ export function DriverProfiles() {
               </div>
             ) : (
               driverDocs.map((doc, i) => {
-                const typeLabel = DOC_TYPES.find(t => t.value === doc.file_type)?.label || doc.file_type || 'Document'
+                const typeLabel = DOC_TYPES.find(t => t.value === doc.doc_type)?.label || doc.doc_type || 'Document'
                 const uploaded = doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : ''
                 const sizeMB = doc.file_size ? (doc.file_size / 1048576).toFixed(1) + ' MB' : ''
                 return (

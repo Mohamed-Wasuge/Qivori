@@ -434,6 +434,30 @@ export async function deleteDQFile(id) {
   if (error) throw error
 }
 
+// ─── DRIVER PAY CONFIG ──────────────────────────────────────
+export async function fetchDriverPayMap(ownerUserId) {
+  const { data } = await safeSelect('driver_pay_config',
+    supabase.from('driver_pay_config').select('driver_id, pay_model, pay_rate')
+  )
+  const map = {}
+  ;(data || []).forEach(r => { map[r.driver_id] = { pay_model: r.pay_model, pay_rate: r.pay_rate } })
+  return map
+}
+
+export async function upsertDriverPay(driverId, { pay_model, pay_rate }) {
+  const userId = await getUserId()
+  const { error } = await safeMutate('upsertDriverPay',
+    supabase.from('driver_pay_config').upsert({
+      driver_id: driverId,
+      owner_id: userId,
+      pay_model: pay_model || 'percent',
+      pay_rate: parseFloat(pay_rate) || 28,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'driver_id' })
+  )
+  if (error) throw error
+}
+
 // ─── VEHICLE DOCUMENTS ─────────────────────────────────────
 export async function fetchVehicleDocuments(vehicleId) {
   let query = supabase.from('vehicle_documents').select('*').order('created_at', { ascending: false }).limit(200)

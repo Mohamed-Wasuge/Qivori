@@ -4,7 +4,7 @@ import { useApp } from '../../../context/AppContext'
 import { useCarrier } from '../../../context/CarrierContext'
 import { apiFetch } from '../../../lib/api'
 import { uploadFile } from '../../../lib/storage'
-import { fetchDQFiles, createDQFile, deleteDQFile } from '../../../lib/database'
+import { fetchDQFiles, createDQFile, deleteDQFile, fetchDriverPayMap, upsertDriverPay } from '../../../lib/database'
 import {
   Users, Phone, Send, UserPlus, Activity, Zap, Target, AlertTriangle, Siren,
   Check, FileCheck, FileText, Edit3 as PencilIcon, Trash2, Upload, X,
@@ -18,6 +18,11 @@ export function DriverProfiles() {
   const [showInviteUser, setShowInviteUser] = useState(false)
   const [invEmail, setInvEmail] = useState('')
   const [invSending, setInvSending] = useState(false)
+  const [payConfigMap, setPayConfigMap] = useState({})
+
+  useEffect(() => {
+    fetchDriverPayMap().then(m => setPayConfigMap(m)).catch(() => {})
+  }, [])
 
   const handleInviteAsUser = async (driverId, driverName) => {
     if (!invEmail) { showToast('error', 'Error', 'Email is required'); return }
@@ -75,8 +80,9 @@ export function DriverProfiles() {
     const mtdLoads = (loads || []).filter(l => l.driver === driverName && ['Delivered','Invoiced','Paid'].includes(l.status) && new Date(l.delivery_date || l.created_at || 0) >= startOfMonth)
     const mtdGross = mtdLoads.reduce((s,l) => s + (l.gross || 0), 0)
     const mtdMiles = mtdLoads.reduce((s,l) => s + (parseFloat(l.miles) || 0), 0)
-    const payModel = d.pay_model || 'percent'
-    const payRate = parseFloat(d.pay_rate) || 28
+    const payCfg = payConfigMap[d.id] || {}
+    const payModel = payCfg.pay_model || d.pay_model || 'percent'
+    const payRate = parseFloat(payCfg.pay_rate) || parseFloat(d.pay_rate) || 28
     const mtdPay = payModel === 'permile' ? Math.round(mtdMiles * payRate) : payModel === 'flat' ? Math.round(payRate * mtdLoads.length) : Math.round(mtdGross * (payRate / 100))
 
     return {
@@ -179,10 +185,11 @@ export function DriverProfiles() {
         license_expiry: editD.license_expiry || null, license_issued: editD.license_issued || null,
         medical_card_expiry: editD.medical_card_expiry || null,
         address: editD.address || null,
-        pay_model: editD.pay_model || 'percent',
-        pay_rate: editD.pay_rate ? parseFloat(editD.pay_rate) : null,
         ...(photoUrl && { photo_url: photoUrl }),
       })
+      // Save pay config to dedicated table (avoids ALTER TABLE permission issues)
+      await upsertDriverPay(selected, { pay_model: editD.pay_model || 'percent', pay_rate: editD.pay_rate || 28 })
+      setPayConfigMap(prev => ({ ...prev, [selected]: { pay_model: editD.pay_model || 'percent', pay_rate: parseFloat(editD.pay_rate) || 28 } }))
       showToast('success', 'Driver Updated', editD.name + ' updated successfully')
       resetUploads()
       setShowEdit(false)

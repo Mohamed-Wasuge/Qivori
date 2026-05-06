@@ -161,7 +161,17 @@ export function DriverProfiles() {
         try { const r = await uploadFile(photoFile, 'driver-photos'); photoUrl = r.url } catch {}
       }
       if (idDocFile) {
-        try { await uploadFile(idDocFile, 'driver-ids') } catch {}
+        try {
+          const idResult = await uploadFile(idDocFile, 'driver-ids')
+          await createDQFile({
+            driver_id: selected,
+            doc_type: 'cdl',
+            file_name: idDocFile.name,
+            file_url: idResult.url,
+            file_size: idDocFile.size,
+            notes: 'Auto-uploaded from Edit Driver',
+          })
+        } catch {}
       }
       await editDriver(selected, {
         full_name: editD.name, phone: editD.phone, email: editD.email,
@@ -176,6 +186,7 @@ export function DriverProfiles() {
       showToast('success', 'Driver Updated', editD.name + ' updated successfully')
       resetUploads()
       setShowEdit(false)
+      loadDriverDocs(selected)
     } catch (err) {
       showToast('error', 'Error', err.message || 'Failed to update driver')
     }
@@ -241,15 +252,19 @@ export function DriverProfiles() {
   const docInputRef = useRef(null)
 
   const DOC_TYPES = [
-    { value:'cdl_copy',         label:'CDL Copy' },
-    { value:'medical_card',     label:'Medical Card' },
-    { value:'drug_test',        label:'Drug Test Results' },
-    { value:'government_id',    label:'Government ID' },
-    { value:'mvr_report',       label:'MVR Report' },
-    { value:'employment_app',   label:'Employment Application' },
-    { value:'w4',               label:'W-4' },
-    { value:'background_check', label:'Background Check' },
-    { value:'other',            label:'Other' },
+    { value:'cdl',                 label:'CDL Copy' },
+    { value:'medical_card',        label:'Medical Card' },
+    { value:'drug_pre_employment', label:'Drug Test (Pre-Employment)' },
+    { value:'drug_random',         label:'Drug Test (Random)' },
+    { value:'drug_post_accident',  label:'Drug Test (Post-Accident)' },
+    { value:'mvr',                 label:'MVR Report' },
+    { value:'background_check',    label:'Background Check' },
+    { value:'application',         label:'Employment Application' },
+    { value:'w9',                  label:'W-9' },
+    { value:'direct_deposit',      label:'Direct Deposit Form' },
+    { value:'passport',            label:'Government ID / Passport' },
+    { value:'road_test',           label:'Road Test' },
+    { value:'other',               label:'Other' },
   ]
 
   const loadDriverDocs = useCallback(async (driverId) => {
@@ -273,7 +288,7 @@ export function DriverProfiles() {
       const result = await uploadFile(docFile, 'driver-ids')
       await createDQFile({
         driver_id: selected,
-        file_type: docType,
+        doc_type: docType,
         file_name: docFile.name,
         file_url: result.url,
         file_size: docFile.size,
